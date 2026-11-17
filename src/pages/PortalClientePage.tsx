@@ -1,0 +1,915 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  BookOpen,
+  Calendar,
+  CheckCircle2,
+  Copy,
+  Download,
+  FileText,
+  Handshake,
+  LogOut,
+  MessageCircle,
+  Shield,
+  Star,
+  Trash2,
+  Upload,
+  User,
+} from 'lucide-react';
+import { CalendlyModal } from '../components/CalendlyModal';
+import { LegalBaseModal } from '../components/LegalBaseModal';
+import { useApp } from '../contexts/AppContext';
+import { PIPELINE_STAGES } from '../data/seeds';
+import {
+  fetchClientPortalData,
+  makeId,
+  saveDocumentAudited,
+  uploadFileToServer,
+} from '../services/firestoreService';
+import type {
+  Appointment,
+  Budget,
+  Case,
+  CaseDocument,
+  Client,
+  Deadline,
+  Dependent,
+  FinancialRecord,
+  GeneratedDocument,
+  ViabilityAssessment,
+} from '../types/domain';
+import { calcularTermometroDocumentos } from '../utils/caseMetrics';
+import {
+  buildGoogleCalendarUrl,
+  buildWhatsAppUrl,
+  downloadIcsFile,
+  formatCurrency,
+  formatDateBR,
+  formatDateTimeBR,
+  maskPhoneBR,
+} from '../utils/formatters';
+
+interface PortalClientePageProps {
+  onNavigate: (path: string) => void;
+}
+
+type PortalTab = 'processo' | 'documentos' | 'financeiro' | 'suporte' | 'dados';
+
+export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
+  const { userProfile, empresa, partnersPublic, legalSources, logout } = useApp();
+  const [tab, setTab] = useState<PortalTab>('processo');
+  const [loading, setLoading] = useState(true);
+  const [client, setClient] = useState<Client | null>(null);
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [docs, setDocs] = useState<CaseDocument[]>([]);
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [assessments, setAssessments] = useState<ViabilityAssessment[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [financials, setFinancials] = useState<FinancialRecord[]>([]);
+  const [genDocs, setGenDocs] = useState<GeneratedDocument[]>([]);
+
+  const [calendlyOpen, setCalendlyOpen] = useState(false);
+  const [lawOpen, setLawOpen] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+
+  // Edição de dados próprios e dependentes
+  const [editNome, setEditNome] = useState('');
+  const [editWhats, setEditWhats] = useState('');
+  const [editEndereco, setEditEndereco] = useState('');
+  const [editProfissao, setEditProfissao] = useState('');
+  const [npsNota, setNpsNota] = useState(5);
+  const [npsComent, setNpsComent] = useState('');
+
+  const loadPortal = useCallback(async () => {
+    if (!userProfile?.clientId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await fetchClientPortalData(userProfile.clientId);
+      setClient(data.client);
+      setDependents(data.dependents);
+      setCases(data.cases);
+      setDocs(data.caseDocuments);
+      setDeadlines(data.deadlines);
+      setAppointments(data.appointments);
+      setAssessments(data.viabilityAssessments);
+      setBudgets(data.budgets);
+      setFinancials(data.financialRecords);
+      setGenDocs(data.generatedDocuments);
+      if (data.client) {
+        setEditNome(data.client.nomeCompleto || '');
+        setEditWhats(data.client.whatsapp || '');
+        setEditEndereco(data.client.enderecoCompleto || '');
+        setEditProfissao(data.client.profissao || '');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [userProfile?.clientId]);
+
+  useEffect(() => {
+    void loadPortal();
+  }, [loadPortal]);
+
+  if (!userProfile || userProfile.role !== 'cliente' || !userProfile.clientId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
+          <h1 className="text-xl font-bold text-slate-900">Portal do Cliente</h1>
+          <p className="text-sm text-slate-600">
+            Seu acesso ainda não está vinculado a um processo ativo ou aguarda liberação pelo consultor.
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigate('/acompanhar')}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Voltar para autenticação
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const activeCase = cases[0] || null;
+  const activeDocs = activeCase ? docs.filter((d) => d.caseId === activeCase.id) : docs;
+  const thermo = calcularTermometroDocumentos(activeDocs, empresa.bloqueioProtocoloMinimo || 100);
+  const needsLgpdAccept =
+    client && (!client.lgpdAceito || client.lgpdVersao !== (empresa.termoLgpdVersao || '1.0'));
+
+  const handleAcceptLgpd = async () => {
+    if (!client) return;
+    await saveDocumentAudited(
+      'clients',
+      client.id,
+      {
+        ...client,
+        lgpdAceito: true,
+        lgpdAceitoEm: new Date().toISOString(),
+        lgpdVersao: empresa.termoLgpdVersao || '1.0',
+      },
+      false,
+      'cliente',
+      'lgpdAceito',
+      client.lgpdAceito,
+    );
+    await loadPortal();
+  };
+
+  const handleUploadDoc = async (docItem: CaseDocument, file: File) => {
+    setUploadingDocId(docItem.id);
+    setFeedbackMsg(null);
+    try {
+      const uploaded = await uploadFileToServer(file);
+      const prevHist = docItem.historicoVersoes || [];
+      const nextHist = docItem.arquivoUrl
+        ? [...prevHist, { versao: docItem.versao, arquivoUrl: docItem.arquivoUrl, data: new Date().toISOString() }]
+        : prevHist;
+      await saveDocumentAudited(
+        'caseDocuments',
+        docItem.id,
+        {
+          ...docItem,
+          arquivoUrl: uploaded.url,
+          arquivoNome: uploaded.filename,
+          status: 'Enviado',
+          etapaEsteira: '2 Recebido/Triagem',
+          versao: docItem.arquivoUrl ? docItem.versao + 1 : docItem.versao,
+          historicoVersoes: nextHist,
+        },
+        false,
+        'cliente',
+        'arquivoUrl',
+        docItem.arquivoUrl,
+      );
+      setFeedbackMsg(`Documento "${docItem.nomeDocumento}" enviado com sucesso!`);
+      await loadPortal();
+    } catch (err) {
+      setFeedbackMsg(err instanceof Error ? err.message : 'Falha no envio do documento.');
+    } finally {
+      setUploadingDocId(null);
+    }
+  };
+
+  const handleBudgetDecision = async (b: Budget, decision: 'Aprovado' | 'Recusado') => {
+    await saveDocumentAudited(
+      'budgets',
+      b.id,
+      { ...b, status: decision, aprovadoEm: new Date().toISOString() },
+      false,
+      'cliente',
+      'status',
+      b.status,
+    );
+    setFeedbackMsg(`Orçamento ${b.numeroOrcamento} marcado como ${decision}.`);
+    await loadPortal();
+  };
+
+  const handleUploadComprovante = async (fin: FinancialRecord, file: File) => {
+    try {
+      const uploaded = await uploadFileToServer(file);
+      await saveDocumentAudited(
+        'financialRecords',
+        fin.id,
+        { ...fin, comprovanteUrl: uploaded.url },
+        false,
+        'cliente',
+        'comprovanteUrl',
+        fin.comprovanteUrl,
+      );
+      setFeedbackMsg('Comprovante enviado para conferência da consultoria.');
+      await loadPortal();
+    } catch (err) {
+      setFeedbackMsg(err instanceof Error ? err.message : 'Erro ao enviar comprovante.');
+    }
+  };
+
+  const handleSavePersonalData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!client) return;
+    await saveDocumentAudited(
+      'clients',
+      client.id,
+      {
+        ...client,
+        nomeCompleto: editNome,
+        whatsapp: editWhats,
+        enderecoCompleto: editEndereco,
+        profissao: editProfissao,
+      },
+      false,
+      'cliente',
+      'dados_pessoais',
+    );
+    setFeedbackMsg('Seus dados foram atualizados.');
+    await loadPortal();
+  };
+
+  const handleLgpdRequest = async (tipo: 'exportação' | 'exclusão') => {
+    if (!client) return;
+    const taskId = makeId('task');
+    await saveDocumentAudited(
+      'tasks',
+      taskId,
+      {
+        id: taskId,
+        titulo: `Solicitação LGPD de ${tipo} de dados — ${client.nomeCompleto}`,
+        descricao: `Titular solicitou ${tipo} dos dados pelo Portal do Cliente em ${formatDateTimeBR(new Date())}.`,
+        clientId: client.id,
+        caseId: activeCase?.id || '',
+        prioridade: 'Alta',
+        status: 'Pendente',
+        createdAt: new Date().toISOString(),
+      },
+      true,
+      'cliente',
+      `lgpd_${tipo}`,
+    );
+    setFeedbackMsg(`Solicitação de ${tipo} LGPD registrada com sucesso.`);
+  };
+
+  const handleSendNps = async () => {
+    if (!activeCase) return;
+    await saveDocumentAudited(
+      'cases',
+      activeCase.id,
+      { ...activeCase, npsNota, npsComentario: npsComent },
+      false,
+      'cliente',
+      'nps',
+    );
+    setFeedbackMsg('Obrigado pela sua avaliação!');
+    await loadPortal();
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
+      {/* Header do Portal */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <span
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              D&amp;M
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 truncate">Portal do Cliente</p>
+              <p className="text-xs text-slate-500 truncate">{client?.nomeCompleto || userProfile.nome}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => onNavigate('/')}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Site público
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sair
+            </button>
+          </div>
+        </div>
+
+        {/* 5 Abas responsivas */}
+        <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center gap-1 overflow-x-auto border-t border-slate-100">
+          {[
+            { id: 'processo', label: 'Meu Processo & Etapas' },
+            { id: 'documentos', label: 'Documentos & Prioridades' },
+            { id: 'financeiro', label: 'Orçamentos & Financeiro' },
+            { id: 'suporte', label: 'Agendamento & Suporte' },
+            { id: 'dados', label: 'Meus Dados & LGPD' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id as PortalTab)}
+              className={`px-3.5 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
+                tab === item.id
+                  ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-semibold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        {feedbackMsg && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900 flex items-center justify-between gap-2">
+            <span>{feedbackMsg}</span>
+            <button type="button" onClick={() => setFeedbackMsg(null)} className="text-xs underline">
+              Fechar
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+            Carregando informações do seu processo...
+          </div>
+        ) : (
+          <>
+            {/* ABA 1: PROCESSO & ETAPAS */}
+            {tab === 'processo' && (
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-xl p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">
+                        {activeCase ? `${activeCase.tipoServico} · SERMIG: ${activeCase.statusSermig}` : 'Processo em estruturação'}
+                      </p>
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+                        {activeCase?.titulo || 'Acompanhamento de Residência no Chile'}
+                      </h1>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs text-slate-500">Prontidão Documental</p>
+                      <p className="text-2xl font-bold tabular-nums" style={{ color: thermo.corHex }}>
+                        {thermo.notaGeral}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 mb-6">
+                    <div className="flex justify-between text-xs font-semibold text-slate-700 mb-2">
+                      <span>
+                        {thermo.faltantesObrigatorios === 0
+                          ? 'Todos os documentos obrigatórios foram aprovados!'
+                          : `Faltam ${thermo.faltantesObrigatorios} documento(s). Seu processo está ${thermo.notaGeral}% pronto.`}
+                      </span>
+                      <span className="tabular-nums">{thermo.notaGeral}%</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${thermo.notaGeral}%`, backgroundColor: thermo.corHex }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Linha do tempo 15 etapas */}
+                  <h2 className="text-sm font-semibold text-slate-900 mb-3">Linha do tempo do processo</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                    {PIPELINE_STAGES.map((st) => {
+                      const current = activeCase?.etapaPipeline || 1;
+                      const done = st.numero < current;
+                      const active = st.numero === current;
+                      return (
+                        <div
+                          key={st.numero}
+                          className={`p-3 rounded-lg border text-xs ${
+                            active
+                              ? 'border-[var(--color-primary)] bg-slate-900 text-white'
+                              : done
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                : 'border-slate-200 bg-white text-slate-500'
+                          }`}
+                        >
+                          <p className="font-bold tabular-nums">Etapa {st.numero}</p>
+                          <p className="mt-0.5 leading-snug">{st.nome}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Parecer liberado pelo consultor */}
+                {activeCase?.relatorioViabilidadeLiberado && assessments.length > 0 && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                    <h2 className="text-base font-semibold text-slate-900">Parecer Técnico Liberado</h2>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{assessments[0].enquadramentoLegal}</p>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{assessments[0].recomendacoes}</p>
+                  </div>
+                )}
+
+                {/* Documentos emitidos liberados */}
+                {genDocs.length > 0 && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                    <h2 className="text-base font-semibold text-slate-900">Documentos Oficiais Disponíveis</h2>
+                    {genDocs.map((gd) => (
+                      <div key={gd.id} className="p-4 rounded-lg border border-slate-200 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{gd.titulo}</p>
+                          <p className="text-xs text-slate-500">Versão {gd.versao} · Emitido em {formatDateBR(gd.createdAt)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                        >
+                          Imprimir / PDF
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pesquisa NPS após Protocolo (7) ou Aprovação */}
+                {activeCase && (activeCase.etapaPipeline >= 7 || activeCase.statusSermig === 'Aprovado') && !activeCase.npsNota && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                    <h2 className="text-base font-semibold text-slate-900">Como está sendo sua experiência com a D&amp;M Integra Chile?</h2>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setNpsNota(n)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1 ${
+                            npsNota === n ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]' : 'bg-white text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={npsComent}
+                      onChange={(e) => setNpsComent(e.target.value)}
+                      placeholder="Deixe um comentário opcional..."
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendNps}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      Enviar avaliação
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ABA 2: DOCUMENTOS & PRIORIDADES */}
+            {tab === 'documentos' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Relação Priorizada de Documentos</h2>
+                  <p className="text-xs text-slate-500">
+                    Envie PDF, JPG ou PNG de até 10 MB respeitando a ordem sugerida para preservar validades curtas (ex.: Antecedentes 60 dias).
+                  </p>
+                </div>
+
+                {activeDocs.length === 0 ? (
+                  <p className="text-sm text-slate-600 py-6 text-center">Nenhum item documental gerado ainda para este processo.</p>
+                ) : (
+                  <div className="divide-y divide-slate-200">
+                    {[...activeDocs]
+                      .sort((a, b) => a.ordemEmissao - b.ordemEmissao)
+                      .map((d) => (
+                        <div key={d.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <p className="text-xs text-slate-500">
+                              Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
+                              {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
+                            </p>
+                            <p className="text-sm font-semibold text-slate-900">{d.nomeDocumento}</p>
+                            <p className="text-xs font-medium" style={{ color: d.status === 'Aprovado' ? '#1E7E34' : d.status === 'Reprovado' ? '#C82333' : '#0F2537' }}>
+                              Status: {d.status} · Etapa: {d.etapaEsteira} · Versão {d.versao}
+                            </p>
+                            {d.motivoReprovacao && (
+                              <p className="text-xs text-[#C82333]">Motivo da pendência: {d.motivoReprovacao}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {d.arquivoUrl && (
+                              <a
+                                href={d.arquivoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                Ver enviado
+                              </a>
+                            )}
+                            <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ backgroundColor: 'var(--color-primary)' }}>
+                              <Upload className="w-3.5 h-3.5" />
+                              {uploadingDocId === d.id ? 'Enviando...' : d.arquivoUrl ? 'Reenviar' : 'Enviar arquivo'}
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                className="hidden"
+                                disabled={uploadingDocId === d.id}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) void handleUploadDoc(d, f);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ABA 3: ORÇAMENTOS & FINANCEIRO */}
+            {tab === 'financeiro' && (
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                  <h2 className="text-lg font-bold text-slate-900">Orçamentos Recebidos</h2>
+                  {budgets.length === 0 ? (
+                    <p className="text-sm text-slate-600">Nenhum orçamento enviado até o momento.</p>
+                  ) : (
+                    budgets.map((b) => (
+                      <div key={b.id} className="p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs text-slate-500">
+                              Nº {b.numeroOrcamento} · Validade {formatDateBR(b.validade)} · Status: {b.status}
+                            </p>
+                            <h3 className="text-base font-semibold text-slate-900">{b.titulo}</h3>
+                          </div>
+                          <p className="text-lg font-bold tabular-nums text-slate-900">
+                            {formatCurrency(b.totalGeral, b.moedaPrincipal)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-slate-600">{b.condicoesPagamento}</p>
+                        {b.status === 'Enviado ao Cliente' && (
+                          <div className="flex flex-wrap gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleBudgetDecision(b, 'Aprovado')}
+                              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                            >
+                              Aprovar orçamento
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBudgetDecision(b, 'Recusado')}
+                              className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700"
+                            >
+                              Recusar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Pix e Pagamento */}
+                {(empresa.chavePix || empresa.linkPagamentoCartao) && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                    <h2 className="text-base font-semibold text-slate-900">Opções de Pagamento</h2>
+                    {empresa.chavePix && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                        <div className="text-xs">
+                          <span className="font-semibold text-slate-700">Chave Pix:</span>{' '}
+                          <span className="font-mono text-slate-900">{empresa.chavePix}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(empresa.chavePix);
+                            setPixCopied(true);
+                            setTimeout(() => setPixCopied(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          {pixCopied ? 'Copiado!' : 'Copiar Pix'}
+                        </button>
+                      </div>
+                    )}
+                    {empresa.linkPagamentoCartao && (
+                      <a
+                        href={empresa.linkPagamentoCartao}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                        style={{ backgroundColor: 'var(--color-primary)' }}
+                      >
+                        Pagar com Cartão
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                  <h2 className="text-base font-semibold text-slate-900">Parcelas e Lançamentos</h2>
+                  {financials.length === 0 ? (
+                    <p className="text-sm text-slate-600">Nenhuma parcela lançada.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {financials.map((f) => (
+                        <div key={f.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{f.descricao}</p>
+                            <p className="text-xs text-slate-500">
+                              {f.tipo} · Vencimento {formatDateBR(f.vencimento)} · Status: {f.status}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold tabular-nums">{formatCurrency(f.valor, f.moeda)}</span>
+                            <label className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 cursor-pointer hover:bg-slate-50">
+                              {f.comprovanteUrl ? 'Atualizar comprovante' : 'Anexar comprovante'}
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) void handleUploadComprovante(f, file);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ABA 4: AGENDAMENTO & SUPORTE */}
+            {tab === 'suporte' && (
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Agendamento e Canais de Atendimento</h2>
+                    <p className="text-xs text-slate-500">Marque reuniões, adicione prazos ao Google Agenda ou tire dúvidas no WhatsApp.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCalendlyOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Agendar no Calendly
+                    </button>
+                    <a
+                      href={buildWhatsAppUrl(empresa.whatsapp, `Olá! Sou ${client?.nomeCompleto} e gostaria de falar sobre meu processo.`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Falar no WhatsApp
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setLawOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      Entenda a Lei
+                    </button>
+                  </div>
+                </div>
+
+                {/* Reuniões e Prazos com Google Agenda e .ics */}
+                <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                  <h3 className="text-base font-semibold text-slate-900">Minhas Reuniões e Prazos</h3>
+                  {appointments.length === 0 && deadlines.length === 0 ? (
+                    <p className="text-sm text-slate-600">Nenhuma reunião ou prazo cadastrado ainda.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {appointments.map((apt) => (
+                        <div key={apt.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{apt.titulo}</p>
+                            <p className="text-xs text-slate-500">
+                              {formatDateTimeBR(apt.dataHoraInicio)} · {apt.status}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <a
+                              href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              Google Agenda
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => downloadIcsFile({ title: apt.titulo, startIso: apt.dataHoraInicio })}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              Baixar .ics
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {deadlines.map((dl) => (
+                        <div key={dl.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{dl.titulo}</p>
+                            <p className="text-xs text-slate-500">
+                              {dl.tipo} · Data limite: {formatDateBR(dl.dataLimite)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Baixar .ics
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Parceiros recomendados */}
+                <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Handshake className="w-5 h-5 text-[var(--color-accent)]" />
+                    <h3 className="text-base font-semibold text-slate-900">Parceiros Recomendados</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {partnersPublic.map((p) => (
+                      <div key={p.id} className="p-4 rounded-lg border border-slate-200">
+                        <p className="text-xs text-slate-500">{p.categoria} · {p.pais}</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-1">{p.nome}</p>
+                        <p className="text-xs text-slate-600 mt-1">{p.descricaoPublica}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ABA 5: MEUS DADOS & LGPD */}
+            {tab === 'dados' && (
+              <div className="space-y-6">
+                <form onSubmit={handleSavePersonalData} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <User className="w-5 h-5 text-[var(--color-primary)]" />
+                    <h2 className="text-lg font-bold text-slate-900">Meus Dados Cadastrais</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="pt-nome">Nome completo</label>
+                      <input id="pt-nome" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="pt-whats">WhatsApp</label>
+                      <input id="pt-whats" value={editWhats} onChange={(e) => setEditWhats(maskPhoneBR(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="pt-prof">Profissão</label>
+                      <input id="pt-prof" value={editProfissao} onChange={(e) => setEditProfissao(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="pt-end">Endereço completo</label>
+                      <input id="pt-end" value={editEndereco} onChange={(e) => setEditEndereco(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Salvar alterações
+                  </button>
+                </form>
+
+                {dependents.length > 0 && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-2">
+                    <h3 className="text-base font-semibold text-slate-900">Dependentes Vinculados</h3>
+                    {dependents.map((dep) => (
+                      <p key={dep.id} className="text-sm text-slate-700">
+                        {dep.nomeCompleto} · {dep.parentesco}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-[var(--color-primary)]" />
+                    <h3 className="text-base font-semibold text-slate-900">Privacidade e Direitos LGPD (Lei nº 13.709/2018)</h3>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Consentimento registrado na versão {client?.lgpdVersao || empresa.termoLgpdVersao}
+                    {client?.lgpdAceitoEm ? ` em ${formatDateTimeBR(client.lgpdAceitoEm)}` : ''}.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleLgpdRequest('exportação')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Solicitar exportação de dados
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLgpdRequest('exclusão')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Solicitar exclusão de dados
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+
+      <footer className="bg-white border-t border-slate-200 py-5 px-4 sm:px-6 text-xs text-slate-500 text-center">
+        {empresa.avisoLegal}
+      </footer>
+
+      {/* Modal obrigatório LGPD no 1º acesso */}
+      {needsLgpdAccept && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl max-w-xl w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-[var(--color-primary)]" />
+              <h2 className="text-lg font-bold text-slate-900">
+                Aceite LGPD Obrigatório (Versão {empresa.termoLgpdVersao})
+              </h2>
+            </div>
+            <div className="max-h-60 overflow-y-auto p-4 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-700 whitespace-pre-wrap">
+              {empresa.termoLgpd}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleAcceptLgpd}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                Li e aceito o Termo LGPD
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} clientId={client?.id} caseId={activeCase?.id} onConfirmed={loadPortal} />
+      <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a Lei" sources={legalSources} clientFriendlyOnly />
+    </div>
+  );
+};

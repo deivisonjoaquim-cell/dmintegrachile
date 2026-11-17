@@ -1,0 +1,512 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Usuário autenticado no sistema com papel RBAC e perfil institucional opcional.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nome": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 200 },
+        "fotoUrl": { "type": "string", "maxLength": 1000 },
+        "role": { "type": "string", "enum": ["admin", "consultor", "assistente", "cliente"] },
+        "status": { "type": "string", "enum": ["ativo", "pendente", "inativo"] },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "quemSomosBio": { "type": "string", "maxLength": 5000 },
+        "quemSomosFormacao": { "type": "string", "maxLength": 2000 },
+        "quemSomosExperiencia": { "type": "string", "maxLength": 2000 },
+        "quemSomosMissao": { "type": "string", "maxLength": 2000 },
+        "quemSomosCredenciais": { "type": "string", "maxLength": 2000 },
+        "quemSomosFotoUrl": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "nome", "email", "role", "status"]
+    },
+    "EmpresaConfig": {
+      "title": "EmpresaConfig",
+      "description": "Configurações institucionais, aparência, contatos e parâmetros operacionais.",
+      "type": "object",
+      "properties": {
+        "nome_empresa": { "type": "string", "maxLength": 200 },
+        "razao_social_cnpj_rut": { "type": "string", "maxLength": 200 },
+        "responsavel_tecnico": { "type": "string", "maxLength": 200 },
+        "endereco_cidade": { "type": "string", "maxLength": 300 },
+        "foro_comarca": { "type": "string", "maxLength": 300 },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "corPrimaria": { "type": "string", "maxLength": 20 },
+        "corDestaque": { "type": "string", "maxLength": 20 },
+        "corFundo": { "type": "string", "maxLength": 20 },
+        "fontePrincipal": { "type": "string", "enum": ["Inter", "Plus Jakarta Sans", "Merriweather", "Montserrat"] },
+        "whatsapp": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 200 },
+        "siteInstagram": { "type": "string", "maxLength": 300 },
+        "linkCalendly": { "type": "string", "maxLength": 500 },
+        "emailGoogleAgenda": { "type": "string", "maxLength": 200 },
+        "chavePix": { "type": "string", "maxLength": 200 },
+        "linkPagamentoCartao": { "type": "string", "maxLength": 500 },
+        "textoContratoPadrao": { "type": "string", "maxLength": 20000 },
+        "textoReciboPadrao": { "type": "string", "maxLength": 5000 },
+        "termoLgpd": { "type": "string", "maxLength": 15000 },
+        "termoLgpdVersao": { "type": "string", "maxLength": 30 },
+        "avisoLegal": { "type": "string", "maxLength": 1000 },
+        "bloqueioProtocoloMinimo": { "type": "number" },
+        "diasAlertaRevisaoLegal": { "type": "number" },
+        "diasExpiracaoLinkDiagnostico": { "type": "number" },
+        "honorariosPadraoMinBrl": { "type": "number" },
+        "honorariosPadraoMaxBrl": { "type": "number" },
+        "taxaCambioBrlClp": { "type": "number" },
+        "taxaCambioUsdBrl": { "type": "number" }
+      },
+      "required": ["nome_empresa", "foro_comarca", "corPrimaria", "corDestaque", "corFundo", "fontePrincipal"]
+    },
+    "BancarioConfig": {
+      "title": "BancarioConfig",
+      "description": "Dados bancários restritos exclusivamente a administradores.",
+      "type": "object",
+      "properties": {
+        "dados_bancarios_br": { "type": "string", "maxLength": 2000 },
+        "dados_bancarios_cl": { "type": "string", "maxLength": 2000 },
+        "dados_wise": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "SiteContent": {
+      "title": "SiteContent",
+      "description": "Seção editável do site público via CMS.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "secao": { "type": "string", "maxLength": 64 },
+        "titulo": { "type": "string", "maxLength": 300 },
+        "subtitulo": { "type": "string", "maxLength": 600 },
+        "conteudoHtml": { "type": "string", "maxLength": 20000 },
+        "imagemUrl": { "type": "string", "maxLength": 1000 },
+        "ordem": { "type": "number" },
+        "ativo": { "type": "boolean" }
+      },
+      "required": ["secao", "titulo", "ordem", "ativo"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Registro imutável de auditoria.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "maxLength": 40 },
+        "acao": { "type": "string", "maxLength": 100 },
+        "entidade": { "type": "string", "maxLength": 100 },
+        "entidadeId": { "type": "string", "maxLength": 128 },
+        "campo": { "type": "string", "maxLength": 120 },
+        "antes": { "type": "string", "maxLength": 4000 },
+        "depois": { "type": "string", "maxLength": 4000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "acao", "entidade", "entidadeId"]
+    },
+    "PartnerProposal": {
+      "title": "PartnerProposal",
+      "description": "Proposta pública enviada no formulário Seja um Parceiro.",
+      "type": "object",
+      "properties": {
+        "nome_empresa": { "type": "string", "maxLength": 200 },
+        "categoria": { "type": "string", "maxLength": 100 },
+        "pais": { "type": "string", "enum": ["Brasil", "Chile", "Ambos"] },
+        "cidade": { "type": "string", "maxLength": 150 },
+        "responsavel": { "type": "string", "maxLength": 150 },
+        "whatsapp": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 200 },
+        "moeda": { "type": "string", "enum": ["BRL", "CLP", "USD"] },
+        "proposta": { "type": "string", "maxLength": 3000 },
+        "mensagem": { "type": "string", "maxLength": 3000 },
+        "status": { "type": "string", "enum": ["Nova", "Em Análise", "Aprovada", "Recusada"] }
+      },
+      "required": ["nome_empresa", "categoria", "pais", "responsavel", "whatsapp", "email", "moeda", "status"]
+    },
+    "Partner": {
+      "title": "Partner",
+      "description": "Parceiro cadastrado com comissões internas (nunca públicas).",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "maxLength": 200 },
+        "tipoPessoa": { "type": "string", "maxLength": 60 },
+        "categoria": { "type": "string", "maxLength": 100 },
+        "pais": { "type": "string", "maxLength": 60 },
+        "cidadeRegiao": { "type": "string", "maxLength": 150 },
+        "contato": { "type": "string", "maxLength": 150 },
+        "whatsapp": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 200 },
+        "siteInstagram": { "type": "string", "maxLength": 300 },
+        "moedaNegociacao": { "type": "string", "enum": ["BRL", "CLP", "USD"] },
+        "tabelaValoresComissao": { "type": "string", "maxLength": 2000 },
+        "condicoesParceria": { "type": "string", "maxLength": 2000 },
+        "recomendadoAosClientes": { "type": "boolean" },
+        "avaliacao": { "type": "number" },
+        "statusHomologacao": { "type": "string", "enum": ["Ativo/Indicado", "Em Análise", "Não Indicado/Suspenso"] }
+      },
+      "required": ["nome", "categoria", "pais", "recomendadoAosClientes", "statusHomologacao"]
+    },
+    "PartnerPublic": {
+      "title": "PartnerPublic",
+      "description": "Projeção pública sem comissões de parceiros homologados e recomendados.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "maxLength": 200 },
+        "categoria": { "type": "string", "maxLength": 100 },
+        "pais": { "type": "string", "maxLength": 60 },
+        "cidadeRegiao": { "type": "string", "maxLength": 150 },
+        "whatsapp": { "type": "string", "maxLength": 40 },
+        "siteInstagram": { "type": "string", "maxLength": 300 },
+        "avaliacao": { "type": "number" },
+        "descricaoPublica": { "type": "string", "maxLength": 1000 },
+        "recomendadoAosClientes": { "type": "boolean" },
+        "statusHomologacao": { "type": "string", "enum": ["Ativo/Indicado"] }
+      },
+      "required": ["nome", "categoria", "pais", "recomendadoAosClientes", "statusHomologacao"]
+    },
+    "LegalSource": {
+      "title": "LegalSource",
+      "description": "Fonte normativa oficial chilena, brasileira ou Mercosul.",
+      "type": "object",
+      "properties": {
+        "titulo": { "type": "string", "maxLength": 300 },
+        "tipo": { "type": "string", "maxLength": 60 },
+        "pais": { "type": "string", "enum": ["Chile", "Brasil", "Mercosul"] },
+        "numeroAno": { "type": "string", "maxLength": 100 },
+        "orgaoEmissor": { "type": "string", "maxLength": 200 },
+        "artigos": { "type": "string", "maxLength": 1000 },
+        "resumoPortugues": { "type": "string", "maxLength": 5000 },
+        "explicacaoCliente": { "type": "string", "maxLength": 5000 },
+        "linkOficial": { "type": "string", "maxLength": 1000 },
+        "versao": { "type": "string", "maxLength": 40 },
+        "statusVigencia": { "type": "string", "enum": ["Vigente", "Alterada", "Revogada", "A verificar"] }
+      },
+      "required": ["titulo", "tipo", "pais", "statusVigencia"]
+    },
+    "VisaCategory": {
+      "title": "VisaCategory",
+      "description": "Subcategoria de Residência Temporal ou fluxo migratório.",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "string", "maxLength": 20 },
+        "nomeEspanhol": { "type": "string", "maxLength": 250 },
+        "nomePortugues": { "type": "string", "maxLength": 250 },
+        "descricao": { "type": "string", "maxLength": 2000 },
+        "permiteDentroChile": { "type": "string", "enum": ["Sim", "Não", "Condicional"] },
+        "vigenciaMeses": { "type": "number" },
+        "levaDefinitiva": { "type": "boolean" },
+        "permiteTrabalhar": { "type": "boolean" },
+        "exigeRenda": { "type": "boolean" },
+        "brasileirosElegiveis": { "type": "boolean" },
+        "ativo": { "type": "boolean" },
+        "statusVerificacao": { "type": "string", "enum": ["Verificado", "A verificar"] }
+      },
+      "required": ["codigo", "nomeEspanhol", "nomePortugues", "permiteDentroChile", "ativo"]
+    },
+    "VisaRequirement": {
+      "title": "VisaRequirement",
+      "description": "Requisito documental vinculado a uma subcategoria.",
+      "type": "object",
+      "properties": {
+        "visaCategoryId": { "type": "string", "maxLength": 128 },
+        "nomeDocumento": { "type": "string", "maxLength": 250 },
+        "categoriaDoc": { "type": "string", "maxLength": 100 },
+        "obrigatorio": { "type": "boolean" },
+        "peso": { "type": "number" },
+        "ordemPrioridadeEmissao": { "type": "number" },
+        "exigeApostila": { "type": "boolean" },
+        "exigeTraducao": { "type": "boolean" },
+        "validadeDias": { "type": "number" }
+      },
+      "required": ["visaCategoryId", "nomeDocumento", "categoriaDoc", "obrigatorio", "peso"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Lead originado do diagnóstico inteligente ou captação.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "maxLength": 200 },
+        "whatsapp": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 200 },
+        "cidadeUf": { "type": "string", "maxLength": 150 },
+        "origem": { "type": "string", "enum": ["Instagram", "Indicação", "Site", "Parceiro", "Outro"] },
+        "statusFunil": { "type": "string", "enum": ["Novo", "Contatado", "Diagnóstico Agendado", "Orçamento Enviado", "Fechado", "Perido", "Perdido"] },
+        "subcategoriaSugerida": { "type": "string", "maxLength": 200 },
+        "notaViabilidade": { "type": "number" },
+        "confianca": { "type": "string", "enum": ["Alta", "Média", "Baixa"] },
+        "temperatura": { "type": "string", "enum": ["Quente", "Morno", "Frio"] },
+        "versaoRegras": { "type": "string", "maxLength": 80 },
+        "sessionToken": { "type": "string", "maxLength": 128 },
+        "statusConclusao": { "type": "string", "enum": ["Em andamento", "Concluído", "Abandonado"] },
+        "etapaAtual": { "type": "number" },
+        "utmSource": { "type": "string", "maxLength": 120 },
+        "utmMedium": { "type": "string", "maxLength": 120 },
+        "utmCampaign": { "type": "string", "maxLength": 120 },
+        "primeiroContatoEm": { "type": "string", "maxLength": 64 },
+        "lgpdAceito": { "type": "boolean" },
+        "lgpdVersao": { "type": "string", "maxLength": 30 }
+      },
+      "required": ["nome", "whatsapp", "email", "origem", "statusFunil", "lgpdAceito"]
+    },
+    "DiagnosticSession": {
+      "title": "DiagnosticSession",
+      "description": "Sessão tokenizada do diagnóstico público para salvar/retomar e consultar resultado.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "etapaAtual": { "type": "number" },
+        "concluido": { "type": "boolean" },
+        "leadId": { "type": "string", "maxLength": 128 },
+        "expiraEmMs": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "etapaAtual", "concluido", "expiraEmMs", "createdAt", "updatedAt"]
+    },
+    "DiagnosticRuleVersion": {
+      "title": "DiagnosticRuleVersion",
+      "description": "Versão estruturada sem código das regras de pontuação e ajustes do motor de diagnóstico.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "versao": { "type": "string", "maxLength": 60 },
+        "dataPublicacao": { "type": "string", "maxLength": 64 },
+        "publicadoPor": { "type": "string", "maxLength": 200 },
+        "ativa": { "type": "boolean" },
+        "resumoMudanca": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "versao", "ativa", "regras"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Cliente cadastrado da consultoria.",
+      "type": "object",
+      "properties": {
+        "nomeCompleto": { "type": "string", "maxLength": 200 },
+        "cpf": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "maxLength": 200 },
+        "whatsapp": { "type": "string", "maxLength": 40 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "portalLiberado": { "type": "boolean" },
+        "statusAcessoPortal": { "type": "string", "enum": ["Não solicitado", "Pendente liberação", "Liberado"] }
+      },
+      "required": ["nomeCompleto", "email", "whatsapp", "portalLiberado", "statusAcessoPortal"]
+    },
+    "Dependent": {
+      "title": "Dependent",
+      "description": "Dependente familiar vinculado a um cliente.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "maxLength": 128 },
+        "nomeCompleto": { "type": "string", "maxLength": 200 },
+        "parentesco": { "type": "string", "maxLength": 80 }
+      },
+      "required": ["clientId", "nomeCompleto", "parentesco"]
+    },
+    "Case": {
+      "title": "Case",
+      "description": "Processo migratório ativo sem dados financeiros sensíveis.",
+      "type": "object",
+      "properties": {
+        "titulo": { "type": "string", "maxLength": 250 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "consultorId": { "type": "string", "maxLength": 128 },
+        "tipoServico": { "type": "string", "maxLength": 100 },
+        "visaCategoryId": { "type": "string", "maxLength": 128 },
+        "etapaPipeline": { "type": "number" },
+        "statusSermig": { "type": "string", "maxLength": 80 },
+        "portalLiberado": { "type": "boolean" },
+        "relatorioViabilidadeLiberado": { "type": "boolean" }
+      },
+      "required": ["titulo", "clientId", "tipoServico", "etapaPipeline", "statusSermig"]
+    },
+    "CaseFinancialSummary": {
+      "title": "CaseFinancialSummary",
+      "description": "Resumo financeiro do caso (restrito a admin/consultor, inacessível a assistente).",
+      "type": "object",
+      "properties": {
+        "caseId": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "valorContrato": { "type": "number" },
+        "moeda": { "type": "string", "enum": ["BRL", "CLP", "USD"] }
+      },
+      "required": ["caseId", "clientId", "valorContrato", "moeda"]
+    },
+    "CaseDocument": {
+      "title": "CaseDocument",
+      "description": "Documento do checklist com esteira, versões e análise.",
+      "type": "object",
+      "properties": {
+        "caseId": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "pessoa": { "type": "string", "maxLength": 120 },
+        "nomeDocumento": { "type": "string", "maxLength": 250 },
+        "categoriaDoc": { "type": "string", "maxLength": 100 },
+        "etapaEsteira": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["Pendente", "Enviado", "Em análise", "Aprovado", "Reprovado", "Vencido"] },
+        "versao": { "type": "number" }
+      },
+      "required": ["caseId", "clientId", "pessoa", "nomeDocumento", "status", "versao"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Tarefa operacional vinculada a um caso ou cliente.",
+      "type": "object",
+      "properties": {
+        "titulo": { "type": "string", "maxLength": 250 },
+        "caseId": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Pendente", "Em andamento", "Concluída"] }
+      },
+      "required": ["titulo", "status"]
+    },
+    "Deadline": {
+      "title": "Deadline",
+      "description": "Prazo crítico ou vencimento.",
+      "type": "object",
+      "properties": {
+        "titulo": { "type": "string", "maxLength": 250 },
+        "tipo": { "type": "string", "maxLength": 100 },
+        "dataLimite": { "type": "string", "maxLength": 40 },
+        "caseId": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "concluido": { "type": "boolean" }
+      },
+      "required": ["titulo", "tipo", "dataLimite", "concluido"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Agendamento ou reunião de consultoria.",
+      "type": "object",
+      "properties": {
+        "titulo": { "type": "string", "maxLength": 250 },
+        "dataHoraInicio": { "type": "string", "maxLength": 50 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "caseId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Agendado", "Confirmado", "Realizado", "Cancelado"] }
+      },
+      "required": ["titulo", "dataHoraInicio", "status"]
+    },
+    "CommunicationLog": {
+      "title": "CommunicationLog",
+      "description": "Registro de contato via WhatsApp ou e-mail.",
+      "type": "object",
+      "properties": {
+        "canal": { "type": "string", "enum": ["WhatsApp", "E-mail", "Ligação", "Sistema"] },
+        "assunto": { "type": "string", "maxLength": 250 },
+        "mensagem": { "type": "string", "maxLength": 5000 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "caseId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["canal", "assunto"]
+    },
+    "ViabilityAssessment": {
+      "title": "ViabilityAssessment",
+      "description": "Parecer técnico versionado vinculado ao caso.",
+      "type": "object",
+      "properties": {
+        "caseId": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "versao": { "type": "number" },
+        "liberadoAoCliente": { "type": "boolean" }
+      },
+      "required": ["caseId", "clientId", "versao", "liberadoAoCliente"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Orçamento de assessoria e taxas (inacessível a assistentes).",
+      "type": "object",
+      "properties": {
+        "numeroOrcamento": { "type": "string", "maxLength": 40 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "caseId": { "type": "string", "maxLength": 128 },
+        "titulo": { "type": "string", "maxLength": 250 },
+        "moedaPrincipal": { "type": "string", "enum": ["BRL", "CLP", "USD"] },
+        "status": { "type": "string", "enum": ["Rascunho", "Enviado ao Cliente", "Aprovado", "Recusado", "Parcialmente Faturado"] }
+      },
+      "required": ["numeroOrcamento", "titulo", "moedaPrincipal", "status"]
+    },
+    "FinancialRecord": {
+      "title": "FinancialRecord",
+      "description": "Lançamento financeiro (inacessível a assistentes).",
+      "type": "object",
+      "properties": {
+        "caseId": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "tipo": { "type": "string", "enum": ["Honorários", "Taxa SERMIG", "Apostila/Tradução", "Despachante/Outros"] },
+        "descricao": { "type": "string", "maxLength": 250 },
+        "moeda": { "type": "string", "enum": ["BRL", "CLP", "USD"] },
+        "valor": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pendente", "Pago", "Atrasado"] }
+      },
+      "required": ["tipo", "descricao", "moeda", "valor", "status"]
+    },
+    "MessageTemplate": {
+      "title": "MessageTemplate",
+      "description": "Modelo de mensagem com variáveis dinâmicas.",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "string", "maxLength": 80 },
+        "titulo": { "type": "string", "maxLength": 200 },
+        "canal": { "type": "string", "enum": ["WhatsApp", "E-mail", "Ambos"] },
+        "corpo": { "type": "string", "maxLength": 5000 }
+      },
+      "required": ["codigo", "titulo", "corpo"]
+    },
+    "DocumentTemplate": {
+      "title": "DocumentTemplate",
+      "description": "Modelo de documento/contrato institucional.",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "string", "maxLength": 80 },
+        "titulo": { "type": "string", "maxLength": 200 },
+        "conteudoHtml": { "type": "string", "maxLength": 30000 }
+      },
+      "required": ["codigo", "titulo", "conteudoHtml"]
+    },
+    "GeneratedDocument": {
+      "title": "GeneratedDocument",
+      "description": "Documento gerado para o cliente/caso.",
+      "type": "object",
+      "properties": {
+        "tipo": { "type": "string", "maxLength": 80 },
+        "titulo": { "type": "string", "maxLength": 250 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "caseId": { "type": "string", "maxLength": 128 },
+        "liberadoAoCliente": { "type": "boolean" },
+        "financeiro": { "type": "boolean" }
+      },
+      "required": ["tipo", "titulo", "clientId", "liberadoAoCliente"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": { "$ref": "#/entities/UserProfile" }, "description": "Perfis e papéis RBAC dos usuários" },
+    "/config/{docId}": { "schema": { "$ref": "#/entities/EmpresaConfig" }, "description": "Configuração empresa (pública) e bancário (somente admin)" },
+    "/siteContent/{sectionId}": { "schema": { "$ref": "#/entities/SiteContent" }, "description": "Conteúdo CMS do site público" },
+    "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Trilha de auditoria append-only" },
+    "/partnerProposals/{proposalId}": { "schema": { "$ref": "#/entities/PartnerProposal" }, "description": "Propostas enviadas no formulário Seja um Parceiro" },
+    "/partners/{partnerId}": { "schema": { "$ref": "#/entities/Partner" }, "description": "Cadastro interno de parceiros com comissões" },
+    "/partnersPublic/{partnerId}": { "schema": { "$ref": "#/entities/PartnerPublic" }, "description": "Projeção pública de parceiros indicados sem comissões" },
+    "/legalSources/{sourceId}": { "schema": { "$ref": "#/entities/LegalSource" }, "description": "Base normativa verificada" },
+    "/visaCategories/{categoryId}": { "schema": { "$ref": "#/entities/VisaCategory" }, "description": "Subcategorias migratórias" },
+    "/visaRequirements/{reqId}": { "schema": { "$ref": "#/entities/VisaRequirement" }, "description": "Requisitos documentais por subcategoria" },
+    "/leads/{leadId}": { "schema": { "$ref": "#/entities/Lead" }, "description": "Leads captados pelo diagnóstico" },
+    "/diagnosticSessions/{token}": { "schema": { "$ref": "#/entities/DiagnosticSession" }, "description": "Sessões tokenizadas para salvar/retomar diagnóstico" },
+    "/diagnosticRuleVersions/{versionId}": { "schema": { "$ref": "#/entities/DiagnosticRuleVersion" }, "description": "Versões publicadas de regras do diagnóstico sem código" },
+    "/clients/{clientId}": { "schema": { "$ref": "#/entities/Client" }, "description": "Clientes cadastrados" },
+    "/dependents/{dependentId}": { "schema": { "$ref": "#/entities/Dependent" }, "description": "Dependentes vinculados" },
+    "/cases/{caseId}": { "schema": { "$ref": "#/entities/Case" }, "description": "Casos e processos migratórios" },
+    "/caseFinancials/{caseId}": { "schema": { "$ref": "#/entities/CaseFinancialSummary" }, "description": "Valores contratuais do caso ocultos a assistentes" },
+    "/caseDocuments/{docId}": { "schema": { "$ref": "#/entities/CaseDocument" }, "description": "Documentos na esteira do caso" },
+    "/tasks/{taskId}": { "schema": { "$ref": "#/entities/Task" }, "description": "Tarefas operacionais" },
+    "/deadlines/{deadlineId}": { "schema": { "$ref": "#/entities/Deadline" }, "description": "Prazos críticos" },
+    "/appointments/{appointmentId}": { "schema": { "$ref": "#/entities/Appointment" }, "description": "Reuniões e agendamentos" },
+    "/communicationLogs/{logId}": { "schema": { "$ref": "#/entities/CommunicationLog" }, "description": "Histórico de contatos" },
+    "/viabilityAssessments/{assessmentId}": { "schema": { "$ref": "#/entities/ViabilityAssessment" }, "description": "Pareceres técnicos" },
+    "/budgets/{budgetId}": { "schema": { "$ref": "#/entities/Budget" }, "description": "Orçamentos de assessoria" },
+    "/financialRecords/{recordId}": { "schema": { "$ref": "#/entities/FinancialRecord" }, "description": "Lançamentos financeiros" },
+    "/messageTemplates/{templateId}": { "schema": { "$ref": "#/entities/MessageTemplate" }, "description": "Modelos de mensagens WhatsApp e e-mail" },
+    "/documentTemplates/{templateId}": { "schema": { "$ref": "#/entities/DocumentTemplate" }, "description": "Modelos de contratos e termos" },
+    "/generatedDocuments/{genDocId}": { "schema": { "$ref": "#/entities/GeneratedDocument" }, "description": "Documentos gerados por caso" }
+  }
+}

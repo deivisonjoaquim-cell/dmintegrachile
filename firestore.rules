@@ -1,0 +1,653 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Primitive Helpers (Phase 3)
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == 'deivisonjoaquim@gmail.com';
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasUserDoc() {
+      return exists(userPath());
+    }
+
+    function userDoc() {
+      return get(userPath()).data;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() && hasUserDoc() && userDoc().status == 'ativo';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isActiveUser() && userDoc().role == 'admin');
+    }
+
+    function isConsultor() {
+      return isActiveUser() && userDoc().role == 'consultor';
+    }
+
+    function isAssistente() {
+      return isActiveUser() && userDoc().role == 'assistente';
+    }
+
+    function isStaff() {
+      return isAdmin() || isConsultor() || isAssistente();
+    }
+
+    function isAdminOrConsultor() {
+      return isAdmin() || isConsultor();
+    }
+
+    function isCliente() {
+      return isActiveUser() && userDoc().role == 'cliente';
+    }
+
+    function userClientId() {
+      return userDoc().clientId;
+    }
+
+    function isOptString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isReqString(data, field, minLen, maxLen) {
+      return field in data && data[field] is string && data[field].size() >= minLen && data[field].size() <= maxLen;
+    }
+
+    function isOptBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function isOptNum(data, field) {
+      return !(field in data) || data[field] is number;
+    }
+
+    // =========================================================================
+    // Validation Blueprints (Pillar 2)
+    // =========================================================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'nome', 'email', 'role', 'status'])
+        && isReqString(data, 'uid', 1, 128)
+        && isReqString(data, 'nome', 1, 200)
+        && isReqString(data, 'email', 3, 200)
+        && data.role in ['admin', 'consultor', 'assistente', 'cliente']
+        && data.status in ['ativo', 'pendente', 'inativo']
+        && isOptString(data, 'fotoUrl', 1000)
+        && isOptString(data, 'clientId', 128)
+        && isOptString(data, 'quemSomosBio', 5000)
+        && isOptString(data, 'quemSomosFormacao', 2000)
+        && isOptString(data, 'quemSomosExperiencia', 2000)
+        && isOptString(data, 'quemSomosMissao', 2000)
+        && isOptString(data, 'quemSomosCredenciais', 2000)
+        && isOptString(data, 'quemSomosFotoUrl', 1000)
+        && isOptString(data, 'createdAt', 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidEmpresaConfig(data) {
+      return data.keys().hasAll(['nome_empresa', 'foro_comarca', 'corPrimaria', 'corDestaque', 'corFundo', 'fontePrincipal'])
+        && isReqString(data, 'nome_empresa', 1, 200)
+        && isReqString(data, 'foro_comarca', 1, 300)
+        && isReqString(data, 'corPrimaria', 4, 20)
+        && isReqString(data, 'corDestaque', 4, 20)
+        && isReqString(data, 'corFundo', 4, 20)
+        && data.fontePrincipal in ['Inter', 'Plus Jakarta Sans', 'Merriweather', 'Montserrat']
+        && isOptString(data, 'razao_social_cnpj_rut', 200)
+        && isOptString(data, 'responsavel_tecnico', 200)
+        && isOptString(data, 'endereco_cidade', 300)
+        && isOptString(data, 'logoUrl', 1000)
+        && isOptString(data, 'whatsapp', 40)
+        && isOptString(data, 'email', 200)
+        && isOptString(data, 'siteInstagram', 300)
+        && isOptString(data, 'linkCalendly', 500)
+        && isOptString(data, 'emailGoogleAgenda', 200)
+        && isOptString(data, 'chavePix', 200)
+        && isOptString(data, 'linkPagamentoCartao', 500)
+        && isOptString(data, 'textoContratoPadrao', 20000)
+        && isOptString(data, 'textoReciboPadrao', 5000)
+        && isOptString(data, 'termoLgpd', 15000)
+        && isOptString(data, 'termoLgpdVersao', 30)
+        && isOptString(data, 'avisoLegal', 1000)
+        && isOptNum(data, 'bloqueioProtocoloMinimo')
+        && isOptNum(data, 'diasAlertaRevisaoLegal')
+        && isOptNum(data, 'diasExpiracaoLinkDiagnostico')
+        && isOptNum(data, 'honorariosPadraoMinBrl')
+        && isOptNum(data, 'honorariosPadraoMaxBrl')
+        && isOptNum(data, 'taxaCambioBrlClp')
+        && isOptNum(data, 'taxaCambioUsdBrl');
+    }
+
+    function isValidBancarioConfig(data) {
+      return isOptString(data, 'dados_bancarios_br', 2000)
+        && isOptString(data, 'dados_bancarios_cl', 2000)
+        && isOptString(data, 'dados_wise', 2000);
+    }
+
+    function isValidSiteContent(data) {
+      return data.keys().hasAll(['secao', 'titulo', 'ordem', 'ativo'])
+        && isReqString(data, 'secao', 1, 64)
+        && isReqString(data, 'titulo', 1, 300)
+        && data.ordem is number
+        && data.ativo is bool
+        && isOptString(data, 'subtitulo', 600)
+        && isOptString(data, 'conteudoHtml', 20000)
+        && isOptString(data, 'imagemUrl', 1000);
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'acao', 'entidade', 'entidadeId'])
+        && isReqString(data, 'actorUid', 1, 128)
+        && data.actorUid == request.auth.uid
+        && isReqString(data, 'acao', 1, 100)
+        && isReqString(data, 'entidade', 1, 100)
+        && isReqString(data, 'entidadeId', 1, 128)
+        && isOptString(data, 'actorEmail', 200)
+        && isOptString(data, 'actorRole', 40)
+        && isOptString(data, 'campo', 120)
+        && isOptString(data, 'antes', 4000)
+        && isOptString(data, 'depois', 4000)
+        && isOptString(data, 'createdAt', 64);
+    }
+
+    function isValidPartnerProposal(data) {
+      return data.keys().hasAll(['nome_empresa', 'categoria', 'pais', 'responsavel', 'whatsapp', 'email', 'moeda', 'status'])
+        && isReqString(data, 'nome_empresa', 2, 200)
+        && isReqString(data, 'categoria', 2, 100)
+        && data.pais in ['Brasil', 'Chile', 'Ambos']
+        && isReqString(data, 'responsavel', 2, 150)
+        && isReqString(data, 'whatsapp', 6, 40)
+        && isReqString(data, 'email', 5, 200)
+        && data.moeda in ['BRL', 'CLP', 'USD']
+        && data.status in ['Nova', 'Em Análise', 'Aprovada', 'Recusada']
+        && isOptString(data, 'cidade', 150)
+        && isOptString(data, 'proposta', 3000)
+        && isOptString(data, 'mensagem', 3000)
+        && (!('honeypot' in data) || data.honeypot == '');
+    }
+
+    function isValidPartner(data) {
+      return data.keys().hasAll(['nome', 'categoria', 'pais', 'recomendadoAosClientes', 'statusHomologacao'])
+        && isReqString(data, 'nome', 1, 200)
+        && isReqString(data, 'categoria', 1, 100)
+        && isReqString(data, 'pais', 1, 60)
+        && data.recomendadoAosClientes is bool
+        && data.statusHomologacao in ['Ativo/Indicado', 'Em Análise', 'Não Indicado/Suspenso']
+        && isOptString(data, 'tabelaValoresComissao', 2000)
+        && isOptString(data, 'condicoesParceria', 2000)
+        && isOptString(data, 'observacoes', 3000);
+    }
+
+    function isValidPartnerPublic(data) {
+      return data.keys().hasAll(['nome', 'categoria', 'pais', 'recomendadoAosClientes', 'statusHomologacao'])
+        && data.keys().hasOnly(['id', 'nome', 'categoria', 'pais', 'cidadeRegiao', 'whatsapp', 'siteInstagram', 'avaliacao', 'descricaoPublica', 'recomendadoAosClientes', 'statusHomologacao', 'updatedAt'])
+        && isReqString(data, 'nome', 1, 200)
+        && isReqString(data, 'categoria', 1, 100)
+        && isReqString(data, 'pais', 1, 60)
+        && data.recomendadoAosClientes is bool
+        && data.statusHomologacao == 'Ativo/Indicado';
+    }
+
+    function isValidLegalSource(data) {
+      return data.keys().hasAll(['titulo', 'tipo', 'pais', 'statusVigencia'])
+        && isReqString(data, 'titulo', 1, 300)
+        && isReqString(data, 'tipo', 1, 60)
+        && data.pais in ['Chile', 'Brasil', 'Mercosul']
+        && data.statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar']
+        && isOptString(data, 'resumoPortugues', 5000)
+        && isOptString(data, 'explicacaoCliente', 5000)
+        && isOptString(data, 'textoIntegral', 50000);
+    }
+
+    function isValidVisaCategory(data) {
+      return data.keys().hasAll(['codigo', 'nomeEspanhol', 'nomePortugues', 'permiteDentroChile', 'ativo'])
+        && isReqString(data, 'codigo', 1, 20)
+        && isReqString(data, 'nomeEspanhol', 1, 250)
+        && isReqString(data, 'nomePortugues', 1, 250)
+        && data.permiteDentroChile in ['Sim', 'Não', 'Condicional']
+        && data.ativo is bool;
+    }
+
+    function isValidVisaRequirement(data) {
+      return data.keys().hasAll(['visaCategoryId', 'nomeDocumento', 'categoriaDoc', 'obrigatorio', 'peso'])
+        && isReqString(data, 'visaCategoryId', 1, 128)
+        && isReqString(data, 'nomeDocumento', 1, 250)
+        && isReqString(data, 'categoriaDoc', 1, 100)
+        && data.obrigatorio is bool
+        && data.peso is number;
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll(['nome', 'whatsapp', 'email', 'origem', 'statusFunil', 'lgpdAceito'])
+        && isReqString(data, 'nome', 2, 200)
+        && isReqString(data, 'whatsapp', 6, 40)
+        && isReqString(data, 'email', 5, 200)
+        && data.origem in ['Instagram', 'Indicação', 'Site', 'Parceiro', 'Outro']
+        && data.statusFunil in ['Novo', 'Contatado', 'Diagnóstico Agendado', 'Orçamento Enviado', 'Fechado', 'Perdido']
+        && data.lgpdAceito is bool
+        && isOptString(data, 'cidadeUf', 150)
+        && isOptString(data, 'subcategoriaSugerida', 200)
+        && isOptString(data, 'notas', 4000)
+        && isOptNum(data, 'notaViabilidade')
+        && (!('confianca' in data) || data.confianca in ['Alta', 'Média', 'Baixa'])
+        && (!('temperatura' in data) || data.temperatura in ['Quente', 'Morno', 'Frio'])
+        && isOptString(data, 'versaoRegras', 80)
+        && isOptString(data, 'sessionToken', 128)
+        && (!('statusConclusao' in data) || data.statusConclusao in ['Em andamento', 'Concluído', 'Abandonado'])
+        && isOptNum(data, 'etapaAtual')
+        && isOptString(data, 'utmSource', 120)
+        && isOptString(data, 'utmMedium', 120)
+        && isOptString(data, 'utmCampaign', 120)
+        && isOptString(data, 'primeiroContatoEm', 64)
+        && (!('honeypot' in data) || data.honeypot == '');
+    }
+
+    function isValidDiagnosticSession(data) {
+      return data.keys().hasAll(['id', 'etapaAtual', 'concluido', 'expiraEmMs', 'createdAt', 'updatedAt'])
+        && isReqString(data, 'id', 20, 128)
+        && data.etapaAtual is number
+        && data.etapaAtual >= 1
+        && data.etapaAtual <= 6
+        && data.concluido is bool
+        && data.expiraEmMs is number
+        && isReqString(data, 'createdAt', 10, 64)
+        && isReqString(data, 'updatedAt', 10, 64)
+        && isOptString(data, 'leadId', 128)
+        && (!('honeypot' in data) || data.honeypot == '');
+    }
+
+    function isValidDiagnosticRuleVersion(data) {
+      return data.keys().hasAll(['id', 'versao', 'ativa', 'regras'])
+        && isReqString(data, 'id', 1, 128)
+        && isReqString(data, 'versao', 1, 60)
+        && data.ativa is bool
+        && data.regras is list
+        && isOptString(data, 'resumoMudanca', 1000)
+        && isOptString(data, 'publicadoPor', 200)
+        && isOptString(data, 'dataPublicacao', 64);
+    }
+
+    function isValidClient(data) {
+      return data.keys().hasAll(['nomeCompleto', 'email', 'whatsapp', 'portalLiberado', 'statusAcessoPortal'])
+        && isReqString(data, 'nomeCompleto', 2, 200)
+        && isReqString(data, 'email', 5, 200)
+        && isReqString(data, 'whatsapp', 6, 40)
+        && data.portalLiberado is bool
+        && data.statusAcessoPortal in ['Não solicitado', 'Pendente liberação', 'Liberado']
+        && isOptString(data, 'cpf', 20)
+        && isOptString(data, 'userId', 128)
+        && isOptString(data, 'observacoes', 5000);
+    }
+
+    function isValidDependent(data) {
+      return data.keys().hasAll(['clientId', 'nomeCompleto', 'parentesco'])
+        && isReqString(data, 'clientId', 1, 128)
+        && isReqString(data, 'nomeCompleto', 1, 200)
+        && isReqString(data, 'parentesco', 1, 80);
+    }
+
+    function isValidCase(data) {
+      return data.keys().hasAll(['titulo', 'clientId', 'tipoServico', 'etapaPipeline', 'statusSermig'])
+        && isReqString(data, 'titulo', 1, 250)
+        && isReqString(data, 'clientId', 1, 128)
+        && isReqString(data, 'tipoServico', 1, 100)
+        && data.etapaPipeline is number
+        && isReqString(data, 'statusSermig', 1, 80)
+        && !('valorContrato' in data);
+    }
+
+    function isValidCaseFinancial(data) {
+      return data.keys().hasAll(['caseId', 'clientId', 'valorContrato', 'moeda'])
+        && isReqString(data, 'caseId', 1, 128)
+        && isReqString(data, 'clientId', 1, 128)
+        && data.valorContrato is number
+        && data.moeda in ['BRL', 'CLP', 'USD']
+        && isOptBool(data, 'liberadoAoCliente');
+    }
+
+    function isValidCaseDocument(data) {
+      return data.keys().hasAll(['caseId', 'clientId', 'pessoa', 'nomeDocumento', 'status', 'versao'])
+        && isReqString(data, 'caseId', 1, 128)
+        && isReqString(data, 'clientId', 1, 128)
+        && isReqString(data, 'pessoa', 1, 120)
+        && isReqString(data, 'nomeDocumento', 1, 250)
+        && data.status in ['Pendente', 'Enviado', 'Em análise', 'Aprovado', 'Reprovado', 'Vencido']
+        && data.versao is number;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['titulo', 'status'])
+        && isReqString(data, 'titulo', 1, 250)
+        && data.status in ['Pendente', 'Em andamento', 'Concluída'];
+    }
+
+    function isValidDeadline(data) {
+      return data.keys().hasAll(['titulo', 'tipo', 'dataLimite', 'concluido'])
+        && isReqString(data, 'titulo', 1, 250)
+        && isReqString(data, 'tipo', 1, 100)
+        && isReqString(data, 'dataLimite', 4, 40)
+        && data.concluido is bool;
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['titulo', 'dataHoraInicio', 'status'])
+        && isReqString(data, 'titulo', 1, 250)
+        && isReqString(data, 'dataHoraInicio', 4, 50)
+        && data.status in ['Agendado', 'Confirmado', 'Realizado', 'Cancelado'];
+    }
+
+    function isValidCommunicationLog(data) {
+      return data.keys().hasAll(['canal', 'assunto'])
+        && data.canal in ['WhatsApp', 'E-mail', 'Ligação', 'Sistema']
+        && isReqString(data, 'assunto', 1, 250);
+    }
+
+    function isValidViabilityAssessment(data) {
+      return data.keys().hasAll(['caseId', 'clientId', 'versao', 'liberadoAoCliente'])
+        && isReqString(data, 'caseId', 1, 128)
+        && isReqString(data, 'clientId', 1, 128)
+        && data.versao is number
+        && data.liberadoAoCliente is bool;
+    }
+
+    function isValidBudget(data) {
+      return data.keys().hasAll(['numeroOrcamento', 'titulo', 'moedaPrincipal', 'status'])
+        && isReqString(data, 'numeroOrcamento', 1, 40)
+        && isReqString(data, 'titulo', 1, 250)
+        && data.moedaPrincipal in ['BRL', 'CLP', 'USD']
+        && data.status in ['Rascunho', 'Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'];
+    }
+
+    function isValidFinancialRecord(data) {
+      return data.keys().hasAll(['tipo', 'descricao', 'moeda', 'valor', 'status'])
+        && data.tipo in ['Honorários', 'Taxa SERMIG', 'Apostila/Tradução', 'Despachante/Outros']
+        && isReqString(data, 'descricao', 1, 250)
+        && data.moeda in ['BRL', 'CLP', 'USD']
+        && data.valor is number
+        && data.status in ['Pendente', 'Pago', 'Atrasado'];
+    }
+
+    function isValidMessageTemplate(data) {
+      return data.keys().hasAll(['codigo', 'titulo', 'corpo'])
+        && isReqString(data, 'codigo', 1, 80)
+        && isReqString(data, 'titulo', 1, 200)
+        && isReqString(data, 'corpo', 1, 5000);
+    }
+
+    function isValidDocumentTemplate(data) {
+      return data.keys().hasAll(['codigo', 'titulo', 'conteudoHtml'])
+        && isReqString(data, 'codigo', 1, 80)
+        && isReqString(data, 'titulo', 1, 200)
+        && isReqString(data, 'conteudoHtml', 1, 30000);
+    }
+
+    function isValidGeneratedDocument(data) {
+      return data.keys().hasAll(['tipo', 'titulo', 'clientId', 'liberadoAoCliente'])
+        && isReqString(data, 'tipo', 1, 80)
+        && isReqString(data, 'titulo', 1, 250)
+        && isReqString(data, 'clientId', 1, 128)
+        && data.liberadoAoCliente is bool;
+    }
+
+    // =========================================================================
+    // Collections
+    // =========================================================================
+    match /users/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isAdmin() || isConsultor());
+      allow list: if isAdmin() || isConsultor();
+      allow create: if isSignedIn() && isValidId(uid) && request.auth.uid == uid && isValidUser(incoming()) && (
+        (isBootstrappedAdmin() && incoming().role == 'admin' && incoming().status == 'ativo') ||
+        (incoming().role == 'cliente' && incoming().status == 'pendente' && incoming().uid == request.auth.uid && incoming().email == request.auth.token.email)
+      );
+      allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
+        isAdmin() ||
+        (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt']))
+      );
+      allow delete: if isAdmin() && isValidId(uid);
+    }
+
+    match /config/{docId} {
+      allow get: if isValidId(docId) && (
+        (docId == 'empresa') ||
+        (docId == 'bancario' && isAdmin())
+      );
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() && isValidId(docId) && (
+        (docId == 'empresa' && isValidEmpresaConfig(incoming())) ||
+        (docId == 'bancario' && isValidBancarioConfig(incoming()))
+      );
+      allow delete: if false;
+    }
+
+    match /siteContent/{sectionId} {
+      allow get: if isValidId(sectionId) && (existing().ativo == true || isStaff());
+      allow list: if existing().ativo == true || isStaff();
+      allow create, update: if isAdmin() && isValidId(sectionId) && isValidSiteContent(incoming());
+      allow delete: if isAdmin() && isValidId(sectionId);
+    }
+
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId) && isStaff();
+      allow list: if isStaff();
+      allow create: if isSignedIn() && isValidId(logId) && isValidAuditLog(incoming());
+      allow update, delete: if false;
+    }
+
+    match /partnerProposals/{proposalId} {
+      allow get, list: if isAdminOrConsultor();
+      allow create: if isValidId(proposalId) && isValidPartnerProposal(incoming()) && incoming().status == 'Nova';
+      allow update: if isAdminOrConsultor() && isValidId(proposalId) && isValidPartnerProposal(incoming());
+      allow delete: if isAdmin() && isValidId(proposalId);
+    }
+
+    match /partners/{partnerId} {
+      allow get, list: if isAdminOrConsultor();
+      allow create, update: if isAdminOrConsultor() && isValidId(partnerId) && isValidPartner(incoming());
+      allow delete: if isAdmin() && isValidId(partnerId);
+    }
+
+    match /partnersPublic/{partnerId} {
+      allow get: if isValidId(partnerId) && ((existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado') || isAdminOrConsultor());
+      allow list: if (existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado') || isAdminOrConsultor();
+      allow create, update: if isAdminOrConsultor() && isValidId(partnerId) && isValidPartnerPublic(incoming());
+      allow delete: if isAdminOrConsultor() && isValidId(partnerId);
+    }
+
+    match /legalSources/{sourceId} {
+      allow get: if isValidId(sourceId) && (existing().statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar'] || isStaff());
+      allow list: if existing().statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar'] || isStaff();
+      allow create, update: if isAdminOrConsultor() && isValidId(sourceId) && isValidLegalSource(incoming());
+      allow delete: if isAdmin() && isValidId(sourceId);
+    }
+
+    match /visaCategories/{categoryId} {
+      allow get: if isValidId(categoryId) && (existing().ativo == true || isStaff());
+      allow list: if existing().ativo == true || isStaff();
+      allow create, update: if isAdminOrConsultor() && isValidId(categoryId) && isValidVisaCategory(incoming());
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    match /visaRequirements/{reqId} {
+      allow get: if isValidId(reqId) && (existing().peso >= 1 || isStaff());
+      allow list: if existing().peso >= 1 || isStaff();
+      allow create, update: if isAdminOrConsultor() && isValidId(reqId) && isValidVisaRequirement(incoming());
+      allow delete: if isAdmin() && isValidId(reqId);
+    }
+
+    match /leads/{leadId} {
+      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && existing().email == request.auth.token.email));
+      allow list: if isStaff() || (isSignedIn() && existing().email == request.auth.token.email);
+      allow create: if isValidId(leadId) && isValidLead(incoming()) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
+      allow update: if isValidId(leadId) && isValidLead(incoming()) && (
+        isStaff() ||
+        (existing().sessionToken is string && existing().sessionToken.size() >= 20 && incoming().sessionToken == existing().sessionToken && existing().statusFunil == 'Novo' && incoming().statusFunil == 'Novo' && incoming().createdAt == existing().createdAt && !('notas' in incoming().diff(existing()).affectedKeys()))
+      );
+      allow delete: if isAdmin() && isValidId(leadId);
+    }
+
+    match /diagnosticSessions/{token} {
+      allow get: if isStaff() || (isValidId(token) && token.size() >= 20 && existing().expiraEmMs is number && existing().expiraEmMs > request.time.toMillis());
+      allow list: if isStaff();
+      allow create: if isValidId(token) && token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token;
+      allow update: if isStaff() || (isValidId(token) && token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token && incoming().createdAt == existing().createdAt);
+      allow delete: if isAdmin() && isValidId(token);
+    }
+
+    match /diagnosticRuleVersions/{versionId} {
+      allow get: if isValidId(versionId) && (existing().ativa == true || isStaff());
+      allow list: if existing().ativa == true || isStaff();
+      allow create, update: if isAdmin() && isValidId(versionId) && isValidDiagnosticRuleVersion(incoming());
+      allow delete: if isAdmin() && isValidId(versionId);
+    }
+
+    match /clients/{clientId} {
+      allow get: if isValidId(clientId) && (isStaff() || (isCliente() && (existing().userId == request.auth.uid || existing().email == request.auth.token.email)));
+      allow list: if isStaff() || (isCliente() && (existing().userId == request.auth.uid || existing().email == request.auth.token.email));
+      allow create: if isAdminOrConsultor() && isValidId(clientId) && isValidClient(incoming());
+      allow update: if isValidId(clientId) && isValidClient(incoming()) && (
+        isAdminOrConsultor() ||
+        (isCliente() && existing().userId == request.auth.uid && incoming().portalLiberado == existing().portalLiberado && incoming().statusAcessoPortal == existing().statusAcessoPortal && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
+      );
+      allow delete: if isAdmin() && isValidId(clientId);
+    }
+
+    match /dependents/{dependentId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create, update: if isValidId(dependentId) && isValidDependent(incoming()) && (
+        isAdminOrConsultor() ||
+        (isCliente() && incoming().clientId == userClientId())
+      );
+      allow delete: if isAdminOrConsultor() && isValidId(dependentId);
+    }
+
+    match /cases/{caseId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create, update: if isStaff() && isValidId(caseId) && isValidCase(incoming());
+      allow delete: if isAdmin() && isValidId(caseId);
+    }
+
+    match /caseFinancials/{caseId} {
+      allow get, list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
+      allow create, update: if isAdminOrConsultor() && isValidId(caseId) && isValidCaseFinancial(incoming());
+      allow delete: if isAdmin() && isValidId(caseId);
+    }
+
+    match /caseDocuments/{docId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create: if isValidId(docId) && isValidCaseDocument(incoming()) && (
+        isStaff() || (isCliente() && incoming().clientId == userClientId())
+      );
+      allow update: if isValidId(docId) && isValidCaseDocument(incoming()) && (
+        isStaff() ||
+        (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().diff(existing()).affectedKeys().hasOnly(['arquivoUrl', 'status', 'etapaEsteira', 'dataEmissao', 'dataValidadeCalculada', 'versao', 'historicoVersoes', 'updatedAt']))
+      );
+      allow delete: if isAdminOrConsultor() && isValidId(docId);
+    }
+
+    match /tasks/{taskId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create: if isValidId(taskId) && isValidTask(incoming()) && (isStaff() || (isCliente() && incoming().clientId == userClientId()));
+      allow update: if isStaff() && isValidId(taskId) && isValidTask(incoming());
+      allow delete: if isAdminOrConsultor() && isValidId(taskId);
+    }
+
+    match /deadlines/{deadlineId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create, update: if isStaff() && isValidId(deadlineId) && isValidDeadline(incoming());
+      allow delete: if isAdminOrConsultor() && isValidId(deadlineId);
+    }
+
+    match /appointments/{appointmentId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create: if isValidId(appointmentId) && isValidAppointment(incoming()) && (isStaff() || (isCliente() && incoming().clientId == userClientId()));
+      allow update: if isStaff() && isValidId(appointmentId) && isValidAppointment(incoming());
+      allow delete: if isAdminOrConsultor() && isValidId(appointmentId);
+    }
+
+    match /communicationLogs/{logId} {
+      allow get, list: if isStaff();
+      allow create: if isStaff() && isValidId(logId) && isValidCommunicationLog(incoming());
+      allow update, delete: if isAdmin() && isValidId(logId);
+    }
+
+    match /viabilityAssessments/{assessmentId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
+      allow create, update: if isAdminOrConsultor() && isValidId(assessmentId) && isValidViabilityAssessment(incoming());
+      allow delete: if isAdmin() && isValidId(assessmentId);
+    }
+
+    // Strict financial isolation: assistente NEVER accesses budgets or financialRecords
+    match /budgets/{budgetId} {
+      allow get: if isValidId(budgetId) && (
+        isAdminOrConsultor() ||
+        (isCliente() && existing().clientId == userClientId() && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'])
+      );
+      allow list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado']);
+      allow create: if isAdminOrConsultor() && isValidId(budgetId) && isValidBudget(incoming());
+      allow update: if isValidId(budgetId) && isValidBudget(incoming()) && (
+        isAdminOrConsultor() ||
+        (isCliente() && existing().clientId == userClientId() && existing().status == 'Enviado ao Cliente' && incoming().status in ['Aprovado', 'Recusado'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'aprovadoEm', 'updatedAt']))
+      );
+      allow delete: if isAdmin() && isValidId(budgetId);
+    }
+
+    match /financialRecords/{recordId} {
+      allow get, list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId());
+      allow create: if isAdminOrConsultor() && isValidId(recordId) && isValidFinancialRecord(incoming());
+      allow update: if isValidId(recordId) && isValidFinancialRecord(incoming()) && (
+        isAdminOrConsultor() ||
+        (isCliente() && existing().clientId == userClientId() && incoming().diff(existing()).affectedKeys().hasOnly(['comprovanteUrl', 'updatedAt']))
+      );
+      allow delete: if isAdmin() && isValidId(recordId);
+    }
+
+    match /messageTemplates/{templateId} {
+      allow get, list: if isStaff();
+      allow create, update: if isAdminOrConsultor() && isValidId(templateId) && isValidMessageTemplate(incoming());
+      allow delete: if isAdmin() && isValidId(templateId);
+    }
+
+    match /documentTemplates/{templateId} {
+      allow get, list: if isStaff();
+      allow create, update: if isAdminOrConsultor() && isValidId(templateId) && isValidDocumentTemplate(incoming());
+      allow delete: if isAdmin() && isValidId(templateId);
+    }
+
+    match /generatedDocuments/{genDocId} {
+      allow get: if isValidId(genDocId) && (
+        isAdminOrConsultor() ||
+        (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) ||
+        (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true)
+      );
+      allow list: if isAdminOrConsultor() || (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
+      allow create, update: if isAdminOrConsultor() && isValidId(genDocId) && isValidGeneratedDocument(incoming());
+      allow delete: if isAdmin() && isValidId(genDocId);
+    }
+  }
+}

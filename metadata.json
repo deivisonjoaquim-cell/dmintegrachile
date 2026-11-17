@@ -1,0 +1,6 @@
+{
+  "name": "D&M Integra Chile – Relocation & Assessoria",
+  "description": "Plataforma completa de gestão de consultoria de imigração e relocation para brasileiros no Chile, com diagnóstico inteligente, portal do cliente, biblioteca legal e apoio de IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

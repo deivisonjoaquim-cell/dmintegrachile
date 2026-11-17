@@ -1,0 +1,1166 @@
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { sanitizeClientAiError } from '../utils/aiClient';
+import {
+  DEFAULT_DIAGNOSTIC_RULE_VERSION,
+  DEFAULT_EMPRESA_CONFIG,
+  SEED_DOCUMENT_TEMPLATES,
+  SEED_LEGAL_SOURCES,
+  SEED_MESSAGE_TEMPLATES,
+  SEED_PARTNERS,
+  SEED_SITE_CONTENT,
+  SEED_VISA_CATEGORIES,
+  SEED_VISA_REQUIREMENTS,
+} from '../data/seeds';
+import type {
+  Appointment,
+  AuditLog,
+  BancarioConfig,
+  Budget,
+  Case,
+  CaseDocument,
+  CaseFinancialSummary,
+  Client,
+  CommunicationLog,
+  Deadline,
+  Dependent,
+  DiagnosticAnswers,
+  DiagnosticRuleVersion,
+  DiagnosticSession,
+  DocumentTemplate,
+  EmpresaConfig,
+  FinancialRecord,
+  GeneratedDocument,
+  Lead,
+  LeadRuleHistoryEntry,
+  LegalSource,
+  MessageTemplate,
+  Partner,
+  PartnerProposal,
+  PartnerPublic,
+  SiteContent,
+  Task,
+  UserProfile,
+  UserRole,
+  ViabilityAssessment,
+  VisaCategory,
+  VisaRequirement,
+} from '../types/domain';
+import { registrarAuditoria } from '../utils/audit';
+import { computeLeadPriorityAndTemperature, runDiagnosticEngine } from '../utils/diagnosticEngine';
+
+export function makeId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function stripUndefined<T>(val: T): T {
+  if (Array.isArray(val)) {
+    return val.map((item) => stripUndefined(item)) as unknown as T;
+  }
+  if (val !== null && typeof val === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      if (v !== undefined) {
+        out[k] = stripUndefined(v);
+      }
+    }
+    return out as T;
+  }
+  return val;
+}
+
+// =============================================================================
+// Public Readers (Safe without login)
+// =============================================================================
+export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'empresa'));
+    if (snap.exists()) {
+      return { ...DEFAULT_EMPRESA_CONFIG, ...(snap.data() as EmpresaConfig) };
+    }
+    return DEFAULT_EMPRESA_CONFIG;
+  } catch {
+    return DEFAULT_EMPRESA_CONFIG;
+  }
+}
+
+export async function fetchSiteContentPublic(): Promise<SiteContent[]> {
+  try {
+    const q = query(collection(db, 'siteContent'), where('ativo', '==', true));
+    const snap = await getDocs(q);
+    if (snap.empty) return SEED_SITE_CONTENT;
+    const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) }));
+    return rows.sort((a, b) => a.ordem - b.ordem);
+  } catch {
+    return SEED_SITE_CONTENT;
+  }
+}
+
+export async function fetchAllSiteContentStaff(): Promise<SiteContent[]> {
+  try {
+    const snap = await getDocs(collection(db, 'siteContent'));
+    if (snap.empty) return SEED_SITE_CONTENT;
+    const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) }));
+    return rows.sort((a, b) => a.ordem - b.ordem);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'siteContent');
+  }
+}
+
+export async function fetchPartnersPublic(): Promise<PartnerPublic[]> {
+  try {
+    const q = query(
+      collection(db, 'partnersPublic'),
+      where('recomendadoAosClientes', '==', true),
+      where('statusHomologacao', '==', 'Ativo/Indicado'),
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return SEED_PARTNERS.map((p) => p.pub);
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PartnerPublic, 'id'>) }));
+  } catch {
+    return SEED_PARTNERS.map((p) => p.pub);
+  }
+}
+
+export async function fetchVisaCatalogPublic(): Promise<{
+  categories: VisaCategory[];
+  requirements: VisaRequirement[];
+  legalSources: LegalSource[];
+}> {
+  try {
+    const [catSnap, reqSnap, legSnap] = await Promise.all([
+      getDocs(query(collection(db, 'visaCategories'), where('ativo', '==', true))),
+      getDocs(query(collection(db, 'visaRequirements'), where('peso', '>=', 1))),
+      getDocs(query(collection(db, 'legalSources'), where('statusVigencia', 'in', ['Vigente', 'Alterada', 'Revogada', 'A verificar']))),
+    ]);
+    const categories = catSnap.empty
+      ? SEED_VISA_CATEGORIES
+      : catSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaCategory, 'id'>) }));
+    const requirements = reqSnap.empty
+      ? SEED_VISA_REQUIREMENTS
+      : reqSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaRequirement, 'id'>) }));
+    const legalSources = legSnap.empty
+      ? SEED_LEGAL_SOURCES
+      : legSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LegalSource, 'id'>) }));
+
+    // Auto-reparar código 15 (Reciprocidade Internacional/Mercosul) sempre como Verificado
+    const mercosulSeed = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
+    const repairedCategories = categories.map((c) => (c.codigo === '15' ? { ...c, ...mercosulSeed, id: c.id } : c));
+    return { categories: repairedCategories, requirements, legalSources };
+  } catch {
+    return {
+      categories: SEED_VISA_CATEGORIES,
+      requirements: SEED_VISA_REQUIREMENTS,
+      legalSources: SEED_LEGAL_SOURCES,
+    };
+  }
+}
+
+export async function fetchActiveDiagnosticRules(): Promise<DiagnosticRuleVersion> {
+  try {
+    const q = query(collection(db, 'diagnosticRuleVersions'), where('ativa', '==', true));
+    const snap = await getDocs(q);
+    if (snap.empty) return DEFAULT_DIAGNOSTIC_RULE_VERSION;
+    const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DiagnosticRuleVersion, 'id'>) }));
+    rows.sort((a, b) => (b.dataPublicacao || '').localeCompare(a.dataPublicacao || ''));
+    return rows[0] || DEFAULT_DIAGNOSTIC_RULE_VERSION;
+  } catch {
+    return DEFAULT_DIAGNOSTIC_RULE_VERSION;
+  }
+}
+
+export async function fetchAllDiagnosticRuleVersions(): Promise<DiagnosticRuleVersion[]> {
+  try {
+    const snap = await getDocs(collection(db, 'diagnosticRuleVersions'));
+    if (snap.empty) return [DEFAULT_DIAGNOSTIC_RULE_VERSION];
+    const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DiagnosticRuleVersion, 'id'>) }));
+    return rows.sort((a, b) => (b.createdAt || b.dataPublicacao || '').localeCompare(a.createdAt || a.dataPublicacao || ''));
+  } catch {
+    return [DEFAULT_DIAGNOSTIC_RULE_VERSION];
+  }
+}
+
+export async function publishDiagnosticRuleVersion(
+  nextVersion: DiagnosticRuleVersion,
+  previousActiveVersion: DiagnosticRuleVersion | null,
+  role: UserRole,
+): Promise<void> {
+  if (role !== 'admin') throw new Error('Somente administradores podem publicar versões de regras.');
+  const now = new Date().toISOString();
+  const existingVersions = await fetchAllDiagnosticRuleVersions().catch(() => []);
+  await Promise.all(
+    existingVersions
+      .filter((v) => v.ativa && v.id !== nextVersion.id)
+      .map((v) => setDoc(doc(db, 'diagnosticRuleVersions', v.id), { ...v, ativa: false }, { merge: true })),
+  );
+  const payload: DiagnosticRuleVersion = {
+    ...nextVersion,
+    ativa: true,
+    createdAt: nextVersion.createdAt || now,
+  };
+  await setDoc(doc(db, 'diagnosticRuleVersions', nextVersion.id), payload);
+  await registrarAuditoria(
+    'Publicar Versão Regras',
+    'diagnosticRuleVersions',
+    nextVersion.id,
+    'versao_regras',
+    previousActiveVersion ? { versao: previousActiveVersion.versao, regrasCount: previousActiveVersion.regras.length } : null,
+    { versao: payload.versao, resumoMudanca: payload.resumoMudanca, publicadoPor: payload.publicadoPor },
+    role,
+  );
+}
+
+// =============================================================================
+// Idempotent Admin Seed & Auto-repair Cód. 15
+// =============================================================================
+export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
+  if (role !== 'admin') return;
+  try {
+    const cfgRef = doc(db, 'config', 'empresa');
+    const cfgSnap = await getDoc(cfgRef);
+    if (!cfgSnap.exists()) {
+      await setDoc(cfgRef, { ...DEFAULT_EMPRESA_CONFIG, updatedAt: new Date().toISOString() });
+    }
+
+    const siteSnap = await getDocs(collection(db, 'siteContent'));
+    if (siteSnap.empty) {
+      await Promise.all(
+        SEED_SITE_CONTENT.map((s) => setDoc(doc(db, 'siteContent', s.id), { ...s, updatedAt: new Date().toISOString() })),
+      );
+    }
+
+    // Sempre auto-reparar Cód. 15
+    const mercosul = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
+    await setDoc(doc(db, 'visaCategories', mercosul.id), { ...mercosul, updatedAt: new Date().toISOString() }, { merge: true });
+
+    const visaSnap = await getDocs(collection(db, 'visaCategories'));
+    if (visaSnap.size < 3) {
+      await Promise.all(
+        SEED_VISA_CATEGORIES.map((v) =>
+          setDoc(doc(db, 'visaCategories', v.id), { ...v, updatedAt: new Date().toISOString() }, { merge: true }),
+        ),
+      );
+    }
+
+    const reqSnap = await getDocs(collection(db, 'visaRequirements'));
+    if (reqSnap.empty) {
+      await Promise.all(SEED_VISA_REQUIREMENTS.map((r) => setDoc(doc(db, 'visaRequirements', r.id), r)));
+    }
+
+    const legSnap = await getDocs(collection(db, 'legalSources'));
+    if (legSnap.empty) {
+      await Promise.all(
+        SEED_LEGAL_SOURCES.map((l) => setDoc(doc(db, 'legalSources', l.id), { ...l, updatedAt: new Date().toISOString() })),
+      );
+    }
+
+    const msgSnap = await getDocs(collection(db, 'messageTemplates'));
+    if (msgSnap.empty) {
+      await Promise.all(SEED_MESSAGE_TEMPLATES.map((m) => setDoc(doc(db, 'messageTemplates', m.id), m)));
+    }
+
+    const docTplSnap = await getDocs(collection(db, 'documentTemplates'));
+    if (docTplSnap.empty) {
+      await Promise.all(SEED_DOCUMENT_TEMPLATES.map((dt) => setDoc(doc(db, 'documentTemplates', dt.id), dt)));
+    }
+
+    const partPubSnap = await getDocs(collection(db, 'partnersPublic'));
+    if (partPubSnap.empty) {
+      await Promise.all(
+        SEED_PARTNERS.flatMap((p) => [
+          setDoc(doc(db, 'partners', p.full.id), { ...p.full, createdAt: new Date().toISOString() }),
+          setDoc(doc(db, 'partnersPublic', p.pub.id), { ...p.pub, updatedAt: new Date().toISOString() }),
+        ]),
+      );
+    }
+
+    const rulesSnap = await getDocs(collection(db, 'diagnosticRuleVersions'));
+    if (rulesSnap.empty) {
+      await setDoc(doc(db, 'diagnosticRuleVersions', DEFAULT_DIAGNOSTIC_RULE_VERSION.id), {
+        ...DEFAULT_DIAGNOSTIC_RULE_VERSION,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  } catch (err) {
+    console.warn('Aviso ao executar seed idempotente:', err);
+  }
+}
+
+// =============================================================================
+// Public Submissions
+// =============================================================================
+export async function submitPartnerProposalPublic(
+  payload: Omit<PartnerProposal, 'id' | 'status' | 'createdAt'> & { honeypot?: string },
+): Promise<string> {
+  const id = makeId('prop');
+  try {
+    await setDoc(doc(db, 'partnerProposals', id), {
+      ...payload,
+      id,
+      status: 'Nova',
+      createdAt: new Date().toISOString(),
+    });
+    return id;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `partnerProposals/${id}`);
+  }
+}
+
+export function generateSecureSessionToken(): string {
+  const bytes = new Uint8Array(18);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return 'sess_' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function saveDiagnosticSession(
+  token: string,
+  payload: Omit<DiagnosticSession, 'id' | 'updatedAt' | 'createdAt'> & { createdAt?: string },
+  isNew: boolean,
+): Promise<DiagnosticSession> {
+  const now = new Date().toISOString();
+  const session: DiagnosticSession = stripUndefined({
+    id: token,
+    etapaAtual: payload.etapaAtual,
+    answers: payload.answers,
+    concluido: payload.concluido,
+    leadId: payload.leadId || '',
+    expiraEmMs: payload.expiraEmMs,
+    utm: payload.utm,
+    createdAt: payload.createdAt || now,
+    updatedAt: now,
+  });
+  const writePayload: Record<string, unknown> = { ...session };
+  if (!isNew && !payload.createdAt) {
+    delete writePayload.createdAt;
+  }
+  await setDoc(doc(db, 'diagnosticSessions', token), writePayload, { merge: !isNew });
+  return session;
+}
+
+export async function fetchDiagnosticSessionByToken(token: string): Promise<DiagnosticSession | null> {
+  if (!token || token.length < 20) return null;
+  try {
+    const snap = await getDoc(doc(db, 'diagnosticSessions', token));
+    if (!snap.exists()) return null;
+    const data = snap.data() as DiagnosticSession;
+    if (data.expiraEmMs && data.expiraEmMs <= Date.now()) {
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function submitDiagnosticLeadPublic(
+  payload: Omit<Lead, 'id' | 'createdAt' | 'statusFunil'>,
+  options?: { existingLeadId?: string; createdAt?: string },
+): Promise<{ leadId: string; createdAt?: string }> {
+  const now = new Date().toISOString();
+  const existingId = options?.existingLeadId && options.existingLeadId !== 'local-preview' ? options.existingLeadId : '';
+  const id = existingId || makeId('lead');
+  const createdAt = options?.createdAt || (existingId ? undefined : now);
+  const docPayload: Record<string, unknown> = stripUndefined({
+    ...payload,
+    id,
+    statusFunil: 'Novo',
+    createdAt,
+    updatedAt: now,
+  });
+  try {
+    if (existingId) {
+      // Nunca sobrescreve notas nem createdAt original ao atualizar publicamente (exigido pelas regras Firestore)
+      delete docPayload.notas;
+      delete docPayload.createdAt;
+      await setDoc(doc(db, 'leads', id), docPayload, { merge: true });
+    } else {
+      await setDoc(doc(db, 'leads', id), docPayload);
+    }
+    return { leadId: id, createdAt };
+  } catch (err) {
+    handleFirestoreError(err, existingId ? OperationType.UPDATE : OperationType.CREATE, `leads/${id}`);
+  }
+}
+
+export async function recalculateLeadsWithRules(
+  targetLeads: Lead[],
+  ruleVersion: DiagnosticRuleVersion,
+  categories: VisaCategory[],
+  requirements: VisaRequirement[],
+  legalSources: LegalSource[],
+  empresa: EmpresaConfig,
+  role: UserRole,
+): Promise<number> {
+  let updatedCount = 0;
+  const now = new Date().toISOString();
+  for (const lead of targetLeads) {
+    if (!lead.respostasTriagem) continue;
+    const diag = runDiagnosticEngine(lead.respostasTriagem, categories, requirements, legalSources, {
+      ruleVersion,
+      custosPadrao: empresa.custosPadrao,
+      honorariosMinBrl: ruleVersion.honorariosMinBrl ?? empresa.honorariosPadraoMinBrl,
+      honorariosMaxBrl: ruleVersion.honorariosMaxBrl ?? empresa.honorariosPadraoMaxBrl,
+      taxaCambioBrlClp: ruleVersion.taxaCambioBrlClp ?? empresa.taxaCambioBrlClp,
+      taxaCambioUsdBrl: ruleVersion.taxaCambioUsdBrl ?? empresa.taxaCambioUsdBrl,
+    });
+    if (!diag.recomendada) continue;
+    const prevEntry: LeadRuleHistoryEntry = {
+      versaoRegras: lead.versaoRegras || 'anterior',
+      dataCalculo: lead.updatedAt || lead.createdAt,
+      subcategoriaSugerida: lead.subcategoriaSugerida || lead.interesse || '—',
+      notaViabilidade: lead.notaViabilidade ?? 0,
+      confianca: lead.confianca || 'Média',
+    };
+    const nextHist = [...(lead.historicoResultados || []), prevEntry];
+    const { prioridade, temperatura } = computeLeadPriorityAndTemperature(lead.respostasTriagem, diag);
+    await saveDocumentAudited(
+      'leads',
+      lead.id,
+      {
+        ...lead,
+        subcategoriaSugerida: `${diag.recomendada.visa.codigo} - ${diag.recomendada.visa.nomePortugues}`,
+        interesse: diag.recomendada.visa.nomePortugues,
+        notaViabilidade: diag.viabilidade.total,
+        confianca: diag.confianca,
+        temperatura,
+        prioridade,
+        flagsRisco: diag.flagsRisco.map((f) => f.pergunta),
+        versaoRegras: ruleVersion.versao,
+        historicoResultados: nextHist,
+        updatedAt: now,
+      },
+      false,
+      role,
+      'recalculo_regras_diagnostico',
+      { subcategoria: lead.subcategoriaSugerida, nota: lead.notaViabilidade, versao: lead.versaoRegras },
+    );
+    updatedCount += 1;
+  }
+  return updatedCount;
+}
+
+export async function syncDiagnosticFollowUpTasks(
+  leads: Lead[],
+  existingTasks: Task[],
+  role: UserRole,
+): Promise<number> {
+  if (role !== 'admin' && role !== 'consultor' && role !== 'assistente') return 0;
+  let created = 0;
+  const existingTitles = new Set(existingTasks.map((t) => t.titulo));
+  const nowMs = Date.now();
+
+  for (const lead of leads) {
+    if (lead.statusFunil === 'Fechado' || lead.statusFunil === 'Perdido') continue;
+
+    // Lead que abandonou após informar contato -> Task "Retomar contato"
+    if (lead.statusConclusao === 'Abandonado') {
+      const title = `Retomar contato (abandono Etapa ${lead.etapaAtual || 1}): ${lead.nome}`;
+      if (!existingTitles.has(title)) {
+        const taskId = makeId('task');
+        await saveDocumentAudited(
+          'tasks',
+          taskId,
+          {
+            id: taskId,
+            titulo: title,
+            descricao: `WhatsApp: ${lead.whatsapp} · E-mail: ${lead.email}. Lead interrompeu o diagnóstico antes da conclusão (sem envio automático externo).`,
+            prazo: new Date(nowMs + 4 * 3600000).toISOString().slice(0, 10),
+            prioridade: 'Alta',
+            status: 'Pendente',
+            createdAt: new Date().toISOString(),
+          },
+          true,
+          role,
+          'task_abandono_diagnostico',
+        );
+        existingTitles.add(title);
+        created += 1;
+      }
+      continue;
+    }
+
+    // Leads concluídos em status 'Novo' -> Lembretes de follow-up 24h e 72h
+    if (lead.statusFunil === 'Novo' && (!lead.statusConclusao || lead.statusConclusao === 'Concluído')) {
+      const baseTs = Date.parse(lead.createdAt || '') || nowMs;
+      const t24 = `Follow-up 24h diagnóstico: ${lead.nome}`;
+      const t72 = `Follow-up 72h diagnóstico: ${lead.nome}`;
+      if (!existingTitles.has(t24)) {
+        const id24 = makeId('task');
+        await saveDocumentAudited(
+          'tasks',
+          id24,
+          {
+            id: id24,
+            titulo: t24,
+            descricao: `Subcategoria: ${lead.subcategoriaSugerida || lead.interesse}. Contato: ${lead.whatsapp}.`,
+            responsavelId: lead.responsavelId || '',
+            prazo: new Date(baseTs + 24 * 3600000).toISOString().slice(0, 10),
+            prioridade: lead.prioridade === 'Urgente' || lead.prioridade === 'Alta' ? 'Alta' : 'Média',
+            status: 'Pendente',
+            createdAt: new Date().toISOString(),
+          },
+          true,
+          role,
+          'task_followup_24h',
+        );
+        existingTitles.add(t24);
+        created += 1;
+      }
+      if (!existingTitles.has(t72)) {
+        const id72 = makeId('task');
+        await saveDocumentAudited(
+          'tasks',
+          id72,
+          {
+            id: id72,
+            titulo: t72,
+            descricao: `Segundo acompanhamento do diagnóstico (${lead.subcategoriaSugerida || lead.interesse}). WhatsApp: ${lead.whatsapp}.`,
+            responsavelId: lead.responsavelId || '',
+            prazo: new Date(baseTs + 72 * 3600000).toISOString().slice(0, 10),
+            prioridade: 'Média',
+            status: 'Pendente',
+            createdAt: new Date().toISOString(),
+          },
+          true,
+          role,
+          'task_followup_72h',
+        );
+        existingTitles.add(t72);
+        created += 1;
+      }
+    }
+  }
+  return created;
+}
+
+export async function convertLeadToClientAndCaseEnhanced(params: {
+  lead: Lead;
+  clients: Client[];
+  visaCategories: VisaCategory[];
+  visaRequirements: VisaRequirement[];
+  legalSources: LegalSource[];
+  activeRules: DiagnosticRuleVersion;
+  empresa: EmpresaConfig;
+  role: UserRole;
+  autorNome: string;
+}): Promise<{ clientId: string; caseId: string; clientReused: boolean; docsCount: number; tasksCount: number }> {
+  const { lead, clients, visaCategories, visaRequirements, legalSources, activeRules, empresa, role, autorNome } = params;
+  const cleanPhone = (p: string) => p.replace(/\D/g, '');
+  const existingClient = clients.find(
+    (c) =>
+      c.email.toLowerCase() === lead.email.toLowerCase() ||
+      (cleanPhone(c.whatsapp) && cleanPhone(c.whatsapp) === cleanPhone(lead.whatsapp)),
+  );
+
+  let clientId = existingClient?.id;
+  if (!clientId) {
+    clientId = makeId('cli');
+    const newClient: Client = {
+      id: clientId,
+      nomeCompleto: lead.nome,
+      cpf: '',
+      email: lead.email.toLowerCase(),
+      whatsapp: lead.whatsapp,
+      enderecoCompleto: lead.cidadeUf,
+      objetivoChile: lead.interesse,
+      portalLiberado: false,
+      statusAcessoPortal: 'Pendente liberação',
+      lgpdAceito: lead.lgpdAceito,
+      lgpdAceitoEm: lead.lgpdData,
+      lgpdVersao: lead.lgpdVersao,
+      createdAt: new Date().toISOString(),
+    };
+    await saveDocumentAudited('clients', clientId, newClient as unknown as Record<string, unknown>, true, role, 'conversao_lead');
+  }
+
+  const matchedVisa =
+    visaCategories.find((v) => (lead.subcategoriaSugerida || '').startsWith(v.codigo)) ||
+    visaCategories.find((v) => v.codigo === '15') ||
+    visaCategories[0];
+
+  const caseId = makeId('case');
+  const newCase: Case = {
+    id: caseId,
+    titulo: `${lead.nome} – ${matchedVisa?.nomePortugues || lead.interesse || 'Residência no Chile'}`,
+    clientId,
+    tipoServico: 'Residência Temporal',
+    visaCategoryId: matchedVisa?.id || 'visa_15_mercosul',
+    subcategoriaIa: lead.subcategoriaSugerida || '',
+    etapaPipeline: 2,
+    statusSermig: 'Não protocolado',
+    portalLiberado: false,
+    relatorioViabilidadeLiberado: false,
+    prioridade: lead.prioridade || 'Alta',
+    notaViabilidadeGeral: lead.notaViabilidade,
+    createdAt: new Date().toISOString(),
+  };
+  await saveDocumentAudited('cases', caseId, newCase as unknown as Record<string, unknown>, true, role, 'conversao_lead');
+
+  // Gerar diagnóstico completo para vincular checklist por pessoa, plano de ação em tarefas e parecer inicial
+  const answers: DiagnosticAnswers | undefined = lead.respostasTriagem;
+  let docsCount = 0;
+  let tasksCount = 0;
+
+  if (answers) {
+    const diag = runDiagnosticEngine(answers, visaCategories, visaRequirements, legalSources, {
+      ruleVersion: activeRules,
+      custosPadrao: empresa.custosPadrao,
+      honorariosMinBrl: activeRules.honorariosMinBrl ?? empresa.honorariosPadraoMinBrl,
+      honorariosMaxBrl: activeRules.honorariosMaxBrl ?? empresa.honorariosPadraoMaxBrl,
+    });
+
+    // Dependentes e checklist por pessoa
+    const depNames: string[] = [];
+    if (diag.diagnosticoPorPessoa.length > 0) {
+      for (const p of diag.diagnosticoPorPessoa) {
+        if (p.papel === 'Dependente') {
+          depNames.push(p.nome);
+          const depId = makeId('dep');
+          const depRecord: Dependent = {
+            id: depId,
+            clientId,
+            nomeCompleto: p.nome,
+            parentesco:
+              p.parentesco.includes('Cônjuge')
+                ? 'Cônjuge'
+                : p.parentesco.includes('Filho')
+                  ? 'Filho(a)'
+                  : 'Outro',
+          };
+          await saveDocumentAudited('dependents', depId, depRecord as unknown as Record<string, unknown>, true, role, 'dependente_lead');
+        }
+      }
+    }
+
+    const pessoasParaChecklist = ['Titular', ...depNames];
+    const reqs = visaRequirements.filter((r) => r.visaCategoryId === (matchedVisa?.id || 'visa_15_mercosul'));
+
+    for (const pessoa of pessoasParaChecklist) {
+      for (const req of reqs) {
+        const docId = makeId('doc');
+        const caseDoc: CaseDocument = {
+          id: docId,
+          caseId,
+          clientId,
+          pessoa,
+          visaRequirementId: req.id,
+          nomeDocumento: req.nomeDocumento,
+          categoriaDoc: req.categoriaDoc,
+          etapaEsteira: '1 Aguardando Envio',
+          ordemEmissao: req.ordemPrioridadeEmissao,
+          status: 'Pendente',
+          validadeDias: req.validadeDias,
+          apostilado: false,
+          traduzido: false,
+          exigeApostila: req.exigeApostila,
+          exigeTraducao: req.exigeTraducao,
+          obrigatorio: req.obrigatorio,
+          peso: req.peso,
+          versao: 1,
+        };
+        await saveDocumentAudited('caseDocuments', docId, caseDoc as unknown as Record<string, unknown>, true, role, 'checklist_lead');
+        docsCount += 1;
+      }
+    }
+
+    // Tarefas do plano de ação (Faça agora + Em 30 dias + Antes do protocolo)
+    const allActions = [
+      ...diag.planoAcao.facaAgora.slice(0, 3).map((a) => ({ ...a, grupo: 'Faça agora' })),
+      ...diag.planoAcao.em30Dias.slice(0, 2).map((a) => ({ ...a, grupo: 'Em 30 dias' })),
+      ...diag.planoAcao.antesProtocolo.slice(0, 2).map((a) => ({ ...a, grupo: 'Antes do protocolo' })),
+    ];
+    for (const act of allActions) {
+      const taskId = makeId('task');
+      const t: Task = {
+        id: taskId,
+        titulo: `[${act.grupo}] ${act.titulo}`,
+        descricao: act.detalhe,
+        caseId,
+        clientId,
+        prioridade: act.grupo === 'Faça agora' ? 'Alta' : 'Média',
+        status: 'Pendente',
+        createdAt: new Date().toISOString(),
+      };
+      await saveDocumentAudited('tasks', taskId, t as unknown as Record<string, unknown>, true, role, 'plano_acao_lead');
+      tasksCount += 1;
+    }
+
+    // Parecer técnico inicial vinculado ao caso
+    const assessmentId = makeId('viab');
+    const assessment: ViabilityAssessment = {
+      id: assessmentId,
+      caseId,
+      clientId,
+      versao: 1,
+      enquadramentoLegal: `Indicação inicial (${diag.versaoRegras.versao}): ${lead.subcategoriaSugerida || matchedVisa?.nomePortugues}. Confiança: ${diag.confianca}.`,
+      elegibilidadeRiscos:
+        diag.flagsRisco.length > 0
+          ? diag.flagsRisco.map((f) => f.pergunta).join('; ')
+          : diag.flagsRevisaoConsultor.length > 0
+            ? diag.flagsRevisaoConsultor.map((f) => f.label).join('; ')
+            : 'Sem flags de risco alto declaradas.',
+      fundamentacaoNormativa: diag.fontesLegais.map((f) => `${f.titulo} (${f.numeroAno})`).join(' · '),
+      recomendacoes: diag.caminho,
+      notaGeral: diag.viabilidade.total,
+      rascunhoIa: false,
+      liberadoAoCliente: false,
+      autorNome,
+      createdAt: new Date().toISOString(),
+    };
+    if (role === 'admin' || role === 'consultor') {
+      await saveDocumentAudited('viabilityAssessments', assessmentId, assessment as unknown as Record<string, unknown>, true, role, 'parecer_inicial_lead');
+    }
+  }
+
+  await saveDocumentAudited(
+    'leads',
+    lead.id,
+    {
+      ...lead,
+      statusFunil: 'Fechado',
+      primeiroContatoEm: lead.primeiroContatoEm || new Date().toISOString(),
+      convertedClientId: clientId,
+      convertedCaseId: caseId,
+    },
+    false,
+    role,
+    'conversao_em_caso',
+  );
+
+  return { clientId, caseId, clientReused: Boolean(existingClient), docsCount, tasksCount };
+}
+
+// =============================================================================
+// Generic Audited CRUD Helpers
+// =============================================================================
+export async function saveDocumentAudited<T extends Record<string, unknown>>(
+  collectionName: string,
+  id: string,
+  data: T,
+  isNew: boolean,
+  actorRole?: UserRole,
+  campoLabel = 'registro',
+  antes?: unknown,
+): Promise<void> {
+  const pathStr = `${collectionName}/${id}`;
+  try {
+    const cleanData = stripUndefined({ ...data, id, updatedAt: new Date().toISOString() });
+    await setDoc(doc(db, collectionName, id), cleanData, { merge: !isNew });
+    await registrarAuditoria(
+      isNew ? 'Criar' : 'Atualizar',
+      collectionName,
+      id,
+      campoLabel,
+      antes ?? null,
+      cleanData,
+      actorRole,
+    );
+  } catch (err) {
+    handleFirestoreError(err, isNew ? OperationType.CREATE : OperationType.UPDATE, pathStr);
+  }
+}
+
+export async function deleteDocumentAudited(
+  collectionName: string,
+  id: string,
+  actorRole?: UserRole,
+  antes?: unknown,
+): Promise<void> {
+  const pathStr = `${collectionName}/${id}`;
+  try {
+    await deleteDoc(doc(db, collectionName, id));
+    await registrarAuditoria('Excluir', collectionName, id, 'registro', antes ?? id, null, actorRole);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, pathStr);
+  }
+}
+
+// =============================================================================
+// Specific Domain Helpers
+// =============================================================================
+export async function fetchUsersList(): Promise<UserProfile[]> {
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    return snap.docs.map((d) => d.data() as UserProfile);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'users');
+  }
+}
+
+export async function fetchBancarioConfigAdmin(): Promise<BancarioConfig> {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'bancario'));
+    if (!snap.exists()) {
+      return { dados_bancarios_br: '', dados_bancarios_cl: '', dados_wise: '' };
+    }
+    return snap.data() as BancarioConfig;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.GET, 'config/bancario');
+  }
+}
+
+export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: BancarioConfig): Promise<void> {
+  try {
+    await setDoc(doc(db, 'config', 'bancario'), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+    await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, data, 'admin');
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'config/bancario');
+  }
+}
+
+export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
+  try {
+    await setDoc(doc(db, 'config', 'empresa'), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+    await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, data, 'admin');
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'config/empresa');
+  }
+}
+
+export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {
+  await saveDocumentAudited('partners', partner.id, partner as unknown as Record<string, unknown>, isNew, role);
+  const pubRef = doc(db, 'partnersPublic', partner.id);
+  if (partner.recomendadoAosClientes && partner.statusHomologacao === 'Ativo/Indicado') {
+    const pubPayload: PartnerPublic = {
+      id: partner.id,
+      nome: partner.nome,
+      categoria: partner.categoria,
+      pais: partner.pais,
+      cidadeRegiao: partner.cidadeRegiao,
+      whatsapp: partner.whatsapp,
+      siteInstagram: partner.siteInstagram,
+      avaliacao: partner.avaliacao,
+      descricaoPublica: partner.descricaoPublica || partner.condicoesParceria || '',
+      recomendadoAosClientes: true,
+      statusHomologacao: 'Ativo/Indicado',
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(pubRef, pubPayload);
+  } else {
+    try {
+      await deleteDoc(pubRef);
+    } catch {
+      // ignore if didn't exist
+    }
+  }
+}
+
+export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
+  leads: Lead[];
+  clients: Client[];
+  dependents: Dependent[];
+  cases: Case[];
+  caseFinancials: CaseFinancialSummary[];
+  caseDocuments: CaseDocument[];
+  tasks: Task[];
+  deadlines: Deadline[];
+  appointments: Appointment[];
+  communicationLogs: CommunicationLog[];
+  viabilityAssessments: ViabilityAssessment[];
+  budgets: Budget[];
+  financialRecords: FinancialRecord[];
+  partners: Partner[];
+  partnerProposals: PartnerProposal[];
+  messageTemplates: MessageTemplate[];
+  documentTemplates: DocumentTemplate[];
+  generatedDocuments: GeneratedDocument[];
+  auditLogs: AuditLog[];
+}> {
+  const canSeeFinance = role === 'admin' || role === 'consultor';
+
+  const safeList = async <T,>(col: string, qOverride?: ReturnType<typeof query>): Promise<T[]> => {
+    try {
+      const snap = await getDocs(qOverride || collection(db, col));
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }) as T);
+    } catch (err) {
+      console.warn(`Aviso ao ler ${col}:`, err);
+      return [];
+    }
+  };
+
+  const [
+    leads,
+    clients,
+    dependents,
+    cases,
+    caseDocuments,
+    tasks,
+    deadlines,
+    appointments,
+    communicationLogs,
+    viabilityAssessments,
+    messageTemplates,
+    documentTemplates,
+    generatedDocuments,
+    auditLogs,
+    caseFinancials,
+    budgets,
+    financialRecords,
+    partners,
+    partnerProposals,
+  ] = await Promise.all([
+    safeList<Lead>('leads'),
+    safeList<Client>('clients'),
+    safeList<Dependent>('dependents'),
+    safeList<Case>('cases'),
+    safeList<CaseDocument>('caseDocuments'),
+    safeList<Task>('tasks'),
+    safeList<Deadline>('deadlines'),
+    safeList<Appointment>('appointments'),
+    safeList<CommunicationLog>('communicationLogs'),
+    safeList<ViabilityAssessment>('viabilityAssessments'),
+    safeList<MessageTemplate>('messageTemplates'),
+    safeList<DocumentTemplate>('documentTemplates'),
+    canSeeFinance
+      ? safeList<GeneratedDocument>('generatedDocuments')
+      : safeList<GeneratedDocument>(
+          'generatedDocuments',
+          query(collection(db, 'generatedDocuments'), where('financeiro', '==', false)),
+        ),
+    safeList<AuditLog>('auditLogs', query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc'))),
+    canSeeFinance ? safeList<CaseFinancialSummary>('caseFinancials') : Promise.resolve([]),
+    canSeeFinance ? safeList<Budget>('budgets') : Promise.resolve([]),
+    canSeeFinance ? safeList<FinancialRecord>('financialRecords') : Promise.resolve([]),
+    canSeeFinance ? safeList<Partner>('partners') : Promise.resolve([]),
+    canSeeFinance ? safeList<PartnerProposal>('partnerProposals') : Promise.resolve([]),
+  ]);
+
+  return {
+    leads,
+    clients,
+    dependents,
+    cases,
+    caseFinancials,
+    caseDocuments,
+    tasks,
+    deadlines,
+    appointments,
+    communicationLogs,
+    viabilityAssessments,
+    budgets,
+    financialRecords,
+    partners,
+    partnerProposals,
+    messageTemplates: messageTemplates.length > 0 ? messageTemplates : SEED_MESSAGE_TEMPLATES,
+    documentTemplates: documentTemplates.length > 0 ? documentTemplates : SEED_DOCUMENT_TEMPLATES,
+    generatedDocuments,
+    auditLogs,
+  };
+}
+
+export async function fetchClientPortalData(clientId: string): Promise<{
+  client: Client | null;
+  dependents: Dependent[];
+  cases: Case[];
+  caseDocuments: CaseDocument[];
+  deadlines: Deadline[];
+  appointments: Appointment[];
+  viabilityAssessments: ViabilityAssessment[];
+  budgets: Budget[];
+  financialRecords: FinancialRecord[];
+  generatedDocuments: GeneratedDocument[];
+}> {
+  const byClient = <T,>(col: string, extraWhere?: ReturnType<typeof where>) => {
+    const constraints = [where('clientId', '==', clientId)];
+    if (extraWhere) constraints.push(extraWhere);
+    return getDocs(query(collection(db, col), ...constraints))
+      .then((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }) as T))
+      .catch(() => [] as T[]);
+  };
+
+  const clientSnap = await getDoc(doc(db, 'clients', clientId)).catch(() => null);
+  const client = clientSnap?.exists() ? ({ id: clientSnap.id, ...(clientSnap.data() as Omit<Client, 'id'>) }) : null;
+
+  const [
+    dependents,
+    cases,
+    caseDocuments,
+    deadlines,
+    appointments,
+    viabilityAssessments,
+    budgets,
+    financialRecords,
+    generatedDocuments,
+  ] = await Promise.all([
+    byClient<Dependent>('dependents'),
+    byClient<Case>('cases'),
+    byClient<CaseDocument>('caseDocuments'),
+    byClient<Deadline>('deadlines'),
+    byClient<Appointment>('appointments'),
+    byClient<ViabilityAssessment>('viabilityAssessments', where('liberadoAoCliente', '==', true)),
+    byClient<Budget>('budgets', where('status', 'in', ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'])),
+    byClient<FinancialRecord>('financialRecords'),
+    byClient<GeneratedDocument>('generatedDocuments', where('liberadoAoCliente', '==', true)),
+  ]);
+
+  return {
+    client,
+    dependents,
+    cases,
+    caseDocuments,
+    deadlines,
+    appointments,
+    viabilityAssessments,
+    budgets,
+    financialRecords,
+    generatedDocuments,
+  };
+}
+
+export async function uploadFileToServer(file: File): Promise<{ url: string; filename: string }> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Faça login para enviar arquivos.');
+  const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+  if (!allowed.includes(file.type)) {
+    throw new Error('Formato não permitido. Envie apenas PDF, JPG, PNG ou WEBP.');
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('O arquivo excede o limite máximo de 10 MB.');
+  }
+  const token = await user.getIdToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  const resp = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = (await resp.json()) as { url?: string; filename?: string; error?: string };
+  if (!resp.ok || !data.url) {
+    throw new Error(data.error || 'Falha ao enviar arquivo.');
+  }
+  return { url: data.url, filename: data.filename || file.name };
+}
+
+export interface CallAiOptions {
+  onProgress?: (message: string, attempt?: number, maxAttempts?: number) => void;
+}
+
+export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
+  }
+  const token = await user.getIdToken();
+  let resp: Response;
+  try {
+    resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options?.onProgress ? { 'x-ai-progress': '1' } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (networkErr) {
+    throw new Error(sanitizeClientAiError(networkErr));
+  }
+
+  const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/x-ndjson') && resp.body) {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: T | null = null;
+    let streamError: string | null = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const ev = JSON.parse(trimmed) as {
+            type?: string;
+            message?: string;
+            attempt?: number;
+            maxAttempts?: number;
+            data?: T;
+            error?: string;
+          };
+          if (ev.type === 'progress' && ev.message) {
+            options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
+          } else if (ev.type === 'result' && ev.data) {
+            finalResult = ev.data;
+          } else if (ev.type === 'error') {
+            streamError = sanitizeClientAiError(ev.error || '');
+          }
+        } catch {
+          // ignore partial line
+        }
+      }
+    }
+    if (buffer.trim()) {
+      try {
+        const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
+        if (ev.type === 'result' && ev.data) finalResult = ev.data;
+        else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
+      } catch {
+        // ignore
+      }
+    }
+
+    if (streamError) throw new Error(streamError);
+    if (finalResult) return finalResult;
+    throw new Error(sanitizeClientAiError(''));
+  }
+
+  let rawText = '';
+  try {
+    rawText = await resp.text();
+    const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
+    if (!resp.ok) {
+      throw new Error(sanitizeClientAiError(data.error || rawText || String(resp.status)));
+    }
+    return data;
+  } catch (err) {
+    throw new Error(sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)));
+  }
+}
+
+export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {
+  // Procura cliente já existente por e-mail
+  try {
+    const clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', user.email)));
+    if (!clSnap.empty) {
+      const clDoc = clSnap.docs[0];
+      const clientData = clDoc.data() as Client;
+      const updatedRole: UserRole = user.role;
+      const newStatus = clientData.portalLiberado ? 'ativo' : 'pendente';
+      if (user.clientId !== clDoc.id || user.status !== newStatus) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          clientId: clDoc.id,
+          status: user.role === 'cliente' ? newStatus : user.status,
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
+      }
+      if (!clientData.userId) {
+        await updateDoc(doc(db, 'clients', clDoc.id), { userId: user.uid }).catch(() => {});
+      }
+      return { ...user, clientId: clDoc.id, status: updatedRole === 'cliente' ? newStatus : user.status };
+    }
+  } catch {
+    // fallback if rules reject query before linking
+  }
+  return user;
+}
