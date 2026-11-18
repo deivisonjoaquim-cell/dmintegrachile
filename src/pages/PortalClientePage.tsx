@@ -20,6 +20,7 @@ import {
   LogOut,
   MessageCircle,
   Printer,
+  Scale,
   Shield,
   Star,
   Trash2,
@@ -31,6 +32,7 @@ import { CalendlyModal } from '../components/CalendlyModal';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
+import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { PIPELINE_STAGES } from '../data/seeds';
@@ -84,10 +86,10 @@ interface PortalClientePageProps {
   onNavigate: (path: string) => void;
 }
 
-type PortalTab = 'processo' | 'documentos' | 'financeiro' | 'suporte' | 'dados';
+type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
 
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
-  const { userProfile, empresa, partnersPublic, legalSources, logout } = useApp();
+  const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
   const [tab, setTab] = useState<PortalTab>('processo');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -639,11 +641,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* 5 Abas desktop/tablet */}
+        {/* Abas desktop/tablet */}
         <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-slate-100 no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
+            { id: 'biblioteca', label: 'Biblioteca Legal' },
             { id: 'financeiro', label: 'Orçamentos & Financeiro' },
             { id: 'suporte', label: 'Agendamento & Suporte' },
             { id: 'dados', label: 'Meus Dados & LGPD' },
@@ -1056,6 +1059,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTab('biblioteca')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                    >
+                      <Scale className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                      Biblioteca Legal
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setLawOpen(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
                     >
@@ -1130,6 +1141,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </div>
                 )}
               </div>
+            )}
+
+            {/* ABA: BIBLIOTECA LEGAL */}
+            {tab === 'biblioteca' && (
+              <PortalBibliotecaLegal
+                legalSources={legalSources}
+                visaCategories={visaCategories}
+                visaRequirements={visaRequirements}
+                activeCase={activeCase}
+              />
             )}
 
             {/* ABA 3: ORÇAMENTOS & FINANCEIRO */}
@@ -1279,6 +1300,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       <MessageCircle className="w-4 h-4" />
                       Falar no WhatsApp
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => setTab('biblioteca')}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      <Scale className="w-4 h-4 text-[var(--color-primary)]" />
+                      Biblioteca Legal SERMIG
+                    </button>
                     <button
                       type="button"
                       onClick={() => setLawOpen(true)}
@@ -1451,11 +1480,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       {/* Barra inferior mobile fixa com >=48px touch targets */}
       <nav
         aria-label="Navegação rápida do portal"
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 grid grid-cols-5 no-print"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 grid grid-cols-6 no-print"
       >
         {[
           { id: 'processo', label: 'Processo', icon: <Briefcase className="w-4 h-4" /> },
           { id: 'documentos', label: 'Docs', icon: <FolderOpen className="w-4 h-4" /> },
+          { id: 'biblioteca', label: 'Normas', icon: <Scale className="w-4 h-4" /> },
           { id: 'financeiro', label: 'Financeiro', icon: <CreditCard className="w-4 h-4" /> },
           { id: 'suporte', label: 'Suporte', icon: <HelpCircle className="w-4 h-4" /> },
           { id: 'dados', label: 'Dados', icon: <User className="w-4 h-4" /> },

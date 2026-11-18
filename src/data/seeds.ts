@@ -183,7 +183,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     titulo: 'Soluções completas de imigração e estabelecimento no Chile',
     subtitulo: 'Serviços desenhados para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.',
     conteudoHtml: '',
-    imagemUrl: '/src/assets/images/service_relocation_chile_1794944013551.jpg',
+    imagemUrl: '/src/assets/images/service_relocation_chile_1794997277886.jpg',
     ordem: 2,
     ativo: true,
     metadados: {
@@ -221,7 +221,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     titulo: 'Por que confiar sua mudança à D&M Integra Chile',
     subtitulo: 'Rigor técnico para evitar exigências do SERMIG, vencimento de certidões e indeferimentos.',
     conteudoHtml: '',
-    imagemUrl: '/src/assets/images/about_consultoria_office_1794944011861.jpg',
+    imagemUrl: '/src/assets/images/about_consultoria_office_1794997278170.jpg',
     ordem: 3,
     ativo: true,
     metadados: {
@@ -405,7 +405,14 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/reciprocidad-internacional/',
     ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_acordo_mercosul', 'leg_dec_177_2022', 'leg_dec_5852', 'leg_dec_6975'],
+    legalSourceIds: [
+      'leg_ley_21325',
+      'leg_acordo_mercosul',
+      'leg_dec_177_2022',
+      'leg_dec_5852',
+      'leg_dec_6975',
+      'leg_guia_procedimental_sermig',
+    ],
   },
   {
     id: 'visa_01_reunificacao',
@@ -425,7 +432,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/reunificacion-familiar/',
     ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_181_2023'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_181_2023', 'leg_guia_procedimental_sermig'],
   },
   {
     id: 'visa_02_atividades_licitas',
@@ -445,7 +452,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/actividades-licitas-remuneradas/',
     ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296', 'leg_guia_procedimental_sermig'],
   },
   {
     id: 'visa_03_estudantes',
@@ -465,7 +472,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/estudiantes/',
     ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_guia_procedimental_sermig'],
   },
   {
     id: 'visa_04_temporada',
@@ -717,7 +724,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     fonteUrl: 'https://serviciomigraciones.cl',
     ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_296', 'leg_sermig_estampado'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_296', 'leg_sermig_estampado', 'leg_circular_subcategorias_sermig'],
   },
   {
     id: 'fluxo_mudanca',
@@ -736,7 +743,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296', 'leg_circular_subcategorias_sermig'],
   },
   {
     id: 'fluxo_ratificacao',
@@ -775,7 +782,13 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     fonteUrl: 'https://serviciomigraciones.cl',
     ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_296', 'leg_dec_181_2023', 'leg_sermig_estampado'],
+    legalSourceIds: [
+      'leg_ley_21325',
+      'leg_dec_296',
+      'leg_dec_181_2023',
+      'leg_sermig_estampado',
+      'leg_circular_subcategorias_sermig',
+    ],
   },
   {
     id: 'fluxo_turismo',
@@ -1559,6 +1572,92 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     statusVigencia: 'Vigente',
     ultimaVerificacao: '2026-11-17',
     deadlineTipos: ['Validade Passaporte', 'Validade Documento'],
+  },
+  {
+    id: 'leg_guia_procedimental_sermig',
+    titulo: 'Guia Procedimental SERMIG – Fluxo Completo (Protocolo, Subsanación, Estampado e Cédula)',
+    tipo: 'Portal Oficial',
+    pais: 'Chile',
+    numeroAno: 'Guia Oficial SERMIG',
+    orgaoEmissor: 'Servicio Nacional de Migraciones (SERMIG) & Registro Civil',
+    artigos: 'Passo a passo oficial: Preparação documental, Trámites Digitales, Subsanación, Estampado Electrónico e Cédula',
+    artigosEstruturados: [
+      {
+        numero: 'Fase 01',
+        titulo: 'Emissão e Apostila de Haia (Brasil)',
+        resumo: 'Emitir certidões sem prazo curto primeiro e deixar o Certificado de Antecedentes Criminais da Polícia Federal por último (validade máxima de 60 dias no protocolo) com Apostila da Haia em cartório credenciado CNJ.',
+      },
+      {
+        numero: 'Fase 02',
+        titulo: 'Protocolo Digital no SERMIG',
+        resumo: 'Envio dos arquivos PDF/JPG legíveis pelo portal Trámites Digitales (clave única ou conta SERMIG) observando a regra de pedido do exterior para primeiras residências temporais sem exceção legal.',
+      },
+      {
+        numero: 'Fase 03',
+        titulo: 'Acompanhamento & Subsanación',
+        resumo: 'Monitorar notificações eletrônicas do SERMIG e cumprir eventuais exigências complementares (subsanación) dentro do prazo administrativo assinalado.',
+      },
+      {
+        numero: 'Fase 04',
+        titulo: 'Pagamento de Taxas e Estampado Electrónico',
+        resumo: 'Após aprovação, realizar o pagamento dos direitos migratórios no portal e baixar o Estampado Electrónico oficial em PDF.',
+      },
+      {
+        numero: 'Fase 05',
+        titulo: 'Entrada no Chile (90 dias) e Cédula de Identidade',
+        resumo: 'Para pedidos feitos do exterior, ingressar no Chile dentro do prazo legal do Estampado (regra geral de 90 dias corridos) e solicitar a Cédula de Identidad para Extranjeros no Registro Civil.',
+      },
+    ],
+    resumoPortugues:
+      'Roteiro procedimental consolidado conforme instruções oficiais do SERMIG, Decreto 296/2022 e Registro Civil para orientar o cliente em todas as etapas até a emissão da Cédula chilena.',
+    explicacaoCliente:
+      'Guia passo a passo de como o seu pedido caminha no portal oficial do SERMIG: da emissão dos documentos no Brasil até a retirada da sua Cédula de Identidade no Chile.',
+    textoIntegral: '',
+    tags: ['guia procedimental', 'sermig', 'estampado', 'cedula', 'subsanacion', 'mercosul', 'residencia temporal'],
+    linkOficial: 'https://serviciomigraciones.cl/residencia-temporal/',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    deadlineTipos: ['Entrada no Chile 90d', 'Vencimento Cédula', 'Prazo Legal 6 Meses SERMIG'],
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_296', 'leg_sermig_estampado', 'leg_sermig_portal'],
+  },
+  {
+    id: 'leg_circular_subcategorias_sermig',
+    titulo: 'Orientações SERMIG – Prorrogação, Mudança de Subcategoria e Residência Definitiva',
+    tipo: 'Circular',
+    pais: 'Chile',
+    numeroAno: 'Janela 90–10 dias',
+    orgaoEmissor: 'Servicio Nacional de Migraciones (SERMIG)',
+    artigos: 'Janela legal de 90 a 10 dias antes do vencimento da Residência Temporal e requisitos de continuidade',
+    artigosEstruturados: [
+      {
+        numero: 'Janela Legal',
+        titulo: '90 a 10 dias antes do vencimento',
+        resumo: 'Pedidos de Prorrogação ou Residência Definitiva devem ser protocolados dentro do Chile entre 90 e 10 dias corridos antes da expiração da residência temporal vigente.',
+      },
+      {
+        numero: 'Mudança de Subcategoria',
+        titulo: 'Alteração de vínculo vigente',
+        resumo: 'Residentes temporais que alteram seu enquadramento (ex.: estudante para trabalho ou vínculo familiar) tramitam mudança de subcategoria diretamente pelo portal SERMIG.',
+      },
+      {
+        numero: 'Residência Definitiva',
+        titulo: 'Tempo de residência e sustento econômico',
+        resumo: 'Exige cumprimento do prazo mínimo aplicável (em regra 24 meses na subcategoria Mercosul ou 12 meses em hipóteses familiares) e comprovação de atividade lícita ou meios de subsistência.',
+      },
+    ],
+    resumoPortugues:
+      'Consolidação operacional dos critérios do SERMIG e do Decreto 296/2022 sobre prorrogação de residência temporal, mudança de subcategoria dentro do Chile e transição para a Residência Definitiva.',
+    explicacaoCliente:
+      'Explica os prazos exatos para renovar sua residência ou pedir a Residência Definitiva sem perder a regularidade no Chile.',
+    textoIntegral: '',
+    tags: ['circular', 'sermig', 'prorrogacao', 'definitiva', 'mudanca de categoria', 'residencia temporal'],
+    linkOficial: 'https://serviciomigraciones.cl',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    deadlineTipos: ['Janela Prorrogação'],
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_296', 'leg_dec_181_2023'],
   },
 ];
 

@@ -23,13 +23,13 @@ export const BUILT_IN_MEDIA_GALLERY: { id: string; nome: string; categoria: Medi
     id: 'builtin_service_relocation',
     nome: 'Relocation & Estabelecimento no Chile',
     categoria: 'banner',
-    url: '/src/assets/images/service_relocation_chile_1794944013551.jpg',
+    url: '/src/assets/images/service_relocation_chile_1794997277886.jpg',
   },
   {
     id: 'builtin_about_office',
     nome: 'Escritório de Consultoria Jurídica',
     categoria: 'banner',
-    url: '/src/assets/images/about_consultoria_office_1794944011861.jpg',
+    url: '/src/assets/images/about_consultoria_office_1794997278170.jpg',
   },
   {
     id: 'builtin_founder_portrait',

@@ -86,8 +86,11 @@ function stripUndefined<T>(val: T): T {
 // =============================================================================
 // Public Readers (Safe without login)
 // =============================================================================
-const LEGACY_QUEM_SOMOS_IMAGE = '/src/assets/images/quem_somos_founder_1794944012517.jpg';
-const CURRENT_QUEM_SOMOS_IMAGE = '/src/assets/images/quem_somos_founder_1794993847940.jpg';
+const LEGACY_IMAGE_REPLACEMENTS: Record<string, string> = {
+  '/src/assets/images/quem_somos_founder_1794944012517.jpg': '/src/assets/images/quem_somos_founder_1794993847940.jpg',
+  '/src/assets/images/about_consultoria_office_1794944011861.jpg': '/src/assets/images/about_consultoria_office_1794997278170.jpg',
+  '/src/assets/images/service_relocation_chile_1794944013551.jpg': '/src/assets/images/service_relocation_chile_1794997277886.jpg',
+};
 const LEGACY_FORMACAO_VALUES = new Set([
   'Especialização em Direito Migratório Comparado Brasil–Chile, Gestão de Mobilidade Global e Conformidade LGPD.',
   'Especialização em Direito Migratório Comparado Brasil–Chile e Gestão de Mobilidade Internacional.',
@@ -183,8 +186,9 @@ function normalizeDocumentTemplates(rows: DocumentTemplate[]): DocumentTemplate[
 function normalizeSiteContentAssets(rows: SiteContent[]): SiteContent[] {
   return rows.map((row) => {
     let next = row;
-    if (next.imagemUrl === LEGACY_QUEM_SOMOS_IMAGE) {
-      next = { ...next, imagemUrl: CURRENT_QUEM_SOMOS_IMAGE };
+    const replacementImg = next.imagemUrl ? LEGACY_IMAGE_REPLACEMENTS[next.imagemUrl] : undefined;
+    if (replacementImg) {
+      next = { ...next, imagemUrl: replacementImg };
     }
     if (next.secao === 'quem_somos' && next.metadados) {
       const meta = { ...next.metadados };
@@ -379,6 +383,9 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
       if (typeof data.termoLgpd === 'string' && data.termoLgpd.includes(LEGACY_TERMO_LGPD_LINE)) {
         cfgPatch.termoLgpd = data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE);
       }
+      if (Array.isArray(data.siteDraft) && data.siteDraft.some((s) => s?.imagemUrl && Boolean(LEGACY_IMAGE_REPLACEMENTS[s.imagemUrl]))) {
+        cfgPatch.siteDraft = normalizeSiteContentAssets(data.siteDraft);
+      }
       if (Object.keys(cfgPatch).length > 0) {
         cfgPatch.updatedAt = new Date().toISOString();
         await updateDoc(cfgRef, cfgPatch);
@@ -393,7 +400,7 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
     } else {
       const docsToUpgrade = siteSnap.docs.filter((d) => {
         const data = d.data() as Partial<SiteContent>;
-        const hasLegacyImg = data.imagemUrl === LEGACY_QUEM_SOMOS_IMAGE;
+        const hasLegacyImg = Boolean(data.imagemUrl && LEGACY_IMAGE_REPLACEMENTS[data.imagemUrl]);
         const meta = (data.metadados || {}) as Record<string, unknown>;
         const formacaoAtual = String(meta.formacao || '').trim();
         const experienciaAtual = String(meta.experiencia || '').trim();
@@ -408,8 +415,9 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
           docsToUpgrade.map((d) => {
             const data = d.data() as Partial<SiteContent>;
             const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-            if (data.imagemUrl === LEGACY_QUEM_SOMOS_IMAGE) {
-              patch.imagemUrl = CURRENT_QUEM_SOMOS_IMAGE;
+            const replacementImg = data.imagemUrl ? LEGACY_IMAGE_REPLACEMENTS[data.imagemUrl] : undefined;
+            if (replacementImg) {
+              patch.imagemUrl = replacementImg;
             }
             const meta = { ...((data.metadados || {}) as Record<string, unknown>) };
             let metaChanged = false;

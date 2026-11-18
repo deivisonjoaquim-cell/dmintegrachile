@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
+import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
 import {
   callAiEndpoint,
   convertLeadToClientAndCaseEnhanced,
@@ -70,15 +71,6 @@ interface PainelLeadsProps {
   onOpenCase: (caseId: string) => void;
 }
 
-const FUNIL_STAGES: Lead['statusFunil'][] = [
-  'Novo',
-  'Contatado',
-  'Diagnóstico Agendado',
-  'Orçamento Enviado',
-  'Fechado',
-  'Perdido',
-];
-
 export const PainelLeads: React.FC<PainelLeadsProps> = ({
   role,
   userProfile,
@@ -95,7 +87,15 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   onLogWhatsApp,
   onOpenCase,
 }) => {
-  const [view, setView] = useState<'lista' | 'kanban' | 'inteligencia'>('lista');
+  const [view, setView] = useState<'lista' | 'kanban' | 'inteligencia'>(() => {
+    try {
+      const saved = window.localStorage.getItem('dm_leads_view');
+      if (saved === 'lista' || saved === 'kanban' || saved === 'inteligencia') return saved;
+    } catch {
+      // ignore storage errors
+    }
+    return 'lista';
+  });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [smartFilter, setSmartFilter] = useState<
@@ -108,6 +108,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const [inspectingLead, setInspectingLead] = useState<Lead | null>(null);
   const [whatIfAnswers, setWhatIfAnswers] = useState<DiagnosticAnswers | null>(null);
   const [lawModalOpen, setLawModalOpen] = useState(false);
+  const [movingLeadId, setMovingLeadId] = useState<string | null>(null);
+  const [optimisticLeads, setOptimisticLeads] = useState<Record<string, Lead>>({});
 
   const [aiDraft, setAiDraft] = useState<AiDiagnosticDraft | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -131,14 +133,19 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     [activeRules, empresa],
   );
 
+  const effectiveLeads = useMemo(
+    () => leads.map((l) => optimisticLeads[l.id] || l),
+    [leads, optimisticLeads],
+  );
+
   const intelligence = useMemo(
-    () => computeDiagnosticIntelligence(leads, periodDays > 0 ? periodDays : undefined),
-    [leads, periodDays],
+    () => computeDiagnosticIntelligence(effectiveLeads, periodDays > 0 ? periodDays : undefined),
+    [effectiveLeads, periodDays],
   );
 
   const duplicateGroups = useMemo(() => {
     const map = new Map<string, Lead[]>();
-    for (const l of leads) {
+    for (const l of effectiveLeads) {
       if (l.motivoPerda === 'Lead duplicado mesclado') continue;
       const emailKey = (l.email || '').trim().toLowerCase();
       const phoneDigits = (l.whatsapp || '').replace(/\D/g, '');
@@ -148,10 +155,10 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       map.set(key, arr);
     }
     return Array.from(map.values()).filter((g) => g.length > 1);
-  }, [leads]);
+  }, [effectiveLeads]);
 
   const filtered = useMemo(() => {
-    return leads
+    return effectiveLeads
       .filter((l) => {
         if (statusFilter !== 'Todos' && l.statusFunil !== statusFilter) return false;
         if (smartFilter === 'alta_urgente' && l.prioridade !== 'Alta' && l.prioridade !== 'Urgente') return false;
@@ -174,7 +181,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         return true;
       })
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  }, [leads, search, statusFilter, smartFilter]);
+  }, [effectiveLeads, search, statusFilter, smartFilter]);
 
   const openInspectModal = (lead: Lead) => {
     setInspectingLead(lead);
@@ -257,6 +264,53 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     setEditingLead(null);
     setFeedback('Lead atualizado com sucesso.');
     await onRefresh();
+  };
+
+  const handleMoveLeadStage = async (
+    lead: Lead,
+    nextStage: Lead['statusFunil'],
+    motivoPerda?: string,
+  ) => {
+    if (lead.statusFunil === nextStage) return;
+    const nowIso = new Date().toISOString();
+    const updatedLead: Lead = {
+      ...lead,
+      statusFunil: nextStage,
+      primeiroContatoEm:
+        nextStage !== 'Novo' && !lead.primeiroContatoEm ? nowIso : lead.primeiroContatoEm,
+      motivoPerda: nextStage === 'Perdido' ? (motivoPerda || lead.motivoPerda || 'Não informado') : undefined,
+      updatedAt: nowIso,
+    };
+    setMovingLeadId(lead.id);
+    setOptimisticLeads((prev) => ({ ...prev, [lead.id]: updatedLead }));
+    setFeedback(null);
+    try {
+      await saveDocumentAudited(
+        'leads',
+        lead.id,
+        updatedLead as unknown as Record<string, unknown>,
+        false,
+        role,
+        'statusFunil',
+        lead.statusFunil,
+      );
+      setFeedback(`Lead "${lead.nome}" movido para "${nextStage}".`);
+      await onRefresh();
+    } catch (err) {
+      setOptimisticLeads((prev) => {
+        const clone = { ...prev };
+        delete clone[lead.id];
+        return clone;
+      });
+      setFeedback(err instanceof Error ? err.message : 'Não foi possível atualizar a etapa do lead.');
+    } finally {
+      setMovingLeadId(null);
+      setOptimisticLeads((prev) => {
+        const clone = { ...prev };
+        delete clone[lead.id];
+        return clone;
+      });
+    }
   };
 
   const handleDelete = async (lead: Lead) => {
@@ -442,7 +496,15 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setView(t.id as typeof view)}
+                onClick={() => {
+                  const next = t.id as typeof view;
+                  setView(next);
+                  try {
+                    window.localStorage.setItem('dm_leads_view', next);
+                  } catch {
+                    // ignore
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold ${
                   view === t.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
                 }`}
@@ -860,55 +922,20 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {FUNIL_STAGES.map((stage) => {
-                const colLeads = filtered.filter((l) => l.statusFunil === stage);
-                return (
-                  <div key={stage} className="bg-slate-100/80 border border-slate-200 rounded-xl p-3 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                      <span>{stage}</span>
-                      <span className="tabular-nums">{colLeads.length}</span>
-                    </div>
-                    <div className="space-y-2">
-                      {colLeads.map((l) => (
-                        <div key={l.id} className="bg-white border border-slate-200 rounded-lg p-3 space-y-1.5">
-                          <div className="flex items-center justify-between gap-1">
-                            <p className="text-xs font-bold text-slate-900 truncate">{l.nome}</p>
-                            <span className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold ${getPriorityBadge(l.prioridade)}`}>
-                              {l.prioridade}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 truncate">{l.subcategoriaSugerida || l.interesse}</p>
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-[11px] font-semibold tabular-nums text-[var(--color-primary)]">
-                              {l.notaViabilidade ?? '—'}/100
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {l.respostasTriagem && (
-                                <button
-                                  type="button"
-                                  onClick={() => openInspectModal(l)}
-                                  className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline"
-                                >
-                                  Analisar
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setEditingLead(l)}
-                                className="text-[11px] font-medium text-slate-600 hover:underline"
-                              >
-                                Editar
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <PainelLeadsKanban
+              leads={filtered}
+              role={role}
+              selectedLeadIds={selectedLeadIds}
+              convertingId={convertingId}
+              movingLeadId={movingLeadId}
+              onToggleSelect={toggleSelect}
+              onMoveStage={handleMoveLeadStage}
+              onInspectLead={openInspectModal}
+              onEditLead={setEditingLead}
+              onSendWhatsApp={handleSendTemplate}
+              onConvertLead={handleConvert}
+              onOpenCase={onOpenCase}
+            />
           )}
         </>
       )}
