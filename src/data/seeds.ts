@@ -62,13 +62,40 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   endereco_cidade: 'Santiago, Chile · Atendimento Brasil & Chile',
   foro_comarca: 'Comarca da Capital do Estado do Rio de Janeiro – RJ',
   logoUrl: '',
+  logoDarkUrl: '',
+  faviconUrl: '',
   corPrimaria: '#0F2537',
   corDestaque: '#D4AF37',
   corFundo: '#F8F9FA',
+  corSuperficie: '#FFFFFF',
+  corTexto: '#0F172A',
+  corRodapeBg: '#0B1B29',
   fontePrincipal: 'Plus Jakarta Sans',
+  fonteDisplay: 'Plus Jakarta Sans',
+  layoutConfig: {
+    logoAlturaPx: 36,
+    mostrarNomeComLogo: true,
+    raioBordas: 'editorial',
+    densidadeSecoes: 'equilibrada',
+    estiloCabecalho: 'sticky_vidro',
+    textoCtaCabecalho: 'Área da equipe',
+    destinoCtaCabecalho: '/entrar-equipe',
+    mostrarBotaoWhatsappFlutuante: true,
+    mostrarBarraCtaMobile: true,
+    rodapeSubtitulo: 'Consultoria especializada em imigração e relocation Brasil – Chile.',
+    rodapeCopyright: 'Todos os direitos reservados.',
+    linksNavegacao: [
+      { path: '/', label: 'Início', visivel: true },
+      { path: '/quem-somos', label: 'Quem Somos', visivel: true },
+      { path: '/parceiros', label: 'Parceiros', visivel: true },
+      { path: '/diagnostico', label: 'Diagnóstico', visivel: true },
+      { path: '/acompanhar', label: 'Portal do Cliente', visivel: true },
+    ],
+  },
   whatsapp: '+55 (21) 99999-0000',
   email: 'contato@dmintegrachile.com',
   siteInstagram: 'https://instagram.com/dmintegrachile',
+  siteLinkedIn: '',
   linkCalendly: '',
   emailGoogleAgenda: 'contato@dmintegrachile.com',
   chavePix: 'contato@dmintegrachile.com',
@@ -98,6 +125,33 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     fonteObservacao: 'Referência inicial cadastrada',
   },
   ultimaRevisaoNormativa: '2026-11-17',
+  textoContratoVersao: '1.0',
+  textoContratoVigencia: '2026-11-17',
+  textoReciboVersao: '1.0',
+  textoReciboVigencia: '2026-11-17',
+  termoLgpdVigencia: '2026-11-17',
+  retencaoDadosDias: 1825,
+  seoTituloPadrao: 'D&M Integra Chile – Relocation & Assessoria Migratória',
+  seoDescricaoPadrao:
+    'Assessoria especializada em imigração, Acordo Mercosul, Residência Temporal, Residência Definitiva e relocation completo para brasileiros no Chile.',
+  depoimentosAutorizados: [],
+  quemSomosMarcoHistorico: [
+    {
+      ano: '2018',
+      titulo: 'Início da atuação na ponte Brasil–Chile',
+      descricao: 'Apoio jurídico-operacional focado em profissionais e famílias brasileiras em Santiago.',
+    },
+    {
+      ano: '2022',
+      titulo: 'Adequação integral à Ley Nº 21.325 e Decreto 177',
+      descricao: 'Padronização do diagnóstico normativo e do cronograma reverso de certidões e apostilas.',
+    },
+    {
+      ano: '2026',
+      titulo: 'Plataforma digital transparente com Portal do Cliente',
+      descricao: 'Acompanhamento de 15 etapas, Base Legal auditada e esteira documental com conferência por peso.',
+    },
+  ],
 };
 
 export const SEED_SITE_CONTENT: SiteContent[] = [
@@ -242,13 +296,31 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     },
   },
   {
+    id: 'parceiros',
+    secao: 'parceiros',
+    titulo: 'Rede de Parceiros Homologados Brasil – Chile',
+    subtitulo: 'Profissionais e empresas verificadas pela consultoria para apoiar cada etapa da sua mudança.',
+    conteudoHtml:
+      'Cartórios, tradutores juramentados, seguradoras, contabilidades e assessoria imobiliária avaliados por qualidade técnica e atendimento em português.',
+    imagemUrl: '',
+    ctaTexto: 'Ver parceiros ou ser parceiro',
+    ctaDestino: '/parceiros',
+    ordem: 6,
+    ativo: true,
+    metadados: {
+      eyebrow: 'Ecossistema Verificado',
+      temaSecao: 'claro',
+      maxItens: 3,
+    },
+  },
+  {
     id: 'faq',
     secao: 'faq',
     titulo: 'Perguntas frequentes sobre imigração para o Chile',
     subtitulo: 'Esclareça os pontos que mais geram dúvidas antes de iniciar o seu processo.',
     conteudoHtml: '',
     imagemUrl: '',
-    ordem: 6,
+    ordem: 7,
     ativo: true,
     metadados: {
       perguntas: [
@@ -276,6 +348,16 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     },
   },
   {
+    id: 'depoimentos',
+    secao: 'depoimentos',
+    titulo: 'Histórias reais de quem realizou a mudança com segurança',
+    subtitulo: 'Depoimentos publicados somente mediante autorização expressa dos clientes atendidos.',
+    conteudoHtml: '',
+    imagemUrl: '',
+    ordem: 8,
+    ativo: false,
+  },
+  {
     id: 'contato',
     secao: 'contato',
     titulo: 'Pronto para estruturar sua mudança para o Chile?',
@@ -283,7 +365,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     conteudoHtml:
       'Atendemos clientes em todo o Brasil e em Santiago, Valparaíso, Viña del Mar e demais regiões do Chile.',
     imagemUrl: '',
-    ordem: 7,
+    ordem: 9,
     ativo: true,
   },
   {
@@ -293,7 +375,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     subtitulo: 'Consultoria especializada em processos migratórios Brasil – Chile.',
     conteudoHtml: DEFAULT_AVISO_LEGAL,
     imagemUrl: '',
-    ordem: 8,
+    ordem: 10,
     ativo: true,
   },
 ];
@@ -1266,6 +1348,108 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     linkOficial: 'https://www.planalto.gov.br',
     versao: '1.0',
     statusVigencia: 'A verificar',
+    documentTemplateIds: ['doc_contrato', 'doc_aditivo', 'doc_encerramento'],
+  },
+  {
+    id: 'leg_sermig_portal',
+    titulo: 'Portal Oficial SERMIG – Trámites Digitales (Servicio Nacional de Migraciones)',
+    tipo: 'Portal Oficial',
+    pais: 'Chile',
+    numeroAno: 'Portal SERMIG',
+    orgaoEmissor: 'Servicio Nacional de Migraciones (SERMIG)',
+    artigos: 'Requisitos atualizados de Residência Temporal, Prorrogação, Definitiva e Estampado Electrónico',
+    resumoPortugues:
+      'Canal oficial para protocolo eletrônico de residências, consulta de estado de trámite, download de Estampado Electrónico e orientações vigentes de validade documental.',
+    explicacaoCliente:
+      'É o site oficial do governo chileno onde todo pedido de visto/residência e pagamento de taxas governamentais é acompanhado.',
+    textoIntegral: '',
+    tags: ['sermig', 'portal oficial', 'tramites digitales', 'estampado'],
+    linkOficial: 'https://serviciomigraciones.cl',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-17',
+    deadlineTipos: ['Entrada no Chile 90d', 'Janela Prorrogação', 'Prazo Legal 6 Meses SERMIG'],
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
+  },
+  {
+    id: 'leg_bcn_leychile',
+    titulo: 'Biblioteca del Congreso Nacional de Chile – LeyChile',
+    tipo: 'Portal Oficial',
+    pais: 'Chile',
+    numeroAno: 'BCN LeyChile',
+    orgaoEmissor: 'Biblioteca del Congreso Nacional de Chile',
+    artigos: 'Repositório consolidado de leis, decretos e alterações normativas chilenas',
+    resumoPortugues:
+      'Repositório jurídico oficial da legislação chilena atualizada com histórico de modificações da Ley 21.325, Ley 19.880 e Decretos Supremos.',
+    explicacaoCliente:
+      'Fonte oficial do Congresso chileno usada por nossa equipe para conferir o texto exato e atualizado de cada lei.',
+    textoIntegral: '',
+    tags: ['bcn', 'leychile', 'portal oficial', 'chile'],
+    linkOficial: 'https://www.bcn.cl/leychile',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-17',
+    normasRelacionadas: ['leg_ley_21325', 'leg_ley_19880'],
+  },
+  {
+    id: 'leg_registro_civil',
+    titulo: 'Servicio de Registro Civil e Identificación de Chile',
+    tipo: 'Portal Oficial',
+    pais: 'Chile',
+    numeroAno: 'Portal Registro Civil',
+    orgaoEmissor: 'Registro Civil e Identificación – Chile',
+    artigos: 'Emissão de Cédula de Identidad para Extranjeros, RUN, ClaveÚnica e certidões chilenas',
+    resumoPortugues:
+      'Órgão responsável pela emissão presencial da Cédula de Identidade para estrangeiros, registro de matrimonio/AUC e ativação da ClaveÚnica.',
+    explicacaoCliente:
+      'Após chegar ao Chile com seu visto aprovado, você agenda no Registro Civil a confecção da sua Cédula de Identidade chilena.',
+    textoIntegral: '',
+    tags: ['registro civil', 'cedula', 'run', 'portal oficial'],
+    linkOficial: 'https://www.registrocivil.cl',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-17',
+    deadlineTipos: ['Vencimento Cédula'],
+  },
+  {
+    id: 'leg_cnj_apostila',
+    titulo: 'Conselho Nacional de Justiça (CNJ) – Apostila da Haia no Brasil',
+    tipo: 'Portal Oficial',
+    pais: 'Brasil',
+    numeroAno: 'Portal CNJ / Haia',
+    orgaoEmissor: 'Conselho Nacional de Justiça (CNJ)',
+    artigos: 'Lista de cartórios credenciados e conferência de Apostila Eletrônica',
+    resumoPortugues:
+      'Portal oficial do CNJ para validação da autenticidade de Apostilas da Haia emitidas em cartórios brasileiros e consulta à rede credenciada.',
+    explicacaoCliente:
+      'Permite conferir a lista oficial de cartórios no Brasil e validar o QR Code da Apostila da Haia dos seus documentos.',
+    textoIntegral: '',
+    tags: ['cnj', 'apostila', 'portal oficial', 'cartorio'],
+    linkOficial: 'https://www.cnj.jus.br/poder-judiciario/relacoes-internacionais/apostila-da-haia/',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-17',
+    normasRelacionadas: ['leg_apostila_haia', 'leg_cpc_345'],
+  },
+  {
+    id: 'leg_pf_brasil',
+    titulo: 'Polícia Federal do Brasil – Passaporte e Antecedentes Criminais',
+    tipo: 'Portal Oficial',
+    pais: 'Brasil',
+    numeroAno: 'Portal PF',
+    orgaoEmissor: 'Polícia Federal do Brasil',
+    artigos: 'Emissão de Passaporte Brasileiro e Atestado de Antecedentes Criminais Online',
+    resumoPortugues:
+      'Serviço oficial da Polícia Federal para requerimento de passaporte com validade mínima recomendada e emissão do Certificado de Antecedentes (validade de 60 dias no SERMIG).',
+    explicacaoCliente:
+      'Canal oficial do governo brasileiro para solicitar ou renovar seu passaporte e emitir o Certificado de Antecedentes Criminais gratuito.',
+    textoIntegral: '',
+    tags: ['policia federal', 'passaporte', 'antecedentes', 'portal oficial'],
+    linkOficial: 'https://www.gov.br/pf/pt-br',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-17',
+    deadlineTipos: ['Validade Passaporte', 'Validade Documento'],
   },
 ];
 
@@ -1386,6 +1570,175 @@ export const SEED_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     tipo: 'carta_apresentacao',
     conteudoHtml:
       'AL SERVICIO NACIONAL DE MIGRACIONES (SERMIG) – REPÚBLICA DE CHILE\n\nPresentación de antecedentes de {{cliente_nome}}, nacionalidad brasileña, pasaporte {{cliente_passaporte}}, postulante a {{objeto_servico}}.\n\nSe adjunta documentación debidamente apostillada conforme Convenio de La Haya y normativa vigente.',
+  },
+  {
+    id: 'doc_aditivo',
+    codigo: 'aditivo_contratual',
+    titulo: 'Aditivo Contratual de Escopo ou Dependentes',
+    tipo: 'aditivo',
+    conteudoHtml:
+      'TERMO ADITIVO AO CONTRATO DE CONSULTORIA MIGRATÓRIA\n\nPelo presente instrumento, CONTRATANTE {{cliente_nome}} (CPF {{cliente_cpf}}) e CONTRATADA {{empresa_nome}} acordam a inclusão/alteração de escopo referente ao processo {{objeto_servico}}.\n\nValor adicional/ajustado: {{valor_contrato}} ({{forma_pagamento}}).\nPermanecem inalteradas as demais cláusulas contratuais originais.\n\n{{empresa_endereco}}, {{data_atual}}.',
+    notaInterna: 'Revisar com advogado antes do uso.',
+  },
+  {
+    id: 'doc_procuracao_simples',
+    codigo: 'procuracao_autorizacao',
+    titulo: 'Autorização / Procuração Operacional Simples',
+    tipo: 'procuracao',
+    conteudoHtml:
+      'AUTORIZAÇÃO OPERACIONAL DE ACOMPANHAMENTO ADMINISTRATIVO\n\nEu, {{cliente_nome}}, nacionalidade {{cliente_nacionalidade}}, CPF {{cliente_cpf}}, Passaporte nº {{cliente_passaporte}}, autorizo {{empresa_nome}} ({{empresa_responsavel}}) a realizar organização documental, conferência, suporte administrativo e acompanhamento informativo junto aos canais de atendimento pertinentes ao processo {{objeto_servico}}.\n\nNota: Caso haja necessidade de representação judicial ou ato exclusivo privativo de advogado habilitado no Chile ou Brasil, será formalizado mandato específico.\n\n{{empresa_endereco}}, {{data_atual}}.',
+    notaInterna: 'Revisar com advogado antes do uso.',
+  },
+  {
+    id: 'doc_declaracao_residencia',
+    codigo: 'declaracao_apoio_residencia',
+    titulo: 'Declaração de Apoio / Moradia / Responsabilidade (Modelo editável)',
+    tipo: 'declaracao_residencia',
+    conteudoHtml:
+      'DECLARACIÓN SIMPLE DE APOYO / RESIDENCIA EN CHILE\n\nYo, [preencher nome completo do declarante/responsável], documento [preencher RUT/Passaporte], declaro para los fines pertinentes ante el Servicio Nacional de Migraciones que {{cliente_nome}} (Pasaporte {{cliente_passaporte}}) contará con domicilio/apoyo de residencia ubicado en [preencher endereço completo no Chile].\n\nSantiago, Chile, {{data_atual}}.',
+    notaInterna: 'Revisar com advogado antes do uso.',
+  },
+  {
+    id: 'doc_termo_lgpd',
+    codigo: 'termo_lgpd',
+    titulo: 'Termo de Ciência e Consentimento LGPD',
+    tipo: 'termo_lgpd',
+    conteudoHtml:
+      'TERMO DE CONSENTIMENTO LGPD – LEI Nº 13.709/2018\n\nTitular: {{cliente_nome}} | CPF: {{cliente_cpf}} | E-mail: {{cliente_email}}\nControlador: {{empresa_nome}} ({{empresa_doc}})\n\nAutorizo o tratamento de meus dados pessoais e documentos civis exclusivamente para condução do processo {{objeto_servico}}, ciente dos direitos previstos no Art. 18 da LGPD (acesso, correção, portabilidade e revogação/eliminação após prazos legais).\n\n{{empresa_endereco}}, {{data_atual}}.',
+    notaInterna: 'Revisar com advogado antes do uso.',
+  },
+  {
+    id: 'doc_encerramento',
+    codigo: 'termo_encerramento_quitacao',
+    titulo: 'Termo de Encerramento e Quitação de Serviços',
+    tipo: 'termo_encerramento',
+    conteudoHtml:
+      'TERMO DE ENCERRAMENTO DE ASSESSORIA E QUITAÇÃO\n\nDeclaramos concluída a prestação de serviços objeto do processo {{objeto_servico}}, conduzido em favor de {{cliente_nome}} (CPF {{cliente_cpf}}).\n\nAs partes dão mútua quitação quanto às obrigações contratadas e pagamentos vinculados, mantendo-se os deveres de sigilo e conformidade LGPD.\n\n{{empresa_endereco}}, {{data_atual}}.',
+    notaInterna: 'Revisar com advogado antes do uso.',
+  },
+  {
+    id: 'doc_notificacao_pendencia',
+    codigo: 'notificacao_pendencia',
+    titulo: 'Notificação Formal de Pendência Documental',
+    tipo: 'notificacao_pendencia',
+    conteudoHtml:
+      'NOTIFICAÇÃO DE PENDÊNCIA DOCUMENTAL\n\nPrezado(a) {{cliente_nome}},\n\nPara prosseguimento seguro do seu processo {{objeto_servico}} no SERMIG, identificamos a necessidade de envio/substituição dos documentos pendentes listados no Portal do Cliente até [preencher data limite].\n\nLembramos que certidões como Antecedentes Criminais PF têm validade estrita de 60 dias e a não regularização impacta a data do protocolo.\n\nAtenciosamente,\n{{empresa_nome}}',
+  },
+  {
+    id: 'doc_checklist_personalizado',
+    codigo: 'checklist_personalizado',
+    titulo: 'Checklist Personalizado do Cliente',
+    tipo: 'checklist_personalizado',
+    conteudoHtml:
+      'CHECKLIST PERSONALIZADO – {{objeto_servico}}\n\nCliente: {{cliente_nome}} | Passaporte: {{cliente_passaporte}}\n\nDocumentos conferidos e observações da consultoria:\n[preencher itens adicionais ou observações específicas do caso]\n\nEmitido em {{data_atual}} por {{empresa_nome}}.',
+  },
+];
+
+export interface CaseTemplateOption {
+  id: string;
+  nome: string;
+  tipoServico:
+    | 'Residência Temporal'
+    | 'Residência Definitiva'
+    | 'Prorrogação'
+    | 'Mudança de Subcategoria'
+    | 'Ratificação'
+    | 'Relocation Completo';
+  visaCategoryId: string;
+  etapaInicial: number;
+  prioridade: 'Baixa' | 'Média' | 'Alta' | 'Urgente';
+  descricao: string;
+  tarefasIniciais: string[];
+  prazoSugeridoDias?: number;
+}
+
+export const CASE_TEMPLATES: CaseTemplateOption[] = [
+  {
+    id: 'tpl_mercosul',
+    nome: 'Residência Temporal – Acordo Mercosul (Cód. 15)',
+    tipoServico: 'Residência Temporal',
+    visaCategoryId: 'visa_15_mercosul',
+    etapaInicial: 2,
+    prioridade: 'Média',
+    descricao: 'Fluxo padrão para cidadãos brasileiros solicitando do exterior pelo Acordo Mercosul.',
+    tarefasIniciais: [
+      'Confirmar local de protocolo fora do Chile (exterior)',
+      'Gerar cronograma reverso com Antecedentes PF por último (60d)',
+      'Preparar orçamento e contrato de assessoria',
+    ],
+    prazoSugeridoDias: 45,
+  },
+  {
+    id: 'tpl_definitiva',
+    nome: 'Residência Definitiva (após 24 meses)',
+    tipoServico: 'Residência Definitiva',
+    visaCategoryId: 'fluxo_definitiva',
+    etapaInicial: 3,
+    prioridade: 'Alta',
+    descricao: 'Transição da Residência Temporal para Residência Definitiva dentro da janela legal.',
+    tarefasIniciais: [
+      'Conferir Certificado de Viajes PDI e tempo efetivo no Chile',
+      'Verificar comprovante de meios de vida / cotizaciones AFP e Salud',
+      'Conferir janela de protocolo (90 a 10 dias antes do vencimento)',
+    ],
+    prazoSugeridoDias: 30,
+  },
+  {
+    id: 'tpl_prorrogacao',
+    nome: 'Prorrogação de Residência Temporal',
+    tipoServico: 'Prorrogação',
+    visaCategoryId: 'fluxo_prorrogacao',
+    etapaInicial: 3,
+    prioridade: 'Alta',
+    descricao: 'Renovação de Residência Temporal vigente para quem ainda não completou requisitos da Definitiva.',
+    tarefasIniciais: [
+      'Validar data exata de vencimento da Cédula / Estampado atual',
+      'Coletar antecedentes atualizados e comprovante de residência',
+    ],
+    prazoSugeridoDias: 20,
+  },
+  {
+    id: 'tpl_mudanca_subcat',
+    nome: 'Mudança de Subcategoria Migratória',
+    tipoServico: 'Mudança de Subcategoria',
+    visaCategoryId: 'visa_01_reunificacao',
+    etapaInicial: 2,
+    prioridade: 'Média',
+    descricao: 'Alteração de qualidade ou subcategoria de residência (ex.: estudante ou contrato para Reunificação/Mercosul).',
+    tarefasIniciais: [
+      'Verificar admissibilidade e documentação específica da nova subcategoria',
+      'Checar se contrato/vínculo vigente respalda a mudança',
+    ],
+    prazoSugeridoDias: 30,
+  },
+  {
+    id: 'tpl_ratificacao',
+    nome: 'Ratificação / Impulso Administrativo SERMIG',
+    tipoServico: 'Ratificação',
+    visaCategoryId: 'visa_15_mercosul',
+    etapaInicial: 8,
+    prioridade: 'Urgente',
+    descricao: 'Acompanhamento de processo em análise prolongada (+180d, Art. 27 Ley 19.880) ou resposta a requerimento.',
+    tarefasIniciais: [
+      'Auditar número do pedido anterior e notificações no Trámites Digitales',
+      'Preparar minuta de ratificação ou resposta a requerimento de documentos',
+    ],
+    prazoSugeridoDias: 15,
+  },
+  {
+    id: 'tpl_relocation',
+    nome: 'Relocation Completo Pós-Chegada no Chile',
+    tipoServico: 'Relocation Completo',
+    visaCategoryId: 'visa_15_mercosul',
+    etapaInicial: 10,
+    prioridade: 'Média',
+    descricao: 'Coordenação completa após aprovação: Estampado, entrada 90d, PDI, Cédula, ClaveÚnica, banco e moradia.',
+    tarefasIniciais: [
+      'Confirmar janela de 90 dias para ingresso após Estampado',
+      'Agendar Registro PDI e Cédula no Registro Civil',
+      'Conectar com parceiros homologados de moradia/imóveis',
+    ],
+    prazoSugeridoDias: 60,
   },
 ];
 

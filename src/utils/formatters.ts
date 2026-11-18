@@ -233,3 +233,117 @@ export function applyTemplateVariables(body: string, vars: Record<string, string
   }
   return result;
 }
+
+export function isValidCPF(raw: string): boolean {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (digits.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(digits)) return false;
+
+  const calcDigit = (sliceLen: number): number => {
+    let sum = 0;
+    for (let i = 0; i < sliceLen; i += 1) {
+      sum += Number(digits[i]) * (sliceLen + 1 - i);
+    }
+    const rem = (sum * 10) % 11;
+    return rem === 10 ? 0 : rem;
+  };
+
+  return calcDigit(9) === Number(digits[9]) && calcDigit(10) === Number(digits[10]);
+}
+
+export function normalizeDigits(raw?: string): string {
+  return (raw || '').replace(/\D/g, '');
+}
+
+export function daysUntilDate(dateStr?: string | null): number | null {
+  if (!dateStr) return null;
+  const parsed = parseFlexibleDate(dateStr);
+  if (!parsed) return null;
+  const now = new Date();
+  const diffMs = parsed.getTime() - now.getTime();
+  return Math.ceil(diffMs / 86400000);
+}
+
+export function formatStandardDocFilename(pessoa: string, docNome: string, isoDate?: string, ext = 'pdf'): string {
+  const clean = (s: string) =>
+    (s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase() || 'DOC';
+  const datePart = isoDate && /^\d{4}-\d{2}-\d{2}/.test(isoDate) ? isoDate.slice(0, 10) : toIsoDate(new Date());
+  return `${clean(pessoa)}_${clean(docNome)}_${datePart}.${ext.replace(/^\./, '')}`;
+}
+
+export function generateVerificationCode(prefix = 'DM'): string {
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const ts = Date.now().toString(36).slice(-4).toUpperCase();
+  return `${prefix}-${ts}-${rand}`;
+}
+
+const UNIDADES = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+const ESPECIAIS = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+const DEZENAS = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+const CENTENAS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+
+function chunkExtenso(n: number): string {
+  if (n === 0) return '';
+  if (n === 100) return 'cem';
+  const c = Math.floor(n / 100);
+  const d = Math.floor((n % 100) / 10);
+  const u = n % 10;
+  const parts: string[] = [];
+  if (c > 0) parts.push(CENTENAS[c]);
+  if (d === 1) {
+    parts.push(ESPECIAIS[u]);
+  } else {
+    if (d > 1) parts.push(DEZENAS[d]);
+    if (u > 0) parts.push(UNIDADES[u]);
+  }
+  return parts.join(' e ');
+}
+
+function intExtenso(num: number): string {
+  if (num === 0) return 'zero';
+  const milhoes = Math.floor(num / 1000000);
+  const milhares = Math.floor((num % 1000000) / 1000);
+  const resto = num % 1000;
+  const parts: string[] = [];
+  if (milhoes > 0) {
+    parts.push(`${chunkExtenso(milhoes)} ${milhoes === 1 ? 'milhão' : 'milhões'}`);
+  }
+  if (milhares > 0) {
+    parts.push(milhares === 1 ? 'mil' : `${chunkExtenso(milhares)} mil`);
+  }
+  if (resto > 0) {
+    parts.push(chunkExtenso(resto));
+  }
+  return parts.join(resto < 100 || resto % 100 === 0 ? ' e ' : ', ');
+}
+
+export function valorPorExtenso(valor: number, moeda: CurrencyCode = 'BRL'): string {
+  const safe = Math.max(0, Number(valor) || 0);
+  const inteiro = Math.floor(safe);
+  const centavos = Math.round((safe - inteiro) * 100);
+  const unitName =
+    moeda === 'BRL'
+      ? inteiro === 1
+        ? 'real'
+        : 'reais'
+      : moeda === 'USD'
+        ? inteiro === 1
+          ? 'dólar americano'
+          : 'dólares americanos'
+        : inteiro === 1
+          ? 'peso chileno'
+          : 'pesos chilenos';
+
+  const base = `${intExtenso(inteiro)} ${unitName}`;
+  if (centavos > 0 && moeda !== 'CLP') {
+    const centLabel = centavos === 1 ? 'centavo' : 'centavos';
+    return `${base} e ${intExtenso(centavos)} ${centLabel}`;
+  }
+  return base;
+}
+

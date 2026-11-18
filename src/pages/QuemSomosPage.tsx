@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Award, BookOpen, Briefcase, GraduationCap, Shield } from 'lucide-react';
 import { LegalBaseModal } from '../components/LegalBaseModal';
+import { useSeoMetadata } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { sanitizeHtml } from '../utils/formatters';
 
@@ -14,13 +15,22 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
 
   const quemSomos = siteContent.find((s) => s.secao === 'quem_somos');
   const meta = (quemSomos?.metadados || {}) as Record<string, string>;
+  const timeline = empresa.quemSomosMarcoHistorico || [];
+
+  useSeoMetadata({
+    title: quemSomos?.seoTitulo || `Quem Somos | ${empresa.nome_empresa}`,
+    description: quemSomos?.seoDescricao || quemSomos?.subtitulo || 'Conheça nossa trajetória e credenciais na assessoria Brasil–Chile.',
+    orgName: empresa.nome_empresa,
+    email: empresa.email,
+    whatsapp: empresa.whatsapp,
+  });
 
   return (
     <div className="py-12 lg:py-16 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+        <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           <div className="lg:col-span-5">
-            <div className="aspect-[3/4] rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+            <div className="aspect-[3/4] card-radius overflow-hidden border border-slate-200 bg-slate-100">
               {quemSomos?.imagemUrl ? (
                 <img
                   src={quemSomos.imagemUrl}
@@ -57,7 +67,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => onNavigate('/diagnostico')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
+                className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 Iniciar Diagnóstico
@@ -66,7 +76,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setLawModalOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50"
               >
                 <BookOpen className="w-4 h-4" />
                 Entenda a Lei
@@ -76,7 +86,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <GraduationCap className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
               <h2 className="text-base font-semibold text-slate-900">Formação acadêmica e técnica</h2>
@@ -86,7 +96,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <Briefcase className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
               <h2 className="text-base font-semibold text-slate-900">Experiência prática</h2>
@@ -96,7 +106,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <Shield className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
               <h2 className="text-base font-semibold text-slate-900">Missão e ética</h2>
@@ -106,7 +116,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <Award className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
               <h2 className="text-base font-semibold text-slate-900">Credenciais e conformidade</h2>
@@ -116,6 +126,26 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </p>
           </div>
         </div>
+
+        {timeline.length > 0 && (
+          <section className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6 sm:p-8 space-y-5">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Marcos da Nossa História</h2>
+              <p className="text-xs text-slate-500">Evolução metodológica e institucional Brasil–Chile</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {timeline.map((m, idx) => (
+                <div key={idx} className="p-4 card-radius bg-slate-50 border border-slate-200 space-y-1.5">
+                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>
+                    {m.ano}
+                  </p>
+                  <p className="text-sm font-bold text-slate-900">{m.titulo}</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">{m.descricao}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       <LegalBaseModal

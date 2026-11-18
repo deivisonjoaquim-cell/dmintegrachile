@@ -114,3 +114,20 @@ test('Diagnostic analytics calculates abandonment, conversion, and blank-field h
   assert.equal(metrics.tempoMedioAteContatoHoras, 2);
   assert.equal(metrics.abandonoPorEtapa.find((e) => e.etapa === 3)?.quantidade, 1);
 });
+
+test('Diagnostic cost estimate converts BRL<->CLP accurately and marks honorarios as A consultar', () => {
+  const result = runDiagnosticEngine(DIAGNOSTIC_TEST_PROFILES[0].answers, undefined, undefined, undefined, {
+    taxaCambioBrlClp: 170,
+    taxaCambioUsdBrl: 5.5,
+  });
+  assert.equal(result.custosEstimados.honorariosSobConsulta, true);
+  assert.equal(result.custosEstimados.taxaCambioBrlClp, 170);
+  assert.equal(result.custosEstimados.totalMinBrl, result.custosEstimados.taxasOficiaisBrlMin);
+  assert.equal(result.custosEstimados.totalMaxBrl, result.custosEstimados.taxasOficiaisBrlMax);
+  assert.ok(result.custosEstimados.totalMinClp > result.custosEstimados.totalMinBrl * 100);
+  const cedulaItem = result.custosEstimados.itensDetalhados.find((i) => i.label.includes('Cédula'));
+  assert.ok(cedulaItem && cedulaItem.valorTexto.includes('CLP') && cedulaItem.valorTexto.includes('R$'));
+  const honItem = result.custosEstimados.itensDetalhados.find((i) => i.label.includes('Honorários'));
+  assert.ok(honItem && honItem.valorTexto.includes('A consultar'));
+});
+

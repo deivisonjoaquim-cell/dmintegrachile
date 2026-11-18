@@ -106,7 +106,7 @@ service cloud.firestore {
         && isOptString(data, 'quemSomosExperiencia', 2000)
         && isOptString(data, 'quemSomosMissao', 2000)
         && isOptString(data, 'quemSomosCredenciais', 2000)
-        && isOptString(data, 'quemSomosFotoUrl', 1000)
+        && isOptString(data, 'quemSomosFotoUrl', 250000)
         && isOptString(data, 'createdAt', 64)
         && isOptString(data, 'updatedAt', 64);
     }
@@ -118,14 +118,21 @@ service cloud.firestore {
         && isReqString(data, 'corPrimaria', 4, 20)
         && isReqString(data, 'corDestaque', 4, 20)
         && isReqString(data, 'corFundo', 4, 20)
-        && data.fontePrincipal in ['Inter', 'Plus Jakarta Sans', 'Merriweather', 'Montserrat']
+        && data.fontePrincipal in ['Plus Jakarta Sans', 'DM Sans', 'Manrope', 'Public Sans', 'Montserrat', 'Merriweather', 'Inter']
+        && (!('fonteDisplay' in data) || data.fonteDisplay == null || data.fonteDisplay in ['Plus Jakarta Sans', 'Outfit', 'Manrope', 'Playfair Display', 'Montserrat'])
         && isOptString(data, 'razao_social_cnpj_rut', 200)
         && isOptString(data, 'responsavel_tecnico', 200)
         && isOptString(data, 'endereco_cidade', 300)
-        && isOptString(data, 'logoUrl', 1000)
+        && isOptString(data, 'logoUrl', 250000)
+        && isOptString(data, 'logoDarkUrl', 250000)
+        && isOptString(data, 'faviconUrl', 250000)
+        && isOptString(data, 'corSuperficie', 20)
+        && isOptString(data, 'corTexto', 20)
+        && isOptString(data, 'corRodapeBg', 20)
         && isOptString(data, 'whatsapp', 40)
         && isOptString(data, 'email', 200)
         && isOptString(data, 'siteInstagram', 300)
+        && isOptString(data, 'siteLinkedIn', 300)
         && isOptString(data, 'linkCalendly', 500)
         && isOptString(data, 'emailGoogleAgenda', 200)
         && isOptString(data, 'chavePix', 200)
@@ -158,7 +165,22 @@ service cloud.firestore {
         && data.ativo is bool
         && isOptString(data, 'subtitulo', 600)
         && isOptString(data, 'conteudoHtml', 20000)
-        && isOptString(data, 'imagemUrl', 1000);
+        && isOptString(data, 'imagemUrl', 250000);
+    }
+
+    function isValidMediaAsset(data) {
+      return data.keys().hasAll(['id', 'nome', 'categoria', 'mimeType', 'url', 'tamanhoBytes', 'createdAt'])
+        && isReqString(data, 'id', 1, 128)
+        && isReqString(data, 'nome', 1, 200)
+        && data.categoria in ['logo', 'favicon', 'banner', 'equipe', 'geral']
+        && isReqString(data, 'mimeType', 3, 100)
+        && isReqString(data, 'url', 1, 500000)
+        && data.tamanhoBytes is number
+        && data.tamanhoBytes >= 0
+        && isOptNum(data, 'largura')
+        && isOptNum(data, 'altura')
+        && isOptString(data, 'uploadedBy', 200)
+        && isReqString(data, 'createdAt', 10, 64);
     }
 
     function isValidAuditLog(data) {
@@ -452,6 +474,12 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(sectionId);
     }
 
+    match /mediaAssets/{assetId} {
+      allow get, list: if isStaff();
+      allow create, update: if isAdmin() && isValidId(assetId) && isValidMediaAsset(incoming());
+      allow delete: if isAdmin() && isValidId(assetId);
+    }
+
     match /auditLogs/{logId} {
       allow get: if isValidId(logId) && isStaff();
       allow list: if isStaff();
@@ -646,7 +674,20 @@ service cloud.firestore {
         (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true)
       );
       allow list: if isAdminOrConsultor() || (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
-      allow create, update: if isAdminOrConsultor() && isValidId(genDocId) && isValidGeneratedDocument(incoming());
+      allow create: if isAdminOrConsultor() && isValidId(genDocId) && isValidGeneratedDocument(incoming());
+      allow update: if isValidId(genDocId) && isValidGeneratedDocument(incoming()) && (
+        isAdminOrConsultor() ||
+        (isCliente()
+          && existing().clientId == userClientId()
+          && existing().liberadoAoCliente == true
+          && (!('canceladoEm' in existing()) || existing().canceladoEm == null || existing().canceladoEm == '')
+          && (!('motivoCancelamento' in existing()) || existing().motivoCancelamento == null || existing().motivoCancelamento == '')
+          && incoming().clientId == existing().clientId
+          && incoming().liberadoAoCliente == existing().liberadoAoCliente
+          && incoming().financeiro == existing().financeiro
+          && incoming().conteudoHtml == existing().conteudoHtml
+          && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt']))
+      );
       allow delete: if isAdmin() && isValidId(genDocId);
     }
   }

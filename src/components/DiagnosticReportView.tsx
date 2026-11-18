@@ -7,6 +7,8 @@ import {
   ClipboardCheck,
   Clock,
   Copy,
+  Download,
+  Eye,
   FileCheck2,
   FlaskConical,
   HelpCircle,
@@ -19,6 +21,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
+import { PdfPreviewModal } from './pdf/PdfPreviewModal';
 import type {
   DiagnosticAnswers,
   EmpresaConfig,
@@ -104,6 +107,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 }) => {
   const [explainTab, setExplainTab] = useState<'cliente' | 'tecnico'>(mode === 'consultant' ? 'tecnico' : 'cliente');
   const [copiedMsg, setCopiedMsg] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState<'download' | 'preview' | null>(null);
+  const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ title: string; filename: string; blobUrl: string } | null>(null);
 
   const scoreColor =
     result.viabilidade.total >= 80
@@ -140,6 +146,65 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 
   const handlePrintPdf = () => {
     window.print();
+  };
+
+  const closePdfPreview = () => {
+    setPdfPreview((prev) => {
+      if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+      return null;
+    });
+  };
+
+  const handleDownloadReactPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('download');
+    setPdfFeedback(null);
+    try {
+      const { exportDiagnosticoCompletoPdf } = await import('./pdf/ClientPortalPdfDocuments');
+      const filename = await exportDiagnosticoCompletoPdf({
+        empresa,
+        result,
+        answers,
+        aiDraft,
+        hideCosts,
+        savedLeadId,
+      });
+      setPdfFeedback(`PDF gerado e baixado (${filename}).`);
+    } catch (err) {
+      setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do diagnóstico.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const handlePreviewReactPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('preview');
+    setPdfFeedback(null);
+    try {
+      const { buildDiagnosticoCompletoPdfBlob } = await import('./pdf/ClientPortalPdfDocuments');
+      const { blob, filename } = await buildDiagnosticoCompletoPdfBlob({
+        empresa,
+        result,
+        answers,
+        aiDraft,
+        hideCosts,
+        savedLeadId,
+      });
+      const blobUrl = URL.createObjectURL(blob);
+      setPdfPreview((prev) => {
+        if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+        return {
+          title: 'Pré-visualização: Relatório de Pré-Análise Migratória',
+          filename,
+          blobUrl,
+        };
+      });
+    } catch (err) {
+      setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível abrir a pré-visualização em PDF.');
+    } finally {
+      setPdfBusy(null);
+    }
   };
 
   const handleSendWhatsApp = async () => {
@@ -305,16 +370,35 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         <div className="no-print flex flex-wrap gap-2 shrink-0">
           <button
             type="button"
+            disabled={pdfBusy !== null}
+            onClick={() => void handleDownloadReactPdf()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            {pdfBusy === 'download' ? 'Gerando PDF...' : 'Baixar PDF A4'}
+          </button>
+          <button
+            type="button"
+            disabled={pdfBusy !== null}
+            onClick={() => void handlePreviewReactPdf()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar PDF'}
+          </button>
+          <button
+            type="button"
             onClick={handlePrintPdf}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
           >
             <Printer className="w-3.5 h-3.5" />
-            Imprimir / PDF A4
+            Imprimir
           </button>
           <button
             type="button"
             onClick={() => void handleSendWhatsApp()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             Enviar WhatsApp
@@ -322,7 +406,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           <button
             type="button"
             onClick={() => void handleCopySummary()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
           >
             <Copy className="w-3.5 h-3.5" />
             {copiedMsg ? 'Resumo copiado!' : 'Copiar resumo'}
@@ -331,7 +415,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
             <button
               type="button"
               onClick={onRestart}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs font-semibold text-slate-800 hover:bg-amber-100/50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs font-semibold text-slate-800 hover:bg-amber-100/50 whitespace-nowrap shrink-0"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Refazer
@@ -339,6 +423,15 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           )}
         </div>
       </div>
+
+      {pdfFeedback && (
+        <div className="no-print p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between gap-2">
+          <span>{pdfFeedback}</span>
+          <button type="button" onClick={() => setPdfFeedback(null)} className="underline">
+            Fechar
+          </button>
+        </div>
+      )}
 
       {/* Contradições detectadas & Confiança */}
       {(result.contradicoes.length > 0 || result.informacoesQueMudariamResultado.length > 0) && (
@@ -567,24 +660,28 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         </div>
       </div>
 
-      {/* Faixa de Custos (Oculta para role assistente!) + Cronograma em Faixas */}
+      {/* Taxas Oficiais (BRL e CLP) + Honorários A Consultar (Oculto para role assistente!) + Cronograma */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {!hideCosts && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
             <div>
-              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Faixa Referencial</p>
-              <h2 className="text-lg font-bold text-slate-900">Custos Estimados (BRL e CLP)</h2>
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Taxas Oficiais &amp; Terceiros</p>
+              <h2 className="text-lg font-bold text-slate-900">Estimativa de Taxas (BRL ↔ CLP)</h2>
               <p className="text-xs text-slate-500">{result.custosEstimados.avisoEstimativa}</p>
+              <p className="text-[11px] font-medium text-slate-600 mt-1 tabular-nums">
+                Câmbio de referência: 1 BRL ≈ {result.custosEstimados.taxaCambioBrlClp.toLocaleString('pt-BR')} CLP · 1 USD ≈ R${' '}
+                {result.custosEstimados.taxaCambioUsdBrl.toFixed(2).replace('.', ',')}
+              </p>
             </div>
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-slate-500">Total estimado em Reais</p>
+                <p className="text-xs text-slate-500">Taxas estimadas em Reais</p>
                 <p className="text-lg font-bold text-slate-900 tabular-nums">
                   {formatCurrency(result.custosEstimados.totalMinBrl, 'BRL')} a {formatCurrency(result.custosEstimados.totalMaxBrl, 'BRL')}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Equivalente estimado em Pesos</p>
+                <p className="text-xs text-slate-500">Conversão equivalente em Pesos Chilenos</p>
                 <p className="text-lg font-bold text-slate-900 tabular-nums">
                   {formatCurrency(result.custosEstimados.totalMinClp, 'CLP')} a {formatCurrency(result.custosEstimados.totalMaxClp, 'CLP')}
                 </p>
@@ -592,12 +689,58 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
             </div>
             <ul className="divide-y divide-slate-200 text-xs">
               {result.custosEstimados.itensDetalhados.map((item, idx) => (
-                <li key={idx} className="py-2 flex justify-between gap-3">
+                <li key={idx} className="py-2 flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-3">
                   <span className="text-slate-600">{item.label}</span>
-                  <span className="font-semibold text-slate-900 tabular-nums text-right">{item.valorTexto}</span>
+                  <span className="font-semibold text-slate-900 tabular-nums sm:text-right">{item.valorTexto}</span>
                 </li>
               ))}
             </ul>
+
+            <div className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-2.5 no-print">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-bold text-slate-900">Honorários de Assessoria D&amp;M: A consultar</p>
+                <span className="text-[11px] font-semibold text-amber-800">Proposta sob medida</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Cada processo tem um escopo diferente. Envie seu resultado para receber uma proposta fechada (em BRL ou CLP) considerando:
+              </p>
+              <ul className="text-[11px] text-slate-600 space-y-0.5">
+                {result.custosEstimados.honorariosMotivosVariacao.map((m, i) => (
+                  <li key={i}>• {m}</li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const numPessoas =
+                      answers.familiaAcompanhante === true ? 1 + Math.max(1, answers.quantidadeDependentes || 1) : 1;
+                    const msgProposta = `Olá! Concluí meu diagnóstico na ${empresa.nome_empresa}${
+                      savedLeadId && savedLeadId !== 'local-preview' ? ` (Protocolo ${savedLeadId})` : ''
+                    }.\nPerfil: ${answers.nome || 'Visitante'} · ${numPessoas} pessoa(s) · Subcategoria sugerida: ${recommendedTitle} (Viabilidade ${result.viabilidade.total}/100).\nGostaria de consultar os honorários e receber a proposta personalizada para minha assessoria.`;
+                    const targetPhone = mode === 'consultant' ? answers.whatsapp || empresa.whatsapp : empresa.whatsapp;
+                    window.open(buildWhatsAppUrl(targetPhone, msgProposta), '_blank', 'noopener,noreferrer');
+                    if (onLogWhatsApp) {
+                      void onLogWhatsApp(`Solicitação de Honorários: ${answers.nome || 'Lead'}`, msgProposta);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Consultar honorários no WhatsApp
+                </button>
+                {onOpenCalendly && (
+                  <button
+                    type="button"
+                    onClick={onOpenCalendly}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-semibold hover:bg-slate-100"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    Agendar conversa gratuita
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -1115,6 +1258,23 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         <p className="font-bold text-slate-800">{result.avisoOrientativo}</p>
         <p>{empresa.avisoLegal}</p>
       </div>
+
+      <PdfPreviewModal
+        open={Boolean(pdfPreview)}
+        title={pdfPreview?.title || 'Pré-visualização do Diagnóstico'}
+        filename={pdfPreview?.filename || 'diagnostico.pdf'}
+        blobUrl={pdfPreview?.blobUrl || null}
+        onClose={closePdfPreview}
+        onDownload={() => {
+          if (!pdfPreview) return;
+          const a = document.createElement('a');
+          a.href = pdfPreview.blobUrl;
+          a.download = pdfPreview.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }}
+      />
     </div>
   );
 };

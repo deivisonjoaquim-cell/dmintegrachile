@@ -74,19 +74,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [legalSources, setLegalSources] = useState<LegalSource[]>(SEED_LEGAL_SOURCES);
   const [activeDiagnosticRules, setActiveDiagnosticRules] = useState<DiagnosticRuleVersion>(DEFAULT_DIAGNOSTIC_RULE_VERSION);
 
-  // Aplica tema dinâmico lido do Firestore (config/empresa) via CSS variables
+  // Aplica tema e layout dinâmicos lidos do Firestore (config/empresa) via CSS variables + Favicon
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--color-primary', empresa.corPrimaria || '#0F2537');
     root.style.setProperty('--color-accent', empresa.corDestaque || '#D4AF37');
     root.style.setProperty('--color-bg', empresa.corFundo || '#F8F9FA');
+    root.style.setProperty('--color-surface', empresa.corSuperficie || '#FFFFFF');
+    root.style.setProperty('--color-text', empresa.corTexto || '#0F172A');
+    root.style.setProperty('--color-footer-bg', empresa.corRodapeBg || '#0B1B29');
+
     const fontMap: Record<string, string> = {
-      Inter: "'Inter', system-ui, sans-serif",
       'Plus Jakarta Sans': "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
+      'DM Sans': "'DM Sans', 'Plus Jakarta Sans', system-ui, sans-serif",
+      Manrope: "'Manrope', 'Plus Jakarta Sans', system-ui, sans-serif",
+      'Public Sans': "'Public Sans', 'DM Sans', system-ui, sans-serif",
+      Montserrat: "'Montserrat', system-ui, sans-serif",
       Merriweather: "'Merriweather', Georgia, serif",
+      Inter: "'Inter', system-ui, sans-serif",
+    };
+    const displayMap: Record<string, string> = {
+      'Plus Jakarta Sans': "'Plus Jakarta Sans', system-ui, sans-serif",
+      Outfit: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+      Manrope: "'Manrope', system-ui, sans-serif",
+      'Playfair Display': "'Playfair Display', Georgia, serif",
       Montserrat: "'Montserrat', system-ui, sans-serif",
     };
     root.style.setProperty('--font-main', fontMap[empresa.fontePrincipal] || fontMap['Plus Jakarta Sans']);
+    root.style.setProperty('--font-display', displayMap[empresa.fonteDisplay || empresa.fontePrincipal] || fontMap[empresa.fontePrincipal] || displayMap['Plus Jakarta Sans']);
+
+    const raio = empresa.layoutConfig?.raioBordas || 'editorial';
+    if (raio === 'sharp') {
+      root.style.setProperty('--radius-card', '0.375rem');
+      root.style.setProperty('--radius-button', '0.25rem');
+    } else if (raio === 'arredondado') {
+      root.style.setProperty('--radius-card', '1.5rem');
+      root.style.setProperty('--radius-button', '9999px');
+    } else {
+      root.style.setProperty('--radius-card', '1rem');
+      root.style.setProperty('--radius-button', '0.625rem');
+    }
+
+    if (empresa.faviconUrl) {
+      let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = empresa.faviconUrl;
+    }
   }, [empresa]);
 
   const refreshPublicData = useCallback(async () => {

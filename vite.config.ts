@@ -3,12 +3,21 @@ import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
 import {defineConfig} from 'vite';
+import {nodePolyfills} from 'vite-plugin-node-polyfills';
 
 export default defineConfig(() => {
   return {
     plugins: [
       react(),
       tailwindcss(),
+      nodePolyfills({
+        globals: {
+          Buffer: true,
+          global: true,
+          process: true,
+        },
+        protocolImports: true,
+      }),
       // Copies src/assets into dist/ so root-relative URLs like
       // "/src/assets/images/..." (e.g. generate_image output) still resolve
       // in production builds. Do not remove.

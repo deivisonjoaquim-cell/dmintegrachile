@@ -216,7 +216,7 @@ const aiRouteDeps: AiRouteDependencies = {
 };
 
 // =============================================================================
-// Multer upload validation (PDF/JPG/PNG <= 10 MB)
+// Multer upload validation (PDF/JPG/PNG/WEBP/SVG/ICO <= 10 MB)
 // =============================================================================
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -234,14 +234,31 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    const allowed = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/svg+xml',
+      'image/x-icon',
+      'image/vnd.microsoft.icon',
+    ];
     if (!allowed.includes(file.mimetype)) {
-      cb(new Error('Formato inválido. Envie apenas PDF, JPG, PNG ou WEBP até 10 MB.'));
+      cb(new Error('Formato inválido. Envie PDF, PNG, JPG, WEBP, SVG ou ICO até 10 MB.'));
       return;
     }
     cb(null, true);
   },
 });
+
+function sanitizeSvgContent(raw: string): string {
+  return raw
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<foreignObject[\s\S]*?>[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/javascript:/gi, '');
+}
 
 // =============================================================================
 // Express App
@@ -274,6 +291,14 @@ app.post('/api/upload', requireAuth, (req: AuthedRequest, res: Response) => {
       res.status(400).json({ error: 'Nenhum arquivo enviado.' });
       return;
     }
+    if (req.file.mimetype === 'image/svg+xml' || req.file.originalname.toLowerCase().endsWith('.svg')) {
+      try {
+        const rawSvg = fs.readFileSync(req.file.path, 'utf8');
+        fs.writeFileSync(req.file.path, sanitizeSvgContent(rawSvg), 'utf8');
+      } catch {
+        // ignore if read fails
+      }
+    }
     res.json({
       url: `/uploads/${req.file.filename}`,
       filename: req.file.originalname,
@@ -281,6 +306,42 @@ app.post('/api/upload', requireAuth, (req: AuthedRequest, res: Response) => {
       mimeType: req.file.mimetype,
     });
   });
+});
+
+app.get('/api/media', requireAuth, requireRole(['admin', 'consultor', 'assistente']), (_req: AuthedRequest, res: Response) => {
+  try {
+    const entries = fs.readdirSync(UPLOAD_DIR, { withFileTypes: true });
+    const items = entries
+      .filter((e) => e.isFile() && /\.(png|jpe?g|webp|svg|ico)$/i.test(e.name))
+      .map((e) => {
+        const st = fs.statSync(path.join(UPLOAD_DIR, e.name));
+        return {
+          filename: e.name,
+          url: `/uploads/${e.name}`,
+          size: st.size,
+          updatedAt: st.mtime.toISOString(),
+        };
+      })
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    res.json({ items });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao listar mídias.' });
+  }
+});
+
+app.delete('/api/media/:filename', requireAuth, requireRole(['admin']), (req: AuthedRequest, res: Response) => {
+  const safeName = path.basename(req.params.filename || '');
+  if (!safeName || safeName.includes('..')) {
+    res.status(400).json({ error: 'Nome de arquivo inválido.' });
+    return;
+  }
+  const fullPath = path.join(UPLOAD_DIR, safeName);
+  if (!fs.existsSync(fullPath)) {
+    res.status(404).json({ error: 'Arquivo não encontrado.' });
+    return;
+  }
+  fs.unlinkSync(fullPath);
+  res.json({ ok: true });
 });
 
 // -----------------------------------------------------------------------------

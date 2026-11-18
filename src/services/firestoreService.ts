@@ -45,6 +45,7 @@ import type {
   Lead,
   LeadRuleHistoryEntry,
   LegalSource,
+  MediaAsset,
   MessageTemplate,
   Partner,
   PartnerProposal,
@@ -87,7 +88,15 @@ export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
   try {
     const snap = await getDoc(doc(db, 'config', 'empresa'));
     if (snap.exists()) {
-      return { ...DEFAULT_EMPRESA_CONFIG, ...(snap.data() as EmpresaConfig) };
+      const data = snap.data() as EmpresaConfig;
+      return {
+        ...DEFAULT_EMPRESA_CONFIG,
+        ...data,
+        layoutConfig: {
+          ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
+          ...(data.layoutConfig || {}),
+        },
+      };
     }
     return DEFAULT_EMPRESA_CONFIG;
   } catch {
@@ -790,6 +799,261 @@ export async function deleteDocumentAudited(
   }
 }
 
+export async function logSensitiveDocumentAccess(
+  docItem: Pick<CaseDocument, 'id' | 'caseId' | 'clientId' | 'nomeDocumento' | 'categoriaDoc' | 'pessoa'>,
+  action: 'visualizar' | 'baixar',
+  role: UserRole,
+): Promise<void> {
+  if (docItem.categoriaDoc !== 'Antecedentes' && docItem.categoriaDoc !== 'Identidade') return;
+  try {
+    await registrarAuditoria(
+      action === 'baixar' ? 'Download Doc Sensível' : 'Visualização Doc Sensível',
+      'caseDocuments',
+      docItem.id,
+      `acesso_${action}`,
+      null,
+      {
+        caseId: docItem.caseId,
+        clientId: docItem.clientId,
+        pessoa: docItem.pessoa,
+        nomeDocumento: docItem.nomeDocumento,
+        categoriaDoc: docItem.categoriaDoc,
+      },
+      role,
+    );
+  } catch {
+    // non-blocking
+  }
+}
+
+export async function archiveClientAudited(client: Client, role: UserRole): Promise<void> {
+  const now = new Date().toISOString();
+  await saveDocumentAudited(
+    'clients',
+    client.id,
+    {
+      ...client,
+      arquivado: true,
+      arquivadoEm: now,
+      portalLiberado: false,
+      statusAcessoPortal: 'Não solicitado',
+    },
+    false,
+    role,
+    'arquivar_cliente',
+    { arquivado: client.arquivado ?? false, portalLiberado: client.portalLiberado },
+  );
+}
+
+export async function mergeClientsAudited(params: {
+  primaryClient: Client;
+  duplicateClient: Client;
+  dependents: Dependent[];
+  cases: Case[];
+  caseFinancials: CaseFinancialSummary[];
+  caseDocuments: CaseDocument[];
+  tasks: Task[];
+  deadlines: Deadline[];
+  appointments: Appointment[];
+  communicationLogs: CommunicationLog[];
+  viabilityAssessments: ViabilityAssessment[];
+  budgets: Budget[];
+  financialRecords: FinancialRecord[];
+  generatedDocuments: GeneratedDocument[];
+  role: UserRole;
+}): Promise<number> {
+  const {
+    primaryClient,
+    duplicateClient,
+    dependents,
+    cases,
+    caseFinancials,
+    caseDocuments,
+    tasks,
+    deadlines,
+    appointments,
+    communicationLogs,
+    viabilityAssessments,
+    budgets,
+    financialRecords,
+    generatedDocuments,
+    role,
+  } = params;
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Sem permissão para mesclar cadastros de clientes.');
+  }
+  const now = new Date().toISOString();
+  const mergedPrimary: Client = {
+    ...primaryClient,
+    cpf: primaryClient.cpf || duplicateClient.cpf || '',
+    whatsapp: primaryClient.whatsapp || duplicateClient.whatsapp || '',
+    email: primaryClient.email || duplicateClient.email || '',
+    nacionalidade: primaryClient.nacionalidade || duplicateClient.nacionalidade,
+    profissao: primaryClient.profissao || duplicateClient.profissao,
+    estadoCivil: primaryClient.estadoCivil || duplicateClient.estadoCivil,
+    enderecoCompleto: primaryClient.enderecoCompleto || duplicateClient.enderecoCompleto,
+    filiacao: primaryClient.filiacao || duplicateClient.filiacao,
+    naturalidade: primaryClient.naturalidade || duplicateClient.naturalidade,
+    idiomas: primaryClient.idiomas || duplicateClient.idiomas,
+    contatoEmergencia: primaryClient.contatoEmergencia || duplicateClient.contatoEmergencia,
+    passaporte: primaryClient.passaporte?.numero ? primaryClient.passaporte : duplicateClient.passaporte,
+    observacoes: [primaryClient.observacoes, duplicateClient.observacoes].filter(Boolean).join('\n'),
+    observacoesInternas: [primaryClient.observacoesInternas, duplicateClient.observacoesInternas].filter(Boolean).join('\n'),
+    lgpdAceito: primaryClient.lgpdAceito || duplicateClient.lgpdAceito,
+    lgpdAceitoEm: primaryClient.lgpdAceitoEm || duplicateClient.lgpdAceitoEm,
+    lgpdVersao: primaryClient.lgpdVersao || duplicateClient.lgpdVersao,
+  };
+  await saveDocumentAudited(
+    'clients',
+    primaryClient.id,
+    mergedPrimary as unknown as Record<string, unknown>,
+    false,
+    role,
+    'mesclar_cliente_destino',
+    { mergedFrom: duplicateClient.id },
+  );
+
+  let movedCount = 0;
+  const moveCol = async <T extends { id: string; clientId?: string }>(col: string, items: T[]) => {
+    for (const item of items.filter((i) => i.clientId === duplicateClient.id)) {
+      await setDoc(doc(db, col, item.id), { clientId: primaryClient.id, updatedAt: now }, { merge: true });
+      movedCount += 1;
+    }
+  };
+
+  await Promise.all([
+    moveCol('dependents', dependents),
+    moveCol('cases', cases),
+    moveCol('caseDocuments', caseDocuments),
+    moveCol('tasks', tasks),
+    moveCol('deadlines', deadlines),
+    moveCol('appointments', appointments),
+    moveCol('communicationLogs', communicationLogs),
+    moveCol('viabilityAssessments', viabilityAssessments),
+    moveCol('budgets', budgets),
+    moveCol('financialRecords', financialRecords),
+    moveCol('generatedDocuments', generatedDocuments),
+    ...caseFinancials
+      .filter((cf) => cf.clientId === duplicateClient.id)
+      .map(async (cf) => {
+        await setDoc(doc(db, 'caseFinancials', cf.caseId), { clientId: primaryClient.id, updatedAt: now }, { merge: true });
+        movedCount += 1;
+      }),
+  ]);
+
+  await saveDocumentAudited(
+    'clients',
+    duplicateClient.id,
+    {
+      ...duplicateClient,
+      arquivado: true,
+      arquivadoEm: now,
+      mescladoEm: now,
+      portalLiberado: false,
+      statusAcessoPortal: 'Não solicitado',
+      observacoesInternas: `${duplicateClient.observacoesInternas ? duplicateClient.observacoesInternas + '\n' : ''}Mesclado no cadastro ${primaryClient.id} (${primaryClient.nomeCompleto}) em ${now}.`,
+    },
+    false,
+    role,
+    'mesclar_cliente_origem',
+    { mergedInto: primaryClient.id },
+  );
+
+  await registrarAuditoria(
+    'Mesclar Clientes',
+    'clients',
+    primaryClient.id,
+    'mesclagem',
+    { originClientId: duplicateClient.id, originNome: duplicateClient.nomeCompleto },
+    { targetClientId: primaryClient.id, targetNome: primaryClient.nomeCompleto, movedCount },
+    role,
+  );
+  return movedCount;
+}
+
+export async function deleteClientCascadeAudited(params: {
+  client: Client;
+  dependents: Dependent[];
+  cases: Case[];
+  caseFinancials: CaseFinancialSummary[];
+  caseDocuments: CaseDocument[];
+  tasks: Task[];
+  deadlines: Deadline[];
+  appointments: Appointment[];
+  communicationLogs: CommunicationLog[];
+  viabilityAssessments: ViabilityAssessment[];
+  budgets: Budget[];
+  financialRecords: FinancialRecord[];
+  generatedDocuments: GeneratedDocument[];
+  role: UserRole;
+  lgpdJustification?: string;
+}): Promise<number> {
+  const {
+    client,
+    dependents,
+    cases,
+    caseFinancials,
+    caseDocuments,
+    tasks,
+    deadlines,
+    appointments,
+    communicationLogs,
+    viabilityAssessments,
+    budgets,
+    financialRecords,
+    generatedDocuments,
+    role,
+    lgpdJustification,
+  } = params;
+  if (role !== 'admin') {
+    throw new Error('Apenas administradores podem excluir definitivamente um cliente.');
+  }
+  const caseIds = new Set(cases.filter((c) => c.clientId === client.id).map((c) => c.id));
+  let deleted = 0;
+
+  const delCol = async <T extends { id: string; clientId?: string; caseId?: string }>(col: string, list: T[]) => {
+    for (const item of list.filter((i) => i.clientId === client.id || (i.caseId && caseIds.has(i.caseId)))) {
+      await deleteDoc(doc(db, col, item.id));
+      deleted += 1;
+    }
+  };
+
+  await Promise.all([
+    delCol('dependents', dependents),
+    delCol('caseDocuments', caseDocuments),
+    delCol('tasks', tasks),
+    delCol('deadlines', deadlines),
+    delCol('appointments', appointments),
+    delCol('communicationLogs', communicationLogs),
+    delCol('viabilityAssessments', viabilityAssessments),
+    delCol('budgets', budgets),
+    delCol('financialRecords', financialRecords),
+    delCol('generatedDocuments', generatedDocuments),
+    ...caseFinancials
+      .filter((cf) => cf.clientId === client.id || caseIds.has(cf.caseId))
+      .map(async (cf) => {
+        await deleteDoc(doc(db, 'caseFinancials', cf.caseId));
+        deleted += 1;
+      }),
+    ...Array.from(caseIds).map(async (cid) => {
+      await deleteDoc(doc(db, 'cases', cid));
+      deleted += 1;
+    }),
+  ]);
+
+  await deleteDoc(doc(db, 'clients', client.id));
+  await registrarAuditoria(
+    lgpdJustification ? 'Exclusão LGPD Cliente' : 'Exclusão em Cascata Cliente',
+    'clients',
+    client.id,
+    'exclusao_cliente',
+    { nome: client.nomeCompleto, email: client.email },
+    { deletedRelatedCount: deleted, lgpdJustification: lgpdJustification || 'Confirmado pelo admin' },
+    role,
+  );
+  return deleted;
+}
+
 // =============================================================================
 // Specific Domain Helpers
 // =============================================================================
@@ -974,6 +1238,7 @@ export async function fetchClientPortalData(clientId: string): Promise<{
   budgets: Budget[];
   financialRecords: FinancialRecord[];
   generatedDocuments: GeneratedDocument[];
+  leads: Lead[];
 }> {
   const byClient = <T,>(col: string, extraWhere?: ReturnType<typeof where>) => {
     const constraints = [where('clientId', '==', clientId)];
@@ -986,6 +1251,17 @@ export async function fetchClientPortalData(clientId: string): Promise<{
   const clientSnap = await getDoc(doc(db, 'clients', clientId)).catch(() => null);
   const client = clientSnap?.exists() ? ({ id: clientSnap.id, ...(clientSnap.data() as Omit<Client, 'id'>) }) : null;
 
+  const userEmail = auth.currentUser?.email || client?.email || '';
+  const fetchClientLeads = userEmail
+    ? getDocs(query(collection(db, 'leads'), where('email', '==', userEmail)))
+        .then((snap) =>
+          snap.docs
+            .map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }) as Lead)
+            .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
+        )
+        .catch(() => [] as Lead[])
+    : Promise.resolve([] as Lead[]);
+
   const [
     dependents,
     cases,
@@ -996,6 +1272,7 @@ export async function fetchClientPortalData(clientId: string): Promise<{
     budgets,
     financialRecords,
     generatedDocuments,
+    leads,
   ] = await Promise.all([
     byClient<Dependent>('dependents'),
     byClient<Case>('cases'),
@@ -1006,6 +1283,7 @@ export async function fetchClientPortalData(clientId: string): Promise<{
     byClient<Budget>('budgets', where('status', 'in', ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'])),
     byClient<FinancialRecord>('financialRecords'),
     byClient<GeneratedDocument>('generatedDocuments', where('liberadoAoCliente', '==', true)),
+    fetchClientLeads,
   ]);
 
   return {
@@ -1019,15 +1297,26 @@ export async function fetchClientPortalData(clientId: string): Promise<{
     budgets,
     financialRecords,
     generatedDocuments,
+    leads,
   };
 }
 
 export async function uploadFileToServer(file: File): Promise<{ url: string; filename: string }> {
   const user = auth.currentUser;
   if (!user) throw new Error('Faça login para enviar arquivos.');
-  const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-  if (!allowed.includes(file.type)) {
-    throw new Error('Formato não permitido. Envie apenas PDF, JPG, PNG ou WEBP.');
+  const allowed = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/svg+xml',
+    'image/x-icon',
+    'image/vnd.microsoft.icon',
+  ];
+  const ext = file.name.toLowerCase().split('.').pop() || '';
+  const allowedExt = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'svg', 'ico'];
+  if (!allowed.includes(file.type) && !allowedExt.includes(ext)) {
+    throw new Error('Formato não permitido. Envie PDF, JPG, PNG, WEBP, SVG ou ICO.');
   }
   if (file.size > 10 * 1024 * 1024) {
     throw new Error('O arquivo excede o limite máximo de 10 MB.');
@@ -1045,6 +1334,39 @@ export async function uploadFileToServer(file: File): Promise<{ url: string; fil
     throw new Error(data.error || 'Falha ao enviar arquivo.');
   }
   return { url: data.url, filename: data.filename || file.name };
+}
+
+export async function fetchMediaAssetsStaff(): Promise<MediaAsset[]> {
+  try {
+    const snap = await getDocs(collection(db, 'mediaAssets'));
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<MediaAsset, 'id'>) }));
+    return list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveMediaAssetAdmin(asset: MediaAsset, role: UserRole): Promise<void> {
+  if (role !== 'admin') throw new Error('Apenas administradores podem gerenciar a biblioteca de mídias.');
+  await setDoc(doc(db, 'mediaAssets', asset.id), stripUndefined(asset));
+  await registrarAuditoria('Criar', 'mediaAssets', asset.id, 'midia_importada', null, { nome: asset.nome, categoria: asset.categoria, tamanhoBytes: asset.tamanhoBytes }, role);
+}
+
+export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): Promise<void> {
+  if (role !== 'admin') throw new Error('Apenas administradores podem excluir mídias.');
+  await deleteDoc(doc(db, 'mediaAssets', asset.id));
+  if (asset.url.startsWith('/uploads/')) {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      const filename = asset.url.replace('/uploads/', '');
+      await fetch(`/api/media/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+  }
+  await registrarAuditoria('Excluir', 'mediaAssets', asset.id, 'midia_excluida', { nome: asset.nome, categoria: asset.categoria }, null, role);
 }
 
 export interface CallAiOptions {

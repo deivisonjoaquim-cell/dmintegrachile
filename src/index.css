@@ -4,23 +4,45 @@
   --color-primary: #0F2537;
   --color-accent: #D4AF37;
   --color-bg: #F8F9FA;
+  --color-surface: #FFFFFF;
+  --color-text: #0F172A;
+  --color-text-muted: #475569;
+  --color-footer-bg: #0B1B29;
   --color-success: #1E7E34;
+  --color-warning: #B45309;
   --color-critical: #C82333;
   --font-main: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --radius-card: 1rem;
+  --radius-button: 0.625rem;
 }
 
 html {
   scroll-behavior: smooth;
   font-family: var(--font-main);
   background-color: var(--color-bg);
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 body {
   margin: 0;
   background-color: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font-main);
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.card-radius {
+  border-radius: var(--radius-card);
+}
+
+.btn-radius {
+  border-radius: var(--radius-button);
 }
 
 .tabular-nums {
@@ -29,6 +51,24 @@ body {
 
 .text-balance {
   text-wrap: balance;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @media print {

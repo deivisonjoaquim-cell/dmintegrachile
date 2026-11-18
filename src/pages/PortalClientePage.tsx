@@ -1,22 +1,32 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   BookOpen,
+  Briefcase,
   Calendar,
   CheckCircle2,
   Copy,
+  CreditCard,
   Download,
+  Eye,
+  FileSignature,
   FileText,
+  FolderOpen,
   Handshake,
+  HelpCircle,
   LogOut,
   MessageCircle,
+  Printer,
   Shield,
   Star,
   Trash2,
   Upload,
   User,
+  X,
 } from 'lucide-react';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { LegalBaseModal } from '../components/LegalBaseModal';
+import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
+import { DrawSignaturePad, QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { PIPELINE_STAGES } from '../data/seeds';
 import {
@@ -35,17 +45,21 @@ import type {
   Dependent,
   FinancialRecord,
   GeneratedDocument,
+  Lead,
   ViabilityAssessment,
 } from '../types/domain';
 import { calcularTermometroDocumentos } from '../utils/caseMetrics';
 import {
   buildGoogleCalendarUrl,
   buildWhatsAppUrl,
+  daysUntilDate,
   downloadIcsFile,
   formatCurrency,
   formatDateBR,
   formatDateTimeBR,
+  formatStandardDocFilename,
   maskPhoneBR,
+  sanitizeHtml,
 } from '../utils/formatters';
 
 interface PortalClientePageProps {
@@ -68,12 +82,18 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [financials, setFinancials] = useState<FinancialRecord[]>([]);
   const [genDocs, setGenDocs] = useState<GeneratedDocument[]>([]);
+  const [clientLeads, setClientLeads] = useState<Lead[]>([]);
 
   const [calendlyOpen, setCalendlyOpen] = useState(false);
   const [lawOpen, setLawOpen] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState<'diagnostico' | 'progresso' | 'preview' | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ title: string; filename: string; blobUrl: string } | null>(null);
+  const [viewingGenDoc, setViewingGenDoc] = useState<GeneratedDocument | null>(null);
+  const [signingGenDoc, setSigningGenDoc] = useState<GeneratedDocument | null>(null);
+  const [signBusy, setSignBusy] = useState(false);
 
   // Edição de dados próprios e dependentes
   const [editNome, setEditNome] = useState('');
@@ -101,6 +121,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setBudgets(data.budgets);
       setFinancials(data.financialRecords);
       setGenDocs(data.generatedDocuments);
+      setClientLeads(data.leads);
       if (data.client) {
         setEditNome(data.client.nomeCompleto || '');
         setEditWhats(data.client.whatsapp || '');
@@ -139,9 +160,108 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   const activeCase = cases[0] || null;
   const activeDocs = activeCase ? docs.filter((d) => d.caseId === activeCase.id) : docs;
+  const primaryLead = clientLeads[0] || null;
+  const releasedAssessments = activeCase?.relatorioViabilidadeLiberado ? assessments : [];
   const thermo = calcularTermometroDocumentos(activeDocs, empresa.bloqueioProtocoloMinimo || 100);
   const needsLgpdAccept =
     client && (!client.lgpdAceito || client.lgpdVersao !== (empresa.termoLgpdVersao || '1.0'));
+
+  const handleExportDiagnosticoPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('diagnostico');
+    setFeedbackMsg(null);
+    try {
+      const { exportDiagnosticoPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
+      const filename = await exportDiagnosticoPdf({
+        empresa,
+        client,
+        dependents,
+        activeCase,
+        lead: primaryLead,
+        assessments: releasedAssessments,
+      });
+      setFeedbackMsg(`Diagnóstico exportado em PDF (${filename}).`);
+    } catch (err) {
+      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do diagnóstico.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const handleExportProgressoPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('progresso');
+    setFeedbackMsg(null);
+    try {
+      const { exportProgressoPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
+      const filename = await exportProgressoPdf({
+        empresa,
+        client,
+        dependents,
+        activeCase,
+        docs: activeDocs,
+        deadlines,
+        appointments,
+        thermo,
+        assessments: releasedAssessments,
+      });
+      setFeedbackMsg(`Relatório de progresso exportado em PDF (${filename}).`);
+    } catch (err) {
+      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do relatório de progresso.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const closePdfPreview = () => {
+    setPdfPreview((prev) => {
+      if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+      return null;
+    });
+  };
+
+  const handlePreviewPdf = async (kind: 'diagnostico' | 'progresso') => {
+    if (pdfBusy) return;
+    setPdfBusy('preview');
+    setFeedbackMsg(null);
+    try {
+      const mod = await import('../components/pdf/ClientPortalPdfDocuments');
+      const { blob, filename } =
+        kind === 'diagnostico'
+          ? await mod.buildDiagnosticoPdfBlob({
+              empresa,
+              client,
+              dependents,
+              activeCase,
+              lead: primaryLead,
+              assessments: releasedAssessments,
+            })
+          : await mod.buildProgressoPdfBlob({
+              empresa,
+              client,
+              dependents,
+              activeCase,
+              docs: activeDocs,
+              deadlines,
+              appointments,
+              thermo,
+              assessments: releasedAssessments,
+            });
+      const blobUrl = URL.createObjectURL(blob);
+      setPdfPreview((prev) => {
+        if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+        return {
+          title: kind === 'diagnostico' ? 'Pré-visualização: Diagnóstico & Viabilidade' : 'Pré-visualização: Relatório de Progresso',
+          filename,
+          blobUrl,
+        };
+      });
+    } catch (err) {
+      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível preparar a pré-visualização em PDF.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
 
   const handleAcceptLgpd = async () => {
     if (!client) return;
@@ -274,6 +394,79 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     setFeedbackMsg(`Solicitação de ${tipo} LGPD registrada com sucesso.`);
   };
 
+  const handleConfirmGenDocRead = async (gd: GeneratedDocument) => {
+    const nowIso = new Date().toISOString();
+    await saveDocumentAudited(
+      'generatedDocuments',
+      gd.id,
+      {
+        ...gd,
+        confirmadoLeituraEm: nowIso,
+        confirmadoLeituraPor: client?.nomeCompleto || userProfile?.nome || userProfile?.email || 'Cliente',
+        updatedAt: nowIso,
+      },
+      false,
+      'cliente',
+      'confirmadoLeituraEm',
+    );
+    setViewingGenDoc((prev) => (prev && prev.id === gd.id ? { ...prev, confirmadoLeituraEm: nowIso } : prev));
+    setFeedbackMsg(`Leitura de "${gd.titulo}" confirmada.`);
+    await loadPortal();
+  };
+
+  const handleSignGenDocCanvas = async (gd: GeneratedDocument, dataUrl: string) => {
+    setSignBusy(true);
+    try {
+      const nowIso = new Date().toISOString();
+      await saveDocumentAudited(
+        'generatedDocuments',
+        gd.id,
+        {
+          ...gd,
+          assinaturaDataUrl: dataUrl,
+          status: 'Assinado',
+          assinadoEm: nowIso,
+          updatedAt: nowIso,
+        },
+        false,
+        'cliente',
+        'assinatura_cliente',
+      );
+      setSigningGenDoc(null);
+      setFeedbackMsg(`Documento "${gd.titulo}" assinado com sucesso!`);
+      await loadPortal();
+    } finally {
+      setSignBusy(false);
+    }
+  };
+
+  const handleUploadSignedGenDocPdf = async (gd: GeneratedDocument, file: File) => {
+    setSignBusy(true);
+    try {
+      const uploaded = await uploadFileToServer(file);
+      const nowIso = new Date().toISOString();
+      await saveDocumentAudited(
+        'generatedDocuments',
+        gd.id,
+        {
+          ...gd,
+          assinaturaUrl: uploaded.url,
+          status: 'Assinado',
+          assinadoEm: nowIso,
+          updatedAt: nowIso,
+        },
+        false,
+        'cliente',
+        'assinatura_pdf_cliente',
+      );
+      setSigningGenDoc(null);
+      setFeedbackMsg(`Arquivo assinado de "${gd.titulo}" enviado com sucesso!`);
+      await loadPortal();
+    } finally {
+      setSignBusy(false);
+    }
+  };
+
   const handleSendNps = async () => {
     if (!activeCase) return;
     await saveDocumentAudited(
@@ -294,12 +487,21 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <span
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              D&amp;M
-            </span>
+            {empresa.logoUrl ? (
+              <img
+                src={empresa.logoUrl}
+                alt={empresa.nome_empresa}
+                referrerPolicy="no-referrer"
+                className="h-8 w-auto max-w-[130px] object-contain shrink-0"
+              />
+            ) : (
+              <span
+                className="w-8 h-8 btn-radius flex items-center justify-center text-xs font-bold text-white shrink-0"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                {empresa.nome_empresa.split('–')[0].trim().slice(0, 3).toUpperCase()}
+              </span>
+            )}
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-900 truncate">Portal do Cliente</p>
               <p className="text-xs text-slate-500 truncate">{client?.nomeCompleto || userProfile.nome}</p>
@@ -325,8 +527,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* 5 Abas responsivas */}
-        <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center gap-1 overflow-x-auto border-t border-slate-100">
+        {/* 5 Abas desktop/tablet */}
+        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-slate-100 no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
@@ -350,7 +552,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </nav>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-8 space-y-6">
         {feedbackMsg && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900 flex items-center justify-between gap-2">
             <span>{feedbackMsg}</span>
@@ -370,7 +572,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {tab === 'processo' && (
               <div className="space-y-6">
                 <div className="bg-white border border-slate-200 rounded-xl p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
                     <div>
                       <p className="text-xs font-semibold text-slate-500">
                         {activeCase ? `${activeCase.tipoServico} · SERMIG: ${activeCase.statusSermig}` : 'Processo em estruturação'}
@@ -379,11 +581,43 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         {activeCase?.titulo || 'Acompanhamento de Residência no Chile'}
                       </h1>
                     </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs text-slate-500">Prontidão Documental</p>
-                      <p className="text-2xl font-bold tabular-nums" style={{ color: thermo.corHex }}>
-                        {thermo.notaGeral}%
-                      </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="text-left sm:text-right mr-2">
+                        <p className="text-xs text-slate-500">Prontidão Documental</p>
+                        <p className="text-2xl font-bold tabular-nums" style={{ color: thermo.corHex }}>
+                          {thermo.notaGeral}%
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 no-print">
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handlePreviewPdf('progresso')}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar PDF'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handleExportProgressoPdf()}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
+                          style={{ backgroundColor: 'var(--color-primary)' }}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Progresso (PDF)'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handleExportDiagnosticoPdf()}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Exportar Diagnóstico (PDF)'}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -430,12 +664,86 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </div>
                 </div>
 
-                {/* Parecer liberado pelo consultor */}
-                {activeCase?.relatorioViabilidadeLiberado && assessments.length > 0 && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
-                    <h2 className="text-base font-semibold text-slate-900">Parecer Técnico Liberado</h2>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{assessments[0].enquadramentoLegal}</p>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{assessments[0].recomendacoes}</p>
+                {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
+                {(primaryLead || releasedAssessments.length > 0) && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">
+                          Diagnóstico de Viabilidade &amp; Parecer Técnico
+                        </h2>
+                        <p className="text-xs text-slate-500">
+                          Histórico do seu diagnóstico inicial e orientações técnicas liberadas pela consultoria
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 no-print">
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handlePreviewPdf('diagnostico')}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          Pré-visualizar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handleExportDiagnosticoPdf()}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Diagnóstico (PDF)'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {primaryLead && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                        <div>
+                          <p className="text-slate-500">Subcategoria sugerida</p>
+                          <p className="font-bold text-slate-900 mt-0.5">
+                            {primaryLead.subcategoriaSugerida || primaryLead.interesse || 'Em análise'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Índice de viabilidade</p>
+                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                            {typeof primaryLead.notaViabilidade === 'number'
+                              ? `${primaryLead.notaViabilidade}/100`
+                              : 'Em avaliação'}
+                            {primaryLead.confianca ? ` · Confiança ${primaryLead.confianca}` : ''}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Realizado em</p>
+                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                            {formatDateBR(primaryLead.createdAt)}
+                            {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {releasedAssessments.length > 0 && (
+                      <div className="space-y-3 pt-1">
+                        <p className="text-xs font-semibold text-slate-700">
+                          Parecer Técnico Liberado (Versão {releasedAssessments[0].versao} · Nota{' '}
+                          <span className="tabular-nums">{releasedAssessments[0].notaGeral}/100</span>)
+                        </p>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                          {releasedAssessments[0].enquadramentoLegal}
+                        </p>
+                        {releasedAssessments[0].fundamentacaoNormativa && (
+                          <p className="text-xs text-slate-600 whitespace-pre-wrap border-l-2 border-slate-300 pl-3">
+                            {releasedAssessments[0].fundamentacaoNormativa}
+                          </p>
+                        )}
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                          {releasedAssessments[0].recomendacoes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -443,21 +751,51 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 {genDocs.length > 0 && (
                   <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
                     <h2 className="text-base font-semibold text-slate-900">Documentos Oficiais Disponíveis</h2>
-                    {genDocs.map((gd) => (
-                      <div key={gd.id} className="p-4 rounded-lg border border-slate-200 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{gd.titulo}</p>
-                          <p className="text-xs text-slate-500">Versão {gd.versao} · Emitido em {formatDateBR(gd.createdAt)}</p>
+                    {genDocs.map((gd) => {
+                      const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
+                      return (
+                        <div key={gd.id} className="p-4 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-semibold text-slate-900">{gd.titulo}</p>
+                            <p className="text-xs text-slate-500">
+                              Status: <strong>{statusLabel}</strong> · Versão {gd.versao} · Emitido em {formatDateBR(gd.createdAt)}
+                              {gd.codigoVerificacao ? ` · Código ${gd.codigoVerificacao}` : ''}
+                            </p>
+                            {gd.confirmadoLeituraEm && (
+                              <p className="text-[11px] text-[#1E7E34] font-medium">
+                                Leitura confirmada em {formatDateTimeBR(gd.confirmadoLeituraEm)}
+                              </p>
+                            )}
+                            {gd.assinadoEm && (
+                              <p className="text-[11px] text-[#1E7E34] font-medium">
+                                Assinado em {formatDateTimeBR(gd.assinadoEm)}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setViewingGenDoc(gd)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Visualizar / Imprimir A4
+                            </button>
+                            {!gd.canceladoEm && gd.status !== 'Assinado' && (
+                              <button
+                                type="button"
+                                onClick={() => setSigningGenDoc(gd)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                style={{ backgroundColor: 'var(--color-primary)' }}
+                              >
+                                <FileSignature className="w-3.5 h-3.5" />
+                                Assinar / Anexar Assinado
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => window.print()}
-                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800 hover:bg-slate-50"
-                        >
-                          Imprimir / PDF
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -503,11 +841,32 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 2: DOCUMENTOS & PRIORIDADES */}
             {tab === 'documentos' && (
               <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Relação Priorizada de Documentos</h2>
-                  <p className="text-xs text-slate-500">
-                    Envie PDF, JPG ou PNG de até 10 MB respeitando a ordem sugerida para preservar validades curtas (ex.: Antecedentes 60 dias).
-                  </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Relação Priorizada de Documentos</h2>
+                    <p className="text-xs text-slate-500">
+                      Envie PDF, JPG ou PNG de até 10 MB respeitando a ordem sugerida para preservar validades curtas (ex.: Antecedentes 60 dias).
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 no-print">
+                    <button
+                      type="button"
+                      disabled={pdfBusy !== null}
+                      onClick={() => void handleExportProgressoPdf()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                      {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Relatório (PDF)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLawOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                      Entenda a Lei
+                    </button>
+                  </div>
                 </div>
 
                 {activeDocs.length === 0 ? (
@@ -516,50 +875,62 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   <div className="divide-y divide-slate-200">
                     {[...activeDocs]
                       .sort((a, b) => a.ordemEmissao - b.ordemEmissao)
-                      .map((d) => (
-                        <div key={d.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="space-y-1">
-                            <p className="text-xs text-slate-500">
-                              Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
-                              {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
-                            </p>
-                            <p className="text-sm font-semibold text-slate-900">{d.nomeDocumento}</p>
-                            <p className="text-xs font-medium" style={{ color: d.status === 'Aprovado' ? '#1E7E34' : d.status === 'Reprovado' ? '#C82333' : '#0F2537' }}>
-                              Status: {d.status} · Etapa: {d.etapaEsteira} · Versão {d.versao}
-                            </p>
-                            {d.motivoReprovacao && (
-                              <p className="text-xs text-[#C82333]">Motivo da pendência: {d.motivoReprovacao}</p>
-                            )}
+                      .map((d) => {
+                        const expDays = daysUntilDate(d.dataValidadeCalculada);
+                        const suggestedName = formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao, 'pdf');
+                        return (
+                          <div key={d.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="space-y-1">
+                              <p className="text-xs text-slate-500">
+                                Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
+                                {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
+                              </p>
+                              <p className="text-sm font-semibold text-slate-900">{d.nomeDocumento}</p>
+                              <p className="text-xs font-medium" style={{ color: d.status === 'Aprovado' ? '#1E7E34' : d.status === 'Reprovado' ? '#C82333' : '#0F2537' }}>
+                                Status: {d.status} · Etapa: {d.etapaEsteira} · Versão {d.versao}
+                              </p>
+                              {expDays !== null && expDays <= 30 && (
+                                <p className={`text-xs font-semibold ${expDays <= 7 ? 'text-[#C82333]' : 'text-amber-700'}`}>
+                                  {expDays <= 0
+                                    ? `Documento vencido em ${formatDateBR(d.dataValidadeCalculada)}`
+                                    : `Atenção: validade expira em ${expDays} dia(s) (${formatDateBR(d.dataValidadeCalculada)})`}
+                                </p>
+                              )}
+                              <p className="text-[11px] text-slate-400">Nome sugerido do arquivo: {suggestedName}</p>
+                              {d.motivoReprovacao && (
+                                <p className="text-xs text-[#C82333]">Motivo da pendência: {d.motivoReprovacao}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {d.arquivoUrl && (
+                                <a
+                                  href={d.arquivoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  Ver enviado
+                                </a>
+                              )}
+                              <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ backgroundColor: 'var(--color-primary)' }}>
+                                <Upload className="w-3.5 h-3.5" />
+                                {uploadingDocId === d.id ? 'Enviando...' : d.arquivoUrl ? 'Reenviar' : 'Enviar arquivo'}
+                                <input
+                                  type="file"
+                                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                  className="hidden"
+                                  disabled={uploadingDocId === d.id}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) void handleUploadDoc(d, f);
+                                  }}
+                                />
+                              </label>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {d.arquivoUrl && (
-                              <a
-                                href={d.arquivoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                Ver enviado
-                              </a>
-                            )}
-                            <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ backgroundColor: 'var(--color-primary)' }}>
-                              <Upload className="w-3.5 h-3.5" />
-                              {uploadingDocId === d.id ? 'Enviando...' : d.arquivoUrl ? 'Reenviar' : 'Enviar arquivo'}
-                              <input
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                className="hidden"
-                                disabled={uploadingDocId === d.id}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) void handleUploadDoc(d, f);
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 )}
               </div>
@@ -877,9 +1248,128 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         )}
       </main>
 
-      <footer className="bg-white border-t border-slate-200 py-5 px-4 sm:px-6 text-xs text-slate-500 text-center">
+      <footer className="bg-white border-t border-slate-200 py-5 px-4 sm:px-6 text-xs text-slate-500 text-center mb-16 md:mb-0">
         {empresa.avisoLegal}
       </footer>
+
+      {/* Barra inferior mobile fixa com >=48px touch targets */}
+      <nav
+        aria-label="Navegação rápida do portal"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 grid grid-cols-5 no-print"
+      >
+        {[
+          { id: 'processo', label: 'Processo', icon: <Briefcase className="w-4 h-4" /> },
+          { id: 'documentos', label: 'Docs', icon: <FolderOpen className="w-4 h-4" /> },
+          { id: 'financeiro', label: 'Financeiro', icon: <CreditCard className="w-4 h-4" /> },
+          { id: 'suporte', label: 'Suporte', icon: <HelpCircle className="w-4 h-4" /> },
+          { id: 'dados', label: 'Dados', icon: <User className="w-4 h-4" /> },
+        ].map((item) => {
+          const active = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id as PortalTab)}
+              className={`min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${
+                active ? 'text-[var(--color-primary)] bg-slate-50' : 'text-slate-600'
+              }`}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Modal Visualização / Impressão A4 Documento Oficial */}
+      {viewingGenDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between gap-3 no-print">
+              <div>
+                <p className="text-sm font-bold text-slate-900">{viewingGenDoc.titulo}</p>
+                <p className="text-[11px] text-slate-500">
+                  Versão {viewingGenDoc.versao} · Código {viewingGenDoc.codigoVerificacao || viewingGenDoc.id}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {!viewingGenDoc.confirmadoLeituraEm && (
+                  <UiButton type="button" size="sm" variant="primary" onClick={() => void handleConfirmGenDocRead(viewingGenDoc)}>
+                    Confirmar leitura
+                  </UiButton>
+                )}
+                <UiButton type="button" size="sm" variant="outline" onClick={() => window.print()}>
+                  <Printer className="w-3.5 h-3.5" />
+                  Imprimir / PDF
+                </UiButton>
+                <button type="button" onClick={() => setViewingGenDoc(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-5 text-xs text-slate-800">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{empresa.nome_empresa}</p>
+                  <p className="text-[11px] text-slate-500">{empresa.razao_social_cnpj_rut}</p>
+                </div>
+                <QrCodeSvg value={viewingGenDoc.codigoVerificacao || viewingGenDoc.id} size={56} />
+              </div>
+              <div
+                className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewingGenDoc.conteudoHtml) }}
+              />
+              {viewingGenDoc.assinaturaDataUrl && (
+                <div className="pt-4 border-t border-slate-200">
+                  <p className="text-[11px] font-semibold text-slate-600 mb-1">Assinatura registrada:</p>
+                  <img src={viewingGenDoc.assinaturaDataUrl} alt="Assinatura" className="h-16 border border-slate-200 rounded bg-white" />
+                </div>
+              )}
+              <p className="text-[10px] text-slate-500 pt-3 border-t border-slate-200">{empresa.avisoLegal}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Assinatura / Anexo de Documento Oficial */}
+      {signingGenDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">Assinar ou Anexar Documento Assinado</h3>
+              <button type="button" onClick={() => setSigningGenDoc(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-600">
+              Desenhe sua assinatura digital abaixo ou envie o PDF assinado manualmente / via Gov.br para <strong>{signingGenDoc.titulo}</strong>.
+            </p>
+            <DrawSignaturePad
+              disabled={signBusy}
+              onSave={(dataUrl) => void handleSignGenDocCanvas(signingGenDoc, dataUrl)}
+            />
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
+              <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-50">
+                <Upload className="w-3.5 h-3.5" />
+                {signBusy ? 'Enviando...' : 'Ou enviar PDF assinado'}
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  disabled={signBusy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleUploadSignedGenDocPdf(signingGenDoc, f);
+                  }}
+                />
+              </label>
+              <button type="button" onClick={() => setSigningGenDoc(null)} className="px-3 py-2 text-xs text-slate-600">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal obrigatório LGPD no 1º acesso */}
       {needsLgpdAccept && (
@@ -907,6 +1397,23 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           </div>
         </div>
       )}
+
+      <PdfPreviewModal
+        open={Boolean(pdfPreview)}
+        title={pdfPreview?.title || 'Pré-visualização PDF'}
+        filename={pdfPreview?.filename || 'relatorio.pdf'}
+        blobUrl={pdfPreview?.blobUrl || null}
+        onClose={closePdfPreview}
+        onDownload={() => {
+          if (!pdfPreview) return;
+          const a = document.createElement('a');
+          a.href = pdfPreview.blobUrl;
+          a.download = pdfPreview.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }}
+      />
 
       <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} clientId={client?.id} caseId={activeCase?.id} onConfirmed={loadPortal} />
       <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a Lei" sources={legalSources} clientFriendlyOnly />

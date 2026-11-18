@@ -25,6 +25,7 @@ import {
   saveEmpresaConfigAdmin,
   callAiEndpoint,
 } from '../../services/firestoreService';
+import { ContractGeneratorModal } from './ContractGeneratorModal';
 import type {
   Budget,
   BudgetItem,
@@ -32,6 +33,7 @@ import type {
   Client,
   CurrencyCode,
   CustosPadrao,
+  Dependent,
   DocumentTemplate,
   EmpresaConfig,
   FinancialRecord,
@@ -40,7 +42,6 @@ import type {
   UserRole,
 } from '../../types/domain';
 import {
-  applyTemplateVariables,
   buildWhatsAppUrl,
   exportToCSV,
   formatCurrency,
@@ -54,6 +55,7 @@ interface PainelFinanceiroProps {
   empresa: EmpresaConfig;
   clients: Client[];
   cases: Case[];
+  dependents?: Dependent[];
   budgets: Budget[];
   financialRecords: FinancialRecord[];
   documentTemplates: DocumentTemplate[];
@@ -61,6 +63,7 @@ interface PainelFinanceiroProps {
   onRefresh: () => Promise<void>;
   onRefreshPublic: () => Promise<void>;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
+  sectionGroup?: 'financeiro' | 'contratos' | 'todos';
 }
 
 type FinTab = 'orcamentos' | 'lancamentos' | 'documentos' | 'custos';
@@ -71,6 +74,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   empresa,
   clients,
   cases,
+  dependents = [],
   budgets,
   financialRecords,
   documentTemplates,
@@ -78,18 +82,19 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   onRefresh,
   onRefreshPublic,
   onLogWhatsApp,
+  sectionGroup = 'todos',
 }) => {
-  if (role === 'assistente') {
-    return (
-      <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-600">
-        Acesso restrito: este perfil não possui permissão para visualizar ou editar dados financeiros.
-      </div>
-    );
-  }
-
-  const [tab, setTab] = useState<FinTab>('orcamentos');
+  const [tab, setTab] = useState<FinTab>(sectionGroup === 'contratos' ? 'documentos' : 'orcamentos');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sectionGroup === 'contratos') {
+      setTab('documentos');
+    } else if (sectionGroup === 'financeiro') {
+      setTab((prev) => (prev === 'documentos' ? 'orcamentos' : prev));
+    }
+  }, [sectionGroup]);
 
   // Novo Orçamento
   const [budgetModal, setBudgetModal] = useState(false);
@@ -132,17 +137,10 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   const [fValor, setFValor] = useState(0);
   const [fVenc, setFVenc] = useState(() => toIsoDate(new Date(Date.now() + 5 * 86400000)));
 
-  // Editor de Documento Gerado
-  const [genTplId, setGenTplId] = useState(documentTemplates[0]?.id || '');
-  const [genClientId, setGenClientId] = useState(clients[0]?.id || '');
-  const [genCaseId, setGenCaseId] = useState('');
-  const [genValor, setGenValor] = useState('R$ 3.600,00');
-  const [genForma, setGenForma] = useState('Pix em 2 parcelas');
-  const [genEditorHtml, setGenEditorHtml] = useState('');
-  const [genEditorTitle, setGenEditorTitle] = useState('');
-  const [genEditorTipo, setGenEditorTipo] = useState('contrato');
-  const [genFinanceiro, setGenFinanceiro] = useState(true);
-  const [genLiberarCliente, setGenLiberarCliente] = useState(false);
+  // Modal Unificado de Contratos, Recibos & Documentos Gerados
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [editingGenDoc, setEditingGenDoc] = useState<GeneratedDocument | null>(null);
+  const [receiptFinRecord, setReceiptFinRecord] = useState<FinancialRecord | null>(null);
 
   // IA Custos Referenciais
   const [aiCustosLoading, setAiCustosLoading] = useState(false);
@@ -263,74 +261,24 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   };
 
   // ===========================================================================
-  // Modelos & Documentos Gerados (Bloqueio de [preencher])
+  // Recibo sequencial e abertura do gerador de contratos
   // ===========================================================================
-  const handleLoadDocTemplate = (tplId: string) => {
-    setGenTplId(tplId);
-    const tpl = documentTemplates.find((t) => t.id === tplId);
-    if (!tpl) return;
-    const cl = clientMap.get(genClientId);
-    const cs = cases.find((c) => c.id === genCaseId || c.clientId === genClientId);
-    const filled = applyTemplateVariables(tpl.conteudoHtml, {
-      empresa_nome: empresa.nome_empresa,
-      empresa_doc: empresa.razao_social_cnpj_rut,
-      empresa_endereco: empresa.endereco_cidade,
-      empresa_responsavel: empresa.responsavel_tecnico,
-      foro_comarca: empresa.foro_comarca,
-      cliente_nome: cl?.nomeCompleto || '[preencher nome completo]',
-      cliente_nacionalidade: cl?.nacionalidade || 'Brasileira',
-      cliente_estado_civil: cl?.estadoCivil || '[preencher estado civil]',
-      cliente_profissao: cl?.profissao || '[preencher profissão]',
-      cliente_cpf: cl?.cpf || '[preencher CPF]',
-      cliente_passaporte: cl?.passaporte?.numero || '[preencher passaporte]',
-      cliente_endereco: cl?.enderecoCompleto || '[preencher endereço]',
-      cliente_email: cl?.email || '',
-      cliente_whatsapp: cl?.whatsapp || '',
-      objeto_servico: cs?.titulo || 'Assessoria Migratória para Residência no Chile',
-      valor_contrato: genValor,
-      forma_pagamento: genForma,
-      descricao_pagamento: 'Honorários de Assessoria Migratória',
-      valor_pago: genValor,
-      caso_titulo: cs?.titulo || '',
-      data_atual: formatDateBR(new Date()),
-    });
-    setGenEditorTitle(tpl.titulo);
-    setGenEditorTipo(tpl.tipo);
-    setGenEditorHtml(filled);
-    setGenFinanceiro(['contrato', 'recibo', 'orcamento'].includes(tpl.tipo));
+  const openNewContractGenerator = () => {
+    setEditingGenDoc(null);
+    setReceiptFinRecord(null);
+    setContractModalOpen(true);
   };
 
-  const hasPendingPlaceholders = /\[preencher[^\]]*\]/i.test(genEditorHtml);
-
-  const handleSaveGeneratedDoc = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    if (!genClientId) {
-      setErrorMsg('Selecione um cliente para gerar o documento.');
-      return;
+  const openReceiptFromRecord = async (fin: FinancialRecord) => {
+    const seq =
+      fin.reciboNumero ||
+      `REC-${new Date().getFullYear()}-${String(generatedDocuments.filter((g) => g.tipo === 'recibo').length + 1).padStart(3, '0')}`;
+    if (!fin.reciboNumero) {
+      await saveDocumentAudited('financialRecords', fin.id, { ...fin, reciboNumero: seq }, false, role, 'reciboNumero');
     }
-    if (hasPendingPlaceholders) {
-      setErrorMsg('Bloqueado: substitua todos os marcadores "[preencher ...]" antes de salvar ou liberar ao cliente.');
-      return;
-    }
-    const prevVersions = generatedDocuments.filter((g) => g.clientId === genClientId && g.tipo === genEditorTipo);
-    const id = makeId('gdoc');
-    const docRecord: GeneratedDocument = {
-      id,
-      tipo: genEditorTipo,
-      titulo: genEditorTitle.trim(),
-      clientId: genClientId,
-      caseId: genCaseId || undefined,
-      conteudoHtml: genEditorHtml,
-      versao: prevVersions.length + 1,
-      liberadoAoCliente: genLiberarCliente,
-      financeiro: genFinanceiro,
-      autorNome: userProfile.nome || userProfile.email,
-      createdAt: new Date().toISOString(),
-    };
-    await saveDocumentAudited('generatedDocuments', id, docRecord as unknown as Record<string, unknown>, true, role, 'documento_gerado');
-    setFeedback(`Documento "${docRecord.titulo}" (v${docRecord.versao}) salvo com sucesso!`);
-    await onRefresh();
+    setEditingGenDoc(null);
+    setReceiptFinRecord({ ...fin, reciboNumero: seq });
+    setContractModalOpen(true);
   };
 
   // ===========================================================================
@@ -385,94 +333,131 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
     await onRefreshPublic();
   };
 
+  if (role === 'assistente') {
+    return (
+      <div
+        className="border border-slate-200 p-8 text-center text-sm text-slate-600"
+        style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
+      >
+        Acesso restrito: este perfil não possui permissão para visualizar ou editar dados financeiros.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Financeiro, Orçamentos &amp; Contratos</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {sectionGroup === 'contratos'
+              ? 'Contratos, Recibos & Termos Oficiais'
+              : sectionGroup === 'financeiro'
+                ? 'Financeiro, Orçamentos & Custos'
+                : 'Financeiro, Orçamentos & Contratos'}
+          </h1>
           <p className="text-xs text-slate-500">
-            Área restrita a Administradores e Consultores — oculta automaticamente para Assistentes
+            {sectionGroup === 'contratos'
+              ? 'Emissão com QR verificador, assinatura eletrônica, liberação no Portal e histórico de versões'
+              : 'Área restrita a Administradores e Consultores — oculta automaticamente para Assistentes'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setBudgetModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Novo Orçamento
-          </button>
-          <button
-            type="button"
-            onClick={() => setFinModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Novo Lançamento
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              exportToCSV(
-                'financeiro-dm-integra',
-                ['Cliente', 'Tipo', 'Descrição', 'Moeda', 'Valor', 'Vencimento', 'Status'],
-                financialRecords.map((f) => [
-                  clientMap.get(f.clientId || '')?.nomeCompleto || '',
-                  f.tipo,
-                  f.descricao,
-                  f.moeda,
-                  f.valor,
-                  formatDateBR(f.vencimento),
-                  f.status,
-                ]),
-              )
-            }
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            <Download className="w-3.5 h-3.5" />
-            CSV
-          </button>
+          {sectionGroup === 'contratos' ? (
+            <button
+              type="button"
+              onClick={openNewContractGenerator}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Gerar Novo Contrato / Documento
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setBudgetModal(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Orçamento
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinModal(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Lançamento
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  exportToCSV(
+                    'financeiro-dm-integra',
+                    ['Cliente', 'Tipo', 'Descrição', 'Moeda', 'Valor', 'Vencimento', 'Status'],
+                    financialRecords.map((f) => [
+                      clientMap.get(f.clientId || '')?.nomeCompleto || '',
+                      f.tipo,
+                      f.descricao,
+                      f.moeda,
+                      f.valor,
+                      formatDateBR(f.vencimento),
+                      f.status,
+                    ]),
+                  )
+                }
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* KPIs Multimoeda */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
-        {(['BRL', 'CLP', 'USD'] as CurrencyCode[]).map((cur) => (
-          <div key={cur} className="bg-white border border-slate-200 rounded-xl p-4 space-y-1">
-            <p className="text-xs font-semibold text-slate-500">Resumo em {cur}</p>
-            <p className="text-lg font-bold text-[#1E7E34] tabular-nums">
-              Recebido: {formatCurrency(totalsByCurrency[cur].recebido, cur)}
-            </p>
-            <p className="text-xs text-slate-600 tabular-nums">
-              A receber: {formatCurrency(totalsByCurrency[cur].pendente, cur)} ·{' '}
-              <span className="text-[#C82333]">Atraso: {formatCurrency(totalsByCurrency[cur].atrasado, cur)}</span>
-            </p>
-          </div>
-        ))}
-      </div>
+      {/* KPIs Multimoeda (apenas na visão Financeira) */}
+      {sectionGroup !== 'contratos' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
+          {(['BRL', 'CLP', 'USD'] as CurrencyCode[]).map((cur) => (
+            <div key={cur} className="bg-white border border-slate-200 rounded-xl p-4 space-y-1">
+              <p className="text-xs font-semibold text-slate-500">Resumo em {cur}</p>
+              <p className="text-lg font-bold text-[#1E7E34] tabular-nums">
+                Recebido: {formatCurrency(totalsByCurrency[cur].recebido, cur)}
+              </p>
+              <p className="text-xs text-slate-600 tabular-nums">
+                A receber: {formatCurrency(totalsByCurrency[cur].pendente, cur)} ·{' '}
+                <span className="text-[#C82333]">Atraso: {formatCurrency(totalsByCurrency[cur].atrasado, cur)}</span>
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Sub-abas */}
-      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto no-print">
-        {[
-          { id: 'orcamentos', label: `Orçamentos (${budgets.length})` },
-          { id: 'lancamentos', label: `Lançamentos & Parcelas (${financialRecords.length})` },
-          { id: 'documentos', label: `Contratos & Recibos (${generatedDocuments.length})` },
-          { id: 'custos', label: 'Custos Referenciais SERMIG/CNJ' },
-        ].map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id as FinTab)}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap ${
-              tab === t.id ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Sub-abas (ocultar barra quando estiver na tela dedicada de Contratos) */}
+      {sectionGroup !== 'contratos' && (
+        <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto no-print">
+          {[
+            { id: 'orcamentos', label: `Orçamentos (${budgets.length})` },
+            { id: 'lancamentos', label: `Lançamentos & Parcelas (${financialRecords.length})` },
+            ...(sectionGroup === 'todos' ? [{ id: 'documentos', label: `Contratos & Recibos (${generatedDocuments.length})` }] : []),
+            { id: 'custos', label: 'Custos Referenciais SERMIG/CNJ' },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id as FinTab)}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap ${
+                tab === t.id ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {feedback && (
         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium no-print">
@@ -619,6 +604,16 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
+                        {f.status === 'Pago' && (
+                          <button
+                            type="button"
+                            onClick={() => void openReceiptFromRecord(f)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+                          >
+                            <FileText className="w-3 h-3" />
+                            {f.reciboNumero ? `Recibo ${f.reciboNumero}` : 'Gerar Recibo'}
+                          </button>
+                        )}
                         {f.comprovanteUrl && (
                           <a
                             href={f.comprovanteUrl}
@@ -654,132 +649,74 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
 
       {/* ABA CONTRATOS & RECIBOS */}
       {tab === 'documentos' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <form onSubmit={handleSaveGeneratedDoc} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-            <h2 className="text-base font-bold text-slate-900">Gerar Documento Oficial com Versionamento</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Modelo</label>
-                <select
-                  value={genTplId}
-                  onChange={(e) => handleLoadDocTemplate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                >
-                  {documentTemplates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.titulo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Cliente *</label>
-                <select
-                  required
-                  value={genClientId}
-                  onChange={(e) => setGenClientId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                >
-                  <option value="">Selecione...</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nomeCompleto}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Valor formatado</label>
-                <input
-                  value={genValor}
-                  onChange={(e) => setGenValor(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Forma de pagamento</label>
-                <input
-                  value={genForma}
-                  onChange={(e) => setGenForma(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                />
-              </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Contratos, Recibos &amp; Termos Oficiais (13 Modelos)</h2>
+              <p className="text-xs text-slate-500">
+                Preenchimento automático com QR verificador, assinatura eletrônica, histórico de versões e cancelamento auditado.
+              </p>
             </div>
             <button
               type="button"
-              onClick={() => handleLoadDocTemplate(genTplId)}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Preencher variáveis do cliente selecionado
-            </button>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Título do documento</label>
-              <input
-                required
-                value={genEditorTitle}
-                onChange={(e) => setGenEditorTitle(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Conteúdo editável</label>
-              <textarea
-                required
-                rows={10}
-                value={genEditorHtml}
-                onChange={(e) => setGenEditorHtml(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono"
-              />
-              {hasPendingPlaceholders && (
-                <p className="text-xs text-[#C82333] font-medium mt-1">
-                  Atenção: ainda existem campos &ldquo;[preencher ...]&rdquo; no texto — substitua-os antes de salvar.
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-4 text-xs">
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={genFinanceiro} onChange={(e) => setGenFinanceiro(e.target.checked)} />
-                Documento financeiro (oculto para Assistente)
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={genLiberarCliente} onChange={(e) => setGenLiberarCliente(e.target.checked)} />
-                Liberar no Portal do Cliente
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={hasPendingPlaceholders}
-              className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+              onClick={openNewContractGenerator}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              Salvar Nova Versão do Documento
+              <Plus className="w-3.5 h-3.5" />
+              Gerar Novo Contrato / Documento
             </button>
-          </form>
+          </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
-            <h2 className="text-base font-bold text-slate-900">Documentos Emitidos</h2>
-            {generatedDocuments.length === 0 ? (
-              <p className="text-xs text-slate-500">Nenhum documento gerado ainda.</p>
-            ) : (
-              <div className="space-y-3">
-                {generatedDocuments.map((gd) => (
-                  <div key={gd.id} className="p-3.5 rounded-lg border border-slate-200 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between">
+          {generatedDocuments.length === 0 ? (
+            <p className="text-xs text-slate-500 py-8 text-center">
+              Nenhum contrato, recibo ou termo gerado ainda. Clique em &ldquo;Gerar Novo Contrato / Documento&rdquo;.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {generatedDocuments.map((gd) => (
+                <div key={gd.id} className="p-4 rounded-xl border border-slate-200 text-xs space-y-2 flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-start justify-between gap-2">
                       <span className="font-bold text-slate-900">
                         {gd.titulo} (v{gd.versao})
                       </span>
-                      <span className={gd.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
-                        {gd.liberadoAoCliente ? 'Visível no Portal' : 'Interno'}
+                      <span
+                        className={`px-2 py-0.5 rounded font-semibold text-[10px] ${
+                          gd.canceladoEm
+                            ? 'bg-red-50 text-[#C82333]'
+                            : gd.status === 'Assinado'
+                              ? 'bg-emerald-50 text-[#1E7E34]'
+                              : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {gd.canceladoEm ? 'Cancelado' : gd.status || 'Rascunho'}
                       </span>
                     </div>
                     <p className="text-slate-500">
                       Cliente: {clientMap.get(gd.clientId)?.nomeCompleto || gd.clientId} · {formatDateBR(gd.createdAt)}
+                      {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
                     </p>
-                    <div className="flex gap-2 pt-1">
+                    <p className={gd.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
+                      {gd.liberadoAoCliente ? 'Disponível no Portal do Cliente' : 'Uso Interno'}
+                      {gd.confirmadoLeituraEm ? ' · Leitura confirmada pelo cliente' : ''}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingGenDoc(gd);
+                        setReceiptFinRecord(null);
+                        setContractModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      Abrir / Editar / A4
+                    </button>
+                    {!gd.canceladoEm && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -793,23 +730,16 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                           );
                           await onRefresh();
                         }}
-                        className="px-2.5 py-1 rounded border border-slate-300 text-slate-700 font-medium"
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium"
                       >
                         {gd.liberadoAoCliente ? 'Ocultar do Portal' : 'Liberar no Portal'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => window.print()}
-                        className="px-2.5 py-1 rounded border border-slate-300 text-slate-700 font-medium"
-                      >
-                        Imprimir PDF
-                      </button>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1087,6 +1017,27 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
           </form>
         </div>
       )}
+
+      <ContractGeneratorModal
+        open={contractModalOpen}
+        onClose={() => {
+          setContractModalOpen(false);
+          setEditingGenDoc(null);
+          setReceiptFinRecord(null);
+        }}
+        role={role}
+        userProfile={userProfile}
+        empresa={empresa}
+        clients={clients}
+        cases={cases}
+        dependents={dependents}
+        documentTemplates={documentTemplates}
+        generatedDocuments={generatedDocuments}
+        initialEditingDoc={editingGenDoc}
+        initialReceiptRecord={receiptFinRecord}
+        onRefresh={onRefresh}
+        onLogWhatsApp={onLogWhatsApp}
+      />
     </div>
   );
 };

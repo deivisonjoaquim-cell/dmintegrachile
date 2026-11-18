@@ -73,3 +73,21 @@ test('rules guard public lead updates with matching sessionToken and immutable s
   assert.match(leadsBlock, /existing\(\)\.statusFunil == 'Novo' && incoming\(\)\.statusFunil == 'Novo'/);
   assert.match(leadsBlock, /!\('notas' in incoming\(\)\.diff\(existing\(\)\)\.affectedKeys\(\)\)/);
 });
+
+test('rules restrict generatedDocuments client confirmation/signature updates and block assistente from financial docs', () => {
+  const genBlock = rulesText.slice(rulesText.indexOf('match /generatedDocuments/{genDocId}'));
+  assert.match(genBlock, /isAssistente\(\) && \(!\('financeiro' in existing\(\)\) \|\| existing\(\)\.financeiro == false\)/);
+  assert.match(genBlock, /allow create: if isAdminOrConsultor\(\)/);
+  assert.match(genBlock, /affectedKeys\(\)\.hasOnly\(\['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt'\]\)/);
+  assert.match(genBlock, /existing\(\)\.liberadoAoCliente == true/);
+});
+
+test('rules restrict mediaAssets reads to staff and writes strictly to admin', () => {
+  const mediaBlock = rulesText.slice(rulesText.indexOf('match /mediaAssets/{assetId}'), rulesText.indexOf('match /auditLogs/{logId}'));
+  assert.match(mediaBlock, /allow get, list:\s*if isStaff\(\);/);
+  assert.match(mediaBlock, /allow create, update:\s*if isAdmin\(\)/);
+  assert.match(mediaBlock, /allow delete:\s*if isAdmin\(\)/);
+  assert.match(rulesText, /isOptString\(data, 'logoUrl', 250000\)/);
+  assert.match(rulesText, /'DM Sans'/);
+});
+

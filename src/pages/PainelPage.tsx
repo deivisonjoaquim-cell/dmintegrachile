@@ -1,37 +1,84 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Briefcase,
+  Calculator,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
   DollarSign,
+  FileSignature,
   FolderArchive,
   Handshake,
   LayoutDashboard,
   LogOut,
   Menu,
-  Settings,
+  Palette,
+  Plus,
+  RefreshCw,
+  Scale,
+  Search,
+  ShieldCheck,
+  Sliders,
   UserCheck,
+  Users,
   X,
 } from 'lucide-react';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
+import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelClientesCasos } from '../components/painel/PainelClientesCasos';
 import { PainelDashboard } from '../components/painel/PainelDashboard';
 import { PainelDocumentosExport } from '../components/painel/PainelDocumentosExport';
+import { PainelFerramentas } from '../components/painel/PainelFerramentas';
 import { PainelFinanceiro } from '../components/painel/PainelFinanceiro';
 import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
+import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
+import { useFirestore } from '../hooks/useFirestore';
 import {
   fetchAllSiteContentStaff,
   fetchStaffWorkspaceData,
   makeId,
   saveDocumentAudited,
 } from '../services/firestoreService';
-import type { SiteContent } from '../types/domain';
+import type { SiteContent, Task, UserRole } from '../types/domain';
+import { daysUntilDate, formatDateBR } from '../utils/formatters';
 
 interface PainelPageProps {
   onNavigate: (path: string) => void;
 }
 
-type PanelSection = 'dashboard' | 'leads' | 'casos' | 'documentos' | 'financeiro' | 'parceiros' | 'admin';
+type PanelSection =
+  | 'dashboard'
+  | 'agenda'
+  | 'leads'
+  | 'clientes'
+  | 'casos'
+  | 'documentos'
+  | 'contratos'
+  | 'financeiro'
+  | 'parceiros'
+  | 'legal'
+  | 'ferramentas'
+  | 'admin_site'
+  | 'admin_regras'
+  | 'admin_gov';
+
+interface RecentItem {
+  id: string;
+  label: string;
+  type: 'caso' | 'secao';
+  section: PanelSection;
+  caseId?: string;
+}
+
+const ROLE_DISPLAY: Record<UserRole, string> = {
+  admin: 'Administrador',
+  consultor: 'Consultor',
+  assistente: 'Assistente',
+  cliente: 'Cliente',
+};
 
 export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const {
@@ -51,10 +98,20 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const [section, setSection] = useState<PanelSection>('dashboard');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [staffSiteContent, setStaffSiteContent] = useState<SiteContent[]>(siteContent);
 
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalQuery, setGlobalQuery] = useState('');
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [recents, setRecents] = useState<RecentItem[]>([]);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const quickCreateRef = useRef<HTMLDivElement | null>(null);
+
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<typeof fetchStaffWorkspaceData>> | null>(null);
+  const firestore = useFirestore();
 
   const role = userProfile?.role;
   const isStaff =
@@ -84,6 +141,63 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     void loadWorkspace();
   }, [loadWorkspace]);
 
+  const handleRefreshAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadWorkspace(), firestore.refresh()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadWorkspace, firestore]);
+
+  const effectiveWorkspace = useMemo(() => {
+    if (!workspace) return null;
+    return {
+      ...workspace,
+      clients: !firestore.loadingClients ? firestore.clients : workspace.clients,
+      leads: !firestore.loadingDiagnostics ? firestore.diagnostics : workspace.leads,
+    };
+  }, [workspace, firestore.clients, firestore.diagnostics, firestore.loadingClients, firestore.loadingDiagnostics]);
+
+  // Global keyboard shortcut "/" or Ctrl+K for command search + outside click for Quick Create
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setGlobalSearchOpen(true);
+      } else if (
+        e.key === '/' &&
+        document.activeElement &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)
+      ) {
+        e.preventDefault();
+        setGlobalSearchOpen(true);
+      } else if (e.key === 'Escape') {
+        setGlobalSearchOpen(false);
+        setQuickCreateOpen(false);
+      }
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      if (quickCreateRef.current && !quickCreateRef.current.contains(e.target as Node)) {
+        setQuickCreateOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousedown', onMouseDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousedown', onMouseDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (globalSearchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 40);
+    } else {
+      setGlobalQuery('');
+    }
+  }, [globalSearchOpen]);
+
   const handleLogWhatsApp = async (
     clientId: string | undefined,
     caseId: string | undefined,
@@ -109,13 +223,343 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       userProfile.role,
       'comunicacao_whatsapp',
     );
-    await loadWorkspace();
+    await handleRefreshAll();
   };
+
+  const handleQuickToggleTask = async (task: Task) => {
+    if (!userProfile) return;
+    const nextStatus = task.status === 'Concluída' ? 'Pendente' : 'Concluída';
+    await saveDocumentAudited(
+      'tasks',
+      task.id,
+      { ...task, status: nextStatus },
+      false,
+      userProfile.role,
+      'concluir_tarefa_painel',
+      task,
+    );
+    await handleRefreshAll();
+  };
+
+  const pushRecent = useCallback((item: RecentItem) => {
+    setRecents((prev) => [item, ...prev.filter((r) => r.id !== item.id)].slice(0, 5));
+  }, []);
 
   const handleOpenCase = (caseId: string) => {
     setSelectedCaseId(caseId);
     setSection('casos');
+    const c = effectiveWorkspace?.cases.find((x) => x.id === caseId);
+    if (c) {
+      pushRecent({ id: `case_${caseId}`, label: c.titulo, type: 'caso', section: 'casos', caseId });
+    }
   };
+
+  const handleSelectSection = (next: PanelSection) => {
+    setSection(next);
+    if (next !== 'casos') setSelectedCaseId(null);
+    setMobileMenuOpen(false);
+  };
+
+  const navCounts = useMemo(() => {
+    if (!effectiveWorkspace) {
+      return { agenda: 0, leads: 0, clientes: 0, casos: 0, documentos: 0, contratos: 0, parceiros: 0 };
+    }
+    const openTasks = effectiveWorkspace.tasks.filter((t) => t.status !== 'Concluída').length;
+    const urgentDeadlines = effectiveWorkspace.deadlines.filter((d) => {
+      if (d.concluido) return false;
+      const diff = daysUntilDate(d.dataLimite);
+      return diff !== null && diff <= 15;
+    }).length;
+    const newLeads = effectiveWorkspace.leads.filter((l) => l.statusFunil === 'Novo').length;
+    const activeClients = effectiveWorkspace.clients.filter((c) => !c.arquivado).length;
+    const activeCases = effectiveWorkspace.cases.filter((c) => !c.arquivado).length;
+    const docsToCheck = effectiveWorkspace.caseDocuments.filter(
+      (d) => d.status === 'Enviado' || d.status === 'Em análise',
+    ).length;
+    const openProposals = effectiveWorkspace.partnerProposals.filter(
+      (p) => p.status === 'Nova' || p.status === 'Em Análise',
+    ).length;
+    return {
+      agenda: openTasks + urgentDeadlines,
+      leads: newLeads,
+      clientes: activeClients,
+      casos: activeCases,
+      documentos: docsToCheck,
+      contratos: effectiveWorkspace.generatedDocuments.length,
+      parceiros: openProposals,
+    };
+  }, [effectiveWorkspace]);
+
+  const navGroups: {
+    group: string;
+    items: { id: PanelSection; label: string; icon: React.ReactNode; visible: boolean; badge?: number }[];
+  }[] = useMemo(
+    () => [
+      {
+        group: 'Operação Diária',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Visão Geral',
+            icon: <LayoutDashboard className="w-4 h-4 shrink-0" />,
+            visible: true,
+          },
+          {
+            id: 'agenda',
+            label: 'Agenda, Tarefas & Prazos',
+            icon: <CalendarClock className="w-4 h-4 shrink-0" />,
+            visible: true,
+            badge: navCounts.agenda > 0 ? navCounts.agenda : undefined,
+          },
+        ],
+      },
+      {
+        group: 'Atendimento & CRM',
+        items: [
+          {
+            id: 'leads',
+            label: 'Leads & Diagnósticos',
+            icon: <UserCheck className="w-4 h-4 shrink-0" />,
+            visible: true,
+            badge: navCounts.leads > 0 ? navCounts.leads : undefined,
+          },
+          {
+            id: 'clientes',
+            label: 'Clientes (CRM)',
+            icon: <Users className="w-4 h-4 shrink-0" />,
+            visible: true,
+            badge: navCounts.clientes > 0 ? navCounts.clientes : undefined,
+          },
+          {
+            id: 'casos',
+            label: 'Casos & Pipeline',
+            icon: <Briefcase className="w-4 h-4 shrink-0" />,
+            visible: true,
+            badge: navCounts.casos > 0 ? navCounts.casos : undefined,
+          },
+          {
+            id: 'documentos',
+            label: 'Dossiês & Arquivos',
+            icon: <FolderArchive className="w-4 h-4 shrink-0" />,
+            visible: true,
+            badge: navCounts.documentos > 0 ? navCounts.documentos : undefined,
+          },
+        ],
+      },
+      {
+        group: 'Comercial & Financeiro',
+        items: [
+          {
+            id: 'contratos',
+            label: 'Contratos & Recibos',
+            icon: <FileSignature className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin' || role === 'consultor',
+            badge: navCounts.contratos > 0 ? navCounts.contratos : undefined,
+          },
+          {
+            id: 'financeiro',
+            label: 'Financeiro & Orçamentos',
+            icon: <DollarSign className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin' || role === 'consultor',
+          },
+          {
+            id: 'parceiros',
+            label: 'Parceiros & Propostas',
+            icon: <Handshake className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin' || role === 'consultor',
+            badge: navCounts.parceiros > 0 ? navCounts.parceiros : undefined,
+          },
+        ],
+      },
+      {
+        group: 'Normativa & Ferramentas',
+        items: [
+          {
+            id: 'legal',
+            label: 'Base Legal & Vistos',
+            icon: <Scale className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin' || role === 'consultor',
+          },
+          {
+            id: 'ferramentas',
+            label: 'Calculadoras & Simulador',
+            icon: <Calculator className="w-4 h-4 shrink-0" />,
+            visible: true,
+          },
+        ],
+      },
+      {
+        group: 'Administração',
+        items: [
+          {
+            id: 'admin_site',
+            label: 'Site, Logos & CMS',
+            icon: <Palette className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin',
+          },
+          {
+            id: 'admin_regras',
+            label: 'Motor de Diagnóstico',
+            icon: <Sliders className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin',
+          },
+          {
+            id: 'admin_gov',
+            label: 'Equipe, Bancário & Audit.',
+            icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
+            visible: role === 'admin',
+          },
+        ],
+      },
+    ],
+    [role, navCounts],
+  );
+
+  const visibleFlatNav = useMemo(
+    () => navGroups.flatMap((g) => g.items.filter((i) => i.visible)),
+    [navGroups],
+  );
+
+  const searchResults = useMemo(() => {
+    if (!effectiveWorkspace || !globalQuery.trim()) return [];
+    const q = globalQuery.toLowerCase();
+    const out: { id: string; category: string; title: string; subtitle: string; onSelect: () => void }[] = [];
+
+    if (
+      q.includes('calc') ||
+      q.includes('praz') ||
+      q.includes('cambi') ||
+      q.includes('câmb') ||
+      q.includes('clp') ||
+      q.includes('checklist') ||
+      q.includes('simula')
+    ) {
+      out.push({
+        id: 'tool_ferramentas',
+        category: 'Ferramenta',
+        title: 'Calculadoras de Prazos, Câmbio BRL/CLP & Simulador',
+        subtitle: 'Abrir utilitários da consultoria',
+        onSelect: () => {
+          handleSelectSection('ferramentas');
+          setGlobalSearchOpen(false);
+        },
+      });
+    }
+
+    for (const c of effectiveWorkspace.cases) {
+      if (c.titulo.toLowerCase().includes(q) || (c.numeroPedidoSermig || '').toLowerCase().includes(q)) {
+        out.push({
+          id: `case_${c.id}`,
+          category: 'Caso',
+          title: c.titulo,
+          subtitle: `Etapa ${c.etapaPipeline} · SERMIG ${c.statusSermig}`,
+          onSelect: () => {
+            handleOpenCase(c.id);
+            setGlobalSearchOpen(false);
+          },
+        });
+      }
+    }
+    for (const cli of effectiveWorkspace.clients) {
+      if (
+        cli.nomeCompleto.toLowerCase().includes(q) ||
+        (cli.cpf || '').toLowerCase().includes(q) ||
+        cli.email.toLowerCase().includes(q)
+      ) {
+        const linkedCase = effectiveWorkspace.cases.find((c) => c.clientId === cli.id);
+        out.push({
+          id: `cli_${cli.id}`,
+          category: 'Cliente',
+          title: cli.nomeCompleto,
+          subtitle: `${cli.email} · ${cli.whatsapp}`,
+          onSelect: () => {
+            if (linkedCase) handleOpenCase(linkedCase.id);
+            else handleSelectSection('clientes');
+            setGlobalSearchOpen(false);
+          },
+        });
+      }
+    }
+    for (const l of effectiveWorkspace.leads) {
+      if (
+        l.nome.toLowerCase().includes(q) ||
+        l.email.toLowerCase().includes(q) ||
+        (l.subcategoriaSugerida || '').toLowerCase().includes(q)
+      ) {
+        out.push({
+          id: `lead_${l.id}`,
+          category: 'Lead',
+          title: l.nome,
+          subtitle: `${l.statusFunil} · ${l.subcategoriaSugerida || l.interesse}`,
+          onSelect: () => {
+            handleSelectSection('leads');
+            setGlobalSearchOpen(false);
+          },
+        });
+      }
+    }
+    for (const t of effectiveWorkspace.tasks) {
+      if (t.titulo.toLowerCase().includes(q)) {
+        out.push({
+          id: `task_${t.id}`,
+          category: 'Tarefa',
+          title: t.titulo,
+          subtitle: `${t.status} · ${t.prioridade}${t.prazo ? ` · Até ${formatDateBR(t.prazo)}` : ''}`,
+          onSelect: () => {
+            if (t.caseId) handleOpenCase(t.caseId);
+            else handleSelectSection('agenda');
+            setGlobalSearchOpen(false);
+          },
+        });
+      }
+    }
+    for (const dl of effectiveWorkspace.deadlines) {
+      if (dl.titulo.toLowerCase().includes(q) || dl.tipo.toLowerCase().includes(q)) {
+        out.push({
+          id: `dl_${dl.id}`,
+          category: 'Prazo',
+          title: dl.titulo,
+          subtitle: `${dl.tipo} · Limite ${formatDateBR(dl.dataLimite)}`,
+          onSelect: () => {
+            if (dl.caseId) handleOpenCase(dl.caseId);
+            else handleSelectSection('agenda');
+            setGlobalSearchOpen(false);
+          },
+        });
+      }
+    }
+    for (const d of effectiveWorkspace.caseDocuments) {
+      if (d.nomeDocumento.toLowerCase().includes(q) || d.pessoa.toLowerCase().includes(q)) {
+        out.push({
+          id: `doc_${d.id}`,
+          category: 'Documento',
+          title: d.nomeDocumento,
+          subtitle: `${d.pessoa} · ${d.status}`,
+          onSelect: () => {
+            handleOpenCase(d.caseId);
+            setGlobalSearchOpen(false);
+          },
+        });
+      }
+    }
+    if (role === 'admin' || role === 'consultor') {
+      for (const s of legalSources) {
+        if (s.titulo.toLowerCase().includes(q) || s.numeroAno.toLowerCase().includes(q)) {
+          out.push({
+            id: `leg_${s.id}`,
+            category: 'Base Legal',
+            title: s.titulo,
+            subtitle: `${s.pais} · ${s.tipo} · ${s.statusVigencia}`,
+            onSelect: () => {
+              handleSelectSection('legal');
+              setGlobalSearchOpen(false);
+            },
+          });
+        }
+      }
+    }
+    return out.slice(0, 14);
+  }, [effectiveWorkspace, globalQuery, legalSources, role]);
 
   if (authLoading) {
     return (
@@ -128,7 +572,10 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   if (!userProfile || !isStaff) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
+        <div
+          className="border border-slate-200 p-8 max-w-md w-full text-center space-y-4"
+          style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
+        >
           <h1 className="text-xl font-bold text-slate-900">Painel Interno da Equipe</h1>
           <p className="text-sm text-slate-600">
             Acesso restrito a colaboradores ativos da consultoria D&amp;M Integra Chile.
@@ -155,84 +602,135 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     );
   }
 
-  const navItems: { id: PanelSection; label: string; icon: React.ReactNode; visible: boolean }[] = [
-    { id: 'dashboard', label: 'Visão Geral & Urgências', icon: <LayoutDashboard className="w-4 h-4" />, visible: true },
-    { id: 'leads', label: 'Leads & Diagnósticos', icon: <UserCheck className="w-4 h-4" />, visible: true },
-    { id: 'casos', label: 'Clientes & Casos', icon: <Briefcase className="w-4 h-4" />, visible: true },
-    { id: 'documentos', label: 'Documentos & Dossiês', icon: <FolderArchive className="w-4 h-4" />, visible: true },
-    {
-      id: 'financeiro',
-      label: 'Financeiro & Contratos',
-      icon: <DollarSign className="w-4 h-4" />,
-      visible: role === 'admin' || role === 'consultor',
-    },
-    {
-      id: 'parceiros',
-      label: 'Parceiros & Base Legal',
-      icon: <Handshake className="w-4 h-4" />,
-      visible: role === 'admin' || role === 'consultor',
-    },
-    {
-      id: 'admin',
-      label: 'Admin, Tema & Auditoria',
-      icon: <Settings className="w-4 h-4" />,
-      visible: role === 'admin',
-    },
-  ];
-
-  const visibleNav = navItems.filter((n) => n.visible);
+  const activeNavMeta = visibleFlatNav.find((n) => n.id === section);
+  const activeCaseTitle = selectedCaseId
+    ? effectiveWorkspace?.cases.find((c) => c.id === selectedCaseId)?.titulo
+    : null;
 
   return (
     <div className="min-h-screen flex bg-[var(--color-bg)]">
-      {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r border-slate-200 shrink-0 no-print">
-        <div className="p-5 border-b border-slate-200">
-          <button type="button" onClick={() => onNavigate('/')} className="text-left">
-            <p className="text-sm font-bold text-slate-900">D&amp;M Integra Chile</p>
-            <p className="text-[11px] text-slate-500">Painel Operacional · {userProfile.role.toUpperCase()}</p>
+      {/* Sidebar Desktop agrupada e recolhível */}
+      <aside
+        className={`hidden lg:flex lg:flex-col bg-white border-r border-slate-200 shrink-0 no-print transition-all ${
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+        }`}
+      >
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
+          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
+            {empresa.logoUrl ? (
+              <img
+                src={empresa.logoUrl}
+                alt={empresa.nome_empresa}
+                referrerPolicy="no-referrer"
+                className={sidebarCollapsed ? 'h-7 w-7 object-contain shrink-0' : 'h-8 max-w-[120px] object-contain shrink-0'}
+              />
+            ) : null}
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                {!empresa.logoUrl && (
+                  <p className="text-sm font-bold text-slate-900 truncate">{empresa.nome_empresa.split('–')[0].trim()}</p>
+                )}
+                <p className="text-[11px] font-medium text-slate-500 truncate">
+                  {ROLE_DISPLAY[userProfile.role]}
+                </p>
+              </div>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+          >
+            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1">
-          {visibleNav.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setSection(item.id);
-                if (item.id !== 'casos') setSelectedCaseId(null);
-              }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
-                section === item.id
-                  ? 'text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-              style={section === item.id ? { backgroundColor: 'var(--color-primary)' } : undefined}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto" aria-label="Menu do painel operacional">
+          {navGroups.map((g) => {
+            const groupVisible = g.items.filter((i) => i.visible);
+            if (groupVisible.length === 0) return null;
+            return (
+              <div key={g.group} className="space-y-1">
+                {!sidebarCollapsed && (
+                  <p className="px-3 text-[11px] font-semibold text-slate-400">{g.group}</p>
+                )}
+                {groupVisible.map((item) => {
+                  const isActive = section === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      title={item.label}
+                      onClick={() => handleSelectSection(item.id)}
+                      className={`w-full flex items-center ${
+                        sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+                      } py-2.5 rounded-lg text-xs font-semibold transition-colors ${
+                        isActive ? 'text-white' : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                      style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        {item.icon}
+                        {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{item.label}</span>}
+                      </span>
+                      {!sidebarCollapsed && item.badge !== undefined && (
+                        <span
+                          className={`text-[11px] font-bold tabular-nums shrink-0 ${
+                            isActive ? 'text-white/90' : 'text-slate-400'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+
+          {!sidebarCollapsed && recents.length > 0 && (
+            <div className="pt-3 border-t border-slate-100 space-y-1">
+              <p className="px-3 text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Recentes
+              </p>
+              {recents.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => (r.caseId ? handleOpenCase(r.caseId) : handleSelectSection(r.section))}
+                  className="w-full text-left px-3 py-1.5 rounded-lg text-[11px] text-slate-600 hover:bg-slate-100 truncate"
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-200 space-y-2">
-          <p className="text-xs font-semibold text-slate-900 truncate">{userProfile.nome}</p>
-          <p className="text-[11px] text-slate-500 truncate">{userProfile.email}</p>
-          <div className="flex gap-2 pt-1">
+          {!sidebarCollapsed && (
+            <>
+              <p className="text-xs font-semibold text-slate-900 truncate">{userProfile.nome}</p>
+              <p className="text-[11px] text-slate-500 truncate">{userProfile.email}</p>
+            </>
+          )}
+          <div className={`flex gap-2 pt-1 ${sidebarCollapsed ? 'flex-col' : ''}`}>
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
-              Site Público
+              {sidebarCollapsed ? 'Site' : 'Site Público'}
             </button>
             <button
               type="button"
               onClick={() => void logout()}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
               <LogOut className="w-3.5 h-3.5" />
-              Sair
+              {!sidebarCollapsed && 'Sair'}
             </button>
           </div>
         </div>
@@ -240,58 +738,223 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar Mobile */}
-        <header className="lg:hidden bg-white border-b border-slate-200 px-4 h-14 flex items-center justify-between no-print">
-          <p className="text-sm font-bold text-slate-900">Painel · {userProfile.role.toUpperCase()}</p>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Abrir menu do painel"
-            className="p-2 rounded-lg border border-slate-200 text-slate-700"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+        {/* Topbar Desktop + Mobile com Breadcrumb, Atualizar, Busca Global e Criar Novo */}
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 h-14 flex items-center justify-between gap-3 no-print sticky top-0 z-30">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Abrir menu do painel"
+              className="lg:hidden p-2 rounded-lg border border-slate-200 text-slate-700"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            <nav className="flex items-center gap-1.5 text-xs text-slate-500 truncate" aria-label="Breadcrumb">
+              <button
+                type="button"
+                onClick={() => handleSelectSection('dashboard')}
+                className="hover:text-slate-900 font-medium whitespace-nowrap"
+              >
+                Painel
+              </button>
+              <span>/</span>
+              <span className="font-semibold text-slate-900 truncate whitespace-nowrap">
+                {activeNavMeta?.label || 'Início'}
+              </span>
+              {activeCaseTitle && (
+                <>
+                  <span>/</span>
+                  <span className="text-[var(--color-primary)] font-semibold truncate max-w-[200px]">
+                    {activeCaseTitle}
+                  </span>
+                </>
+              )}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleRefreshAll()}
+              disabled={refreshing}
+              title="Atualizar dados sincronizados"
+              aria-label="Atualizar dados do painel"
+              className="p-2 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGlobalSearchOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs text-slate-600 hover:bg-slate-100 whitespace-nowrap"
+              aria-label="Busca global (pressione barra ou Ctrl+K)"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Buscar cliente, caso, tarefa...</span>
+              <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-200 rounded">
+                /
+              </kbd>
+            </button>
+
+            <div className="relative" ref={quickCreateRef}>
+              <button
+                type="button"
+                onClick={() => setQuickCreateOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Criar novo</span>
+              </button>
+              {quickCreateOpen && (
+                <div className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 z-40 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectSection('clientes');
+                      setQuickCreateOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                  >
+                    + Novo Cliente (CRM)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectSection('casos');
+                      setQuickCreateOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                  >
+                    + Novo Caso Migratório
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectSection('agenda');
+                      setQuickCreateOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                  >
+                    + Tarefa, Prazo ou Reunião
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectSection('leads');
+                      setQuickCreateOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                  >
+                    Triagem de Leads
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectSection('ferramentas');
+                      setQuickCreateOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                  >
+                    Calculadoras &amp; Simulador
+                  </button>
+                  {(role === 'admin' || role === 'consultor') && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSelectSection('contratos');
+                          setQuickCreateOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                      >
+                        + Gerar Contrato / Recibo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSelectSection('financeiro');
+                          setQuickCreateOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                      >
+                        + Novo Orçamento / Lançamento
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </header>
 
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-b border-slate-200 p-3 space-y-1 no-print">
-            {visibleNav.map((item) => (
+            {visibleFlatNav.map((item) => (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  setSection(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold ${
+                onClick={() => handleSelectSection(item.id)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${
                   section === item.id ? 'text-white' : 'text-slate-700'
                 }`}
                 style={section === item.id ? { backgroundColor: 'var(--color-primary)' } : undefined}
               >
-                {item.icon}
-                <span>{item.label}</span>
+                <span className="flex items-center gap-2.5">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </span>
+                {item.badge !== undefined && <span className="tabular-nums opacity-80">{item.badge}</span>}
               </button>
             ))}
           </div>
         )}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {loading || !workspace ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
-              Carregando painel operacional...
+          {firestore.error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 flex items-center justify-between gap-3">
+              <span>Erro ao sincronizar dados com o Firestore: {firestore.error}</span>
+              <button
+                type="button"
+                onClick={firestore.clearError}
+                className="font-semibold underline shrink-0"
+              >
+                Dispensar
+              </button>
             </div>
+          )}
+          {loading || !effectiveWorkspace ? (
+            <SkeletonBlock rows={5} />
           ) : (
             <>
               {section === 'dashboard' && (
                 <PainelDashboard
                   role={userProfile.role}
-                  leads={workspace.leads}
-                  clients={workspace.clients}
-                  cases={workspace.cases}
-                  docs={workspace.caseDocuments}
-                  deadlines={workspace.deadlines}
-                  financialRecords={workspace.financialRecords}
+                  leads={effectiveWorkspace.leads}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  docs={effectiveWorkspace.caseDocuments}
+                  deadlines={effectiveWorkspace.deadlines}
+                  tasks={effectiveWorkspace.tasks}
+                  appointments={effectiveWorkspace.appointments}
+                  financialRecords={effectiveWorkspace.financialRecords}
                   onLogWhatsApp={handleLogWhatsApp}
+                  onOpenCase={handleOpenCase}
+                  onToggleTask={handleQuickToggleTask}
+                  onNavigateSection={(sec) => handleSelectSection(sec)}
+                />
+              )}
+
+              {section === 'agenda' && (
+                <PainelAgendaTarefas
+                  role={userProfile.role}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  tasks={effectiveWorkspace.tasks}
+                  deadlines={effectiveWorkspace.deadlines}
+                  appointments={effectiveWorkspace.appointments}
+                  onRefresh={handleRefreshAll}
                   onOpenCase={handleOpenCase}
                 />
               )}
@@ -301,106 +964,141 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   role={userProfile.role}
                   userProfile={userProfile}
                   empresa={empresa}
-                  leads={workspace.leads}
-                  clients={workspace.clients}
-                  tasks={workspace.tasks}
+                  leads={effectiveWorkspace.leads}
+                  clients={effectiveWorkspace.clients}
+                  tasks={effectiveWorkspace.tasks}
                   visaCategories={visaCategories}
                   visaRequirements={visaRequirements}
                   legalSources={legalSources}
                   activeRules={activeDiagnosticRules}
-                  messageTemplates={workspace.messageTemplates}
-                  onRefresh={loadWorkspace}
+                  messageTemplates={effectiveWorkspace.messageTemplates}
+                  onRefresh={handleRefreshAll}
                   onLogWhatsApp={handleLogWhatsApp}
                   onOpenCase={handleOpenCase}
                 />
               )}
 
-              {section === 'casos' && (
+              {(section === 'clientes' || section === 'casos') && (
                 <PainelClientesCasos
+                  mode={section === 'clientes' ? 'clientes' : 'casos'}
                   role={userProfile.role}
                   userProfile={userProfile}
                   empresa={empresa}
-                  clients={workspace.clients}
-                  dependents={workspace.dependents}
-                  cases={workspace.cases}
-                  caseFinancials={workspace.caseFinancials}
-                  docs={workspace.caseDocuments}
-                  tasks={workspace.tasks}
-                  deadlines={workspace.deadlines}
-                  appointments={workspace.appointments}
-                  communicationLogs={workspace.communicationLogs}
-                  viabilityAssessments={workspace.viabilityAssessments}
-                  budgets={workspace.budgets}
-                  financialRecords={workspace.financialRecords}
-                  auditLogs={workspace.auditLogs}
+                  clients={effectiveWorkspace.clients}
+                  dependents={effectiveWorkspace.dependents}
+                  cases={effectiveWorkspace.cases}
+                  caseFinancials={effectiveWorkspace.caseFinancials}
+                  docs={effectiveWorkspace.caseDocuments}
+                  tasks={effectiveWorkspace.tasks}
+                  deadlines={effectiveWorkspace.deadlines}
+                  appointments={effectiveWorkspace.appointments}
+                  communicationLogs={effectiveWorkspace.communicationLogs}
+                  viabilityAssessments={effectiveWorkspace.viabilityAssessments}
+                  budgets={effectiveWorkspace.budgets}
+                  financialRecords={effectiveWorkspace.financialRecords}
+                  documentTemplates={effectiveWorkspace.documentTemplates}
+                  generatedDocuments={effectiveWorkspace.generatedDocuments}
+                  auditLogs={effectiveWorkspace.auditLogs}
                   visaCategories={visaCategories}
                   visaRequirements={visaRequirements}
                   legalSources={legalSources}
-                  messageTemplates={workspace.messageTemplates}
+                  messageTemplates={effectiveWorkspace.messageTemplates}
                   partnersPublic={partnersPublic}
                   selectedCaseId={selectedCaseId}
-                  onSelectCase={setSelectedCaseId}
-                  onRefresh={loadWorkspace}
+                  onSelectCase={(id) => {
+                    if (id) handleOpenCase(id);
+                    else setSelectedCaseId(null);
+                  }}
+                  onRefresh={handleRefreshAll}
                   onLogWhatsApp={handleLogWhatsApp}
                 />
               )}
 
               {section === 'documentos' && (
                 <PainelDocumentosExport
-                  clients={workspace.clients}
-                  cases={workspace.cases}
-                  docs={workspace.caseDocuments}
+                  role={userProfile.role}
+                  empresa={empresa}
+                  clients={effectiveWorkspace.clients}
+                  dependents={effectiveWorkspace.dependents}
+                  cases={effectiveWorkspace.cases}
+                  docs={effectiveWorkspace.caseDocuments}
+                  deadlines={effectiveWorkspace.deadlines}
                   avisoLegal={empresa.avisoLegal}
                 />
               )}
 
-              {section === 'financeiro' && (role === 'admin' || role === 'consultor') && (
-                <PainelFinanceiro
+              {(section === 'financeiro' || section === 'contratos') &&
+                (role === 'admin' || role === 'consultor') && (
+                  <PainelFinanceiro
+                    sectionGroup={section === 'contratos' ? 'contratos' : 'financeiro'}
+                    role={userProfile.role}
+                    userProfile={userProfile}
+                    empresa={empresa}
+                    clients={effectiveWorkspace.clients}
+                    cases={effectiveWorkspace.cases}
+                    dependents={effectiveWorkspace.dependents}
+                    budgets={effectiveWorkspace.budgets}
+                    financialRecords={effectiveWorkspace.financialRecords}
+                    documentTemplates={effectiveWorkspace.documentTemplates}
+                    generatedDocuments={effectiveWorkspace.generatedDocuments}
+                    onRefresh={handleRefreshAll}
+                    onRefreshPublic={refreshPublicData}
+                    onLogWhatsApp={handleLogWhatsApp}
+                  />
+                )}
+
+              {(section === 'parceiros' || section === 'legal') &&
+                (role === 'admin' || role === 'consultor') && (
+                  <PainelParceirosLegal
+                    sectionGroup={section === 'legal' ? 'legal' : 'parceiros'}
+                    role={userProfile.role}
+                    userProfile={userProfile}
+                    empresa={empresa}
+                    partners={effectiveWorkspace.partners}
+                    partnerProposals={effectiveWorkspace.partnerProposals}
+                    legalSources={legalSources}
+                    visaCategories={visaCategories}
+                    visaRequirements={visaRequirements}
+                    cases={effectiveWorkspace.cases}
+                    activeDiagnosticRules={activeDiagnosticRules}
+                    documentTemplates={effectiveWorkspace.documentTemplates}
+                    onRefresh={handleRefreshAll}
+                    onRefreshPublic={refreshPublicData}
+                    onOpenCase={handleOpenCase}
+                  />
+                )}
+
+              {section === 'ferramentas' && (
+                <PainelFerramentas
                   role={userProfile.role}
-                  userProfile={userProfile}
                   empresa={empresa}
-                  clients={workspace.clients}
-                  cases={workspace.cases}
-                  budgets={workspace.budgets}
-                  financialRecords={workspace.financialRecords}
-                  documentTemplates={workspace.documentTemplates}
-                  generatedDocuments={workspace.generatedDocuments}
-                  onRefresh={loadWorkspace}
-                  onRefreshPublic={refreshPublicData}
-                  onLogWhatsApp={handleLogWhatsApp}
+                  cases={effectiveWorkspace.cases}
+                  visaCategories={visaCategories}
+                  visaRequirements={visaRequirements}
+                  onRefresh={handleRefreshAll}
                 />
               )}
 
-              {section === 'parceiros' && (role === 'admin' || role === 'consultor') && (
-                <PainelParceirosLegal
-                  role={userProfile.role}
-                  userProfile={userProfile}
-                  empresa={empresa}
-                  partners={workspace.partners}
-                  partnerProposals={workspace.partnerProposals}
-                  legalSources={legalSources}
-                  visaCategories={visaCategories}
-                  visaRequirements={visaRequirements}
-                  onRefresh={loadWorkspace}
-                  onRefreshPublic={refreshPublicData}
-                />
-              )}
-
-              {section === 'admin' && role === 'admin' && (
-                <PainelAdminConfig
-                  role={userProfile.role}
-                  userProfile={userProfile}
-                  empresa={empresa}
-                  siteContent={staffSiteContent}
-                  visaCategories={visaCategories}
-                  visaRequirements={visaRequirements}
-                  legalSources={legalSources}
-                  activeDiagnosticRules={activeDiagnosticRules}
-                  auditLogs={workspace.auditLogs}
-                  onRefresh={loadWorkspace}
-                  onRefreshPublic={refreshPublicData}
-                />
-              )}
+              {(section === 'admin_site' || section === 'admin_regras' || section === 'admin_gov') &&
+                role === 'admin' && (
+                  <PainelAdminConfig
+                    sectionGroup={
+                      section === 'admin_site' ? 'site' : section === 'admin_regras' ? 'regras' : 'governanca'
+                    }
+                    role={userProfile.role}
+                    userProfile={userProfile}
+                    empresa={empresa}
+                    siteContent={staffSiteContent}
+                    partnersPublic={partnersPublic}
+                    visaCategories={visaCategories}
+                    visaRequirements={visaRequirements}
+                    legalSources={legalSources}
+                    activeDiagnosticRules={activeDiagnosticRules}
+                    auditLogs={effectiveWorkspace.auditLogs}
+                    onRefresh={handleRefreshAll}
+                    onRefreshPublic={refreshPublicData}
+                  />
+                )}
             </>
           )}
         </main>
@@ -409,6 +1107,62 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           {empresa.avisoLegal}
         </footer>
       </div>
+
+      {/* Modal de Busca Global */}
+      {globalSearchOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 flex items-start justify-center p-4 pt-16"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Busca global"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
+              <Search className="w-4 h-4 text-slate-400" />
+              <input
+                ref={searchInputRef}
+                value={globalQuery}
+                onChange={(e) => setGlobalQuery(e.target.value)}
+                placeholder="Buscar clientes, casos, tarefas, prazos, documentos ou calculadoras..."
+                className="flex-1 text-sm focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setGlobalSearchOpen(false)}
+                className="px-2 py-1 rounded text-xs text-slate-500 hover:bg-slate-100"
+              >
+                Esc
+              </button>
+            </div>
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+              {!globalQuery.trim() ? (
+                <p className="p-6 text-center text-xs text-slate-500">
+                  Digite um nome, CPF, e-mail, nº SERMIG, tarefa, prazo ou norma (ex.: Mercosul, Ley 21.325, câmbio)...
+                </p>
+              ) : searchResults.length === 0 ? (
+                <p className="p-6 text-center text-xs text-slate-500">Nenhum resultado encontrado.</p>
+              ) : (
+                searchResults.map((res) => (
+                  <button
+                    key={res.id}
+                    type="button"
+                    onClick={res.onSelect}
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 truncate">{res.title}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{res.subtitle}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
+                      {res.category}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PublicLayout } from './components/PublicLayout';
+import { SkeletonBlock } from './components/ui/DesignSystem';
 import { AppProvider } from './contexts/AppContext';
-import { AuthGatePage } from './pages/AuthGatePage';
-import { DiagnosticoPage } from './pages/DiagnosticoPage';
-import { HomePage } from './pages/HomePage';
-import { PainelPage } from './pages/PainelPage';
-import { ParceirosPage } from './pages/ParceirosPage';
-import { PortalClientePage } from './pages/PortalClientePage';
-import { QuemSomosPage } from './pages/QuemSomosPage';
+
+const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
+const QuemSomosPage = lazy(() => import('./pages/QuemSomosPage').then((m) => ({ default: m.QuemSomosPage })));
+const ParceirosPage = lazy(() => import('./pages/ParceirosPage').then((m) => ({ default: m.ParceirosPage })));
+const DiagnosticoPage = lazy(() => import('./pages/DiagnosticoPage').then((m) => ({ default: m.DiagnosticoPage })));
+const AuthGatePage = lazy(() => import('./pages/AuthGatePage').then((m) => ({ default: m.AuthGatePage })));
+const PortalClientePage = lazy(() => import('./pages/PortalClientePage').then((m) => ({ default: m.PortalClientePage })));
+const PainelPage = lazy(() => import('./pages/PainelPage').then((m) => ({ default: m.PainelPage })));
 
 function normalizePath(raw: string): string {
   const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;
@@ -22,6 +24,39 @@ function getInitialPath(): string {
   }
   return normalizePath(window.location.pathname);
 }
+
+const PageLoader: React.FC = () => (
+  <div className="max-w-5xl mx-auto p-6 sm:p-10">
+    <SkeletonBlock rows={4} />
+  </div>
+);
+
+const NotFoundView: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
+  <div className="py-20 px-4 text-center max-w-lg mx-auto space-y-4">
+    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Página não encontrada</p>
+    <h1 className="text-3xl font-bold text-slate-900">Ops, este endereço não existe.</h1>
+    <p className="text-sm text-slate-600">
+      O caminho acessado não está disponível ou foi movido. Retorne à página inicial ou faça seu diagnóstico gratuito.
+    </p>
+    <div className="flex flex-wrap justify-center gap-3 pt-2">
+      <button
+        type="button"
+        onClick={() => onNavigate('/')}
+        className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white"
+        style={{ backgroundColor: 'var(--color-primary)' }}
+      >
+        Voltar ao Início
+      </button>
+      <button
+        type="button"
+        onClick={() => onNavigate('/diagnostico')}
+        className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800"
+      >
+        Fazer Diagnóstico Gratuito
+      </button>
+    </div>
+  </div>
+);
 
 function RouterView() {
   const [currentPath, setCurrentPath] = useState<string>(getInitialPath);
@@ -38,9 +73,11 @@ function RouterView() {
 
   const navigate = useCallback(
     (target: string) => {
-      const next = normalizePath(target);
-      if (next !== currentPath) {
-        window.history.pushState({}, '', next);
+      const [pathPart, queryPart] = target.split('?');
+      const next = normalizePath(pathPart);
+      const nextFull = queryPart ? `${next}?${queryPart}` : next;
+      if (next !== currentPath || queryPart) {
+        window.history.pushState({}, '', nextFull);
         setCurrentPath(next);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -49,10 +86,18 @@ function RouterView() {
   );
 
   if (currentPath === '/portal') {
-    return <PortalClientePage onNavigate={navigate} />;
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <PortalClientePage onNavigate={navigate} />
+      </Suspense>
+    );
   }
   if (currentPath === '/painel') {
-    return <PainelPage onNavigate={navigate} />;
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <PainelPage onNavigate={navigate} />
+      </Suspense>
+    );
   }
 
   let pageNode: React.ReactNode;
@@ -73,14 +118,16 @@ function RouterView() {
       pageNode = <AuthGatePage mode="equipe" onNavigate={navigate} />;
       break;
     case '/':
-    default:
       pageNode = <HomePage onNavigate={navigate} />;
+      break;
+    default:
+      pageNode = <NotFoundView onNavigate={navigate} />;
       break;
   }
 
   return (
     <PublicLayout currentPath={currentPath} onNavigate={navigate}>
-      {pageNode}
+      <Suspense fallback={<PageLoader />}>{pageNode}</Suspense>
     </PublicLayout>
   );
 }

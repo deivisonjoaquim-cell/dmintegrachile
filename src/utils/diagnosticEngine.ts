@@ -84,10 +84,15 @@ export interface ActionPlanItem {
 }
 
 export interface CostEstimateSummary {
+  honorariosSobConsulta: boolean;
+  honorariosTextoConsulta: string;
+  honorariosMotivosVariacao: string[];
   honorariosMinBrl: number;
   honorariosMaxBrl: number;
   taxasOficiaisBrlMin: number;
   taxasOficiaisBrlMax: number;
+  taxasOficiaisClpMin: number;
+  taxasOficiaisClpMax: number;
   totalMinBrl: number;
   totalMaxBrl: number;
   totalMinClp: number;
@@ -424,17 +429,26 @@ export function runDiagnosticEngine(
   };
 
   const buildEmptyCosts = (): CostEstimateSummary => ({
-    honorariosMinBrl: custosConfig.honorariosMinBrl,
-    honorariosMaxBrl: custosConfig.honorariosMaxBrl,
+    honorariosSobConsulta: true,
+    honorariosTextoConsulta: 'A consultar — proposta personalizada conforme seu perfil',
+    honorariosMotivosVariacao: [
+      'Quantidade de pessoas no grupo familiar (titular e dependentes)',
+      'Documentos e apostilamentos que você já possui em mãos',
+      'Necessidade de traduções juramentadas ou acompanhamento no Chile',
+    ],
+    honorariosMinBrl: 0,
+    honorariosMaxBrl: 0,
     taxasOficiaisBrlMin: 0,
     taxasOficiaisBrlMax: 0,
-    totalMinBrl: custosConfig.honorariosMinBrl,
-    totalMaxBrl: custosConfig.honorariosMaxBrl,
-    totalMinClp: Math.round(custosConfig.honorariosMinBrl * custosConfig.taxaCambioBrlClp),
-    totalMaxClp: Math.round(custosConfig.honorariosMaxBrl * custosConfig.taxaCambioBrlClp),
+    taxasOficiaisClpMin: 0,
+    taxasOficiaisClpMax: 0,
+    totalMinBrl: 0,
+    totalMaxBrl: 0,
+    totalMinClp: 0,
+    totalMaxClp: 0,
     taxaCambioBrlClp: custosConfig.taxaCambioBrlClp,
     taxaCambioUsdBrl: custosConfig.taxaCambioUsdBrl,
-    avisoEstimativa: 'Estimativa — confirmar na fonte oficial (SERMIG, CNJ e Registro Civil).',
+    avisoEstimativa: 'Taxas oficiais e terceiros estimados — confirmar na fonte oficial (SERMIG, CNJ e Registro Civil).',
     itensDetalhados: [],
   });
 
@@ -1494,8 +1508,11 @@ export function runDiagnosticEngine(
   em30Dias.sort(sortAction);
   antesProtocolo.sort(sortAction);
 
-  // 17. Faixa de Custos Estimada em BRL e CLP
+  // 17. Taxas Oficiais e Terceiros (BRL <-> CLP) + Honorários A Consultar
   const numPessoas = isYes(answers.familiaAcompanhante) ? 1 + Math.max(1, answers.quantidadeDependentes || 1) : 1;
+  const brlToClp = (brl: number) => Math.round(brl * custosConfig.taxaCambioBrlClp);
+  const clpToBrl = (clp: number) => Math.round(clp / Math.max(1, custosConfig.taxaCambioBrlClp));
+
   const taxaSermigUsd =
     recomendada.visa.codigo === '15'
       ? custosPadrao.taxaSermigMercosulUsd ?? 90
@@ -1503,43 +1520,76 @@ export function runDiagnosticEngine(
         ? custosPadrao.taxaSermigDefinitivaUsd ?? 100
         : custosPadrao.taxaSermigTemporalUsd ?? 90;
   const taxaSermigBrl = Math.round(taxaSermigUsd * custosConfig.taxaCambioUsdBrl * numPessoas);
+  const taxaSermigClp = brlToClp(taxaSermigBrl);
+
   const qtdApostilas = checklistItems.filter((i) => i.exigeApostila).length || 2;
   const apostilasBrlMin = qtdApostilas * (custosPadrao.apostilaCnjBrl ?? 165) * numPessoas;
   const apostilasBrlMax = Math.round(apostilasBrlMin * 1.25);
+
   const qtdTraducoes = checklistItems.filter((i) => i.exigeTraducao).length || 1;
   const traducoesBrlMin = qtdTraducoes * (custosPadrao.traducaoJuramentadaBrl ?? 180) * numPessoas;
   const traducoesBrlMax = Math.round(traducoesBrlMin * 1.5);
-  const cedulaBrl = Math.round(((custosPadrao.cedulaIdentidadeClp ?? 4270) * numPessoas) / custosConfig.taxaCambioBrlClp);
+
+  const cedulaClp = (custosPadrao.cedulaIdentidadeClp ?? 4270) * numPessoas;
+  const cedulaBrl = clpToBrl(cedulaClp);
 
   const taxasOficiaisBrlMin = taxaSermigBrl + apostilasBrlMin + traducoesBrlMin + cedulaBrl;
   const taxasOficiaisBrlMax = taxaSermigBrl + apostilasBrlMax + traducoesBrlMax + cedulaBrl;
+  const taxasOficiaisClpMin = brlToClp(taxaSermigBrl + apostilasBrlMin + traducoesBrlMin) + cedulaClp;
+  const taxasOficiaisClpMax = brlToClp(taxaSermigBrl + apostilasBrlMax + traducoesBrlMax) + cedulaClp;
+
   const honorariosFactor = numPessoas > 1 ? 1 + (numPessoas - 1) * 0.35 : 1;
   const honorariosMinBrl = Math.round(custosConfig.honorariosMinBrl * honorariosFactor);
   const honorariosMaxBrl = Math.round(custosConfig.honorariosMaxBrl * honorariosFactor);
 
-  const totalMinBrl = honorariosMinBrl + taxasOficiaisBrlMin;
-  const totalMaxBrl = honorariosMaxBrl + taxasOficiaisBrlMax;
-  const totalMinClp = Math.round(totalMinBrl * custosConfig.taxaCambioBrlClp);
-  const totalMaxClp = Math.round(totalMaxBrl * custosConfig.taxaCambioBrlClp);
+  // Totais públicos exibidos no diagnóstico correspondem às taxas oficiais e terceiros (honorários são sob consulta)
+  const totalMinBrl = taxasOficiaisBrlMin;
+  const totalMaxBrl = taxasOficiaisBrlMax;
+  const totalMinClp = taxasOficiaisClpMin;
+  const totalMaxClp = taxasOficiaisClpMax;
 
   const custosEstimados: CostEstimateSummary = {
+    honorariosSobConsulta: true,
+    honorariosTextoConsulta: 'A consultar — proposta personalizada conforme perfil',
+    honorariosMotivosVariacao: [
+      `Grupo familiar considerado: ${numPessoas} pessoa(s)`,
+      'Documentos e apostilamentos já emitidos x pendentes',
+      'Urgência do protocolo e necessidade de traduções ou relocation no Chile',
+    ],
     honorariosMinBrl,
     honorariosMaxBrl,
     taxasOficiaisBrlMin,
     taxasOficiaisBrlMax,
+    taxasOficiaisClpMin,
+    taxasOficiaisClpMax,
     totalMinBrl,
     totalMaxBrl,
     totalMinClp,
     totalMaxClp,
     taxaCambioBrlClp: custosConfig.taxaCambioBrlClp,
     taxaCambioUsdBrl: custosConfig.taxaCambioUsdBrl,
-    avisoEstimativa: 'Estimativa — confirmar na fonte oficial (SERMIG, CNJ e Registro Civil).',
+    avisoEstimativa: 'Taxas oficiais e terceiros estimados — confirmar na fonte oficial (SERMIG, CNJ e Registro Civil).',
     itensDetalhados: [
-      { label: `Honorários orientativos (${numPessoas} pessoa(s))`, valorTexto: `R$ ${honorariosMinBrl.toLocaleString('pt-BR')} a R$ ${honorariosMaxBrl.toLocaleString('pt-BR')}` },
-      { label: `Taxa governamental SERMIG (~USD ${taxaSermigUsd}/pessoa)`, valorTexto: `~R$ ${taxaSermigBrl.toLocaleString('pt-BR')}` },
-      { label: `Apostilas de Haia (${qtdApostilas}/pessoa)`, valorTexto: `R$ ${apostilasBrlMin.toLocaleString('pt-BR')} a R$ ${apostilasBrlMax.toLocaleString('pt-BR')}` },
-      { label: `Traduções juramentadas estimadas`, valorTexto: `R$ ${traducoesBrlMin.toLocaleString('pt-BR')} a R$ ${traducoesBrlMax.toLocaleString('pt-BR')}` },
-      { label: `Cédula de Identidade Chile (${numPessoas}x)`, valorTexto: `CLP ${((custosPadrao.cedulaIdentidadeClp ?? 4270) * numPessoas).toLocaleString('es-CL')}` },
+      {
+        label: `Taxa governamental SERMIG (~USD ${taxaSermigUsd}/pessoa × ${numPessoas})`,
+        valorTexto: `~R$ ${taxaSermigBrl.toLocaleString('pt-BR')} (≈ CLP ${taxaSermigClp.toLocaleString('es-CL')})`,
+      },
+      {
+        label: `Apostilas de Haia (${qtdApostilas} doc./pessoa × ${numPessoas})`,
+        valorTexto: `R$ ${apostilasBrlMin.toLocaleString('pt-BR')} a R$ ${apostilasBrlMax.toLocaleString('pt-BR')} (≈ CLP ${brlToClp(apostilasBrlMin).toLocaleString('es-CL')} a ${brlToClp(apostilasBrlMax).toLocaleString('es-CL')})`,
+      },
+      {
+        label: `Traduções juramentadas estimadas (${qtdTraducoes} doc./pessoa × ${numPessoas})`,
+        valorTexto: `R$ ${traducoesBrlMin.toLocaleString('pt-BR')} a R$ ${traducoesBrlMax.toLocaleString('pt-BR')} (≈ CLP ${brlToClp(traducoesBrlMin).toLocaleString('es-CL')} a ${brlToClp(traducoesBrlMax).toLocaleString('es-CL')})`,
+      },
+      {
+        label: `Cédula de Identidade Chile (${numPessoas}x)`,
+        valorTexto: `CLP ${cedulaClp.toLocaleString('es-CL')} (≈ R$ ${cedulaBrl.toLocaleString('pt-BR')})`,
+      },
+      {
+        label: `Honorários de Assessoria D&M (${numPessoas} pessoa(s))`,
+        valorTexto: 'A consultar — proposta personalizada',
+      },
     ],
   };
 

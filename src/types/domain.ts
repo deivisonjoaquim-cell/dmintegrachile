@@ -1,7 +1,54 @@
 export type UserRole = 'admin' | 'consultor' | 'assistente' | 'cliente';
 export type UserStatus = 'ativo' | 'pendente' | 'inativo';
 export type CurrencyCode = 'BRL' | 'CLP' | 'USD';
-export type FontChoice = 'Inter' | 'Plus Jakarta Sans' | 'Merriweather' | 'Montserrat';
+export type FontChoice =
+  | 'Plus Jakarta Sans'
+  | 'DM Sans'
+  | 'Manrope'
+  | 'Public Sans'
+  | 'Montserrat'
+  | 'Merriweather'
+  | 'Inter';
+export type DisplayFontChoice =
+  | 'Plus Jakarta Sans'
+  | 'Outfit'
+  | 'Manrope'
+  | 'Playfair Display'
+  | 'Montserrat';
+
+export interface NavLinkConfig {
+  path: string;
+  label: string;
+  visivel: boolean;
+}
+
+export interface SiteLayoutConfig {
+  logoAlturaPx?: number;
+  mostrarNomeComLogo?: boolean;
+  raioBordas?: 'sharp' | 'editorial' | 'arredondado';
+  densidadeSecoes?: 'compacta' | 'equilibrada' | 'ampla';
+  estiloCabecalho?: 'sticky_vidro' | 'solido' | 'minimal';
+  textoCtaCabecalho?: string;
+  destinoCtaCabecalho?: string;
+  mostrarBotaoWhatsappFlutuante?: boolean;
+  mostrarBarraCtaMobile?: boolean;
+  rodapeSubtitulo?: string;
+  rodapeCopyright?: string;
+  linksNavegacao?: NavLinkConfig[];
+}
+
+export interface MediaAsset {
+  id: string;
+  nome: string;
+  categoria: 'logo' | 'favicon' | 'banner' | 'equipe' | 'geral';
+  mimeType: string;
+  url: string;
+  largura?: number;
+  altura?: number;
+  tamanhoBytes: number;
+  uploadedBy?: string;
+  createdAt: string;
+}
 
 export interface UserProfile {
   uid: string;
@@ -40,13 +87,21 @@ export interface EmpresaConfig {
   endereco_cidade: string;
   foro_comarca: string;
   logoUrl: string;
+  logoDarkUrl?: string;
+  faviconUrl?: string;
   corPrimaria: string;
   corDestaque: string;
   corFundo: string;
+  corSuperficie?: string;
+  corTexto?: string;
+  corRodapeBg?: string;
   fontePrincipal: FontChoice;
+  fonteDisplay?: DisplayFontChoice;
+  layoutConfig?: SiteLayoutConfig;
   whatsapp: string;
   email: string;
   siteInstagram: string;
+  siteLinkedIn?: string;
   linkCalendly: string;
   emailGoogleAgenda: string;
   chavePix: string;
@@ -65,6 +120,33 @@ export interface EmpresaConfig {
   taxaCambioUsdBrl?: number;
   custosPadrao?: CustosPadrao;
   ultimaRevisaoNormativa?: string;
+  textoContratoVersao?: string;
+  textoContratoVigencia?: string;
+  textoReciboVersao?: string;
+  textoReciboVigencia?: string;
+  termoLgpdVigencia?: string;
+  retencaoDadosDias?: number;
+  seoTituloPadrao?: string;
+  seoDescricaoPadrao?: string;
+  depoimentosAutorizados?: {
+    id: string;
+    nome: string;
+    cidadeOrigem?: string;
+    subcategoria?: string;
+    depoimento: string;
+    autorizado: boolean;
+    dataAutorizacao?: string;
+  }[];
+  quemSomosMarcoHistorico?: { ano: string; titulo: string; descricao: string }[];
+  siteDraft?: SiteContent[];
+  sitePublicadoEm?: string;
+  siteVersaoAtual?: string;
+  siteHistorico?: {
+    versao: string;
+    publicadoEm: string;
+    publicadoPor: string;
+    secoes: SiteContent[];
+  }[];
   updatedAt?: string;
 }
 
@@ -81,9 +163,12 @@ export type SiteSectionKey =
   | 'diferenciais'
   | 'como_funciona'
   | 'quem_somos'
+  | 'parceiros'
+  | 'depoimentos'
   | 'faq'
   | 'contato'
-  | 'rodape';
+  | 'rodape'
+  | 'bloco_livre';
 
 export interface SiteContent {
   id: string;
@@ -92,6 +177,10 @@ export interface SiteContent {
   subtitulo: string;
   conteudoHtml: string;
   imagemUrl: string;
+  ctaTexto?: string;
+  ctaDestino?: string;
+  seoTitulo?: string;
+  seoDescricao?: string;
   ordem: number;
   ativo: boolean;
   metadados?: Record<string, unknown>;
@@ -198,6 +287,9 @@ export interface LegalSource {
   numeroAno: string;
   orgaoEmissor: string;
   artigos: string;
+  artigosEstruturados?: { numero: string; titulo: string; resumo: string }[];
+  dataPublicacao?: string;
+  dataVigencia?: string;
   resumoPortugues: string;
   explicacaoCliente: string;
   textoIntegral: string;
@@ -208,7 +300,12 @@ export interface LegalSource {
   statusVigencia: 'Vigente' | 'Alterada' | 'Revogada' | 'A verificar';
   ultimaVerificacao?: string;
   responsavelVerificacao?: string;
-  historicoVersoes?: { versao: string; data: string; resumo: string }[];
+  normasRelacionadas?: string[];
+  notasInternasConsultor?: string;
+  favoritoPorUids?: string[];
+  documentTemplateIds?: string[];
+  deadlineTipos?: string[];
+  historicoVersoes?: { versao: string; data: string; resumo: string; textoSnapshot?: string }[];
   updatedAt?: string;
 }
 
@@ -476,7 +573,19 @@ export interface Client {
   lgpdAceito?: boolean;
   lgpdAceitoEm?: string;
   lgpdVersao?: string;
+  lgpdExclusaoSolicitadaEm?: string;
+  lgpdExclusaoConcluidaEm?: string;
+  filiacao?: string;
+  naturalidade?: string;
+  idiomas?: string;
+  contatoEmergencia?: string;
+  preferenciaContato?: 'WhatsApp' | 'E-mail' | 'Ligação';
   observacoes?: string;
+  observacoesInternas?: string;
+  arquivado?: boolean;
+  arquivadoEm?: string;
+  conviteEnviadoEm?: string;
+  mescladoEm?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -487,6 +596,9 @@ export interface Dependent {
   nomeCompleto: string;
   parentesco: 'Cônjuge' | 'Companheiro(a)' | 'Filho(a)' | 'Enteado(a)' | 'Pai/Mãe' | 'Outro';
   dataNascimento?: string;
+  idade?: number;
+  estudante?: boolean;
+  nacionalidade?: string;
   cpf?: string;
   passaporteNumero?: string;
   passaporteValidade?: string;
@@ -537,6 +649,16 @@ export interface Case {
   npsNota?: number;
   npsComentario?: string;
   observacoesInternas?: string;
+  comprovanteProtocoloUrl?: string;
+  historicoStatusSermig?: {
+    status: Case['statusSermig'];
+    data: string;
+    nota?: string;
+    autor: string;
+  }[];
+  motivoEncerramento?: string;
+  encerradoEm?: string;
+  arquivado?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -571,10 +693,12 @@ export interface CaseDocument {
   prazoSugeridoEmissao?: string;
   arquivoUrl?: string;
   arquivoNome?: string;
+  anexos?: { nome: string; url: string; data: string; tamanhoBytes?: number }[];
   status: 'Pendente' | 'Enviado' | 'Em análise' | 'Aprovado' | 'Reprovado' | 'Vencido';
   dataEmissao?: string;
   validadeDias: number;
   dataValidadeCalculada?: string;
+  orgaoEmissor?: string;
   apostilado: boolean;
   traduzido: boolean;
   exigeApostila: boolean;
@@ -583,6 +707,7 @@ export interface CaseDocument {
   peso: number;
   motivoReprovacao?: string;
   observacaoAnalista?: string;
+  observacoes?: string;
   versao: number;
   historicoVersoes?: { versao: number; arquivoUrl: string; data: string; motivo?: string }[];
   analiseIaSugestao?: string;
@@ -715,6 +840,7 @@ export interface FinancialRecord {
   status: 'Pendente' | 'Pago' | 'Atrasado';
   formaPagamento?: 'Pix' | 'Cartão' | 'Transferência' | 'Wise' | 'Boleto';
   comprovanteUrl?: string;
+  reciboNumero?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -744,8 +870,26 @@ export interface GeneratedDocument {
   caseId?: string;
   conteudoHtml: string;
   versao: number;
+  status?: 'Rascunho' | 'Revisado' | 'Enviado' | 'Assinado' | 'Arquivado';
+  codigoVerificacao?: string;
+  historicoVersoes?: {
+    versao: number;
+    conteudoHtml: string;
+    data: string;
+    autor: string;
+    motivo?: string;
+  }[];
+  assinaturaUrl?: string;
+  assinaturaDataUrl?: string;
+  assinaturaLinkExterno?: string;
+  assinadoEm?: string;
+  confirmadoLeituraEm?: string;
+  confirmadoLeituraPor?: string;
+  motivoCancelamento?: string;
+  canceladoEm?: string;
   liberadoAoCliente: boolean;
   financeiro: boolean;
   autorNome: string;
   createdAt: string;
+  updatedAt?: string;
 }

@@ -8,7 +8,7 @@ interface AuthGatePageProps {
 }
 
 export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) => {
-  const { userProfile, authLoading, authError, loginWithGoogle, logout } = useApp();
+  const { userProfile, authLoading, authError, empresa, loginWithGoogle, logout } = useApp();
   const [signingIn, setSigningIn] = useState(false);
 
   useEffect(() => {
@@ -50,13 +50,22 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
   return (
     <div className="py-16 lg:py-24 bg-[var(--color-bg)]">
       <div className="max-w-lg mx-auto px-4 sm:px-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-5">
-          <div
-            className="w-12 h-12 rounded-xl mx-auto flex items-center justify-center text-white"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <ShieldCheck className="w-6 h-6" />
-          </div>
+        <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-8 text-center space-y-5">
+          {empresa.logoUrl ? (
+            <img
+              src={empresa.logoUrl}
+              alt={empresa.nome_empresa}
+              referrerPolicy="no-referrer"
+              className="h-11 w-auto max-w-[180px] object-contain mx-auto"
+            />
+          ) : (
+            <div
+              className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+          )}
 
           <h1 className="text-2xl font-bold text-slate-900">
             {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Acompanhar Meu Processo'}

@@ -1,27 +1,42 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Bookmark,
+  BookOpen,
   CheckCircle2,
   ExternalLink,
+  Eye,
+  FileText,
+  History,
+  Link2,
   MessageCircle,
   Plus,
   RotateCcw,
   Search,
   Sparkles,
+  Star,
   Upload,
+  X,
 } from 'lucide-react';
+import { LegalBaseModal } from '../LegalBaseModal';
 import {
   callAiEndpoint,
   makeId,
   saveDocumentAudited,
   syncPartnerAndPublic,
+  uploadFileToServer,
 } from '../../services/firestoreService';
 import type {
+  Case,
+  DiagnosticRuleVersion,
+  DocumentTemplate,
   EmpresaConfig,
   LegalSource,
+  LegalSourceType,
   Partner,
   PartnerCategory,
   PartnerProposal,
+  Task,
   UserProfile,
   UserRole,
   VisaCategory,
@@ -45,11 +60,28 @@ interface PainelParceirosLegalProps {
   legalSources: LegalSource[];
   visaCategories: VisaCategory[];
   visaRequirements: VisaRequirement[];
+  cases?: Case[];
+  activeDiagnosticRules?: DiagnosticRuleVersion;
+  documentTemplates?: DocumentTemplate[];
   onRefresh: () => Promise<void>;
   onRefreshPublic: () => Promise<void>;
+  onOpenCase?: (caseId: string) => void;
+  sectionGroup?: 'parceiros' | 'legal' | 'todos';
 }
 
 type TabKey = 'propostas' | 'parceiros' | 'legal' | 'vistos';
+
+interface LegalFilterPreset {
+  id: string;
+  nome: string;
+  pais: string;
+  tipo: string;
+  status: string;
+  onlyFav: boolean;
+  q: string;
+}
+
+const PRESETS_STORAGE_KEY = 'dm_legal_filter_presets_v1';
 
 export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   role,
@@ -60,21 +92,41 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   legalSources,
   visaCategories,
   visaRequirements,
+  cases = [],
+  activeDiagnosticRules,
+  documentTemplates = [],
   onRefresh,
   onRefreshPublic,
+  onOpenCase,
+  sectionGroup = 'todos',
 }) => {
-  if (role === 'assistente') {
-    return (
-      <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-600">
-        Acesso restrito a Administradores e Consultores.
-      </div>
-    );
-  }
-
-  const [tab, setTab] = useState<TabKey>('propostas');
+  const [tab, setTab] = useState<TabKey>(sectionGroup === 'legal' ? 'legal' : 'propostas');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sectionGroup === 'parceiros') {
+      setTab((prev) => (prev === 'legal' || prev === 'vistos' ? 'propostas' : prev));
+    } else if (sectionGroup === 'legal') {
+      setTab((prev) => (prev === 'propostas' || prev === 'parceiros' ? 'legal' : prev));
+    }
+  }, [sectionGroup]);
+
+  // Busca & Filtros Base Legal
   const [searchLegal, setSearchLegal] = useState('');
+  const [filterPais, setFilterPais] = useState<string>('Todos');
+  const [filterTipo, setFilterTipo] = useState<string>('Todos');
+  const [filterStatus, setFilterStatus] = useState<string>('Todos');
+  const [onlyFav, setOnlyFav] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'verificacao_asc' | 'verificacao_desc' | 'titulo'>('verificacao_asc');
+  const [presets, setPresets] = useState<LegalFilterPreset[]>(() => {
+    try {
+      const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as LegalFilterPreset[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // IA Proposta
   const [aiPropLoadingId, setAiPropLoadingId] = useState<string | null>(null);
@@ -83,8 +135,9 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   // Novo Parceiro
   const [partnerModal, setPartnerModal] = useState<Partial<Partner> | null>(null);
 
-  // Norma + IA
+  // Norma: Criação/Edição completa + IA + Vínculos + Histórico
   const [editingSource, setEditingSource] = useState<LegalSource | null>(null);
+  const [isNewSource, setIsNewSource] = useState(false);
   const [normaNewText, setNormaNewText] = useState('');
   const [normaAttachment, setNormaAttachment] = useState<{
     name: string;
@@ -100,6 +153,12 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   }) | null>(null);
   const [normaAiLoading, setNormaAiLoading] = useState(false);
   const [normaAiProgress, setNormaAiProgress] = useState<string | null>(null);
+
+  // Modais de consulta Base Legal
+  const [usageSource, setUsageSource] = useState<LegalSource | null>(null);
+  const [historySource, setHistorySource] = useState<LegalSource | null>(null);
+  const [compareHistIdx, setCompareHistIdx] = useState<number>(0);
+  const [legalDrawerData, setLegalDrawerData] = useState<{ title: string; sources: LegalSource[] } | null>(null);
 
   useEffect(() => {
     if (!editingSource?.id) {
@@ -123,6 +182,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const diasAlerta = empresa.diasAlertaRevisaoLegal || 90;
 
   const isSourceOutdated = (s: LegalSource): boolean => {
+    if (s.statusVigencia === 'Revogada') return false;
     if (!s.ultimaVerificacao) return true;
     const d = parseFlexibleDate(s.ultimaVerificacao);
     if (!d) return true;
@@ -130,16 +190,122 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     return diffDays > diasAlerta;
   };
 
-  const filteredLegal = useMemo(() => {
-    if (!searchLegal.trim()) return legalSources;
-    const q = searchLegal.toLowerCase();
-    return legalSources.filter(
-      (s) =>
-        s.titulo.toLowerCase().includes(q) ||
-        s.numeroAno.toLowerCase().includes(q) ||
-        s.tags.some((t) => t.toLowerCase().includes(q)),
+  // Mapeamento de onde cada norma é usada no sistema
+  const computeUsagesForSource = (s: LegalSource) => {
+    const linkedVisas = visaCategories.filter(
+      (v) =>
+        (v.legalSourceIds && v.legalSourceIds.includes(s.id)) ||
+        (s.tags || []).some((t) => v.codigo === t || v.nomePortugues.toLowerCase().includes(t.toLowerCase())),
     );
-  }, [legalSources, searchLegal]);
+    const linkedVisaIds = new Set(linkedVisas.map((v) => v.id));
+    const linkedReqs = visaRequirements.filter((r) => linkedVisaIds.has(r.visaCategoryId));
+    const linkedRules = (activeDiagnosticRules?.regras || []).filter((r) => r.legalSourceId === s.id);
+    const linkedTemplates = documentTemplates.filter(
+      (tpl) =>
+        (s.documentTemplateIds && s.documentTemplateIds.includes(tpl.id)) ||
+        tpl.conteudoHtml.toLowerCase().includes(s.numeroAno.toLowerCase()),
+    );
+    const activeCasesAffected = cases.filter(
+      (c) => !c.arquivado && !c.encerradoEm && c.visaCategoryId && linkedVisaIds.has(c.visaCategoryId),
+    );
+    return {
+      linkedVisas,
+      linkedReqs,
+      linkedRules,
+      linkedTemplates,
+      deadlineTipos: s.deadlineTipos || [],
+      activeCasesAffected,
+    };
+  };
+
+  const healthStats = useMemo(() => {
+    let vigente = 0;
+    let aVerificar = 0;
+    let alterada = 0;
+    let revogada = 0;
+    let outdated = 0;
+    let missingLink = 0;
+    let unlinked = 0;
+    for (const s of legalSources) {
+      if (s.statusVigencia === 'Vigente') vigente++;
+      else if (s.statusVigencia === 'A verificar') aVerificar++;
+      else if (s.statusVigencia === 'Alterada') alterada++;
+      else if (s.statusVigencia === 'Revogada') revogada++;
+      if (isSourceOutdated(s)) outdated++;
+      if (!s.linkOficial?.trim()) missingLink++;
+      const u = computeUsagesForSource(s);
+      if (u.linkedVisas.length === 0 && u.linkedRules.length === 0 && u.linkedTemplates.length === 0) unlinked++;
+    }
+    return { vigente, aVerificar, alterada, revogada, outdated, missingLink, unlinked };
+  }, [legalSources, visaCategories, activeDiagnosticRules, documentTemplates, diasAlerta]);
+
+  const filteredLegal = useMemo(() => {
+    let list = [...legalSources];
+    if (filterPais !== 'Todos') list = list.filter((s) => s.pais === filterPais);
+    if (filterTipo !== 'Todos') list = list.filter((s) => s.tipo === filterTipo);
+    if (filterStatus !== 'Todos') list = list.filter((s) => s.statusVigencia === filterStatus);
+    if (onlyFav) list = list.filter((s) => (s.favoritoPorUids || []).includes(userProfile.uid));
+    if (searchLegal.trim()) {
+      const q = searchLegal.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.titulo.toLowerCase().includes(q) ||
+          s.numeroAno.toLowerCase().includes(q) ||
+          s.artigos.toLowerCase().includes(q) ||
+          (s.artigosEstruturados || []).some(
+            (a) => a.numero.toLowerCase().includes(q) || a.resumo.toLowerCase().includes(q),
+          ) ||
+          s.tags.some((t) => t.toLowerCase().includes(q)),
+      );
+    }
+    list.sort((a, b) => {
+      if (sortOrder === 'titulo') return a.titulo.localeCompare(b.titulo, 'pt-BR');
+      const ta = Date.parse(a.ultimaVerificacao || '1970-01-01');
+      const tb = Date.parse(b.ultimaVerificacao || '1970-01-01');
+      return sortOrder === 'verificacao_asc' ? ta - tb : tb - ta;
+    });
+    return list;
+  }, [legalSources, filterPais, filterTipo, filterStatus, onlyFav, searchLegal, sortOrder, userProfile.uid]);
+
+  const handleSavePreset = () => {
+    const next: LegalFilterPreset = {
+      id: makeId('pre'),
+      nome: `${filterPais !== 'Todos' ? filterPais : 'Todos países'} · ${filterStatus}`,
+      pais: filterPais,
+      tipo: filterTipo,
+      status: filterStatus,
+      onlyFav,
+      q: searchLegal,
+    };
+    const updated = [next, ...presets].slice(0, 6);
+    setPresets(updated);
+    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(updated));
+    setFeedback('Filtro salvo nos seus favoritos locais!');
+  };
+
+  const handleApplyPreset = (p: LegalFilterPreset) => {
+    setFilterPais(p.pais);
+    setFilterTipo(p.tipo);
+    setFilterStatus(p.status);
+    setOnlyFav(p.onlyFav);
+    setSearchLegal(p.q);
+  };
+
+  const handleToggleFavorite = async (s: LegalSource) => {
+    const cur = s.favoritoPorUids || [];
+    const next = cur.includes(userProfile.uid)
+      ? cur.filter((id) => id !== userProfile.uid)
+      : [...cur, userProfile.uid];
+    await saveDocumentAudited(
+      'legalSources',
+      s.id,
+      { ...s, favoritoPorUids: next },
+      false,
+      role,
+      'favorito_norma',
+    );
+    await onRefreshPublic();
+  };
 
   // ===========================================================================
   // Propostas de Parceiros
@@ -259,8 +425,32 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   };
 
   // ===========================================================================
-  // Base Legal & Versionamento
+  // Base Legal & Versionamento & Impacto
   // ===========================================================================
+  const openNewNormModal = () => {
+    setIsNewSource(true);
+    setNormaNewText('');
+    setNormaAiDraft(null);
+    setEditingSource({
+      id: makeId('leg'),
+      titulo: '',
+      tipo: 'Lei',
+      pais: 'Chile',
+      numeroAno: '',
+      orgaoEmissor: '',
+      artigos: '',
+      artigosEstruturados: [],
+      resumoPortugues: '',
+      explicacaoCliente: '',
+      textoIntegral: '',
+      tags: [],
+      linkOficial: '',
+      versao: '1.0',
+      statusVigencia: 'A verificar',
+      historicoVersoes: [],
+    });
+  };
+
   const handleVerifySource = async (s: LegalSource) => {
     await saveDocumentAudited(
       'legalSources',
@@ -337,51 +527,170 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const handlePublishNormaUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSource) return;
-    const nextVerNum = (Number.parseFloat(editingSource.versao || '1.0') + 0.1).toFixed(1);
+    const prevSource = legalSources.find((x) => x.id === editingSource.id);
+    const nextVerNum = isNewSource
+      ? editingSource.versao || '1.0'
+      : (Number.parseFloat(editingSource.versao || '1.0') + 0.1).toFixed(1);
     const hist = editingSource.historicoVersoes || [];
+    const nextHist = isNewSource
+      ? hist
+      : [
+          ...hist,
+          {
+            versao: prevSource?.versao || editingSource.versao || '1.0',
+            data: toIsoDate(new Date()),
+            resumo: prevSource?.resumoPortugues || editingSource.resumoPortugues,
+            textoSnapshot: prevSource?.textoIntegral || editingSource.textoIntegral,
+          },
+        ];
+
     const updated: LegalSource = {
       ...editingSource,
       artigos: normaAiDraft?.artigosExtraidos || editingSource.artigos,
       resumoPortugues: normaAiDraft?.resumoExecutivo || editingSource.resumoPortugues,
       explicacaoCliente: normaAiDraft?.explicacaoCliente || editingSource.explicacaoCliente,
+      textoIntegral: normaNewText.trim() || editingSource.textoIntegral,
       versao: nextVerNum,
-      statusVigencia: 'Vigente',
       ultimaVerificacao: toIsoDate(new Date()),
       responsavelVerificacao: userProfile.nome || userProfile.email,
-      historicoVersoes: [
-        ...hist,
-        {
-          versao: editingSource.versao,
-          data: toIsoDate(new Date()),
-          resumo: editingSource.resumoPortugues,
-        },
-      ],
+      historicoVersoes: nextHist,
     };
-    await saveDocumentAudited('legalSources', editingSource.id, updated as unknown as Record<string, unknown>, false, role, 'atualizar_norma');
+    await saveDocumentAudited(
+      'legalSources',
+      updated.id,
+      updated as unknown as Record<string, unknown>,
+      isNewSource,
+      role,
+      isNewSource ? 'criar_norma' : 'atualizar_norma',
+      prevSource || null,
+    );
+
+    // Gerar tasks automáticas de revisão para casos ativos afetados se norma mudou
+    let tasksCreated = 0;
+    if (!isNewSource) {
+      const usages = computeUsagesForSource(updated);
+      for (const cs of usages.activeCasesAffected.slice(0, 15)) {
+        const tId = makeId('task');
+        const t: Task = {
+          id: tId,
+          titulo: `[Revisão Normativa] Verificar impacto de ${updated.numeroAno || updated.titulo}`,
+          descricao: `Norma atualizada para v${nextVerNum} (${updated.statusVigencia}). Conferir requisitos e parecer do caso "${cs.titulo}".`,
+          caseId: cs.id,
+          clientId: cs.clientId,
+          prazo: toIsoDate(new Date(Date.now() + 3 * 86400000)),
+          prioridade: 'Alta',
+          status: 'Pendente',
+          createdAt: new Date().toISOString(),
+        };
+        await saveDocumentAudited('tasks', tId, t as unknown as Record<string, unknown>, true, role, 'revisao_norma_caso');
+        tasksCreated++;
+      }
+    }
+
     clearAiDraftCache(`norma_${editingSource.id}`);
     setEditingSource(null);
     setNormaAiDraft(null);
     setNormaNewText('');
     setNormaAttachment(null);
-    setFeedback(`Norma "${updated.titulo}" atualizada para versão ${nextVerNum} preservando histórico.`);
+    setIsNewSource(false);
+    setFeedback(
+      isNewSource
+        ? `Norma "${updated.titulo}" cadastrada com sucesso.`
+        : `Norma "${updated.titulo}" publicada na versão ${nextVerNum}.${
+            tasksCreated > 0 ? ` ${tasksCreated} tarefa(s) de revisão criada(s) para casos afetados.` : ''
+          }`,
+    );
+    await Promise.all([onRefresh(), onRefreshPublic()]);
+  };
+
+  const handleRestoreNormaVersion = async (src: LegalSource, histEntry: NonNullable<LegalSource['historicoVersoes']>[number]) => {
+    const nextVer = (Number.parseFloat(src.versao || '1.0') + 0.1).toFixed(1);
+    const restored: LegalSource = {
+      ...src,
+      resumoPortugues: histEntry.resumo,
+      textoIntegral: histEntry.textoSnapshot ?? src.textoIntegral,
+      versao: nextVer,
+      historicoVersoes: [
+        ...(src.historicoVersoes || []),
+        {
+          versao: src.versao,
+          data: toIsoDate(new Date()),
+          resumo: src.resumoPortugues,
+          textoSnapshot: src.textoIntegral,
+        },
+      ],
+    };
+    await saveDocumentAudited(
+      'legalSources',
+      src.id,
+      restored as unknown as Record<string, unknown>,
+      false,
+      role,
+      `restaurar_norma_${histEntry.versao}`,
+      src,
+    );
+    setHistorySource(null);
+    setFeedback(`Versão ${histEntry.versao} restaurada como v${nextVer}.`);
     await onRefreshPublic();
   };
 
+  if (role === 'assistente') {
+    return (
+      <div
+        className="border border-slate-200 p-8 text-center text-sm text-slate-600"
+        style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
+      >
+        Acesso restrito a Administradores e Consultores.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Parceiros, Base Legal &amp; Catálogo SERMIG</h1>
-        <p className="text-xs text-slate-500">
-          Gestão comercial de parceiros (comissões isoladas da vitrine pública) e governança normativa
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {sectionGroup === 'parceiros'
+              ? 'Parceiros Comerciais & Propostas'
+              : sectionGroup === 'legal'
+                ? 'Base Legal & Catálogo SERMIG'
+                : 'Parceiros, Base Legal & Catálogo SERMIG'}
+          </h1>
+          <p className="text-xs text-slate-500">
+            {sectionGroup === 'parceiros'
+              ? 'Triagem de propostas recebidas, rede de parceiros ativos e regras de comissão isoladas da vitrine pública'
+              : sectionGroup === 'legal'
+                ? 'Leis, decretos, portais oficiais, subcategorias de vistos e requisitos migratórios'
+                : 'Gestão comercial de parceiros (comissões isoladas da vitrine pública) e governança normativa'}
+          </p>
+        </div>
+        {tab === 'legal' && (
+          <button
+            type="button"
+            onClick={openNewNormModal}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nova Norma / Portal
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
         {[
-          { id: 'propostas', label: `Propostas Recebidas (${partnerProposals.length})` },
-          { id: 'parceiros', label: `Parceiros (${partners.length})` },
-          { id: 'legal', label: `Base Legal (${legalSources.length})` },
-          { id: 'vistos', label: `Vistos & Requisitos (${visaCategories.length})` },
+          ...(sectionGroup !== 'legal'
+            ? [
+                { id: 'propostas', label: `Propostas Recebidas (${partnerProposals.length})` },
+                { id: 'parceiros', label: `Parceiros (${partners.length})` },
+              ]
+            : []),
+          ...(sectionGroup !== 'parceiros'
+            ? [
+                { id: 'legal', label: `Base Legal (${legalSources.length})` },
+                { id: 'vistos', label: `Vistos & Requisitos (${visaCategories.length})` },
+              ]
+            : []),
         ].map((t) => (
           <button
             key={t.id}
@@ -529,49 +838,212 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       {/* BASE LEGAL */}
       {tab === 'legal' && (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={searchLegal}
-              onChange={(e) => setSearchLegal(e.target.value)}
-              placeholder="Buscar norma por título, número ou tag..."
-              className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm"
-            />
+          {/* Painel Saúde da Base Legal */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[11px] text-slate-500">Vigentes</p>
+              <p className="text-lg font-bold text-[#1E7E34] tabular-nums">{healthStats.vigente}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[11px] text-slate-500">A verificar</p>
+              <p className="text-lg font-bold text-amber-700 tabular-nums">{healthStats.aVerificar}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[11px] text-slate-500">Alteradas / Revog.</p>
+              <p className="text-lg font-bold text-slate-900 tabular-nums">
+                {healthStats.alterada} / {healthStats.revogada}
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[11px] text-slate-500">Revisão &gt; {diasAlerta}d</p>
+              <p className="text-lg font-bold text-[#C82333] tabular-nums">{healthStats.outdated}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[11px] text-slate-500">Sem link oficial</p>
+              <p className="text-lg font-bold text-slate-700 tabular-nums">{healthStats.missingLink}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[11px] text-slate-500">Sem vínculos</p>
+              <p className="text-lg font-bold text-slate-700 tabular-nums">{healthStats.unlinked}</p>
+            </div>
+          </div>
+
+          {/* Busca, Filtros Avançados e Favoritos */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
+              <div className="lg:col-span-2 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={searchLegal}
+                  onChange={(e) => setSearchLegal(e.target.value)}
+                  placeholder="Buscar por título, nº/ano, artigo ou tag..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                />
+              </div>
+              <select
+                value={filterPais}
+                onChange={(e) => setFilterPais(e.target.value)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              >
+                <option value="Todos">País: Todos</option>
+                <option value="Chile">Chile</option>
+                <option value="Brasil">Brasil</option>
+                <option value="Mercosul">Mercosul</option>
+              </select>
+              <select
+                value={filterTipo}
+                onChange={(e) => setFilterTipo(e.target.value)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              >
+                <option value="Todos">Tipo: Todos</option>
+                <option value="Lei">Lei</option>
+                <option value="Decreto">Decreto</option>
+                <option value="Resolução">Resolução</option>
+                <option value="Circular">Circular</option>
+                <option value="Acordo Internacional">Acordo Internacional</option>
+                <option value="Portal Oficial">Portal Oficial</option>
+                <option value="Jurisprudência">Jurisprudência</option>
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              >
+                <option value="Todos">Status: Todos</option>
+                <option value="Vigente">Vigente</option>
+                <option value="A verificar">A verificar</option>
+                <option value="Alterada">Alterada</option>
+                <option value="Revogada">Revogada</option>
+              </select>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              >
+                <option value="verificacao_asc">Mais antiga primeiro</option>
+                <option value="verificacao_desc">Mais recente primeiro</option>
+                <option value="titulo">Ordem alfabética</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOnlyFav((v) => !v)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-semibold ${
+                    onlyFav ? 'bg-amber-50 border-amber-300 text-amber-900' : 'border-slate-300 text-slate-600'
+                  }`}
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  Apenas Favoritas
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePreset}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                  Salvar filtro atual
+                </button>
+                {presets.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleApplyPreset(p)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200"
+                  >
+                    {p.nome}
+                  </button>
+                ))}
+              </div>
+              <span className="text-slate-500 tabular-nums">{filteredLegal.length} norma(s) exibida(s)</span>
+            </div>
           </div>
 
           <div className="space-y-3">
             {filteredLegal.map((s) => {
               const outdated = isSourceOutdated(s);
+              const isFav = (s.favoritoPorUids || []).includes(userProfile.uid);
+              const usages = computeUsagesForSource(s);
               return (
-                <div key={s.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-2">
+                <div
+                  key={s.id}
+                  className={`bg-white border rounded-xl p-5 space-y-2.5 ${
+                    s.statusVigencia === 'Revogada' ? 'border-slate-300 opacity-80 bg-slate-50' : 'border-slate-200'
+                  }`}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="space-y-0.5 min-w-0">
                       <p className="text-xs text-slate-500">
-                        {s.pais} · {s.tipo} · Versão {s.versao} · Status: <strong>{s.statusVigencia}</strong>
+                        {s.pais} · {s.tipo} · {s.numeroAno || 'Portal'} · Versão {s.versao} · Status:{' '}
+                        <strong>{s.statusVigencia}</strong>
                         {s.ultimaVerificacao ? ` · Verificada em ${formatDateBR(s.ultimaVerificacao)}` : ' · Nunca verificada'}
+                        {s.responsavelVerificacao ? ` (${s.responsavelVerificacao})` : ''}
                       </p>
                       <h3 className="text-base font-bold text-slate-900">{s.titulo}</h3>
+                      <p className="text-[11px] text-slate-500">
+                        Vínculos: {usages.linkedVisas.length} visto(s) · {usages.linkedRules.length} regra(s) ·{' '}
+                        {usages.activeCasesAffected.length} caso(s) ativo(s)
+                      </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleFavorite(s)}
+                        aria-label="Favoritar norma"
+                        className={`p-1.5 rounded-lg border ${
+                          isFav ? 'bg-amber-50 border-amber-300 text-amber-600' : 'border-slate-300 text-slate-400'
+                        }`}
+                      >
+                        <Star className="w-3.5 h-3.5" />
+                      </button>
                       {outdated && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#B45309]">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#B45309] mr-1">
                           <AlertTriangle className="w-3.5 h-3.5" />
                           Revisão &gt; {diasAlerta}d
                         </span>
                       )}
+                      {s.statusVigencia !== 'Revogada' && (
+                        <button
+                          type="button"
+                          onClick={() => void handleVerifySource(s)}
+                          className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />
+                          Verificada
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => void handleVerifySource(s)}
-                        className="px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900"
+                        onClick={() => setUsageSource(s)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       >
-                        Marcar como verificada
+                        <Link2 className="w-3.5 h-3.5" />
+                        Onde é usada
                       </button>
+                      {(s.historicoVersoes || []).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistorySource(s);
+                            setCompareHistIdx((s.historicoVersoes?.length || 1) - 1);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                          Histórico ({s.historicoVersoes?.length})
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setEditingSource(s)}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
+                        onClick={() => {
+                          setIsNewSource(false);
+                          setEditingSource(s);
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
                       >
-                        Atualizar / Comparar IA
+                        Editar / IA
                       </button>
                     </div>
                   </div>
@@ -579,6 +1051,33 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   <p className="text-xs text-slate-500">
                     <strong>Entenda a Lei:</strong> {s.explicacaoCliente}
                   </p>
+                  {s.notasInternasConsultor && (
+                    <p className="text-[11px] text-slate-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1">
+                      <strong>Nota interna do consultor:</strong> {s.notasInternasConsultor}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-3 text-xs pt-0.5">
+                    {s.linkOficial && (
+                      <a
+                        href={s.linkOficial}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[var(--color-primary)] font-semibold hover:underline"
+                      >
+                        Fonte oficial <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    {s.arquivoPdfUrl && (
+                      <a
+                        href={s.arquivoPdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-slate-700 font-semibold hover:underline"
+                      >
+                        PDF anexado <FileText className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -596,12 +1095,20 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 <th className="py-3 px-4 font-semibold">Subcategoria</th>
                 <th className="py-3 px-4 font-semibold">Dentro do Chile</th>
                 <th className="py-3 px-4 font-semibold">Requisitos</th>
+                <th className="py-3 px-4 font-semibold">Base Legal</th>
                 <th className="py-3 px-4 font-semibold">Verificação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-xs">
               {visaCategories.map((v) => {
                 const countReqs = visaRequirements.filter((r) => r.visaCategoryId === v.id).length;
+                const linkedNorms = legalSources.filter(
+                  (ls) =>
+                    (v.legalSourceIds || []).includes(ls.id) ||
+                    (v.codigo === '15' && ls.id.includes('mercosul')) ||
+                    ls.id === 'leg_ley_21325' ||
+                    ls.id === 'leg_dec_177',
+                );
                 return (
                   <tr key={v.id}>
                     <td className="py-3 px-4 font-bold tabular-nums">{v.codigo}</td>
@@ -611,6 +1118,21 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     </td>
                     <td className="py-3 px-4">{v.permiteDentroChile}</td>
                     <td className="py-3 px-4 tabular-nums">{countReqs} item(ns)</td>
+                    <td className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLegalDrawerData({
+                            title: `Base Legal — Cód. ${v.codigo} (${v.nomePortugues})`,
+                            sources: linkedNorms,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Ver Base Legal ({linkedNorms.length})
+                      </button>
+                    </td>
                     <td className="py-3 px-4">
                       <button
                         type="button"
@@ -712,86 +1234,347 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         </div>
       )}
 
-      {/* Modal Atualização de Norma */}
+      {/* Modal Criar / Atualizar Norma Completa */}
       {editingSource && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handlePublishNormaUpdate} className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
-            <h2 className="text-lg font-bold text-slate-900">Atualizar Norma: {editingSource.titulo}</h2>
-            <textarea
-              rows={4}
-              value={normaNewText}
-              onChange={(e) => setNormaNewText(e.target.value)}
-              placeholder="Cole aqui o novo texto normativo ou resolução oficial para comparar com a versão atual..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                {normaAttachment ? `Anexo: ${normaAttachment.name}` : 'Anexar PDF/Imagem da Norma (opcional)'}
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleSelectNormaFile(f);
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                disabled={normaAiLoading || (!normaNewText.trim() && !normaAttachment)}
-                onClick={handleAnalyzeNormaIa}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 disabled:opacity-50"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                {normaAiLoading ? normaAiProgress || 'Comparando...' : 'Analisar e Comparar com IA'}
+          <form onSubmit={handlePublishNormaUpdate} className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">
+                {isNewSource ? 'Cadastrar Nova Norma / Portal Oficial' : `Atualizar Norma: ${editingSource.titulo}`}
+              </h2>
+              <button type="button" onClick={() => setEditingSource(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                <X className="w-4 h-4" />
               </button>
             </div>
-            {normaAiLoading && normaAiProgress && (
-              <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
-                {normaAiProgress}
-              </p>
-            )}
-            {normaAiDraft && (
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    {(normaAiDraft.fallback || normaAiDraft.origem === 'regras') && (
-                      <span className="inline-block px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-950 font-bold mb-1">
-                        {normaAiDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
-                      </span>
-                    )}
-                    {normaAiDraft.mensagemUsuario && (
-                      <p className="text-amber-900">{normaAiDraft.mensagemUsuario}</p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={normaAiLoading}
-                    onClick={() => void handleAnalyzeNormaIa()}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    Tentar novamente com IA
-                  </button>
-                </div>
-                <p><strong>Resumo sugerido:</strong> {normaAiDraft.resumoExecutivo}</p>
-                <p><strong>Entenda a Lei:</strong> {normaAiDraft.explicacaoCliente}</p>
-                <p><strong>Divergências:</strong> {(normaAiDraft.divergencias || []).join('; ') || 'Nenhuma'}</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="sm:col-span-2">
+                <label className="block font-semibold text-slate-700 mb-1">Título *</label>
+                <input
+                  required
+                  value={editingSource.titulo}
+                  onChange={(e) => setEditingSource({ ...editingSource, titulo: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
               </div>
-            )}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Número / Ano</label>
+                <input
+                  value={editingSource.numeroAno}
+                  onChange={(e) => setEditingSource({ ...editingSource, numeroAno: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Tipo</label>
+                <select
+                  value={editingSource.tipo}
+                  onChange={(e) => setEditingSource({ ...editingSource, tipo: e.target.value as LegalSourceType })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Lei">Lei</option>
+                  <option value="Decreto">Decreto</option>
+                  <option value="Resolução">Resolução</option>
+                  <option value="Circular">Circular</option>
+                  <option value="Acordo Internacional">Acordo Internacional</option>
+                  <option value="Portal Oficial">Portal Oficial</option>
+                  <option value="Jurisprudência">Jurisprudência</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">País</label>
+                <select
+                  value={editingSource.pais}
+                  onChange={(e) => setEditingSource({ ...editingSource, pais: e.target.value as LegalSource['pais'] })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Chile">Chile</option>
+                  <option value="Brasil">Brasil</option>
+                  <option value="Mercosul">Mercosul</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Status de Vigência</label>
+                <select
+                  value={editingSource.statusVigencia}
+                  onChange={(e) => setEditingSource({ ...editingSource, statusVigencia: e.target.value as LegalSource['statusVigencia'] })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Vigente">Vigente</option>
+                  <option value="A verificar">A verificar</option>
+                  <option value="Alterada">Alterada</option>
+                  <option value="Revogada">Revogada (nunca apagar)</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block font-semibold text-slate-700 mb-1">Link Oficial (BCN / SERMIG / Planalto / CNJ)</label>
+                <input
+                  value={editingSource.linkOficial}
+                  onChange={(e) => setEditingSource({ ...editingSource, linkOficial: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Órgão Emissor</label>
+                <input
+                  value={editingSource.orgaoEmissor}
+                  onChange={(e) => setEditingSource({ ...editingSource, orgaoEmissor: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <label className="block font-semibold text-slate-700 mb-1">Resumo Técnico em Português</label>
+                <textarea
+                  rows={2}
+                  value={editingSource.resumoPortugues}
+                  onChange={(e) => setEditingSource({ ...editingSource, resumoPortugues: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <label className="block font-semibold text-slate-700 mb-1">Explicação Simples para o Cliente (&ldquo;Entenda a Lei&rdquo;)</label>
+                <textarea
+                  rows={2}
+                  value={editingSource.explicacaoCliente}
+                  onChange={(e) => setEditingSource({ ...editingSource, explicacaoCliente: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <label className="block font-semibold text-slate-700 mb-1">Notas Internas do Consultor (nunca visíveis ao cliente)</label>
+                <input
+                  value={editingSource.notasInternasConsultor || ''}
+                  onChange={(e) => setEditingSource({ ...editingSource, notasInternasConsultor: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+              <p className="font-bold text-slate-900">Anexo / Texto Oficial &amp; Comparação Assistida por IA</p>
+              <textarea
+                rows={3}
+                value={normaNewText}
+                onChange={(e) => setNormaNewText(e.target.value)}
+                placeholder="Cole aqui o novo texto normativo ou resolução oficial para comparar com a versão atual..."
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  {normaAttachment ? `IA Anexo: ${normaAttachment.name}` : 'Anexar PDF/Img p/ IA'}
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleSelectNormaFile(f);
+                    }}
+                  />
+                </label>
+                <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">
+                  <FileText className="w-3.5 h-3.5" />
+                  {editingSource.arquivoPdfUrl ? 'Substituir PDF salvo' : 'Salvar PDF no repositório'}
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      const up = await uploadFileToServer(f);
+                      setEditingSource({ ...editingSource, arquivoPdfUrl: up.url });
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={normaAiLoading || (!normaNewText.trim() && !normaAttachment)}
+                  onClick={handleAnalyzeNormaIa}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 disabled:opacity-50"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                  {normaAiLoading ? normaAiProgress || 'Comparando...' : 'Analisar e Comparar com IA'}
+                </button>
+              </div>
+              {normaAiDraft && (
+                <div className="p-3 rounded-lg bg-white border border-slate-200 space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-amber-900">
+                      {normaAiDraft.origemLabel || 'Rascunho gerado pela IA'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void handleAnalyzeNormaIa()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Tentar novamente
+                    </button>
+                  </div>
+                  <p><strong>Resumo sugerido:</strong> {normaAiDraft.resumoExecutivo}</p>
+                  <p><strong>Entenda a Lei:</strong> {normaAiDraft.explicacaoCliente}</p>
+                  <p><strong>Divergências:</strong> {(normaAiDraft.divergencias || []).join('; ') || 'Nenhuma'}</p>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setEditingSource(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs">
                 Cancelar
               </button>
               <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]">
-                Publicar Nova Versão (Preservar Histórico)
+                {isNewSource ? 'Cadastrar Norma' : 'Aprovar e Publicar Atualização'}
               </button>
             </div>
           </form>
         </div>
       )}
+
+      {/* Modal "Onde esta norma é usada" */}
+      {usageSource && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Onde esta norma é usada</h2>
+                <p className="text-xs text-slate-500">{usageSource.titulo}</p>
+              </div>
+              <button type="button" onClick={() => setUsageSource(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {(() => {
+              const u = computeUsagesForSource(usageSource);
+              return (
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-800 mb-1">Subcategorias SERMIG ({u.linkedVisas.length})</p>
+                    {u.linkedVisas.length === 0 ? (
+                      <p className="text-slate-500">Nenhuma subcategoria vinculada diretamente.</p>
+                    ) : (
+                      <ul className="list-disc list-inside text-slate-700 space-y-0.5">
+                        {u.linkedVisas.map((v) => (
+                          <li key={v.id}>Cód. {v.codigo} — {v.nomePortugues}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800 mb-1">Regras do Diagnóstico ({u.linkedRules.length})</p>
+                    {u.linkedRules.length === 0 ? (
+                      <p className="text-slate-500">Nenhuma regra vinculada.</p>
+                    ) : (
+                      <ul className="list-disc list-inside text-slate-700 space-y-0.5">
+                        {u.linkedRules.map((r) => (
+                          <li key={r.id}>{r.codigo} — {r.nome}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800 mb-1">Casos Ativos Afetados ({u.activeCasesAffected.length})</p>
+                    {u.activeCasesAffected.length === 0 ? (
+                      <p className="text-slate-500">Nenhum caso ativo impactado.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {u.activeCasesAffected.map((cs) => (
+                          <div key={cs.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-800">{cs.titulo} (Etapa {cs.etapaPipeline})</span>
+                            {onOpenCase && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setUsageSource(null);
+                                  onOpenCase(cs.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 bg-white font-semibold"
+                              >
+                                <Eye className="w-3 h-3" /> Abrir Caso
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Histórico + Comparação Lado a Lado + Restauração */}
+      {historySource && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Histórico e Comparação de Versões — {historySource.titulo}</h2>
+                <p className="text-xs text-slate-500">Versão atual: {historySource.versao}</p>
+              </div>
+              <button type="button" onClick={() => setHistorySource(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {(historySource.historicoVersoes || []).length > 0 && (
+              <div className="space-y-4 text-xs">
+                <div className="flex flex-wrap gap-2">
+                  {historySource.historicoVersoes!.map((h, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setCompareHistIdx(idx)}
+                      className={`px-3 py-1.5 rounded-lg border font-semibold ${
+                        compareHistIdx === idx ? 'border-[var(--color-primary)] bg-slate-900 text-white' : 'border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      v{h.versao} ({formatDateBR(h.data)})
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const sel = historySource.historicoVersoes![compareHistIdx];
+                  if (!sel) return null;
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                          <p className="font-bold text-slate-700">Versão Anterior (v{sel.versao} · {formatDateBR(sel.data)})</p>
+                          <p className="text-slate-600 whitespace-pre-wrap">{sel.resumo}</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-2">
+                          <p className="font-bold text-emerald-900">Versão Atual Publicada (v{historySource.versao})</p>
+                          <p className="text-slate-800 whitespace-pre-wrap">{historySource.resumoPortugues}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => void handleRestoreNormaVersion(historySource, sel)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                          style={{ backgroundColor: 'var(--color-primary)' }}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Restaurar v{sel.versao}
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <LegalBaseModal
+        open={Boolean(legalDrawerData)}
+        onClose={() => setLegalDrawerData(null)}
+        title={legalDrawerData?.title}
+        sources={legalDrawerData?.sources || []}
+      />
     </div>
   );
 };

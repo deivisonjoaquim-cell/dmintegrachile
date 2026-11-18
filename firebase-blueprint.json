@@ -17,7 +17,7 @@
         "quemSomosExperiencia": { "type": "string", "maxLength": 2000 },
         "quemSomosMissao": { "type": "string", "maxLength": 2000 },
         "quemSomosCredenciais": { "type": "string", "maxLength": 2000 },
-        "quemSomosFotoUrl": { "type": "string", "maxLength": 1000 },
+        "quemSomosFotoUrl": { "type": "string", "maxLength": 250000 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -33,14 +33,21 @@
         "responsavel_tecnico": { "type": "string", "maxLength": 200 },
         "endereco_cidade": { "type": "string", "maxLength": 300 },
         "foro_comarca": { "type": "string", "maxLength": 300 },
-        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "logoUrl": { "type": "string", "maxLength": 250000 },
+        "logoDarkUrl": { "type": "string", "maxLength": 250000 },
+        "faviconUrl": { "type": "string", "maxLength": 250000 },
         "corPrimaria": { "type": "string", "maxLength": 20 },
         "corDestaque": { "type": "string", "maxLength": 20 },
         "corFundo": { "type": "string", "maxLength": 20 },
-        "fontePrincipal": { "type": "string", "enum": ["Inter", "Plus Jakarta Sans", "Merriweather", "Montserrat"] },
+        "corSuperficie": { "type": "string", "maxLength": 20 },
+        "corTexto": { "type": "string", "maxLength": 20 },
+        "corRodapeBg": { "type": "string", "maxLength": 20 },
+        "fontePrincipal": { "type": "string", "enum": ["Plus Jakarta Sans", "DM Sans", "Manrope", "Public Sans", "Montserrat", "Merriweather", "Inter"] },
+        "fonteDisplay": { "type": "string", "enum": ["Plus Jakarta Sans", "Outfit", "Manrope", "Playfair Display", "Montserrat"] },
         "whatsapp": { "type": "string", "maxLength": 40 },
         "email": { "type": "string", "maxLength": 200 },
         "siteInstagram": { "type": "string", "maxLength": 300 },
+        "siteLinkedIn": { "type": "string", "maxLength": 300 },
         "linkCalendly": { "type": "string", "maxLength": 500 },
         "emailGoogleAgenda": { "type": "string", "maxLength": 200 },
         "chavePix": { "type": "string", "maxLength": 200 },
@@ -56,7 +63,9 @@
         "honorariosPadraoMinBrl": { "type": "number" },
         "honorariosPadraoMaxBrl": { "type": "number" },
         "taxaCambioBrlClp": { "type": "number" },
-        "taxaCambioUsdBrl": { "type": "number" }
+        "taxaCambioUsdBrl": { "type": "number" },
+        "sitePublicadoEm": { "type": "string", "format": "date-time" },
+        "siteVersaoAtual": { "type": "string", "maxLength": 40 }
       },
       "required": ["nome_empresa", "foro_comarca", "corPrimaria", "corDestaque", "corFundo", "fontePrincipal"]
     },
@@ -80,7 +89,7 @@
         "titulo": { "type": "string", "maxLength": 300 },
         "subtitulo": { "type": "string", "maxLength": 600 },
         "conteudoHtml": { "type": "string", "maxLength": 20000 },
-        "imagemUrl": { "type": "string", "maxLength": 1000 },
+        "imagemUrl": { "type": "string", "maxLength": 250000 },
         "ordem": { "type": "number" },
         "ativo": { "type": "boolean" }
       },
@@ -179,7 +188,8 @@
         "explicacaoCliente": { "type": "string", "maxLength": 5000 },
         "linkOficial": { "type": "string", "maxLength": 1000 },
         "versao": { "type": "string", "maxLength": 40 },
-        "statusVigencia": { "type": "string", "enum": ["Vigente", "Alterada", "Revogada", "A verificar"] }
+        "statusVigencia": { "type": "string", "enum": ["Vigente", "Alterada", "Revogada", "A verificar"] },
+        "notasInternasConsultor": { "type": "string", "maxLength": 5000 }
       },
       "required": ["titulo", "tipo", "pais", "statusVigencia"]
     },
@@ -288,7 +298,12 @@
         "whatsapp": { "type": "string", "maxLength": 40 },
         "userId": { "type": "string", "maxLength": 128 },
         "portalLiberado": { "type": "boolean" },
-        "statusAcessoPortal": { "type": "string", "enum": ["Não solicitado", "Pendente liberação", "Liberado"] }
+        "statusAcessoPortal": { "type": "string", "enum": ["Não solicitado", "Pendente liberação", "Liberado"] },
+        "observacoesInternas": { "type": "string", "maxLength": 5000 },
+        "arquivado": { "type": "boolean" },
+        "arquivadoEm": { "type": "string", "format": "date-time" },
+        "conviteEnviadoEm": { "type": "string", "format": "date-time" },
+        "mescladoEm": { "type": "string", "format": "date-time" }
       },
       "required": ["nomeCompleto", "email", "whatsapp", "portalLiberado", "statusAcessoPortal"]
     },
@@ -299,7 +314,10 @@
       "properties": {
         "clientId": { "type": "string", "maxLength": 128 },
         "nomeCompleto": { "type": "string", "maxLength": 200 },
-        "parentesco": { "type": "string", "maxLength": 80 }
+        "parentesco": { "type": "string", "maxLength": 80 },
+        "idade": { "type": "number" },
+        "estudante": { "type": "boolean" },
+        "passaporteValidade": { "type": "string", "maxLength": 40 }
       },
       "required": ["clientId", "nomeCompleto", "parentesco"]
     },
@@ -316,7 +334,10 @@
         "etapaPipeline": { "type": "number" },
         "statusSermig": { "type": "string", "maxLength": 80 },
         "portalLiberado": { "type": "boolean" },
-        "relatorioViabilidadeLiberado": { "type": "boolean" }
+        "relatorioViabilidadeLiberado": { "type": "boolean" },
+        "comprovanteProtocoloUrl": { "type": "string", "maxLength": 1000 },
+        "motivoEncerramento": { "type": "string", "maxLength": 1000 },
+        "encerradoEm": { "type": "string", "format": "date-time" }
       },
       "required": ["titulo", "clientId", "tipoServico", "etapaPipeline", "statusSermig"]
     },
@@ -473,16 +494,40 @@
         "titulo": { "type": "string", "maxLength": 250 },
         "clientId": { "type": "string", "maxLength": 128 },
         "caseId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Rascunho", "Revisado", "Enviado", "Assinado", "Arquivado"] },
+        "codigoVerificacao": { "type": "string", "maxLength": 64 },
+        "confirmadoLeituraEm": { "type": "string", "format": "date-time" },
+        "assinadoEm": { "type": "string", "format": "date-time" },
+        "motivoCancelamento": { "type": "string", "maxLength": 1000 },
         "liberadoAoCliente": { "type": "boolean" },
         "financeiro": { "type": "boolean" }
       },
       "required": ["tipo", "titulo", "clientId", "liberadoAoCliente"]
+    },
+    "MediaAsset": {
+      "title": "MediaAsset",
+      "description": "Ativo visual da biblioteca de mídia (logos, favicons, banners, fotos institucionais).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "nome": { "type": "string", "maxLength": 200 },
+        "categoria": { "type": "string", "enum": ["logo", "favicon", "banner", "equipe", "geral"] },
+        "mimeType": { "type": "string", "maxLength": 100 },
+        "url": { "type": "string", "maxLength": 500000 },
+        "largura": { "type": "number" },
+        "altura": { "type": "number" },
+        "tamanhoBytes": { "type": "number" },
+        "uploadedBy": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "nome", "categoria", "mimeType", "url", "tamanhoBytes", "createdAt"]
     }
   },
   "firestore": {
     "/users/{uid}": { "schema": { "$ref": "#/entities/UserProfile" }, "description": "Perfis e papéis RBAC dos usuários" },
     "/config/{docId}": { "schema": { "$ref": "#/entities/EmpresaConfig" }, "description": "Configuração empresa (pública) e bancário (somente admin)" },
     "/siteContent/{sectionId}": { "schema": { "$ref": "#/entities/SiteContent" }, "description": "Conteúdo CMS do site público" },
+    "/mediaAssets/{assetId}": { "schema": { "$ref": "#/entities/MediaAsset" }, "description": "Biblioteca institucional de mídias, logos e banners" },
     "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Trilha de auditoria append-only" },
     "/partnerProposals/{proposalId}": { "schema": { "$ref": "#/entities/PartnerProposal" }, "description": "Propostas enviadas no formulário Seja um Parceiro" },
     "/partners/{partnerId}": { "schema": { "$ref": "#/entities/Partner" }, "description": "Cadastro interno de parceiros com comissões" },

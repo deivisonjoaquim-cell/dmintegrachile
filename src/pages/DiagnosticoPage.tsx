@@ -15,12 +15,10 @@ import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../components/DiagnosticReportView';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { useApp } from '../contexts/AppContext';
+import { useFirestore } from '../hooks/useFirestore';
 import {
   callAiEndpoint,
-  fetchDiagnosticSessionByToken,
   generateSecureSessionToken,
-  saveDiagnosticSession,
-  submitDiagnosticLeadPublic,
 } from '../services/firestoreService';
 import type {
   DiagnosticAnswers,
@@ -184,6 +182,12 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     loginWithGoogle,
   } = useApp();
 
+  const {
+    saveDiagnostic: saveDiagnosticFirestore,
+    saveDiagnosticSession: saveDiagnosticSessionFirestore,
+    getDiagnosticSession: getDiagnosticSessionFirestore,
+  } = useFirestore({ realtime: false });
+
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState<DiagnosticAnswers>(() => {
     try {
@@ -309,7 +313,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     const retomarToken = params.get('retomar');
     if (retomarToken) {
       void (async () => {
-        const sess = await fetchDiagnosticSessionByToken(retomarToken);
+        const sess = await getDiagnosticSessionFirestore(retomarToken);
         if (!sess) {
           setResumeBanner('Link de retomada inválido ou expirado. Você pode preencher novamente ou reiniciar abaixo.');
           return;
@@ -367,7 +371,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         return;
       }
       // Best-effort marca como Abandonado para criação interna de Task "Retomar contato"
-      void submitDiagnosticLeadPublic(
+      void saveDiagnosticFirestore(
         {
           nome: cur.answers.nome.trim(),
           whatsapp: cur.answers.whatsapp.trim(),
@@ -418,7 +422,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
     if (hasValidContact) {
       try {
-        const up = await submitDiagnosticLeadPublic(
+        const up = await saveDiagnosticFirestore(
           {
             nome: answers.nome.trim(),
             whatsapp: answers.whatsapp.trim(),
@@ -440,12 +444,12 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           },
           currentLeadId ? { existingLeadId: currentLeadId, createdAt: currentLeadCreatedAt } : undefined,
         );
-        currentLeadId = up.leadId;
+        currentLeadId = up.id;
         if (up.createdAt) {
           currentLeadCreatedAt = up.createdAt;
           setLeadCreatedAt(up.createdAt);
         }
-        setSavedLeadId(up.leadId);
+        setSavedLeadId(up.id);
       } catch {
         // non-blocking for offline preview
       }
@@ -454,7 +458,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
     const expiraEmMs = Date.now() + expDays * 86400000;
     try {
-      const savedSess = await saveDiagnosticSession(
+      const savedSess = await saveDiagnosticSessionFirestore(
         token,
         {
           etapaAtual: targetStep,
@@ -563,7 +567,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
       let finalLeadId = savedLeadId || 'local-preview';
       try {
-        const saved = await submitDiagnosticLeadPublic(
+        const saved = await saveDiagnosticFirestore(
           {
             nome: answers.nome.trim(),
             whatsapp: answers.whatsapp.trim(),
@@ -596,15 +600,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             ? { existingLeadId: savedLeadId, createdAt: leadCreatedAt }
             : undefined,
         );
-        finalLeadId = saved.leadId;
-        setSavedLeadId(saved.leadId);
+        finalLeadId = saved.id;
+        setSavedLeadId(saved.id);
         if (saved.createdAt) setLeadCreatedAt(saved.createdAt);
       } catch {
         // fallback preview
       }
 
       const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
-      await saveDiagnosticSession(
+      await saveDiagnosticSessionFirestore(
         token,
         {
           etapaAtual: 6,
