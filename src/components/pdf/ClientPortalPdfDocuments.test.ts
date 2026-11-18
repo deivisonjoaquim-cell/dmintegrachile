@@ -14,10 +14,12 @@ import {
   DiagnosticoPdfDocument,
   DossieCasoPdfDocument,
   RelatorioProgressoPdfDocument,
+  ResumoProcessoClientePdfDocument,
 } from './ClientPortalPdfDocuments';
-import type { Case, CaseDocument, Client, Deadline, Lead, ViabilityAssessment } from '../../types/domain';
+import type { Case, CaseDocument, Client, Deadline, Lead, Task, ViabilityAssessment } from '../../types/domain';
 import { calcularTermometroDocumentos } from '../../utils/caseMetrics';
 import { runDiagnosticEngine } from '../../utils/diagnosticEngine';
+import { computeClientTaskProgress } from '../../utils/taskProgressMetrics';
 
 const sampleClient: Client = {
   id: 'cli_test_1',
@@ -227,4 +229,59 @@ test('DiagnosticoCompletoPdfDocument and DossieCasoPdfDocument render valid PDFs
   );
   assert.ok(dossiePdf.subarray(0, 5).toString('utf8').startsWith('%PDF-'));
   assert.ok(dossiePdf.byteLength > 1000);
+});
+
+test('ResumoProcessoClientePdfDocument renders client-safe process status, tasks and submitted docs PDF', async () => {
+  const sampleTasks: Task[] = [
+    {
+      id: 'task_1',
+      titulo: 'Conferir passaporte e antecedentes PF',
+      caseId: 'case_test_1',
+      clientId: 'cli_test_1',
+      prioridade: 'Alta',
+      status: 'Concluída',
+      prazo: '2026-10-15',
+      createdAt: '2026-10-02T12:00:00.000Z',
+    },
+    {
+      id: 'task_2',
+      titulo: 'Protocolar pedido no SERMIG',
+      caseId: 'case_test_1',
+      clientId: 'cli_test_1',
+      prioridade: 'Urgente',
+      status: 'Em andamento',
+      prazo: '2026-10-25',
+      createdAt: '2026-10-05T12:00:00.000Z',
+    },
+  ];
+  const submittedDoc: CaseDocument = {
+    ...sampleDocs[0],
+    arquivoNome: 'passaporte_maria.pdf',
+    arquivoUrl: 'https://exemplo.invalid/passaporte.pdf',
+    analisadoEm: '2026-10-10T14:00:00.000Z',
+    versao: 2,
+    historicoVersoes: [{ versao: 1, arquivoUrl: 'https://exemplo.invalid/v1.pdf', data: '2026-10-06T10:00:00.000Z' }],
+  };
+  const overview = computeClientTaskProgress({
+    tasks: sampleTasks,
+    cases: [sampleCase],
+    clients: [sampleClient],
+    selectedCaseId: sampleCase.id,
+  });
+
+  const summaryPdf = await renderToBuffer(
+    React.createElement(ResumoProcessoClientePdfDocument, {
+      empresa: DEFAULT_EMPRESA_CONFIG,
+      client: sampleClient,
+      activeCase: sampleCase,
+      cases: [sampleCase],
+      clients: [sampleClient],
+      tasks: sampleTasks,
+      docs: [submittedDoc],
+      overview,
+    }) as React.ReactElement<DocumentProps>,
+  );
+
+  assert.ok(summaryPdf.subarray(0, 5).toString('utf8').startsWith('%PDF-'));
+  assert.ok(summaryPdf.byteLength > 1000);
 });

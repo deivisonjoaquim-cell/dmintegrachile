@@ -250,6 +250,38 @@ export function buildNormaFallback(body: Record<string, unknown>) {
   };
 }
 
+export function buildNormaVerificarFallback(body: Record<string, unknown>) {
+  const currentSource = (body.currentSource && typeof body.currentSource === 'object' ? body.currentSource : {}) as Record<string, unknown>;
+  const titulo = typeof currentSource.titulo === 'string' && currentSource.titulo.trim() ? currentSource.titulo.trim() : 'Norma SERMIG/BCN';
+  const numeroAno = typeof currentSource.numeroAno === 'string' ? currentSource.numeroAno.trim() : '';
+  const linkOficial =
+    typeof currentSource.linkOficial === 'string' && currentSource.linkOficial.trim()
+      ? currentSource.linkOficial.trim()
+      : 'https://serviciomigraciones.cl';
+  const resumoAtual =
+    typeof currentSource.resumoPortugues === 'string' && currentSource.resumoPortugues.trim()
+      ? currentSource.resumoPortugues.trim()
+      : 'Resumo técnico pendente de conferência manual.';
+  const clienteAtual =
+    typeof currentSource.explicacaoCliente === 'string' && currentSource.explicacaoCliente.trim()
+      ? currentSource.explicacaoCliente.trim()
+      : 'Consulte o portal oficial do SERMIG ou a BCN LeyChile para confirmar a redação vigente.';
+  const artigosAtual =
+    typeof currentSource.artigos === 'string' && currentSource.artigos.trim() ? currentSource.artigos.trim() : 'fonte a cadastrar';
+
+  return {
+    rascunho: true,
+    possuiAtualizacao: false,
+    situacaoAtual: 'Confirmar na fonte oficial',
+    artigosExtraidos: artigosAtual,
+    resumoExecutivo: `[${AI_FALLBACK_LABEL}] Verificação online de "${titulo}"${numeroAno ? ` (${numeroAno})` : ''} indisponível no momento. Mantenha o texto vigente e confira diretamente o link oficial (${linkOficial}) antes de publicar alterações.`,
+    explicacaoCliente: clienteAtual,
+    impactosVistos: ['Conferência manual recomendada no portal oficial antes de alterar checklists de visto.'],
+    divergencias: ['Consulta automática com busca na web indisponível no momento; nenhuma alteração normativa aplicada.'],
+    fontesCitadas: [linkOficial, 'https://serviciomigraciones.cl', 'https://www.bcn.cl/leychile'],
+  };
+}
+
 // =============================================================================
 // 5. /api/ai/custos fallback
 // =============================================================================

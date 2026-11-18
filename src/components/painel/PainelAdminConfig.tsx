@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  Bell,
   CheckCircle2,
   Copy,
   Download,
@@ -23,6 +24,8 @@ import {
   UploadCloud,
   XCircle,
 } from 'lucide-react';
+import { auth } from '../../firebase';
+import { getEffectiveVapidKey } from '../../services/notificationService';
 import {
   fetchAllDiagnosticRuleVersions,
   fetchBancarioConfigAdmin,
@@ -216,6 +219,8 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savingEmpresa, setSavingEmpresa] = useState(false);
+  const [fcmHealthMsg, setFcmHealthMsg] = useState<string | null>(null);
+  const [fcmChecking, setFcmChecking] = useState(false);
 
   // Empresa & Aparência
   const [cfg, setCfg] = useState<EmpresaConfig>(empresa);
@@ -1137,33 +1142,39 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
           {/* Bloco 4: Dados Institucionais, Contatos, Câmbio, Parâmetros & Textos Jurídicos */}
           <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
             <h2 className="text-base font-bold text-slate-900">Dados Institucionais, Canais &amp; Parâmetros Operacionais</h2>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
+              Atuação como <strong>Pessoa Física</strong> com a marca de exposição <strong>D&amp;M Integra Chile</strong> (sem necessidade de CNPJ ou RUT). Preencha seu nome completo e CPF opcional nos campos abaixo quando desejar exibir nos contratos e recibos.
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome da Empresa</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome de Exposição / Marca (Pessoa Física)</label>
                 <input
                   value={cfg.nome_empresa}
                   onChange={(e) => setCfg({ ...cfg, nome_empresa: e.target.value })}
+                  placeholder="D&M Integra Chile – Relocation & Assessoria"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Razão Social / CNPJ / RUT</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Identificação Pessoa Física / Marca (CPF opcional)</label>
                 <input
                   value={cfg.razao_social_cnpj_rut}
                   onChange={(e) => setCfg({ ...cfg, razao_social_cnpj_rut: e.target.value })}
+                  placeholder="Atuação como Pessoa Física · Marca própria D&M Integra Chile"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Responsável Técnico</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Titular / Responsável (Pessoa Física)</label>
                 <input
                   value={cfg.responsavel_tecnico}
                   onChange={(e) => setCfg({ ...cfg, responsavel_tecnico: e.target.value })}
+                  placeholder="Seu nome completo (Pessoa Física)"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Endereço / Cidades de Atuação</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Base / Cidades de Atendimento</label>
                 <input
                   value={cfg.endereco_cidade}
                   onChange={(e) => setCfg({ ...cfg, endereco_cidade: e.target.value })}
@@ -1354,6 +1365,73 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                 />
               </div>
+            </div>
+
+            {/* Notificações Push (Firebase Cloud Messaging — Web Push) */}
+            <div className="pt-4 border-t border-slate-200 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Bell className="w-4 h-4 text-[var(--color-primary)]" />
+                    Notificações Push para Clientes (Firebase Cloud Messaging)
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Cole a chave pública do par de certificados Web Push obtida em Firebase Console → Configurações do projeto → Cloud Messaging.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={fcmChecking}
+                  onClick={async () => {
+                    setFcmChecking(true);
+                    setFcmHealthMsg(null);
+                    try {
+                      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+                      const resp = await fetch('/api/notifications/health', {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                      });
+                      const data = (await resp.json()) as {
+                        ok?: boolean;
+                        vapidEnvConfigured?: boolean;
+                        error?: string;
+                      };
+                      const hasEffectiveVapid = Boolean(getEffectiveVapidKey(cfg));
+                      if (resp.ok && data.ok) {
+                        setFcmHealthMsg(
+                          hasEffectiveVapid
+                            ? 'Serviço FCM ativo e chave pública Web Push (VAPID) configurada.'
+                            : 'Servidor pronto para FCM. Falta preencher a Chave Pública Web Push (VAPID) abaixo e salvar.',
+                        );
+                      } else {
+                        setFcmHealthMsg(data.error || 'Não foi possível verificar o endpoint FCM.');
+                      }
+                    } catch (err) {
+                      setFcmHealthMsg(err instanceof Error ? err.message : 'Erro ao verificar FCM.');
+                    } finally {
+                      setFcmChecking(false);
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {fcmChecking ? 'Verificando...' : 'Verificar Status FCM'}
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Chave Pública Web Push (VAPID Key — FCM)
+                </label>
+                <input
+                  value={cfg.fcmVapidPublicKey || ''}
+                  onChange={(e) => setCfg({ ...cfg, fcmVapidPublicKey: e.target.value })}
+                  placeholder="Ex.: BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono"
+                />
+              </div>
+              {fcmHealthMsg && (
+                <p className="text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  {fcmHealthMsg}
+                </p>
+              )}
             </div>
 
             {/* Textos-Base Editáveis com Versionamento & Vigência */}
@@ -1958,7 +2036,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
           {bancario ? (
             <>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Dados Bancários Brasil (Banco / Agência / Conta)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Dados Bancários Brasil (Banco / Agência / Conta — Titular Pessoa Física)</label>
                 <textarea
                   rows={3}
                   value={bancario.dados_bancarios_br}
@@ -1967,7 +2045,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Dados Bancários Chile (RUT / Cuenta Vista / Corriente)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Dados Bancários no Chile (Opcional — Cuenta Vista / Corriente / RUT, se aplicável)</label>
                 <textarea
                   rows={3}
                   value={bancario.dados_bancarios_cl}
@@ -2859,18 +2937,30 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Formação Acadêmica</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Título da Formação Acadêmica</label>
+                    <input
+                      value={(editMeta.formacaoTitulo as string) || 'Formação Acadêmica e Qualificação Jurídica'}
+                      onChange={(e) => updateEditingMeta({ formacaoTitulo: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white mb-2"
+                    />
+                    <label className="block font-semibold text-slate-700 mb-1">Formação Acadêmica &amp; Qualificação Jurídica</label>
                     <textarea
-                      rows={2}
+                      rows={4}
                       value={(editMeta.formacao as string) || ''}
                       onChange={(e) => updateEditingMeta({ formacao: e.target.value })}
                       className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Experiência Prática</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Título da Especialização / Escopo</label>
+                    <input
+                      value={(editMeta.experienciaTitulo as string) || 'Especialização e Escopo de Atuação'}
+                      onChange={(e) => updateEditingMeta({ experienciaTitulo: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white mb-2"
+                    />
+                    <label className="block font-semibold text-slate-700 mb-1">Especialização e Escopo de Atuação</label>
                     <textarea
-                      rows={2}
+                      rows={4}
                       value={(editMeta.experiencia as string) || ''}
                       onChange={(e) => updateEditingMeta({ experiencia: e.target.value })}
                       className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white"

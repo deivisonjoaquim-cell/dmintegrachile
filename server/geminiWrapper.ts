@@ -298,6 +298,7 @@ export interface ChamarGeminiParams<T extends Record<string, unknown>> {
   contents: unknown;
   systemInstruction: string;
   responseSchema: Record<string, unknown>;
+  tools?: unknown[];
   validateJson: (parsed: Record<string, unknown>) => T | null;
   buildFallback: () => T;
   onProgress?: (event: { attempt: number; maxAttempts: number; modelTier: ModelTier; message: string }) => void;
@@ -433,23 +434,42 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       });
 
       try {
+        const requestConfig: Record<string, unknown> = {
+          systemInstruction: params.systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: params.responseSchema,
+        };
+        if (params.tools && params.tools.length > 0) {
+          requestConfig.tools = params.tools;
+        }
+
         const resp = await runSingleAttemptWithTimeout(
           generateFn!,
           {
             model: modelName,
             contents: params.contents,
-            config: {
-              systemInstruction: params.systemInstruction,
-              responseMimeType: 'application/json',
-              responseSchema: params.responseSchema,
-            },
+            config: requestConfig,
           },
           runtime.timeoutMs,
         );
 
+        const attachGrounding = (data: T): T => {
+          const chunks = resp.candidates?.[0]?.groundingMetadata?.groundingChunks;
+          if (!Array.isArray(chunks) || chunks.length === 0) return data;
+          const fontesOnline = chunks
+            .map((c: { web?: { uri?: string; title?: string } }) => ({
+              titulo: typeof c?.web?.title === 'string' && c.web.title.trim() ? c.web.title.trim() : 'Fonte oficial',
+              url: typeof c?.web?.uri === 'string' ? c.web.uri.trim() : '',
+            }))
+            .filter((x) => Boolean(x.url))
+            .slice(0, 8);
+          if (fontesOnline.length === 0) return data;
+          return { ...data, fontesOnline } as T;
+        };
+
         const parsed = extractAndValidateJson<T>(resp, params.validateJson);
         if (parsed.ok) {
-          return { matched: parsed.data };
+          return { matched: attachGrounding(parsed.data) };
         }
         if (parsed.blocked) {
           return {
@@ -479,16 +499,25 @@ export async function chamarGemini<T extends Record<string, unknown>>(
             {
               model: modelName,
               contents: params.contents,
-              config: {
-                systemInstruction: params.systemInstruction,
-                responseMimeType: 'application/json',
-                responseSchema: params.responseSchema,
-              },
+              config: requestConfig,
             },
             runtime.timeoutMs,
           );
           const second = extractAndValidateJson<T>(retryResp, params.validateJson);
           if (second.ok) {
+            const retryChunks = retryResp.candidates?.[0]?.groundingMetadata?.groundingChunks;
+            if (Array.isArray(retryChunks) && retryChunks.length > 0) {
+              const fontesOnline = retryChunks
+                .map((c: { web?: { uri?: string; title?: string } }) => ({
+                  titulo: typeof c?.web?.title === 'string' && c.web.title.trim() ? c.web.title.trim() : 'Fonte oficial',
+                  url: typeof c?.web?.uri === 'string' ? c.web.uri.trim() : '',
+                }))
+                .filter((x) => Boolean(x.url))
+                .slice(0, 8);
+              if (fontesOnline.length > 0) {
+                return { matched: { ...second.data, fontesOnline } as T };
+              }
+            }
             return { matched: second.data };
           }
           if (second.blocked) {

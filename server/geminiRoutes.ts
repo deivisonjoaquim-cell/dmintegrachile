@@ -7,6 +7,7 @@ import {
   buildCustosFallback,
   buildDiagnosticoFallback,
   buildNormaFallback,
+  buildNormaVerificarFallback,
   buildParecerFallback,
   buildPropostaFallback,
 } from './geminiFallbacks';
@@ -517,3 +518,72 @@ export function buildNormaSpec(body: Record<string, unknown>, uploadDir: string)
     buildFallback: () => buildNormaFallback(enrichedBody),
   };
 }
+
+export function buildNormaVerificarSpec(body: Record<string, unknown>) {
+  const currentSource = (body.currentSource && typeof body.currentSource === 'object' ? body.currentSource : {}) as Record<string, unknown>;
+  const titulo = typeof currentSource.titulo === 'string' ? currentSource.titulo : '';
+  const numeroAno = typeof currentSource.numeroAno === 'string' ? currentSource.numeroAno : '';
+  const pais = typeof currentSource.pais === 'string' ? currentSource.pais : 'Chile';
+  const linkOficial = typeof currentSource.linkOficial === 'string' ? currentSource.linkOficial : '';
+  const dataHoje = new Date().toISOString().slice(0, 10);
+
+  return {
+    route: '/api/ai/norma-verificar',
+    tools: [{ googleSearch: {} }],
+    contents: `Data atual: ${dataHoje}.
+Pesquise nas fontes oficiais (${pais === 'Brasil' ? 'planalto.gov.br, cnj.jus.br, gov.br/pf' : 'serviciomigraciones.cl, bcn.cl/leychile, diariooficial.interior.gob.cl'}) sobre a seguinte norma/portal cadastrado na consultoria D&M Integra Chile:
+Título: ${titulo}
+Número/Ano: ${numeroAno}
+Link oficial cadastrado: ${linkOficial || 'Não informado'}
+Resumo vigente cadastrado no sistema: ${JSON.stringify(currentSource)}
+
+Verifique se existem atualizações normativas recentes, resoluções exentas complementares, mudanças de prazo (ex.: validade de antecedentes, prorrogação, estampado electrónico, requisitos por subcategoria) ou alterações na BCN LeyChile / SERMIG / Planalto. Retorne um comparativo técnico objetivo em português do Brasil sem inventar artigos ou números não encontrados na busca.`,
+    systemInstruction:
+      'Você é um pesquisador jurídico migratório Brasil-Chile. Use a busca Google para consultar prioritariamente serviciomigraciones.cl, bcn.cl/leychile, planalto.gov.br e cnj.jus.br. Nunca invente artigos, decretos ou resoluções que não apareçam nos resultados da busca. Devolva apenas JSON válido.',
+    responseSchema: {
+      type: Type.OBJECT,
+      properties: {
+        possuiAtualizacao: { type: Type.BOOLEAN },
+        situacaoAtual: { type: Type.STRING },
+        artigosExtraidos: { type: Type.STRING },
+        resumoExecutivo: { type: Type.STRING },
+        explicacaoCliente: { type: Type.STRING },
+        impactosVistos: { type: Type.ARRAY, items: { type: Type.STRING } },
+        divergencias: { type: Type.ARRAY, items: { type: Type.STRING } },
+        fontesCitadas: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+      required: [
+        'possuiAtualizacao',
+        'situacaoAtual',
+        'artigosExtraidos',
+        'resumoExecutivo',
+        'explicacaoCliente',
+        'impactosVistos',
+        'divergencias',
+        'fontesCitadas',
+      ],
+    },
+    validateJson: (parsed: Record<string, unknown>) => {
+      if (typeof parsed.resumoExecutivo !== 'string' || !parsed.resumoExecutivo.trim()) return null;
+      return {
+        rascunho: true,
+        possuiAtualizacao: Boolean(parsed.possuiAtualizacao),
+        situacaoAtual:
+          typeof parsed.situacaoAtual === 'string' && parsed.situacaoAtual.trim()
+            ? parsed.situacaoAtual.trim()
+            : 'Confirmar na fonte oficial',
+        artigosExtraidos:
+          typeof parsed.artigosExtraidos === 'string' && parsed.artigosExtraidos.trim()
+            ? parsed.artigosExtraidos
+            : 'fonte a cadastrar',
+        resumoExecutivo: parsed.resumoExecutivo.trim(),
+        explicacaoCliente: typeof parsed.explicacaoCliente === 'string' ? parsed.explicacaoCliente : '',
+        impactosVistos: asStringArray(parsed.impactosVistos) || [],
+        divergencias: asStringArray(parsed.divergencias) || [],
+        fontesCitadas: asStringArray(parsed.fontesCitadas) || [],
+      };
+    },
+    buildFallback: () => buildNormaVerificarFallback(body),
+  };
+}
+

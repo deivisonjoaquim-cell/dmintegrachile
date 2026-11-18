@@ -89,21 +89,43 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
           <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <GraduationCap className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-              <h2 className="text-base font-semibold text-slate-900">Formação acadêmica e técnica</h2>
+              <h2 className="text-base font-semibold text-slate-900">
+                {meta.formacaoTitulo || 'Formação Acadêmica e Qualificação Jurídica'}
+              </h2>
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {meta.formacao || 'Especialização em Direito Migratório Comparado Brasil–Chile e Gestão de Mobilidade Internacional.'}
-            </p>
+            <div className="space-y-2 text-sm text-slate-600 leading-relaxed">
+              {(
+                meta.formacao ||
+                'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.'
+              )
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line, idx) => (
+                  <p key={idx}>{line}</p>
+                ))}
+            </div>
           </div>
 
           <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <Briefcase className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-              <h2 className="text-base font-semibold text-slate-900">Experiência prática</h2>
+              <h2 className="text-base font-semibold text-slate-900">
+                {meta.experienciaTitulo || 'Especialização e Escopo de Atuação'}
+              </h2>
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {meta.experiencia || 'Assessoria completa em Residência Temporal, Acordo Mercosul, Residência Definitiva e Relocation em Santiago.'}
-            </p>
+            <div className="space-y-2 text-sm text-slate-600 leading-relaxed">
+              {(
+                meta.experiencia ||
+                'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.'
+              )
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line, idx) => (
+                  <p key={idx}>{line}</p>
+                ))}
+            </div>
           </div>
 
           <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  Bell,
   BookOpen,
   Calendar,
   CheckSquare,
@@ -14,6 +15,7 @@ import {
   Plus,
   Printer,
   RotateCcw,
+  Send,
   Sparkles,
   Trash2,
   Upload,
@@ -40,6 +42,8 @@ import {
   saveDocumentAudited,
   uploadFileToServer,
 } from '../../services/firestoreService';
+import { markStaffChatQuestionsRead, sendStaffDocumentChatReply } from '../../services/chatService';
+import { notifyClientProcessUpdate } from '../../services/notificationService';
 import type {
   Appointment,
   AuditLog,
@@ -48,6 +52,7 @@ import type {
   CaseDocument,
   CaseFinancialSummary,
   Client,
+  ClientNotificationType,
   CommunicationLog,
   CurrencyCode,
   Deadline,
@@ -87,6 +92,11 @@ import {
   parseFlexibleDate,
   toIsoDate,
 } from '../../utils/formatters';
+import {
+  countUnreadChatForStaff,
+  inferChatSenderRole,
+  sortChatMessagesChronologically,
+} from '../../utils/documentChat';
 import { buildZipBlob, type ZipEntryInput } from '../../utils/zipBuilder';
 
 interface PainelClientesCasosProps {
@@ -114,6 +124,7 @@ interface PainelClientesCasosProps {
   messageTemplates: MessageTemplate[];
   partnersPublic: PartnerPublic[];
   selectedCaseId: string | null;
+  requestedCaseTab?: { caseId: string; tab: CaseTab; seq: number } | null;
   onSelectCase: (caseId: string | null) => void;
   onRefresh: () => Promise<void>;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
@@ -174,6 +185,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   messageTemplates,
   partnersPublic,
   selectedCaseId,
+  requestedCaseTab,
   onSelectCase,
   onRefresh,
   onLogWhatsApp,
@@ -191,8 +203,21 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [casesLayout, setCasesLayout] = useState<'lista' | 'kanban'>('lista');
   const [search, setSearch] = useState('');
   const [caseTab, setCaseTab] = useState<CaseTab>('resumo');
+  useEffect(() => {
+    if (requestedCaseTab && requestedCaseTab.caseId === selectedCaseId) {
+      setCaseTab(requestedCaseTab.tab);
+    }
+  }, [requestedCaseTab, selectedCaseId]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pushTipo, setPushTipo] = useState<ClientNotificationType>('geral');
+  const [pushTitle, setPushTitle] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushSending, setPushSending] = useState(false);
+  const [chatReplyMsg, setChatReplyMsg] = useState('');
+  const [chatReplyDocId, setChatReplyDocId] = useState('');
+  const [chatReplySendPush, setChatReplySendPush] = useState(true);
+  const [chatReplySending, setChatReplySending] = useState(false);
 
   // Filtros de Clientes e Casos
   const [clientPortalFilter, setClientPortalFilter] = useState<'all' | 'liberado' | 'pendente'>('all');
@@ -285,6 +310,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     setSelectedDocIds([]);
     setDocPersonFilter('Todos');
     setDocStatusFilter('Todos');
+    setChatReplyMsg('');
+    setChatReplyDocId('');
   }, [selectedCaseId]);
 
   const updateParecerDraft = (
@@ -719,25 +746,92 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     onSelectCase(id);
   };
 
+  const emitClientProcessAlert = async (params: {
+    caseObj: Case;
+    tipo: ClientNotificationType;
+    titulo: string;
+    mensagem: string;
+    etapaPipeline?: number;
+    statusSermig?: string;
+  }) => {
+    try {
+      return await notifyClientProcessUpdate({
+        clientId: params.caseObj.clientId,
+        caseId: params.caseObj.id,
+        tipo: params.tipo,
+        titulo: params.titulo,
+        mensagem: params.mensagem,
+        etapaPipeline: params.etapaPipeline,
+        statusSermig: params.statusSermig,
+        linkDestino: '/portal',
+        criadoPorUid: userProfile.uid,
+        criadoPorNome: userProfile.nome || userProfile.email,
+      });
+    } catch {
+      return null;
+    }
+  };
+
   const handleSaveCaseField = async (patch: Partial<Case>, fieldLabel = 'atualizacao_caso') => {
     if (!activeCase) return;
+    const prevStage = activeCase.etapaPipeline;
+    const prevViabReleased = Boolean(activeCase.relatorioViabilidadeLiberado);
     const updated: Case = { ...activeCase, ...patch };
     delete (updated as unknown as Record<string, unknown>).valorContrato;
     await saveDocumentAudited('cases', activeCase.id, updated as unknown as Record<string, unknown>, false, role, fieldLabel, activeCase);
-    setFeedback('Dados do caso atualizados.');
+
+    let extraNotice = '';
+    if (typeof patch.etapaPipeline === 'number' && patch.etapaPipeline !== prevStage) {
+      const stageMeta = PIPELINE_STAGES.find((s) => s.numero === patch.etapaPipeline);
+      const res = await emitClientProcessAlert({
+        caseObj: updated,
+        tipo: 'etapa_pipeline',
+        titulo: `Processo avançou para Etapa ${patch.etapaPipeline}: ${stageMeta?.nome || 'Atualização'}`,
+        mensagem: `Seu processo "${updated.titulo}" avançou para a Etapa ${patch.etapaPipeline} (${stageMeta?.nome || 'Nova etapa'}). Acesse o Portal do Cliente para acompanhar os próximos passos.`,
+        etapaPipeline: patch.etapaPipeline,
+      });
+      if (res?.pushResult.sentCount) {
+        extraNotice = ` (Alerta enviado ao Portal e via Push para ${res.pushResult.sentCount} dispositivo(s)).`;
+      } else if (res) {
+        extraNotice = ' (Alerta registrado no Portal do Cliente).';
+      }
+    } else if (patch.relatorioViabilidadeLiberado === true && !prevViabReleased) {
+      await emitClientProcessAlert({
+        caseObj: updated,
+        tipo: 'parecer',
+        titulo: 'Parecer Técnico de Viabilidade disponível',
+        mensagem: `O Parecer Técnico do seu processo "${updated.titulo}" foi liberado para consulta e exportação em PDF no Portal do Cliente.`,
+      });
+      extraNotice = ' (Cliente notificado no Portal).';
+    }
+
+    setFeedback(`Dados do caso atualizados.${extraNotice}`);
     await onRefresh();
   };
 
   const handleSermigStatusChange = async (nextStatus: Case['statusSermig'], note?: string) => {
     if (!activeCase) return;
+    const statusChanged = nextStatus !== activeCase.statusSermig;
+    const cleanNote = note?.trim();
     const entry = {
       status: nextStatus,
       data: new Date().toISOString(),
-      nota: note?.trim() || undefined,
+      nota: cleanNote || undefined,
       autor: userProfile.nome || userProfile.email,
     };
     const nextHist = [...(activeCase.historicoStatusSermig || []), entry];
     await handleSaveCaseField({ statusSermig: nextStatus, historicoStatusSermig: nextHist }, 'statusSermig');
+    if (statusChanged || cleanNote) {
+      await emitClientProcessAlert({
+        caseObj: { ...activeCase, statusSermig: nextStatus },
+        tipo: 'status_sermig',
+        titulo: `Status SERMIG atualizado: ${nextStatus}`,
+        mensagem: cleanNote
+          ? `Nova atualização do SERMIG no processo "${activeCase.titulo}" (${nextStatus}): ${cleanNote}`
+          : `O status do seu processo "${activeCase.titulo}" no SERMIG foi atualizado para "${nextStatus}".`,
+        statusSermig: nextStatus,
+      });
+    }
     setSermigStatusNote('');
   };
 
@@ -760,6 +854,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     () => (activeCase ? communicationLogs.filter((l) => l.caseId === activeCase.id || l.clientId === activeCase.clientId) : []),
     [communicationLogs, activeCase],
   );
+  const caseChatLogs = useMemo(() => sortChatMessagesChronologically(caseComms), [caseComms]);
+  const caseUnreadChatCount = useMemo(() => countUnreadChatForStaff(caseChatLogs), [caseChatLogs]);
+
+  useEffect(() => {
+    if (activeCase && caseTab === 'comunicacao' && caseUnreadChatCount > 0) {
+      void markStaffChatQuestionsRead(caseChatLogs).catch(() => undefined);
+    }
+  }, [activeCase, caseTab, caseUnreadChatCount, caseChatLogs]);
   const caseAssessments = useMemo(
     () => (activeCase ? viabilityAssessments.filter((v) => v.caseId === activeCase.id).sort((a, b) => b.versao - a.versao) : []),
     [viabilityAssessments, activeCase],
@@ -1253,6 +1355,20 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       next.etapaEsteira = '4 Pendência/Reprovado';
     }
     await saveDocumentAudited('caseDocuments', docItem.id, next as unknown as Record<string, unknown>, false, role, 'documento_caso', docItem);
+    if (activeCase && patch.status && patch.status !== docItem.status && (patch.status === 'Aprovado' || patch.status === 'Reprovado')) {
+      await emitClientProcessAlert({
+        caseObj: activeCase,
+        tipo: 'documento',
+        titulo:
+          patch.status === 'Aprovado'
+            ? `Documento aprovado: ${next.nomeDocumento}`
+            : `Documento com pendência: ${next.nomeDocumento}`,
+        mensagem:
+          patch.status === 'Aprovado'
+            ? `O documento "${next.nomeDocumento}" (${next.pessoa}) foi conferido e aprovado pela equipe.`
+            : `O documento "${next.nomeDocumento}" (${next.pessoa}) precisa de atenção${next.motivoReprovacao ? `: ${next.motivoReprovacao}` : '. Acesse o Portal do Cliente para reenviar.'}`,
+      });
+    }
     await onRefresh();
   };
 
@@ -1297,7 +1413,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       versao: editingDoc.versao || 1,
       historicoVersoes: editingDoc.historicoVersoes || [],
     };
+    const prevDoc = caseDocs.find((d) => d.id === docId);
     await saveDocumentAudited('caseDocuments', docId, payload as unknown as Record<string, unknown>, isNew, role, 'documento_modal');
+    if (payload.status !== prevDoc?.status && (payload.status === 'Aprovado' || payload.status === 'Reprovado')) {
+      await emitClientProcessAlert({
+        caseObj: activeCase,
+        tipo: 'documento',
+        titulo:
+          payload.status === 'Aprovado'
+            ? `Documento aprovado: ${payload.nomeDocumento}`
+            : `Documento com pendência: ${payload.nomeDocumento}`,
+        mensagem:
+          payload.status === 'Aprovado'
+            ? `O documento "${payload.nomeDocumento}" (${payload.pessoa}) foi aprovado pela consultoria.`
+            : `O documento "${payload.nomeDocumento}" (${payload.pessoa}) apresentou pendência${payload.motivoReprovacao ? `: ${payload.motivoReprovacao}` : '. Confira no Portal do Cliente.'}`,
+      });
+    }
     setDocModalOpen(false);
     setEditingDoc(null);
     setFeedback(`Documento "${payload.nomeDocumento}" salvo.`);
@@ -1609,7 +1740,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       { id: 'documentos', label: `3. Documentos (${caseDocs.length})` },
       { id: 'financeiro', label: '4. Orçamento & Financeiro', hidden: isAssistente },
       { id: 'agenda', label: '5. Agenda & Prazos' },
-      { id: 'comunicacao', label: '6. Comunicação' },
+      {
+        id: 'comunicacao',
+        label: caseUnreadChatCount > 0 ? `6. Comunicação (${caseUnreadChatCount})` : '6. Comunicação & Histórico',
+      },
       { id: 'relocation', label: '7. Relocation' },
       { id: 'historico', label: '8. Histórico' },
     ];
@@ -3198,6 +3332,229 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
           {/* ABA 6: COMUNICAÇÃO */}
           {caseTab === 'comunicacao' && (
             <div className="space-y-5 pt-2">
+              {/* Chat de Dúvidas sobre Documentos (Portal do Cliente) */}
+              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <MessageCircle className="w-4 h-4 text-[var(--color-primary)]" />
+                      Chat de Dúvidas sobre Documentos (Portal do Cliente)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      As dúvidas enviadas pelo cliente no widget do Portal aparecem aqui em tempo real e ficam salvas no histórico do processo.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-600 tabular-nums">
+                    {caseChatLogs.length} mensagem(ns)
+                  </span>
+                </div>
+
+                {caseChatLogs.length === 0 ? (
+                  <p className="text-xs text-slate-500 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    Nenhuma dúvida enviada pelo cliente neste processo pelo chat do Portal. Você também pode iniciar uma orientação rápida abaixo.
+                  </p>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto space-y-2.5 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    {caseChatLogs.map((msg) => {
+                      const isClientMsg = inferChatSenderRole(msg) === 'cliente';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`p-3 rounded-lg border text-xs space-y-1 ${
+                            isClientMsg
+                              ? 'bg-amber-50/70 border-amber-200'
+                              : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                            <span className="font-bold text-slate-900">
+                              {isClientMsg ? `Cliente · ${msg.autorNome || activeClient?.nomeCompleto || 'Cliente'}` : `Equipe · ${msg.autorNome}`}
+                            </span>
+                            <span className="tabular-nums">{formatDateTimeBR(msg.createdAt)}</span>
+                          </div>
+                          {msg.documentNome && (
+                            <p className="text-[11px] font-semibold text-[var(--color-primary)]">
+                              Doc: {msg.documentNome}
+                            </p>
+                          )}
+                          <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{msg.mensagem}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!activeCase || !chatReplyMsg.trim() || chatReplySending) return;
+                    setChatReplySending(true);
+                    setErrorMsg(null);
+                    try {
+                      const refDoc = caseDocs.find((d) => d.id === chatReplyDocId);
+                      await sendStaffDocumentChatReply({
+                        clientId: activeCase.clientId,
+                        caseId: activeCase.id,
+                        remetenteUid: userProfile.uid,
+                        autorNome: userProfile.nome || userProfile.email,
+                        mensagem: chatReplyMsg.trim(),
+                        documentId: refDoc?.id,
+                        documentNome: refDoc
+                          ? `${refDoc.nomeDocumento}${refDoc.pessoa && refDoc.pessoa !== 'Titular' ? ` (${refDoc.pessoa})` : ''}`
+                          : undefined,
+                        role,
+                        existingCaseChatLogs: caseChatLogs,
+                        sendPushAlert: chatReplySendPush,
+                      });
+                      setChatReplyMsg('');
+                      setChatReplyDocId('');
+                      setFeedback(
+                        chatReplySendPush
+                          ? 'Resposta enviada ao Chat do Portal, registrada no histórico e notificada ao cliente.'
+                          : 'Resposta enviada ao Chat do Portal e registrada no histórico do processo.',
+                      );
+                      await onRefresh();
+                    } catch (err) {
+                      setErrorMsg(err instanceof Error ? err.message : 'Falha ao responder no Chat do Portal.');
+                    } finally {
+                      setChatReplySending(false);
+                    }
+                  }}
+                  className="space-y-2.5 pt-1"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center">
+                    <select
+                      value={chatReplyDocId}
+                      onChange={(e) => setChatReplyDocId(e.target.value)}
+                      aria-label="Documento de referência da resposta"
+                      className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    >
+                      <option value="">Resposta geral (ou vincular documento...)</option>
+                      {caseDocs.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.nomeDocumento}
+                          {d.pessoa && d.pessoa !== 'Titular' ? ` (${d.pessoa})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={chatReplySendPush}
+                        onChange={(e) => setChatReplySendPush(e.target.checked)}
+                        className="rounded border-slate-300"
+                      />
+                      <span>Alertar cliente via Push/Portal ao responder</span>
+                    </label>
+                  </div>
+                  <textarea
+                    required
+                    rows={2}
+                    value={chatReplyMsg}
+                    onChange={(e) => setChatReplyMsg(e.target.value)}
+                    placeholder="Escreva sua resposta para o cliente visualizar imediatamente no widget do Portal..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={chatReplySending || !chatReplyMsg.trim()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {chatReplySending ? 'Enviando resposta...' : 'Responder no Chat do Portal'}
+                  </button>
+                </form>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!activeCase || !pushTitle.trim() || !pushMessage.trim() || pushSending) return;
+                  setPushSending(true);
+                  setErrorMsg(null);
+                  try {
+                    const res = await notifyClientProcessUpdate({
+                      clientId: activeCase.clientId,
+                      caseId: activeCase.id,
+                      tipo: pushTipo,
+                      titulo: pushTitle.trim(),
+                      mensagem: pushMessage.trim(),
+                      etapaPipeline: activeCase.etapaPipeline,
+                      statusSermig: activeCase.statusSermig,
+                      linkDestino: '/portal',
+                      criadoPorUid: userProfile.uid,
+                      criadoPorNome: userProfile.nome || userProfile.email,
+                    });
+                    setPushTitle('');
+                    setPushMessage('');
+                    if (res.pushResult.sentCount > 0) {
+                      setFeedback(
+                        `Notificação registrada no Portal e push enviado para ${res.pushResult.sentCount} dispositivo(s).`,
+                      );
+                    } else {
+                      setFeedback(
+                        res.pushResult.warning ||
+                          'Alerta registrado no Portal do Cliente em tempo real.',
+                      );
+                    }
+                  } catch (err) {
+                    setErrorMsg(err instanceof Error ? err.message : 'Erro ao enviar notificação.');
+                  } finally {
+                    setPushSending(false);
+                  }
+                }}
+                className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <Bell className="w-4 h-4 text-[var(--color-primary)]" />
+                      Enviar Notificação Push &amp; Alerta no Portal (FCM)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Envia push via Firebase Cloud Messaging (se ativado pelo cliente) e registra alerta em tempo real no Portal.
+                    </p>
+                  </div>
+                  <select
+                    value={pushTipo}
+                    onChange={(e) => setPushTipo(e.target.value as ClientNotificationType)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white font-semibold"
+                  >
+                    <option value="geral">Comunicado Geral</option>
+                    <option value="etapa_pipeline">Atualização de Etapa</option>
+                    <option value="status_sermig">Status SERMIG</option>
+                    <option value="documento">Análise de Documento</option>
+                    <option value="prazo">Alerta de Prazo</option>
+                    <option value="parecer">Parecer Técnico</option>
+                  </select>
+                </div>
+                <input
+                  required
+                  value={pushTitle}
+                  onChange={(e) => setPushTitle(e.target.value)}
+                  placeholder="Título da notificação (ex.: Novo despacho no SERMIG ou documento aprovado)"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                />
+                <textarea
+                  required
+                  rows={2}
+                  value={pushMessage}
+                  onChange={(e) => setPushMessage(e.target.value)}
+                  placeholder="Mensagem objetiva para o cliente visualizar no dispositivo e no Portal..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={pushSending}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {pushSending ? 'Enviando notificação...' : 'Disparar Push & Registrar no Portal'}
+                </button>
+              </form>
+
               <form onSubmit={handleSendComm} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                 <div className="flex flex-wrap gap-3">
                   <select
@@ -3240,12 +3597,23 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               </form>
 
               <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-700">Histórico Completo de Comunicações ({caseComms.length})</h4>
                 {caseComms.map((log) => (
                   <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs space-y-1">
-                    <div className="flex justify-between text-slate-500">
-                      <span className="font-semibold text-slate-800">{log.canal} · {log.assunto}</span>
-                      <span>{formatDateTimeBR(log.createdAt)} · {log.autorNome}</span>
+                    <div className="flex flex-wrap justify-between gap-2 text-slate-500">
+                      <span className="font-semibold text-slate-800">
+                        {log.canal === 'Chat Portal'
+                          ? `Chat Portal (${log.origem === 'cliente' ? 'Cliente' : 'Equipe'})`
+                          : log.canal}{' '}
+                        · {log.assunto}
+                      </span>
+                      <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.autorNome}</span>
                     </div>
+                    {log.documentNome && (
+                      <p className="text-[11px] font-semibold text-[var(--color-primary)]">
+                        Documento: {log.documentNome}
+                      </p>
+                    )}
                     <p className="text-slate-700 whitespace-pre-wrap">{log.mensagem}</p>
                   </div>
                 ))}

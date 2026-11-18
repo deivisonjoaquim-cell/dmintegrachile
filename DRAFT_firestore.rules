@@ -141,7 +141,8 @@ service cloud.firestore {
         && isOptNum(data, 'honorariosPadraoMinBrl')
         && isOptNum(data, 'honorariosPadraoMaxBrl')
         && isOptNum(data, 'taxaCambioBrlClp')
-        && isOptNum(data, 'taxaCambioUsdBrl');
+        && isOptNum(data, 'taxaCambioUsdBrl')
+        && isOptString(data, 'fcmVapidPublicKey', 300);
     }
 
     function isValidBancarioConfig(data) {
@@ -415,6 +416,44 @@ service cloud.firestore {
         && data.liberadoAoCliente is bool;
     }
 
+    function isValidFcmToken(data) {
+      return data.keys().hasAll(['id', 'uid', 'clientId', 'token', 'ativo', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'uid', 'clientId', 'token', 'plataforma', 'userAgent', 'ativo', 'createdAt', 'updatedAt'])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'uid', 1, 128)
+        && isReqString(data, 'clientId', 1, 128)
+        && isReqString(data, 'token', 10, 512)
+        && data.ativo is bool
+        && (!('plataforma' in data) || data.plataforma in ['web', 'android', 'ios'])
+        && isOptString(data, 'userAgent', 250)
+        && isReqString(data, 'createdAt', 10, 64)
+        && isReqString(data, 'updatedAt', 10, 64);
+    }
+
+    function isValidClientNotification(data) {
+      return data.keys().hasAll(['id', 'clientId', 'titulo', 'mensagem', 'tipo', 'lida', 'createdAt'])
+        && data.keys().hasOnly(['id', 'clientId', 'caseId', 'titulo', 'mensagem', 'tipo', 'etapaPipeline', 'statusSermig', 'linkDestino', 'lida', 'lidaEm', 'pushEnviado', 'pushEnviadosQtd', 'criadoPorUid', 'criadoPorNome', 'createdAt', 'updatedAt'])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'clientId', 1, 128)
+        && isOptString(data, 'caseId', 128)
+        && isReqString(data, 'titulo', 1, 200)
+        && isReqString(data, 'mensagem', 1, 1000)
+        && data.tipo in ['etapa_pipeline', 'status_sermig', 'documento', 'parecer', 'prazo', 'geral']
+        && isOptNum(data, 'etapaPipeline')
+        && isOptString(data, 'statusSermig', 80)
+        && isOptString(data, 'linkDestino', 200)
+        && data.lida is bool
+        && isOptString(data, 'lidaEm', 64)
+        && isOptBool(data, 'pushEnviado')
+        && isOptNum(data, 'pushEnviadosQtd')
+        && isOptString(data, 'criadoPorUid', 128)
+        && isOptString(data, 'criadoPorNome', 200)
+        && isReqString(data, 'createdAt', 10, 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
     // =========================================================================
     // Collections
     // =========================================================================
@@ -648,6 +687,24 @@ service cloud.firestore {
       allow list: if isAdminOrConsultor() || (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
       allow create, update: if isAdminOrConsultor() && isValidId(genDocId) && isValidGeneratedDocument(incoming());
       allow delete: if isAdmin() && isValidId(genDocId);
+    }
+
+    match /fcmTokens/{tokenId} {
+      allow get: if isSignedIn() && isValidId(tokenId) && (existing().uid == request.auth.uid || isStaff());
+      allow list: if isStaff() || (isSignedIn() && existing().uid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(tokenId) && isValidFcmToken(incoming()) && incoming().uid == request.auth.uid && incoming().id == tokenId && (!isCliente() || incoming().clientId == userClientId());
+      allow update: if isSignedIn() && isValidId(tokenId) && isValidFcmToken(incoming()) && existing().uid == request.auth.uid && incoming().uid == existing().uid && incoming().clientId == existing().clientId && incoming().createdAt == existing().createdAt;
+      allow delete: if isSignedIn() && isValidId(tokenId) && (existing().uid == request.auth.uid || isAdmin());
+    }
+
+    match /clientNotifications/{notifId} {
+      allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
+      allow create: if isStaff() && isValidId(notifId) && isValidClientNotification(incoming()) && incoming().id == notifId;
+      allow update: if isValidId(notifId) && isValidClientNotification(incoming()) && (
+        isStaff() ||
+        (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().titulo == existing().titulo && incoming().mensagem == existing().mensagem && incoming().tipo == existing().tipo && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['lida', 'lidaEm', 'updatedAt']))
+      );
+      allow delete: if isAdmin() && isValidId(notifId);
     }
   }
 }

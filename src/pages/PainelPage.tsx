@@ -5,6 +5,7 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Clock,
   DollarSign,
   FileSignature,
@@ -13,6 +14,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Palette,
   Plus,
   RefreshCw,
@@ -26,6 +28,7 @@ import {
 } from 'lucide-react';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
+import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
 import { PainelClientesCasos } from '../components/painel/PainelClientesCasos';
 import { PainelDashboard } from '../components/painel/PainelDashboard';
 import { PainelDocumentosExport } from '../components/painel/PainelDocumentosExport';
@@ -33,6 +36,7 @@ import { PainelFerramentas } from '../components/painel/PainelFerramentas';
 import { PainelFinanceiro } from '../components/painel/PainelFinanceiro';
 import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
+import { PainelProgressoTarefasChart } from '../components/painel/PainelProgressoTarefasChart';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { useFirestore } from '../hooks/useFirestore';
@@ -42,8 +46,11 @@ import {
   makeId,
   saveDocumentAudited,
 } from '../services/firestoreService';
-import type { SiteContent, Task, UserRole } from '../types/domain';
+import { subscribeStaffDocumentChat } from '../services/chatService';
+import type { CommunicationLog, SiteContent, Task, UserRole } from '../types/domain';
+import { countUnreadChatForStaff, getPendingClientChatThreads } from '../utils/documentChat';
 import { daysUntilDate, formatDateBR } from '../utils/formatters';
+import { countLegalReviewPending } from '../utils/legalSync';
 
 interface PainelPageProps {
   onNavigate: (path: string) => void;
@@ -55,6 +62,7 @@ type PanelSection =
   | 'leads'
   | 'clientes'
   | 'casos'
+  | 'checklist'
   | 'documentos'
   | 'contratos'
   | 'financeiro'
@@ -111,6 +119,12 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const quickCreateRef = useRef<HTMLDivElement | null>(null);
 
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<typeof fetchStaffWorkspaceData>> | null>(null);
+  const [liveChatLogs, setLiveChatLogs] = useState<CommunicationLog[]>([]);
+  const [caseTabRequest, setCaseTabRequest] = useState<{
+    caseId: string;
+    tab: 'resumo' | 'comunicacao';
+    seq: number;
+  } | null>(null);
   const firestore = useFirestore();
 
   const role = userProfile?.role;
@@ -141,6 +155,18 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     void loadWorkspace();
   }, [loadWorkspace]);
 
+  useEffect(() => {
+    if (!isStaff) {
+      setLiveChatLogs([]);
+      return;
+    }
+    const unsub = subscribeStaffDocumentChat(
+      (logs) => setLiveChatLogs(logs),
+      () => undefined,
+    );
+    return () => unsub();
+  }, [isStaff]);
+
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -152,12 +178,23 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
   const effectiveWorkspace = useMemo(() => {
     if (!workspace) return null;
+    const mergedCommMap = new Map<string, CommunicationLog>();
+    for (const log of workspace.communicationLogs) {
+      mergedCommMap.set(log.id, log);
+    }
+    for (const chatLog of liveChatLogs) {
+      mergedCommMap.set(chatLog.id, chatLog);
+    }
+    const mergedCommunicationLogs = Array.from(mergedCommMap.values()).sort((a, b) =>
+      (b.createdAt || '').localeCompare(a.createdAt || ''),
+    );
     return {
       ...workspace,
       clients: !firestore.loadingClients ? firestore.clients : workspace.clients,
       leads: !firestore.loadingDiagnostics ? firestore.diagnostics : workspace.leads,
+      communicationLogs: mergedCommunicationLogs,
     };
-  }, [workspace, firestore.clients, firestore.diagnostics, firestore.loadingClients, firestore.loadingDiagnostics]);
+  }, [workspace, liveChatLogs, firestore.clients, firestore.diagnostics, firestore.loadingClients, firestore.loadingDiagnostics]);
 
   // Global keyboard shortcut "/" or Ctrl+K for command search + outside click for Quick Create
   useEffect(() => {
@@ -245,9 +282,12 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     setRecents((prev) => [item, ...prev.filter((r) => r.id !== item.id)].slice(0, 5));
   }, []);
 
-  const handleOpenCase = (caseId: string) => {
+  const handleOpenCase = (caseId: string, targetTab?: 'resumo' | 'comunicacao') => {
     setSelectedCaseId(caseId);
     setSection('casos');
+    if (targetTab) {
+      setCaseTabRequest({ caseId, tab: targetTab, seq: Date.now() });
+    }
     const c = effectiveWorkspace?.cases.find((x) => x.id === caseId);
     if (c) {
       pushRecent({ id: `case_${caseId}`, label: c.titulo, type: 'caso', section: 'casos', caseId });
@@ -260,9 +300,25 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     setMobileMenuOpen(false);
   };
 
+  const unreadChatCount = useMemo(
+    () => countUnreadChatForStaff(effectiveWorkspace?.communicationLogs || []),
+    [effectiveWorkspace],
+  );
+
+  const firstPendingChatThread = useMemo(() => {
+    if (!effectiveWorkspace) return null;
+    const threads = getPendingClientChatThreads(
+      effectiveWorkspace.communicationLogs,
+      effectiveWorkspace.clients,
+      effectiveWorkspace.cases,
+    );
+    return threads.find((t) => t.caseId) || null;
+  }, [effectiveWorkspace]);
+
   const navCounts = useMemo(() => {
+    const legalAttention = countLegalReviewPending(legalSources, empresa.diasAlertaRevisaoLegal || 90).totalAttention;
     if (!effectiveWorkspace) {
-      return { agenda: 0, leads: 0, clientes: 0, casos: 0, documentos: 0, contratos: 0, parceiros: 0 };
+      return { agenda: 0, leads: 0, clientes: 0, casos: 0, checklist: 0, documentos: 0, contratos: 0, parceiros: 0, legal: legalAttention };
     }
     const openTasks = effectiveWorkspace.tasks.filter((t) => t.status !== 'Concluída').length;
     const urgentDeadlines = effectiveWorkspace.deadlines.filter((d) => {
@@ -272,7 +328,12 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     }).length;
     const newLeads = effectiveWorkspace.leads.filter((l) => l.statusFunil === 'Novo').length;
     const activeClients = effectiveWorkspace.clients.filter((c) => !c.arquivado).length;
-    const activeCases = effectiveWorkspace.cases.filter((c) => !c.arquivado).length;
+    const activeCasesList = effectiveWorkspace.cases.filter((c) => !c.arquivado);
+    const activeCaseIds = new Set(activeCasesList.map((c) => c.id));
+    const activeCases = activeCasesList.length;
+    const pendingChecklist = effectiveWorkspace.caseDocuments.filter(
+      (d) => activeCaseIds.has(d.caseId) && d.status !== 'Aprovado',
+    ).length;
     const docsToCheck = effectiveWorkspace.caseDocuments.filter(
       (d) => d.status === 'Enviado' || d.status === 'Em análise',
     ).length;
@@ -284,11 +345,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       leads: newLeads,
       clientes: activeClients,
       casos: activeCases,
+      checklist: pendingChecklist,
       documentos: docsToCheck,
       contratos: effectiveWorkspace.generatedDocuments.length,
       parceiros: openProposals,
+      legal: legalAttention,
     };
-  }, [effectiveWorkspace]);
+  }, [effectiveWorkspace, legalSources, empresa.diasAlertaRevisaoLegal]);
 
   const navGroups: {
     group: string;
@@ -338,6 +401,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             badge: navCounts.casos > 0 ? navCounts.casos : undefined,
           },
           {
+            id: 'checklist',
+            label: 'Checklist por Visto',
+            icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
+            visible: true,
+            badge: navCounts.checklist > 0 ? navCounts.checklist : undefined,
+          },
+          {
             id: 'documentos',
             label: 'Dossiês & Arquivos',
             icon: <FolderArchive className="w-4 h-4 shrink-0" />,
@@ -379,6 +449,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             label: 'Base Legal & Vistos',
             icon: <Scale className="w-4 h-4 shrink-0" />,
             visible: role === 'admin' || role === 'consultor',
+            badge: navCounts.legal > 0 ? navCounts.legal : undefined,
           },
           {
             id: 'ferramentas',
@@ -424,6 +495,24 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     if (!effectiveWorkspace || !globalQuery.trim()) return [];
     const q = globalQuery.toLowerCase();
     const out: { id: string; category: string; title: string; subtitle: string; onSelect: () => void }[] = [];
+
+    if (
+      q.includes('checklist') ||
+      q.includes('visto') ||
+      q.includes('requisit') ||
+      q.includes('doc')
+    ) {
+      out.push({
+        id: 'tool_checklist_visto',
+        category: 'Checklist',
+        title: 'Checklist de Documentos por Visto',
+        subtitle: 'Conferir requisitos da categoria e marcar conclusão',
+        onSelect: () => {
+          handleSelectSection('checklist');
+          setGlobalSearchOpen(false);
+        },
+      });
+    }
 
     if (
       q.includes('calc') ||
@@ -773,6 +862,24 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {unreadChatCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (firstPendingChatThread?.caseId) {
+                    handleOpenCase(firstPendingChatThread.caseId, 'comunicacao');
+                  } else {
+                    handleSelectSection('casos');
+                  }
+                }}
+                title="Abrir dúvida de documento enviada no Chat do Portal"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold hover:bg-amber-100 whitespace-nowrap"
+              >
+                <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Dúvidas Chat</span>
+                <span className="font-bold tabular-nums">({unreadChatCount})</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void handleRefreshAll()}
@@ -848,6 +955,16 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
                   >
                     Triagem de Leads
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectSection('checklist');
+                      setQuickCreateOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                  >
+                    Checklist de Documentos por Visto
                   </button>
                   <button
                     type="button"
@@ -928,6 +1045,17 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             <SkeletonBlock rows={5} />
           ) : (
             <>
+              <PainelProgressoTarefasChart
+                empresa={empresa}
+                tasks={effectiveWorkspace.tasks}
+                cases={effectiveWorkspace.cases}
+                clients={effectiveWorkspace.clients}
+                docs={effectiveWorkspace.caseDocuments}
+                selectedCaseId={selectedCaseId}
+                onOpenAgenda={() => handleSelectSection('agenda')}
+                onOpenCase={handleOpenCase}
+              />
+
               {section === 'dashboard' && (
                 <PainelDashboard
                   role={userProfile.role}
@@ -939,6 +1067,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   tasks={effectiveWorkspace.tasks}
                   appointments={effectiveWorkspace.appointments}
                   financialRecords={effectiveWorkspace.financialRecords}
+                  communicationLogs={effectiveWorkspace.communicationLogs}
+                  legalSources={legalSources}
+                  diasAlertaRevisaoLegal={empresa.diasAlertaRevisaoLegal || 90}
                   onLogWhatsApp={handleLogWhatsApp}
                   onOpenCase={handleOpenCase}
                   onToggleTask={handleQuickToggleTask}
@@ -1005,12 +1136,32 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   messageTemplates={effectiveWorkspace.messageTemplates}
                   partnersPublic={partnersPublic}
                   selectedCaseId={selectedCaseId}
+                  requestedCaseTab={caseTabRequest}
                   onSelectCase={(id) => {
                     if (id) handleOpenCase(id);
                     else setSelectedCaseId(null);
                   }}
                   onRefresh={handleRefreshAll}
                   onLogWhatsApp={handleLogWhatsApp}
+                />
+              )}
+
+              {section === 'checklist' && (
+                <PainelChecklistVisto
+                  role={userProfile.role}
+                  userProfile={userProfile}
+                  empresa={empresa}
+                  clients={effectiveWorkspace.clients}
+                  dependents={effectiveWorkspace.dependents}
+                  cases={effectiveWorkspace.cases}
+                  docs={effectiveWorkspace.caseDocuments}
+                  visaCategories={visaCategories}
+                  visaRequirements={visaRequirements}
+                  selectedCaseId={selectedCaseId}
+                  onSelectCase={setSelectedCaseId}
+                  onRefresh={handleRefreshAll}
+                  onOpenCase={handleOpenCase}
+                  onNavigateSection={(sec) => handleSelectSection(sec)}
                 />
               )}
 

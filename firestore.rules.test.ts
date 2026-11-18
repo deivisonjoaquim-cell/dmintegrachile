@@ -75,7 +75,7 @@ test('rules guard public lead updates with matching sessionToken and immutable s
 });
 
 test('rules restrict generatedDocuments client confirmation/signature updates and block assistente from financial docs', () => {
-  const genBlock = rulesText.slice(rulesText.indexOf('match /generatedDocuments/{genDocId}'));
+  const genBlock = rulesText.slice(rulesText.indexOf('match /generatedDocuments/{genDocId}'), rulesText.indexOf('match /fcmTokens/{tokenId}'));
   assert.match(genBlock, /isAssistente\(\) && \(!\('financeiro' in existing\(\)\) \|\| existing\(\)\.financeiro == false\)/);
   assert.match(genBlock, /allow create: if isAdminOrConsultor\(\)/);
   assert.match(genBlock, /affectedKeys\(\)\.hasOnly\(\['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt'\]\)/);
@@ -90,4 +90,29 @@ test('rules restrict mediaAssets reads to staff and writes strictly to admin', (
   assert.match(rulesText, /isOptString\(data, 'logoUrl', 250000\)/);
   assert.match(rulesText, /'DM Sans'/);
 });
+
+test('rules enforce strict owner isolation on fcmTokens and client read-only content on clientNotifications', () => {
+  const fcmBlock = rulesText.slice(rulesText.indexOf('match /fcmTokens/{tokenId}'), rulesText.indexOf('match /clientNotifications/{notifId}'));
+  assert.match(fcmBlock, /incoming\(\)\.uid == request\.auth\.uid/);
+  assert.match(fcmBlock, /existing\(\)\.uid == request\.auth\.uid \|\| isStaff\(\)/);
+  assert.match(fcmBlock, /incoming\(\)\.clientId == existing\(\)\.clientId/);
+
+  const notifBlock = rulesText.slice(rulesText.indexOf('match /clientNotifications/{notifId}'));
+  assert.match(notifBlock, /allow create: if isStaff\(\)/);
+  assert.match(notifBlock, /affectedKeys\(\)\.hasOnly\(\['lida', 'lidaEm', 'updatedAt'\]\)/);
+  assert.match(notifBlock, /existing\(\)\.clientId == userClientId\(\)/);
+});
+
+test('rules isolate non-chat communicationLogs to staff and enforce sender identity on Chat Portal', () => {
+  const commBlock = rulesText.slice(
+    rulesText.indexOf('match /communicationLogs/{logId}'),
+    rulesText.indexOf('match /viabilityAssessments/{assessmentId}'),
+  );
+  assert.match(commBlock, /existing\(\)\.clientId == userClientId\(\) && existing\(\)\.canal == 'Chat Portal'/);
+  assert.match(commBlock, /incoming\(\)\.origem == 'cliente'/);
+  assert.match(commBlock, /incoming\(\)\.remetenteUid == request\.auth\.uid/);
+  assert.match(commBlock, /affectedKeys\(\)\.hasOnly\(\['lidaPeloCliente', 'updatedAt'\]\)/);
+  assert.match(commBlock, /affectedKeys\(\)\.hasOnly\(\['lidaPelaEquipe', 'updatedAt'\]\)/);
+});
+
 

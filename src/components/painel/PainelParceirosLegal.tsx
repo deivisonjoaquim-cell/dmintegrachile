@@ -7,10 +7,12 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Globe,
   History,
   Link2,
   MessageCircle,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   Sparkles,
@@ -23,6 +25,7 @@ import {
   callAiEndpoint,
   makeId,
   saveDocumentAudited,
+  syncOfficialLegalCatalog,
   syncPartnerAndPublic,
   uploadFileToServer,
 } from '../../services/firestoreService';
@@ -42,7 +45,8 @@ import type {
   VisaCategory,
   VisaRequirement,
 } from '../../types/domain';
-import { buildWhatsAppUrl, formatDateBR, parseFlexibleDate, toIsoDate } from '../../utils/formatters';
+import { buildWhatsAppUrl, formatDateBR, toIsoDate } from '../../utils/formatters';
+import { isLegalSourceOutdated } from '../../utils/legalSync';
 import {
   clearAiDraftCache,
   loadAiDraftCache,
@@ -118,6 +122,8 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const [filterTipo, setFilterTipo] = useState<string>('Todos');
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [onlyFav, setOnlyFav] = useState(false);
+  const [onlyOutdated, setOnlyOutdated] = useState(false);
+  const [syncingOfficial, setSyncingOfficial] = useState(false);
   const [sortOrder, setSortOrder] = useState<'verificacao_asc' | 'verificacao_desc' | 'titulo'>('verificacao_asc');
   const [presets, setPresets] = useState<LegalFilterPreset[]>(() => {
     try {
@@ -145,11 +151,15 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     mimeType: string;
   } | null>(null);
   const [normaAiDraft, setNormaAiDraft] = useState<(AiResponseMeta & {
+    possuiAtualizacao?: boolean;
+    situacaoAtual?: string;
     artigosExtraidos: string;
     resumoExecutivo: string;
     explicacaoCliente: string;
     impactosVistos: string[];
     divergencias: string[];
+    fontesCitadas?: string[];
+    fontesOnline?: Array<{ titulo: string; url: string }>;
   }) | null>(null);
   const [normaAiLoading, setNormaAiLoading] = useState(false);
   const [normaAiProgress, setNormaAiProgress] = useState<string | null>(null);
@@ -168,11 +178,15 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     }
     const cached = loadAiDraftCache<
       AiResponseMeta & {
+        possuiAtualizacao?: boolean;
+        situacaoAtual?: string;
         artigosExtraidos: string;
         resumoExecutivo: string;
         explicacaoCliente: string;
         impactosVistos: string[];
         divergencias: string[];
+        fontesCitadas?: string[];
+        fontesOnline?: Array<{ titulo: string; url: string }>;
       }
     >(`norma_${editingSource.id}`);
     setNormaAiDraft(cached);
@@ -181,14 +195,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
 
   const diasAlerta = empresa.diasAlertaRevisaoLegal || 90;
 
-  const isSourceOutdated = (s: LegalSource): boolean => {
-    if (s.statusVigencia === 'Revogada') return false;
-    if (!s.ultimaVerificacao) return true;
-    const d = parseFlexibleDate(s.ultimaVerificacao);
-    if (!d) return true;
-    const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
-    return diffDays > diasAlerta;
-  };
+  const isSourceOutdated = (s: LegalSource): boolean => isLegalSourceOutdated(s, diasAlerta);
 
   // Mapeamento de onde cada norma é usada no sistema
   const computeUsagesForSource = (s: LegalSource) => {
@@ -245,6 +252,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     if (filterTipo !== 'Todos') list = list.filter((s) => s.tipo === filterTipo);
     if (filterStatus !== 'Todos') list = list.filter((s) => s.statusVigencia === filterStatus);
     if (onlyFav) list = list.filter((s) => (s.favoritoPorUids || []).includes(userProfile.uid));
+    if (onlyOutdated) list = list.filter((s) => isSourceOutdated(s));
     if (searchLegal.trim()) {
       const q = searchLegal.toLowerCase();
       list = list.filter(
@@ -265,7 +273,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       return sortOrder === 'verificacao_asc' ? ta - tb : tb - ta;
     });
     return list;
-  }, [legalSources, filterPais, filterTipo, filterStatus, onlyFav, searchLegal, sortOrder, userProfile.uid]);
+  }, [legalSources, filterPais, filterTipo, filterStatus, onlyFav, onlyOutdated, searchLegal, sortOrder, userProfile.uid, diasAlerta]);
 
   const handleSavePreset = () => {
     const next: LegalFilterPreset = {
@@ -488,6 +496,28 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleSyncOfficialBase = async () => {
+    if (syncingOfficial) return;
+    setSyncingOfficial(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const result = await syncOfficialLegalCatalog(role);
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+      if (result.updatedSources === 0 && result.updatedVisas === 0) {
+        setFeedback('Base oficial SERMIG/BCN já está sincronizada (normas personalizadas preservadas).');
+      } else {
+        setFeedback(
+          `Base oficial sincronizada: ${result.updatedSources} norma(s) e ${result.updatedVisas} subcategoria(s) de visto atualizadas com links oficiais.`,
+        );
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Falha ao sincronizar base oficial.');
+    } finally {
+      setSyncingOfficial(false);
+    }
+  };
+
   const handleAnalyzeNormaIa = async () => {
     if (!editingSource || normaAiLoading || (!normaNewText.trim() && !normaAttachment)) return;
     setNormaAiLoading(true);
@@ -516,6 +546,44 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       );
       setNormaAiDraft(res);
       saveAiDraftCache(`norma_${editingSource.id}`, res);
+    } catch (err) {
+      setErrorMsg(sanitizeClientAiError(err));
+    } finally {
+      setNormaAiLoading(false);
+      setNormaAiProgress(null);
+    }
+  };
+
+  const handleVerifyNormaOnlineIa = async (targetSource?: LegalSource) => {
+    const src = targetSource || editingSource;
+    if (!src || normaAiLoading) return;
+    if (targetSource) {
+      setIsNewSource(false);
+      setEditingSource(targetSource);
+    }
+    setNormaAiLoading(true);
+    setNormaAiProgress('Consultando SERMIG e BCN LeyChile online...');
+    setErrorMsg(null);
+    try {
+      const res = await callAiEndpoint<
+        AiResponseMeta & {
+          possuiAtualizacao: boolean;
+          situacaoAtual: string;
+          artigosExtraidos: string;
+          resumoExecutivo: string;
+          explicacaoCliente: string;
+          impactosVistos: string[];
+          divergencias: string[];
+          fontesCitadas: string[];
+          fontesOnline?: Array<{ titulo: string; url: string }>;
+        }
+      >(
+        '/api/ai/norma-verificar',
+        { currentSource: src },
+        { onProgress: (msg) => setNormaAiProgress(msg) },
+      );
+      setNormaAiDraft(res);
+      saveAiDraftCache(`norma_${src.id}`, res);
     } catch (err) {
       setErrorMsg(sanitizeClientAiError(err));
     } finally {
@@ -664,16 +732,29 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 : 'Gestão comercial de parceiros (comissões isoladas da vitrine pública) e governança normativa'}
           </p>
         </div>
-        {tab === 'legal' && (
-          <button
-            type="button"
-            onClick={openNewNormModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Nova Norma / Portal
-          </button>
+        {(tab === 'legal' || tab === 'vistos') && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={syncingOfficial}
+              onClick={() => void handleSyncOfficialBase()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncingOfficial ? 'animate-spin' : ''}`} />
+              {syncingOfficial ? 'Sincronizando...' : 'Sincronizar Base Oficial SERMIG/BCN'}
+            </button>
+            {tab === 'legal' && (
+              <button
+                type="button"
+                onClick={openNewNormModal}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nova Norma / Portal
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -840,24 +921,51 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         <div className="space-y-4">
           {/* Painel Saúde da Base Legal */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
+            <button
+              type="button"
+              onClick={() => {
+                setFilterStatus(filterStatus === 'Vigente' ? 'Todos' : 'Vigente');
+                setOnlyOutdated(false);
+              }}
+              className={`text-left bg-white border rounded-xl p-3 transition-colors ${
+                filterStatus === 'Vigente' && !onlyOutdated ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
               <p className="text-[11px] text-slate-500">Vigentes</p>
               <p className="text-lg font-bold text-[#1E7E34] tabular-nums">{healthStats.vigente}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterStatus(filterStatus === 'A verificar' ? 'Todos' : 'A verificar');
+                setOnlyOutdated(false);
+              }}
+              className={`text-left bg-white border rounded-xl p-3 transition-colors ${
+                filterStatus === 'A verificar' ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
               <p className="text-[11px] text-slate-500">A verificar</p>
               <p className="text-lg font-bold text-amber-700 tabular-nums">{healthStats.aVerificar}</p>
-            </div>
+            </button>
             <div className="bg-white border border-slate-200 rounded-xl p-3">
               <p className="text-[11px] text-slate-500">Alteradas / Revog.</p>
               <p className="text-lg font-bold text-slate-900 tabular-nums">
                 {healthStats.alterada} / {healthStats.revogada}
               </p>
             </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyOutdated((v) => !v);
+                setFilterStatus('Todos');
+              }}
+              className={`text-left bg-white border rounded-xl p-3 transition-colors ${
+                onlyOutdated ? 'border-[#C82333] bg-red-50/40' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
               <p className="text-[11px] text-slate-500">Revisão &gt; {diasAlerta}d</p>
               <p className="text-lg font-bold text-[#C82333] tabular-nums">{healthStats.outdated}</p>
-            </div>
+            </button>
             <div className="bg-white border border-slate-200 rounded-xl p-3">
               <p className="text-[11px] text-slate-500">Sem link oficial</p>
               <p className="text-lg font-bold text-slate-700 tabular-nums">{healthStats.missingLink}</p>
@@ -937,6 +1045,16 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 >
                   <Star className="w-3.5 h-3.5" />
                   Apenas Favoritas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOnlyOutdated((v) => !v)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-semibold ${
+                    onlyOutdated ? 'bg-red-50 border-red-300 text-[#C82333]' : 'border-slate-300 text-slate-600'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Revisão Vencida (&gt; {diasAlerta}d)
                 </button>
                 <button
                   type="button"
@@ -1037,6 +1155,14 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       )}
                       <button
                         type="button"
+                        onClick={() => void handleVerifyNormaOnlineIa(s)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                      >
+                        <Globe className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                        Verificar Online (IA)
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           setIsNewSource(false);
                           setEditingSource(s);
@@ -1107,7 +1233,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     (v.legalSourceIds || []).includes(ls.id) ||
                     (v.codigo === '15' && ls.id.includes('mercosul')) ||
                     ls.id === 'leg_ley_21325' ||
-                    ls.id === 'leg_dec_177',
+                    ls.id === 'leg_dec_177_2022',
                 );
                 return (
                   <tr key={v.id}>
@@ -1351,12 +1477,26 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
-              <p className="font-bold text-slate-900">Anexo / Texto Oficial &amp; Comparação Assistida por IA</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold text-slate-900">Consulta Online SERMIG/BCN &amp; Comparação Assistida por IA</p>
+                {!isNewSource && (
+                  <button
+                    type="button"
+                    disabled={normaAiLoading}
+                    onClick={() => void handleVerifyNormaOnlineIa()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    {normaAiLoading ? normaAiProgress || 'Consultando...' : 'Consultar SERMIG / BCN Online (IA)'}
+                  </button>
+                )}
+              </div>
               <textarea
                 rows={3}
                 value={normaNewText}
                 onChange={(e) => setNormaNewText(e.target.value)}
-                placeholder="Cole aqui o novo texto normativo ou resolução oficial para comparar com a versão atual..."
+                placeholder="Opcional: cole aqui o novo texto normativo ou resolução oficial para comparar com a versão atual..."
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
               />
               <div className="flex flex-wrap items-center gap-2">
@@ -1395,26 +1535,86 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 disabled:opacity-50"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                  {normaAiLoading ? normaAiProgress || 'Comparando...' : 'Analisar e Comparar com IA'}
+                  {normaAiLoading ? normaAiProgress || 'Comparando...' : 'Analisar Texto/Anexo com IA'}
                 </button>
               </div>
               {normaAiDraft && (
-                <div className="p-3 rounded-lg bg-white border border-slate-200 space-y-1.5">
+                <div className="p-3 rounded-lg bg-white border border-slate-200 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-bold text-amber-900">
-                      {normaAiDraft.origemLabel || 'Rascunho gerado pela IA'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void handleAnalyzeNormaIa()}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Tentar novamente
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-amber-900">
+                        {normaAiDraft.origemLabel || 'Rascunho gerado pela IA'}
+                      </span>
+                      {normaAiDraft.situacaoAtual && (
+                        <span
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                            normaAiDraft.possuiAtualizacao
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-emerald-100 text-emerald-900'
+                          }`}
+                        >
+                          {normaAiDraft.situacaoAtual}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSource((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  artigos: normaAiDraft.artigosExtraidos || prev.artigos,
+                                  resumoPortugues: normaAiDraft.resumoExecutivo || prev.resumoPortugues,
+                                  explicacaoCliente: normaAiDraft.explicacaoCliente || prev.explicacaoCliente,
+                                  statusVigencia: normaAiDraft.possuiAtualizacao ? 'Alterada' : 'Vigente',
+                                }
+                              : prev,
+                          );
+                        }}
+                        className="px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                      >
+                        Aplicar nos campos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          normaNewText.trim() || normaAttachment
+                            ? void handleAnalyzeNormaIa()
+                            : void handleVerifyNormaOnlineIa()
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reconsultar
+                      </button>
+                    </div>
                   </div>
+                  <p><strong>Artigos / Dispositivos:</strong> {normaAiDraft.artigosExtraidos}</p>
                   <p><strong>Resumo sugerido:</strong> {normaAiDraft.resumoExecutivo}</p>
                   <p><strong>Entenda a Lei:</strong> {normaAiDraft.explicacaoCliente}</p>
+                  {(normaAiDraft.impactosVistos || []).length > 0 && (
+                    <p><strong>Impacto em vistos:</strong> {normaAiDraft.impactosVistos.join('; ')}</p>
+                  )}
                   <p><strong>Divergências:</strong> {(normaAiDraft.divergencias || []).join('; ') || 'Nenhuma'}</p>
+                  {(normaAiDraft.fontesOnline || []).length > 0 && (
+                    <div className="pt-1 border-t border-slate-100 space-y-1">
+                      <p className="font-semibold text-slate-700">Fontes oficiais encontradas na busca:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {normaAiDraft.fontesOnline!.map((f, idx) => (
+                          <a
+                            key={`${f.url}_${idx}`}
+                            href={f.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-[11px] text-[var(--color-primary)] hover:underline"
+                          >
+                            {f.titulo} <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

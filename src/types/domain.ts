@@ -147,6 +147,7 @@ export interface EmpresaConfig {
     publicadoPor: string;
     secoes: SiteContent[];
   }[];
+  fcmVapidPublicKey?: string;
   updatedAt?: string;
 }
 
@@ -765,7 +766,7 @@ export interface Appointment {
 
 export interface CommunicationLog {
   id: string;
-  canal: 'WhatsApp' | 'E-mail' | 'Ligação' | 'Sistema';
+  canal: 'WhatsApp' | 'E-mail' | 'Ligação' | 'Sistema' | 'Chat Portal';
   assunto: string;
   mensagem: string;
   clientId?: string;
@@ -773,6 +774,13 @@ export interface CommunicationLog {
   leadId?: string;
   autorNome: string;
   createdAt: string;
+  origem?: 'cliente' | 'equipe';
+  remetenteUid?: string;
+  documentId?: string;
+  documentNome?: string;
+  lidaPelaEquipe?: boolean;
+  lidaPeloCliente?: boolean;
+  updatedAt?: string;
 }
 
 export interface ViabilityAssessment {
@@ -890,6 +898,46 @@ export interface GeneratedDocument {
   liberadoAoCliente: boolean;
   financeiro: boolean;
   autorNome: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FcmTokenRecord {
+  id: string;
+  uid: string;
+  clientId: string;
+  token: string;
+  plataforma: 'web' | 'android' | 'ios';
+  userAgent?: string;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ClientNotificationType =
+  | 'etapa_pipeline'
+  | 'status_sermig'
+  | 'documento'
+  | 'parecer'
+  | 'prazo'
+  | 'geral';
+
+export interface ClientNotification {
+  id: string;
+  clientId: string;
+  caseId?: string;
+  titulo: string;
+  mensagem: string;
+  tipo: ClientNotificationType;
+  etapaPipeline?: number;
+  statusSermig?: string;
+  linkDestino?: string;
+  lida: boolean;
+  lidaEm?: string;
+  pushEnviado: boolean;
+  pushEnviadosQtd?: number;
+  criadoPorUid?: string;
+  criadoPorNome?: string;
   createdAt: string;
   updatedAt?: string;
 }

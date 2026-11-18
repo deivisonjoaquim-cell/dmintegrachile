@@ -65,7 +65,8 @@
         "taxaCambioBrlClp": { "type": "number" },
         "taxaCambioUsdBrl": { "type": "number" },
         "sitePublicadoEm": { "type": "string", "format": "date-time" },
-        "siteVersaoAtual": { "type": "string", "maxLength": 40 }
+        "siteVersaoAtual": { "type": "string", "maxLength": 40 },
+        "fcmVapidPublicKey": { "type": "string", "maxLength": 300 }
       },
       "required": ["nome_empresa", "foro_comarca", "corPrimaria", "corDestaque", "corFundo", "fontePrincipal"]
     },
@@ -410,14 +411,25 @@
     },
     "CommunicationLog": {
       "title": "CommunicationLog",
-      "description": "Registro de contato via WhatsApp ou e-mail.",
+      "description": "Registro de contato e histórico de chat de documentos entre cliente e consultoria.",
       "type": "object",
       "properties": {
-        "canal": { "type": "string", "enum": ["WhatsApp", "E-mail", "Ligação", "Sistema"] },
+        "id": { "type": "string", "maxLength": 128 },
+        "canal": { "type": "string", "enum": ["WhatsApp", "E-mail", "Ligação", "Sistema", "Chat Portal"] },
         "assunto": { "type": "string", "maxLength": 250 },
         "mensagem": { "type": "string", "maxLength": 5000 },
         "clientId": { "type": "string", "maxLength": 128 },
-        "caseId": { "type": "string", "maxLength": 128 }
+        "caseId": { "type": "string", "maxLength": 128 },
+        "leadId": { "type": "string", "maxLength": 128 },
+        "autorNome": { "type": "string", "maxLength": 200 },
+        "origem": { "type": "string", "enum": ["cliente", "equipe"] },
+        "remetenteUid": { "type": "string", "maxLength": 128 },
+        "documentId": { "type": "string", "maxLength": 128 },
+        "documentNome": { "type": "string", "maxLength": 250 },
+        "lidaPelaEquipe": { "type": "boolean" },
+        "lidaPeloCliente": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["canal", "assunto"]
     },
@@ -521,6 +533,48 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "nome", "categoria", "mimeType", "url", "tamanhoBytes", "createdAt"]
+    },
+    "FcmTokenRecord": {
+      "title": "FcmTokenRecord",
+      "description": "Token de dispositivo Web Push / Firebase Cloud Messaging vinculado a um usuário/cliente.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "token": { "type": "string", "minLength": 10, "maxLength": 512 },
+        "plataforma": { "type": "string", "enum": ["web", "android", "ios"] },
+        "userAgent": { "type": "string", "maxLength": 250 },
+        "ativo": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "clientId", "token", "ativo", "createdAt", "updatedAt"]
+    },
+    "ClientNotification": {
+      "title": "ClientNotification",
+      "description": "Notificação persistida e enviada via push FCM ao cliente sobre atualizações do processo.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caseId": { "type": "string", "maxLength": 128 },
+        "titulo": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "mensagem": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "tipo": { "type": "string", "enum": ["etapa_pipeline", "status_sermig", "documento", "parecer", "prazo", "geral"] },
+        "etapaPipeline": { "type": "number" },
+        "statusSermig": { "type": "string", "maxLength": 80 },
+        "linkDestino": { "type": "string", "maxLength": 200 },
+        "lida": { "type": "boolean" },
+        "lidaEm": { "type": "string", "format": "date-time" },
+        "pushEnviado": { "type": "boolean" },
+        "pushEnviadosQtd": { "type": "number" },
+        "criadoPorUid": { "type": "string", "maxLength": 128 },
+        "criadoPorNome": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "clientId", "titulo", "mensagem", "tipo", "lida", "createdAt"]
     }
   },
   "firestore": {
@@ -552,6 +606,8 @@
     "/financialRecords/{recordId}": { "schema": { "$ref": "#/entities/FinancialRecord" }, "description": "Lançamentos financeiros" },
     "/messageTemplates/{templateId}": { "schema": { "$ref": "#/entities/MessageTemplate" }, "description": "Modelos de mensagens WhatsApp e e-mail" },
     "/documentTemplates/{templateId}": { "schema": { "$ref": "#/entities/DocumentTemplate" }, "description": "Modelos de contratos e termos" },
-    "/generatedDocuments/{genDocId}": { "schema": { "$ref": "#/entities/GeneratedDocument" }, "description": "Documentos gerados por caso" }
+    "/generatedDocuments/{genDocId}": { "schema": { "$ref": "#/entities/GeneratedDocument" }, "description": "Documentos gerados por caso" },
+    "/fcmTokens/{tokenId}": { "schema": { "$ref": "#/entities/FcmTokenRecord" }, "description": "Tokens FCM dos dispositivos de clientes para envio de notificações push" },
+    "/clientNotifications/{notifId}": { "schema": { "$ref": "#/entities/ClientNotification" }, "description": "Alertas de atualização de processo enviados ao cliente via FCM e Portal" }
   }
 }

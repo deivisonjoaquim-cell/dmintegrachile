@@ -152,7 +152,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
       tpl.id === 'doc_contrato' && empresa.textoContratoPadrao
         ? empresa.textoContratoPadrao
         : tpl.id === 'doc_recibo' && empresa.textoReciboPadrao
-          ? `RECIBO OFICIAL Nº ${opts?.reciboNumero || 'REC-AUTO'}\n\n${empresa.textoReciboPadrao}\n\nMeio de pagamento: {{forma_pagamento}}\nDistinção: Valores de honorários e eventuais reembolsos de taxas conforme discriminado.\n\n{{empresa_endereco}}, {{data_atual}}.\n\n{{empresa_nome}}\nCNPJ/RUT: {{empresa_doc}}`
+          ? `RECIBO OFICIAL Nº ${opts?.reciboNumero || 'REC-AUTO'}\n\n${empresa.textoReciboPadrao}\n\nMeio de pagamento: {{forma_pagamento}}\nDistinção: Valores de honorários e eventuais reembolsos de taxas conforme discriminado.\n\n{{empresa_endereco}}, {{data_atual}}.\n\n{{empresa_responsavel}} — Marca {{empresa_nome}}\n{{empresa_doc}}`
           : tpl.conteudoHtml;
 
     let filled = applyTemplateVariables(baseText, {
@@ -198,7 +198,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
       }
       if (addTax) {
         extras.push(
-          `CLÁUSULA ADICIONAL – TAXAS OFICIAIS E TERCEIROS\nTaxas governamentais do SERMIG, Registro Civil (Cédula), Apostila de Haia (CNJ) e traduções juramentadas correm por conta direta do CONTRATANTE, sem retenção pela CONTRATADA salvo reembolso comprovado.`,
+          `CLÁUSULA ADICIONAL – TAXAS OFICIAIS E TERCEIROS\nTaxas governamentais do SERMIG, Registro Civil (Cédula), Apostila de Haia (CNJ) e traduções juramentadas correm por conta direta do CONTRATANTE, sem retenção pelo(a) CONTRATADO(A) salvo reembolso comprovado.`,
         );
       }
       if (extras.length > 0) {

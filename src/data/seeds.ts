@@ -16,7 +16,7 @@ export const DEFAULT_AVISO_LEGAL =
 
 export const DEFAULT_TERMO_LGPD = `TERMO DE CIÊNCIA E CONSENTIMENTO PARA TRATAMENTO DE DADOS PESSOAIS (LGPD – LEI Nº 13.709/2018)
 
-1. Controlador: D&M Integra Chile – Relocation & Assessoria.
+1. Controlador: D&M Integra Chile – Relocation & Assessoria (atuação autônoma como Pessoa Física sob marca própria).
 2. Finalidade: Os dados pessoais e documentos fornecidos serão tratados exclusivamente para pré-análise migratória, elaboração de diagnóstico, assessoria junto ao Servicio Nacional de Migraciones (SERMIG), apostilamentos, traduções juramentadas, emissão de contratos/recibos e comunicações operacionais.
 3. Dados Sensíveis: Informações sobre antecedentes, histórico migratório e vínculos familiares possuem tratamento restrito e sigiloso, nos termos do art. 11 da Lei nº 13.709/2018.
 4. Compartilhamento: Ocorre somente quando estritamente necessário à execução dos serviços contratados ou por obrigação legal/regulatória.
@@ -25,17 +25,17 @@ export const DEFAULT_TERMO_LGPD = `TERMO DE CIÊNCIA E CONSENTIMENTO PARA TRATAM
 export const DEFAULT_CONTRATO_TEMPLATE = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE CONSULTORIA MIGRATÓRIA E RELOCATION
 
 Pelo presente instrumento particular, de um lado:
-CONTRATADA: {{empresa_nome}}, inscrita sob CNPJ/RUT {{empresa_doc}}, com sede em {{empresa_endereco}}, neste ato representada por {{empresa_responsavel}}.
+CONTRATADO(A): {{empresa_responsavel}}, atuando como Pessoa Física sob a marca própria {{empresa_nome}} ({{empresa_doc}}), com atendimento em {{empresa_endereco}}.
 CONTRATANTE: {{cliente_nome}}, nacionalidade {{cliente_nacionalidade}}, estado civil {{cliente_estado_civil}}, profissão {{cliente_profissao}}, portador(a) do CPF nº {{cliente_cpf}} e Passaporte nº {{cliente_passaporte}}, residente e domiciliado(a) em {{cliente_endereco}}, e-mail {{cliente_email}}, WhatsApp {{cliente_whatsapp}}.
 
 CLÁUSULA 1ª – DO OBJETO
 1.1. O presente contrato tem por objeto a prestação de serviços de consultoria e assessoria operacional para {{objeto_servico}}, compreendendo análise documental, organização do processo, orientação sobre apostilamento e tradução, acompanhamento de prazos e protocolo perante o Servicio Nacional de Migraciones (SERMIG) do Chile.
 
 CLÁUSULA 2ª – OBRIGAÇÃO DE MEIO E AUTONOMIA DO SERMIG
-2.1. A CONTRATADA assume obrigação de meio, comprometendo-se a empregar diligência técnica e normativa na condução operacional do processo. A decisão final de deferimento, exigência de documentos ou prazo de tramitação compete exclusivamente às autoridades migratórias chilenas (SERMIG / PDI).
+2.1. O(A) CONTRATADO(A) assume obrigação de meio, comprometendo-se a empregar diligência técnica e normativa na condução operacional do processo. A decisão final de deferimento, exigência de documentos ou prazo de tramitação compete exclusivamente às autoridades migratórias chilenas (SERMIG / PDI).
 
 CLÁUSULA 3ª – HONORÁRIOS E CUSTOS DE TERCEIROS
-3.1. Pelos serviços contratados, o(a) CONTRATANTE pagará à CONTRATADA o valor total de {{valor_contrato}}, na forma {{forma_pagamento}}.
+3.1. Pelos serviços contratados, o(a) CONTRATANTE pagará ao(à) CONTRATADO(A) o valor total de {{valor_contrato}}, na forma {{forma_pagamento}}.
 3.2. Taxas governamentais (SERMIG, PDI, Registro Civil), emolumentos de cartório, Apostila de Haia, traduções juramentadas e despesas de terceiros NÃO estão incluídas nos honorários, salvo especificação expressa em orçamento aprovado.
 
 CLÁUSULA 4ª – DEVERES DO CONTRATANTE E VERACIDADE
@@ -51,15 +51,15 @@ CLÁUSULA 6ª – DO FORO
 {{empresa_endereco}}, {{data_atual}}.
 
 ________________________________________          ________________________________________
-{{empresa_nome}} (CONTRATADA)                     {{cliente_nome}} (CONTRATANTE)
+{{empresa_responsavel}} · {{empresa_nome}} (CONTRATADO/A)   {{cliente_nome}} (CONTRATANTE)
 
 Nota interna de conformidade: Revisar com advogado antes do uso.`;
 
 export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   nome_empresa: 'D&M Integra Chile – Relocation & Assessoria',
-  razao_social_cnpj_rut: 'D&M Integra Consultoria Ltda. · CNPJ/RUT a configurar',
-  responsavel_tecnico: 'Equipe Técnica D&M Integra Chile',
-  endereco_cidade: 'Santiago, Chile · Atendimento Brasil & Chile',
+  razao_social_cnpj_rut: 'Atuação como Pessoa Física · Marca própria D&M Integra Chile',
+  responsavel_tecnico: 'Titular / Responsável — D&M Integra Chile (Pessoa Física)',
+  endereco_cidade: 'Brasil · Atendimento para todo o Chile',
   foro_comarca: 'Comarca da Capital do Estado do Rio de Janeiro – RJ',
   logoUrl: '',
   logoDarkUrl: '',
@@ -100,6 +100,7 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   emailGoogleAgenda: 'contato@dmintegrachile.com',
   chavePix: 'contato@dmintegrachile.com',
   linkPagamentoCartao: '',
+  fcmVapidPublicKey: '',
   textoContratoPadrao: DEFAULT_CONTRATO_TEMPLATE,
   textoReciboPadrao:
     'Recebemos de {{cliente_nome}} (CPF {{cliente_cpf}}) a importância de {{valor_pago}}, referente a {{descricao_pagamento}} do processo {{caso_titulo}}.',
@@ -284,13 +285,17 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     subtitulo: 'Consultoria boutique focada em segurança operacional, clareza jurídica e atendimento humanizado.',
     conteudoHtml:
       'A D&M Integra Chile nasceu para eliminar a insegurança de brasileiros que desejam trabalhar, empreender, estudar ou viver no Chile. Atuamos com metodologia própria de análise normativa, controle de prazos do SERMIG e rede de parceiros verificados nos dois países.',
-    imagemUrl: '/src/assets/images/quem_somos_founder_1794944012517.jpg',
+    imagemUrl: '/src/assets/images/quem_somos_founder_1794993847940.jpg',
     ordem: 5,
     ativo: true,
     metadados: {
       responsavel: 'Diretoria Técnica D&M Integra Chile',
-      formacao: 'Especialização em Direito Migratório Comparado Brasil–Chile, Gestão de Mobilidade Global e Conformidade LGPD.',
-      experiencia: 'Mais de 8 anos conduzindo processos de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation Executivo em Santiago.',
+      formacaoTitulo: 'Formação Acadêmica e Qualificação Jurídica',
+      formacao:
+        'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.',
+      experienciaTitulo: 'Especialização e Escopo de Atuação',
+      experiencia:
+        'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.',
       missao: 'Transformar uma mudança internacional complexa em um processo organizado, ético e transparente.',
       credenciais: 'Atuação conforme Ley Nº 21.325 · Decreto Nº 177/2022 · Acordo de Residência Mercosul · Conformidade LGPD.',
     },
@@ -398,16 +403,16 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/reciprocidad-internacional/',
-    ultimaVerificacao: '2026-11-17',
+    ultimaVerificacao: '2026-11-18',
     statusVerificacao: 'Verificado',
-    legalSourceIds: ['leg_ley_21325', 'leg_acordo_mercosul', 'leg_dec_177_2022'],
+    legalSourceIds: ['leg_ley_21325', 'leg_acordo_mercosul', 'leg_dec_177_2022', 'leg_dec_5852', 'leg_dec_6975'],
   },
   {
     id: 'visa_01_reunificacao',
     codigo: '01',
     nomeEspanhol: 'Residencia Temporal por Reunificación Familiar',
     nomePortugues: 'Reunificação Familiar',
-    descricao: 'Para cônjuge, convivente civil formalizado, filhos ou pais com vínculo familiar direto com chileno ou residente definitivo.',
+    descricao: 'Para cônjuge, convivente civil formalizado, filhos (menores de 18, com deficiência ou estudantes solteiros até 24 anos) ou pais com vínculo familiar direto com chileno ou residente definitivo.',
     publicoAlvo: 'Familiares diretos com vínculo devidamente formalizado no Chile ou apostilado.',
     permiteDentroChile: 'Sim',
     vigenciaMeses: 24,
@@ -418,8 +423,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/reunificacion-familiar/',
-    statusVerificacao: 'A verificar',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_181_2023'],
   },
   {
     id: 'visa_02_atividades_licitas',
@@ -437,8 +443,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/actividades-licitas-remuneradas/',
-    statusVerificacao: 'A verificar',
-    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
   },
   {
     id: 'visa_03_estudantes',
@@ -456,7 +463,8 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl/residencia-temporal/estudiantes/',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
     legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
@@ -476,7 +484,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
-    legalSourceIds: ['leg_ley_21325'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_05_custodia',
@@ -495,6 +503,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_06_ordem_judicial',
@@ -513,6 +522,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_07_humanitarias',
@@ -531,7 +541,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
-    legalSourceIds: ['leg_ley_21325'],
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_181_2023'],
   },
   {
     id: 'visa_08_acordos',
@@ -550,6 +560,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_09_religiosos',
@@ -568,6 +579,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_10_medico',
@@ -586,6 +598,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_11_aposentados',
@@ -603,7 +616,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
   },
   {
     id: 'visa_12_ex_titulares',
@@ -622,6 +637,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   {
     id: 'visa_13_investidores',
@@ -639,7 +655,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_181_2023'],
   },
   {
     id: 'visa_14_negocios',
@@ -658,6 +676,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022'],
   },
   // Fluxos especiais
   {
@@ -676,7 +695,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
   },
   {
     id: 'fluxo_prorrogacao',
@@ -694,7 +715,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_296', 'leg_sermig_estampado'],
   },
   {
     id: 'fluxo_mudanca',
@@ -713,6 +736,7 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
   },
   {
     id: 'fluxo_ratificacao',
@@ -731,13 +755,14 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
     statusVerificacao: 'A verificar',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_296'],
   },
   {
     id: 'fluxo_definitiva',
     codigo: 'DEF',
     nomeEspanhol: 'Residencia Definitiva',
     nomePortugues: 'Residência Definitiva',
-    descricao: 'Solicitação de permanência definitiva após cumprimento do tempo mínimo em Residência Temporal.',
+    descricao: 'Solicitação de permanência definitiva no Chile para titulares de Residência Temporal vigente dentro da janela legal.',
     publicoAlvo: 'Residentes temporais elegíveis dentro da janela legal.',
     permiteDentroChile: 'Sim',
     vigenciaMeses: 60,
@@ -748,14 +773,16 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_296', 'leg_dec_181_2023', 'leg_sermig_estampado'],
   },
   {
     id: 'fluxo_turismo',
     codigo: 'TUR',
     nomeEspanhol: 'Permanencia Transitoria / Prórroga de Turismo',
     nomePortugues: 'Permanência Transitória / Turismo',
-    descricao: 'Estadia temporária sem permissão de trabalho (até 90 dias, prorrogável uma única vez por mais 90 dias mediante taxa).',
+    descricao: 'Estadia temporária sem permissão de trabalho (até 90 dias, prorrogável uma única vez por até 90 dias corridos no portal SERMIG mediante taxa referencial de USD 100).',
     publicoAlvo: 'Visitantes explorando o país antes de protocolar residência do exterior.',
     permiteDentroChile: 'Condicional',
     vigenciaMeses: 3,
@@ -766,7 +793,9 @@ export const SEED_VISA_CATEGORIES: VisaCategory[] = [
     brasileirosElegiveis: true,
     ativo: true,
     fonteUrl: 'https://serviciomigraciones.cl',
-    statusVerificacao: 'A verificar',
+    ultimaVerificacao: '2026-11-18',
+    statusVerificacao: 'Verificado',
+    legalSourceIds: ['leg_ley_21325', 'leg_dec_296', 'leg_sermig_estampado'],
   },
 ];
 
@@ -1140,16 +1169,18 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     pais: 'Chile',
     numeroAno: '21.325 / 2021',
     orgaoEmissor: 'Congreso Nacional de Chile / Ministerio del Interior',
-    artigos: 'Arts. 69, 70 nº 13, 73, 78, 86, 127 e seguintes',
+    artigos: 'Arts. 22, 23, 69, 70 nº 13, 73, 78, 86, 127 e seguintes',
     resumoPortugues:
-      'Marco legal migratório chileno que cria o SERMIG, define categorias e subcategorias de Residência Temporal, proíbe mudança de condição migratória a partir de permanência transitória salvo exceções e disciplina a Residência Definitiva.',
+      'Marco legal migratório chileno que cria o SERMIG, define categorias e subcategorias de Residência Temporal, estabelece a regra geral de solicitação do exterior (salvo exceções legais) e disciplina a Residência Definitiva.',
     explicacaoCliente:
       'É a principal lei de imigração do Chile. Ela define os tipos de visto disponíveis, quem pode solicitar de dentro do país e as regras para conquistar a Residência Definitiva.',
     textoIntegral: '',
     tags: ['ley 21.325', 'sermig', 'residencia temporal', 'mercosul'],
     linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1158549',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    deadlineTipos: ['Entrada no Chile 90d', 'Janela Prorrogação'],
   },
   {
     id: 'leg_dec_177_2022',
@@ -1158,49 +1189,95 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     pais: 'Chile',
     numeroAno: '177 / 2022',
     orgaoEmissor: 'Ministerio del Interior y Seguridad Pública',
-    artigos: 'Subcategorias 01 a 15 e regras de solicitação do exterior',
+    artigos: 'Subcategorias 01 a 15, regra geral de solicitação do exterior e antecedentes de 60 dias',
     resumoPortugues:
-      'Regulamenta as subcategorias de Residência Temporal, requisitos documentais específicos e hipóteses excepcionais de solicitação dentro do território chileno.',
+      'Regulamenta a nómina e os requisitos das subcategorias de Residência Temporal em cumprimento ao Art. 70 da Ley 21.325, detalhando documentos, exigências financeiras e hipóteses excepcionais de solicitação no Chile.',
     explicacaoCliente:
-      'Este decreto detalha cada tipo de residência no Chile e explica quais pedidos exigem solicitação feita ainda fora do país.',
+      'Este decreto detalha cada tipo de residência temporal no Chile e explica quais pedidos exigem solicitação feita ainda fora do país.',
     textoIntegral: '',
     tags: ['decreto 177', 'subcategorias', 'residencia temporal'],
-    linkOficial: 'https://www.bcn.cl/leychile',
+    linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1176043',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_296'],
   },
   {
     id: 'leg_dec_296',
-    titulo: 'Decreto Supremo Nº 296 – Reglamento de la Ley Nº 21.325',
+    titulo: 'Decreto Supremo Nº 296/2022 – Reglamento de la Ley Nº 21.325',
     tipo: 'Decreto',
     pais: 'Chile',
     numeroAno: '296 / 2022',
     orgaoEmissor: 'Ministerio del Interior y Seguridad Pública',
-    artigos: 'Regulamento geral de procedimentos, notificações, prazos e recursos',
+    artigos: 'Regulamento geral de procedimentos, notificações eletrônicas, Estampado, descargos e recursos',
     resumoPortugues:
-      'Estabelece procedimentos administrativos do SERMIG, notificações eletrônicas, prazos de Estampado Electrónico, descargos e recursos.',
+      'Estabelece os procedimentos administrativos do SERMIG, regras da Permanência Transitória e prorrogação, notificações eletrônicas, prazos de pagamento de taxas e Estampado Electrónico, descargos e recursos.',
     explicacaoCliente:
-      'Define como funcionam os prazos práticos após o protocolo, incluindo o prazo de 90 dias para entrar no Chile depois do visto aprovado.',
+      'Define como funcionam os prazos práticos após o protocolo, incluindo o prazo de entrada no Chile depois do visto aprovado e o download do Estampado Electrónico.',
     textoIntegral: '',
     tags: ['decreto 296', 'regulamento', 'estampado'],
-    linkOficial: 'https://www.bcn.cl/leychile',
+    linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1172573',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    deadlineTipos: ['Entrada no Chile 90d', 'Janela Prorrogação'],
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_177_2022'],
+  },
+  {
+    id: 'leg_dec_181_2023',
+    titulo: 'Decreto Supremo Nº 181/2023 – Política Nacional de Migración y Extranjería (PNME)',
+    tipo: 'Decreto',
+    pais: 'Chile',
+    numeroAno: '181 / 2023',
+    orgaoEmissor: 'Ministerio del Interior y Seguridad Pública',
+    artigos: 'Diretrizes da Política Nacional de Migración y Extranjería (Arts. 22-23 Ley 21.325)',
+    resumoPortugues:
+      'Aprova oficialmente a Política Nacional de Migración y Extranjería do Estado chileno, estabelecendo diretrizes estratégicas de migração ordenada, segura e regular, reunificação familiar e integração.',
+    explicacaoCliente:
+      'É o documento oficial de política migratória do governo chileno que orienta prioridades, proteção familiar e integração dos residentes no país.',
+    textoIntegral: '',
+    tags: ['decreto 181', 'pnme', 'politica migratoria', 'reunificacao'],
+    linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1215233',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_296'],
+  },
+  {
+    id: 'leg_sermig_estampado',
+    titulo: 'SERMIG – Estampado Electrónico, Prórroga e Permanencia Transitoria',
+    tipo: 'Resolução',
+    pais: 'Chile',
+    numeroAno: 'Operacional SERMIG',
+    orgaoEmissor: 'Servicio Nacional de Migraciones (SERMIG)',
+    artigos: 'Estampado Electrónico digital, prorrogação única de Permanencia Transitoria (90d / USD 100) e Residencia Definitiva',
+    resumoPortugues:
+      'Diretrizes operacionais vigentes do SERMIG: o Estampado Electrónico substitui o selo físico no passaporte; a Permanencia Transitoria pode ser prorrogada uma única vez por até 90 dias corridos no portal digital (taxa referencial de USD 100, salvo menores).',
+    explicacaoCliente:
+      'Explica como funciona a emissão digital do visto aprovado (Estampado Electrónico) e as regras oficiais caso precise prorrogar a estadia de turismo no Chile.',
+    textoIntegral: '',
+    tags: ['estampado', 'permanencia transitoria', 'prorroga', 'sermig'],
+    linkOficial: 'https://serviciomigraciones.cl',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    deadlineTipos: ['Entrada no Chile 90d', 'Janela Prorrogação'],
+    normasRelacionadas: ['leg_dec_296', 'leg_sermig_portal'],
   },
   {
     id: 'leg_res_31510',
-    titulo: 'Resolución Exenta Nº 31.510/2024 – SERMIG',
+    titulo: 'Resolución Exenta Nº 31.510/2024 – SERMIG (Atos Administrativos)',
     tipo: 'Resolução',
     pais: 'Chile',
     numeroAno: '31.510 / 2024',
     orgaoEmissor: 'Servicio Nacional de Migraciones (SERMIG)',
-    artigos: 'Diretrizes operacionais de tramitação e prazos documentais',
+    artigos: 'Diretrizes operacionais e delegações de tramitação no SERMIG',
     resumoPortugues:
-      'Resolução operacional do SERMIG atualizando critérios de instrução documental e tramitação eletrônica.',
+      'Resolução operacional do SERMIG sobre critérios internos de instrução e tramitação eletrônica de residências. Conferir atualização periódica via Transparencia Activa.',
     explicacaoCliente:
-      'Norma prática do órgão de imigração chileno sobre apresentação e conferência de documentos digitais.',
+      'Norma interna de funcionamento do órgão de imigração chileno sobre análise digital de processos.',
     textoIntegral: '',
-    tags: ['resolucion 31510', 'sermig', '2024'],
+    tags: ['resolucion 31510', 'sermig', '2024', 'transparencia'],
     linkOficial: 'https://serviciomigraciones.cl',
     versao: '1.0',
     statusVigencia: 'A verificar',
@@ -1211,7 +1288,7 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     tipo: 'Lei',
     pais: 'Chile',
     numeroAno: '19.880 / 2003',
-    orgaoEmissor: 'Congreso Nacional de Chile',
+    orgaoEmissor: 'Ministerio Secretaría General de la Presidencia (Chile)',
     artigos: 'Art. 27 (prazo máximo referencial de 6 meses / 180 dias)',
     resumoPortugues:
       'Estabelece que o procedimento administrativo não pode exceder 6 meses desde a instauração até a decisão final, salvo caso fortuito ou força maior.',
@@ -1219,27 +1296,30 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
       'É a lei que serve de referência quando um processo no SERMIG ultrapassa 180 dias sem resposta, permitindo acompanhamento ou impulso administrativo.',
     textoIntegral: '',
     tags: ['ley 19.880', 'art 27', '180 dias', 'prazo'],
-    linkOficial: 'https://www.bcn.cl/leychile',
+    linkOficial: 'https://www.bcn.cl/leychile/navegar?i=210676',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    deadlineTipos: ['Prazo Legal 6 Meses SERMIG'],
   },
   {
     id: 'leg_cpc_345',
-    titulo: 'Código de Procedimiento Civil de Chile – Arts. 345 e 345 bis',
+    titulo: 'Código de Procedimiento Civil de Chile (Ley 1.552) – Arts. 345 e 345 bis',
     tipo: 'Lei',
     pais: 'Chile',
-    numeroAno: 'CPC Chile',
+    numeroAno: 'CPC / Ley 1.552',
     orgaoEmissor: 'República de Chile',
     artigos: 'Arts. 345 e 345 bis (legalização e Apostila de Haia)',
     resumoPortugues:
-      'Dispõe sobre a validade de instrumentos públicos outorgados no exterior e dispensa de legalização consular quando apostilados segundo a Convenção da Haia.',
+      'Dispõe sobre a validade probatória de instrumentos públicos outorgados no exterior e dispensa a legalização consular quando devidamente apostilados segundo a Convenção da Haia.',
     explicacaoCliente:
       'Garante que certidões brasileiras apostiladas em cartório no Brasil tenham validade legal no Chile sem passar pelo consulado.',
     textoIntegral: '',
     tags: ['cpc', 'apostila', '345 bis'],
-    linkOficial: 'https://www.bcn.cl/leychile',
+    linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=25154',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
   },
   {
     id: 'leg_circ_26465',
@@ -1248,11 +1328,11 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     pais: 'Chile',
     numeroAno: '26.465',
     orgaoEmissor: 'Servicio Nacional de Migraciones / Subsecretaría del Interior',
-    artigos: 'Critérios operacionais internos',
+    artigos: 'Critérios operacionais internos de análise documental',
     resumoPortugues:
-      'Circular administrativa com orientações sobre análise de antecedentes e regularidade documental.',
+      'Circular administrativa histórica com orientações sobre análise de antecedentes e regularidade documental. Confirmar vigência específica no portal de transparência do SERMIG.',
     explicacaoCliente:
-      'Orienta como os analistas avaliam certidões e requisitos operacionais durante a tramitação.',
+      'Orienta critérios internos de conferência de certidões durante a tramitação.',
     textoIntegral: '',
     tags: ['circular 26465', 'antecedentes'],
     linkOficial: 'https://serviciomigraciones.cl',
@@ -1266,52 +1346,78 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     pais: 'Mercosul',
     numeroAno: 'Mercosul / 2002',
     orgaoEmissor: 'Estados Partes e Associados do Mercosul',
-    artigos: 'Arts. 1º a 9º (Direito à residência temporária e permanente, igualdade de direitos civis)',
+    artigos: 'Arts. 1º a 9º (Direito à residência temporária de 2 anos, trabalho e igualdade de direitos civis)',
     resumoPortugues:
-      'Acordo internacional que assegura a nacionais do Brasil e demais signatários o direito de requerer residência temporária por até 2 anos mediante prova de nacionalidade e ausência de antecedentes criminais.',
+      'Acordo internacional assinado em Brasília (06/12/2002) que assegura a nacionais do Brasil e demais signatários o direito à residência temporária mediante prova de nacionalidade e ausência de antecedentes criminais.',
     explicacaoCliente:
       'Acordo entre Brasil, Chile e países do Mercosul que garante aos brasileiros um caminho simplificado para morar e trabalhar legalmente no Chile.',
     textoIntegral: '',
     tags: ['mercosul', 'reciprocidade', 'brasileiros'],
-    linkOficial: 'https://www.mercosur.int',
+    linkOficial: 'https://serviciomigraciones.cl/residencia-temporal/reciprocidad-internacional/',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    normasRelacionadas: ['leg_dec_6975', 'leg_dec_5852', 'leg_ley_21325'],
+  },
+  {
+    id: 'leg_dec_6975',
+    titulo: 'Decreto Nº 6.975/2009 (Brasil) – Promulgação do Acordo de Residência Mercosul, Bolívia e Chile',
+    tipo: 'Decreto',
+    pais: 'Brasil',
+    numeroAno: '6.975 / 2009',
+    orgaoEmissor: 'Presidência da República do Brasil',
+    artigos: 'Promulgação integral do Acordo sobre Residência Mercosul, Bolívia e Chile (2002)',
+    resumoPortugues:
+      'Promulga no ordenamento jurídico brasileiro o Acordo sobre Residência para Nacionais dos Estados Partes do Mercosul, Bolívia e Chile, base bilateral para a reciprocidade migratória.',
+    explicacaoCliente:
+      'Norma brasileira que confirma a vigência do Acordo de Residência entre Brasil e Chile.',
+    textoIntegral: '',
+    tags: ['decreto 6975', 'brasil', 'mercosul', 'residencia'],
+    linkOficial: 'https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/decreto/d6975.htm',
+    versao: '1.0',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    normasRelacionadas: ['leg_acordo_mercosul', 'leg_dec_5852'],
   },
   {
     id: 'leg_dec_5852',
-    titulo: 'Decreto Nº 5.852/2006 (Brasil) / Promulgação Acordo Mercosul',
+    titulo: 'Decreto Nº 5.852/2006 (Brasil) – Dispensa de Tradução de Documentos Administrativos (Mercosul/Chile)',
     tipo: 'Decreto',
     pais: 'Brasil',
     numeroAno: '5.852 / 2006',
     orgaoEmissor: 'Presidência da República do Brasil',
-    artigos: 'Promulgação integral do Acordo de Residência no ordenamento brasileiro',
+    artigos: 'Acordo sobre Dispensa de Tradução de Documentos Administrativos para Efeitos de Imigração (Mercosul, Bolívia e Chile)',
     resumoPortugues:
-      'Promulga o Acordo sobre Residência para Nacionais dos Estados Partes do Mercosul, Bolívia e Chile no Brasil.',
+      'Promulga o acordo entre os Estados Partes do Mercosul, Bolívia e Chile que dispensa a tradução de documentos administrativos apresentados para efeitos de imigração (ex.: antecedentes e certidões emitidas em português para uso migratório direto, observando requisitos específicos do SERMIG).',
     explicacaoCliente:
-      'Norma brasileira que formaliza a reciprocidade do Acordo Mercosul entre Brasil e Chile.',
+      'Acordo que facilita a aceitação de certidões administrativas em português para trâmites de imigração no Chile sem necessidade de tradução, exigindo sempre o apostilamento oficial.',
     textoIntegral: '',
-    tags: ['decreto 5852', 'brasil', 'mercosul'],
-    linkOficial: 'https://www.planalto.gov.br',
+    tags: ['decreto 5852', 'dispensa traducao', 'brasil', 'mercosul'],
+    linkOficial: 'https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/decreto/d5852.htm',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    normasRelacionadas: ['leg_acordo_mercosul', 'leg_dec_6975'],
   },
   {
     id: 'leg_apostila_haia',
-    titulo: 'Convenção da Apostila da Haia / Resolução CNJ Nº 228/2016 / Polícia Federal',
+    titulo: 'Convenção da Apostila da Haia / Resolução CNJ Nº 228/2016',
     tipo: 'Acordo Internacional',
     pais: 'Brasil',
     numeroAno: 'Haia / CNJ 228',
-    orgaoEmissor: 'Conferência da Haia / CNJ / Polícia Federal',
-    artigos: 'Supressão de legalização consular e apostilamento eletrônico/físico',
+    orgaoEmissor: 'Conferência da Haia / Conselho Nacional de Justiça (CNJ)',
+    artigos: 'Supressão de legalização consular e apostilamento eletrônico/físico em cartórios brasileiros',
     resumoPortugues:
-      'Regula o apostilamento de certidões civis e do Certificado de Antecedentes Criminais da Polícia Federal nos cartórios autorizados pelo CNJ.',
+      'Regula o apostilamento de certidões civis e do Certificado de Antecedentes Criminais da Polícia Federal nos cartórios autorizados pelo CNJ para reconhecimento válido no Chile.',
     explicacaoCliente:
       'Permite validar certidões e antecedentes brasileiros em cartórios no Brasil para que sejam aceitos oficialmente no Chile.',
     textoIntegral: '',
     tags: ['apostila', 'haia', 'cnj', 'policia federal'],
-    linkOficial: 'https://www.cnj.jus.br',
+    linkOficial: 'https://www.cnj.jus.br/poder-judiciario/relacoes-internacionais/apostila-da-haia/',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    normasRelacionadas: ['leg_cpc_345', 'leg_cnj_apostila'],
   },
   {
     id: 'leg_lgpd',
@@ -1327,9 +1433,11 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
       'Garante que seus documentos, dados familiares e informações sensíveis sejam protegidos e usados apenas para o seu processo.',
     textoIntegral: '',
     tags: ['lgpd', 'privacidade', 'dados sensiveis'],
-    linkOficial: 'https://www.planalto.gov.br',
+    linkOficial: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
+    documentTemplateIds: ['doc_termo_lgpd'],
   },
   {
     id: 'leg_cc_cdc',
@@ -1345,9 +1453,10 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
       'Assegura transparência nas condições contratuais, distinção clara entre honorários e taxas oficiais e direitos do contratante.',
     textoIntegral: '',
     tags: ['contrato', 'codigo civil', 'cdc'],
-    linkOficial: 'https://www.planalto.gov.br',
+    linkOficial: 'https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm',
     versao: '1.0',
-    statusVigencia: 'A verificar',
+    statusVigencia: 'Vigente',
+    ultimaVerificacao: '2026-11-18',
     documentTemplateIds: ['doc_contrato', 'doc_aditivo', 'doc_encerramento'],
   },
   {
@@ -1367,9 +1476,9 @@ export const SEED_LEGAL_SOURCES: LegalSource[] = [
     linkOficial: 'https://serviciomigraciones.cl',
     versao: '1.0',
     statusVigencia: 'Vigente',
-    ultimaVerificacao: '2026-11-17',
+    ultimaVerificacao: '2026-11-18',
     deadlineTipos: ['Entrada no Chile 90d', 'Janela Prorrogação', 'Prazo Legal 6 Meses SERMIG'],
-    normasRelacionadas: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296'],
+    normasRelacionadas: ['leg_ley_21325', 'leg_dec_177_2022', 'leg_dec_296', 'leg_sermig_estampado'],
   },
   {
     id: 'leg_bcn_leychile',
@@ -1535,7 +1644,7 @@ export const SEED_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     titulo: 'Recibo Oficial de Pagamento',
     tipo: 'recibo',
     conteudoHtml:
-      'RECIBO DE PAGAMENTO\n\nRecebemos de {{cliente_nome}}, inscrito(a) no CPF nº {{cliente_cpf}}, o valor de {{valor_contrato}} referente à quitação de honorários/taxas do processo {{objeto_servico}}.\n\n{{empresa_endereco}}, {{data_atual}}.\n\n{{empresa_nome}}\nCNPJ/RUT: {{empresa_doc}}',
+      'RECIBO DE PAGAMENTO\n\nRecebemos de {{cliente_nome}}, inscrito(a) no CPF nº {{cliente_cpf}}, o valor de {{valor_contrato}} referente à quitação de honorários/taxas do processo {{objeto_servico}}.\n\n{{empresa_endereco}}, {{data_atual}}.\n\n{{empresa_responsavel}} — Marca {{empresa_nome}}\n{{empresa_doc}}',
     notaInterna: 'Revisar com advogado antes do uso.',
   },
   {
@@ -1577,7 +1686,7 @@ export const SEED_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     titulo: 'Aditivo Contratual de Escopo ou Dependentes',
     tipo: 'aditivo',
     conteudoHtml:
-      'TERMO ADITIVO AO CONTRATO DE CONSULTORIA MIGRATÓRIA\n\nPelo presente instrumento, CONTRATANTE {{cliente_nome}} (CPF {{cliente_cpf}}) e CONTRATADA {{empresa_nome}} acordam a inclusão/alteração de escopo referente ao processo {{objeto_servico}}.\n\nValor adicional/ajustado: {{valor_contrato}} ({{forma_pagamento}}).\nPermanecem inalteradas as demais cláusulas contratuais originais.\n\n{{empresa_endereco}}, {{data_atual}}.',
+      'TERMO ADITIVO AO CONTRATO DE CONSULTORIA MIGRATÓRIA\n\nPelo presente instrumento, CONTRATANTE {{cliente_nome}} (CPF {{cliente_cpf}}) e CONTRATADO(A) {{empresa_responsavel}} (atuação como Pessoa Física sob a marca {{empresa_nome}} · {{empresa_doc}}) acordam a inclusão/alteração de escopo referente ao processo {{objeto_servico}}.\n\nValor adicional/ajustado: {{valor_contrato}} ({{forma_pagamento}}).\nPermanecem inalteradas as demais cláusulas contratuais originais.\n\n{{empresa_endereco}}, {{data_atual}}.',
     notaInterna: 'Revisar com advogado antes do uso.',
   },
   {
@@ -1586,7 +1695,7 @@ export const SEED_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     titulo: 'Autorização / Procuração Operacional Simples',
     tipo: 'procuracao',
     conteudoHtml:
-      'AUTORIZAÇÃO OPERACIONAL DE ACOMPANHAMENTO ADMINISTRATIVO\n\nEu, {{cliente_nome}}, nacionalidade {{cliente_nacionalidade}}, CPF {{cliente_cpf}}, Passaporte nº {{cliente_passaporte}}, autorizo {{empresa_nome}} ({{empresa_responsavel}}) a realizar organização documental, conferência, suporte administrativo e acompanhamento informativo junto aos canais de atendimento pertinentes ao processo {{objeto_servico}}.\n\nNota: Caso haja necessidade de representação judicial ou ato exclusivo privativo de advogado habilitado no Chile ou Brasil, será formalizado mandato específico.\n\n{{empresa_endereco}}, {{data_atual}}.',
+      'AUTORIZAÇÃO OPERACIONAL DE ACOMPANHAMENTO ADMINISTRATIVO\n\nEu, {{cliente_nome}}, nacionalidade {{cliente_nacionalidade}}, CPF {{cliente_cpf}}, Passaporte nº {{cliente_passaporte}}, autorizo {{empresa_responsavel}}, atuando como Pessoa Física sob a marca {{empresa_nome}} ({{empresa_doc}}), a realizar organização documental, conferência, suporte administrativo e acompanhamento informativo junto aos canais de atendimento pertinentes ao processo {{objeto_servico}}.\n\nNota: Caso haja necessidade de representação judicial ou ato exclusivo privativo de advogado habilitado no Chile ou Brasil, será formalizado mandato específico.\n\n{{empresa_endereco}}, {{data_atual}}.',
     notaInterna: 'Revisar com advogado antes do uso.',
   },
   {
@@ -1604,7 +1713,7 @@ export const SEED_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     titulo: 'Termo de Ciência e Consentimento LGPD',
     tipo: 'termo_lgpd',
     conteudoHtml:
-      'TERMO DE CONSENTIMENTO LGPD – LEI Nº 13.709/2018\n\nTitular: {{cliente_nome}} | CPF: {{cliente_cpf}} | E-mail: {{cliente_email}}\nControlador: {{empresa_nome}} ({{empresa_doc}})\n\nAutorizo o tratamento de meus dados pessoais e documentos civis exclusivamente para condução do processo {{objeto_servico}}, ciente dos direitos previstos no Art. 18 da LGPD (acesso, correção, portabilidade e revogação/eliminação após prazos legais).\n\n{{empresa_endereco}}, {{data_atual}}.',
+      'TERMO DE CONSENTIMENTO LGPD – LEI Nº 13.709/2018\n\nTitular: {{cliente_nome}} | CPF: {{cliente_cpf}} | E-mail: {{cliente_email}}\nControlador: {{empresa_responsavel}} · Marca {{empresa_nome}} ({{empresa_doc}})\n\nAutorizo o tratamento de meus dados pessoais e documentos civis exclusivamente para condução do processo {{objeto_servico}}, ciente dos direitos previstos no Art. 18 da LGPD (acesso, correção, portabilidade e revogação/eliminação após prazos legais).\n\n{{empresa_endereco}}, {{data_atual}}.',
     notaInterna: 'Revisar com advogado antes do uso.',
   },
   {

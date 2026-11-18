@@ -13,6 +13,7 @@ import {
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { sanitizeClientAiError } from '../utils/aiClient';
 import {
+  DEFAULT_CONTRATO_TEMPLATE,
   DEFAULT_DIAGNOSTIC_RULE_VERSION,
   DEFAULT_EMPRESA_CONFIG,
   SEED_DOCUMENT_TEMPLATES,
@@ -60,6 +61,7 @@ import type {
 } from '../types/domain';
 import { registrarAuditoria } from '../utils/audit';
 import { computeLeadPriorityAndTemperature, runDiagnosticEngine } from '../utils/diagnosticEngine';
+import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
 
 export function makeId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -84,19 +86,134 @@ function stripUndefined<T>(val: T): T {
 // =============================================================================
 // Public Readers (Safe without login)
 // =============================================================================
+const LEGACY_QUEM_SOMOS_IMAGE = '/src/assets/images/quem_somos_founder_1794944012517.jpg';
+const CURRENT_QUEM_SOMOS_IMAGE = '/src/assets/images/quem_somos_founder_1794993847940.jpg';
+const LEGACY_FORMACAO_VALUES = new Set([
+  'Especialização em Direito Migratório Comparado Brasil–Chile, Gestão de Mobilidade Global e Conformidade LGPD.',
+  'Especialização em Direito Migratório Comparado Brasil–Chile e Gestão de Mobilidade Internacional.',
+]);
+const CURRENT_FORMACAO_TITULO = 'Formação Acadêmica e Qualificação Jurídica';
+const CURRENT_FORMACAO_TEXT =
+  'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.';
+const LEGACY_EXPERIENCIA_VALUES = new Set([
+  'Mais de 8 anos conduzindo processos de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation Executivo em Santiago.',
+  'Assessoria completa em Residência Temporal, Acordo Mercosul, Residência Definitiva e Relocation em Santiago.',
+]);
+const CURRENT_EXPERIENCIA_TITULO = 'Especialização e Escopo de Atuação';
+const CURRENT_EXPERIENCIA_TEXT =
+  'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.';
+const LEGACY_ENDERECO_CIDADE = 'Santiago, Chile · Atendimento Brasil & Chile';
+const CURRENT_ENDERECO_CIDADE = 'Brasil · Atendimento para todo o Chile';
+const LEGACY_RAZAO_SOCIAL = 'D&M Integra Consultoria Ltda. · CNPJ/RUT a configurar';
+const LEGACY_RESPONSAVEL_TECNICO = 'Equipe Técnica D&M Integra Chile';
+const LEGACY_TERMO_LGPD_LINE = '1. Controlador: D&M Integra Chile – Relocation & Assessoria.';
+const CURRENT_TERMO_LGPD_LINE =
+  '1. Controlador: D&M Integra Chile – Relocation & Assessoria (atuação autônoma como Pessoa Física sob marca própria).';
+
+function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
+  const textoContratoPadrao =
+    typeof data.textoContratoPadrao === 'string' && data.textoContratoPadrao.includes('inscrita sob CNPJ/RUT {{empresa_doc}}')
+      ? DEFAULT_CONTRATO_TEMPLATE
+      : data.textoContratoPadrao || DEFAULT_EMPRESA_CONFIG.textoContratoPadrao;
+
+  const termoLgpd =
+    typeof data.termoLgpd === 'string' && data.termoLgpd.includes(LEGACY_TERMO_LGPD_LINE)
+      ? data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE)
+      : data.termoLgpd || DEFAULT_EMPRESA_CONFIG.termoLgpd;
+
+  return {
+    ...DEFAULT_EMPRESA_CONFIG,
+    ...data,
+    razao_social_cnpj_rut:
+      !data.razao_social_cnpj_rut || data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL
+        ? DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut
+        : data.razao_social_cnpj_rut,
+    responsavel_tecnico:
+      !data.responsavel_tecnico || data.responsavel_tecnico === LEGACY_RESPONSAVEL_TECNICO
+        ? DEFAULT_EMPRESA_CONFIG.responsavel_tecnico
+        : data.responsavel_tecnico,
+    endereco_cidade:
+      !data.endereco_cidade || data.endereco_cidade === LEGACY_ENDERECO_CIDADE
+        ? CURRENT_ENDERECO_CIDADE
+        : data.endereco_cidade,
+    textoContratoPadrao,
+    termoLgpd,
+    siteDraft: data.siteDraft ? normalizeSiteContentAssets(data.siteDraft) : undefined,
+    layoutConfig: {
+      ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
+      ...(data.layoutConfig || {}),
+    },
+  };
+}
+
+function getUpgradedDocumentTemplateHtml(tpl: Partial<DocumentTemplate>): string | null {
+  const html = typeof tpl.conteudoHtml === 'string' ? tpl.conteudoHtml : '';
+  if (!html) return null;
+
+  const seedMatch = (id: string) => SEED_DOCUMENT_TEMPLATES.find((s) => s.id === id)?.conteudoHtml || null;
+
+  if ((tpl.id === 'doc_contrato' || tpl.codigo === 'contrato_consultoria') && html.includes('inscrita sob CNPJ/RUT {{empresa_doc}}')) {
+    return seedMatch('doc_contrato');
+  }
+  if ((tpl.id === 'doc_recibo' || tpl.codigo === 'recibo_oficial') && html.includes('CNPJ/RUT: {{empresa_doc}}')) {
+    return seedMatch('doc_recibo');
+  }
+  if ((tpl.id === 'doc_aditivo' || tpl.codigo === 'aditivo_contratual') && html.includes('CONTRATADA {{empresa_nome}} acordam')) {
+    return seedMatch('doc_aditivo');
+  }
+  if (
+    (tpl.id === 'doc_procuracao_simples' || tpl.codigo === 'procuracao_autorizacao') &&
+    html.includes('autorizo {{empresa_nome}} ({{empresa_responsavel}})')
+  ) {
+    return seedMatch('doc_procuracao_simples');
+  }
+  if ((tpl.id === 'doc_termo_lgpd' || tpl.codigo === 'termo_lgpd') && html.includes('Controlador: {{empresa_nome}} ({{empresa_doc}})')) {
+    return seedMatch('doc_termo_lgpd');
+  }
+  return null;
+}
+
+function normalizeDocumentTemplates(rows: DocumentTemplate[]): DocumentTemplate[] {
+  return rows.map((row) => {
+    const upgraded = getUpgradedDocumentTemplateHtml(row);
+    return upgraded ? { ...row, conteudoHtml: upgraded } : row;
+  });
+}
+
+function normalizeSiteContentAssets(rows: SiteContent[]): SiteContent[] {
+  return rows.map((row) => {
+    let next = row;
+    if (next.imagemUrl === LEGACY_QUEM_SOMOS_IMAGE) {
+      next = { ...next, imagemUrl: CURRENT_QUEM_SOMOS_IMAGE };
+    }
+    if (next.secao === 'quem_somos' && next.metadados) {
+      const meta = { ...next.metadados };
+      let changed = false;
+      const formacaoAtual = String(meta.formacao || '').trim();
+      if (!formacaoAtual || LEGACY_FORMACAO_VALUES.has(formacaoAtual)) {
+        meta.formacaoTitulo = String(meta.formacaoTitulo || CURRENT_FORMACAO_TITULO);
+        meta.formacao = CURRENT_FORMACAO_TEXT;
+        changed = true;
+      }
+      const experienciaAtual = String(meta.experiencia || '').trim();
+      if (!experienciaAtual || LEGACY_EXPERIENCIA_VALUES.has(experienciaAtual)) {
+        meta.experienciaTitulo = String(meta.experienciaTitulo || CURRENT_EXPERIENCIA_TITULO);
+        meta.experiencia = CURRENT_EXPERIENCIA_TEXT;
+        changed = true;
+      }
+      if (changed) {
+        next = { ...next, metadados: meta };
+      }
+    }
+    return next;
+  });
+}
+
 export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
   try {
     const snap = await getDoc(doc(db, 'config', 'empresa'));
     if (snap.exists()) {
-      const data = snap.data() as EmpresaConfig;
-      return {
-        ...DEFAULT_EMPRESA_CONFIG,
-        ...data,
-        layoutConfig: {
-          ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
-          ...(data.layoutConfig || {}),
-        },
-      };
+      return normalizeEmpresaConfig(snap.data() as Partial<EmpresaConfig>);
     }
     return DEFAULT_EMPRESA_CONFIG;
   } catch {
@@ -109,7 +226,9 @@ export async function fetchSiteContentPublic(): Promise<SiteContent[]> {
     const q = query(collection(db, 'siteContent'), where('ativo', '==', true));
     const snap = await getDocs(q);
     if (snap.empty) return SEED_SITE_CONTENT;
-    const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) }));
+    const rows = normalizeSiteContentAssets(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) })),
+    );
     return rows.sort((a, b) => a.ordem - b.ordem);
   } catch {
     return SEED_SITE_CONTENT;
@@ -120,7 +239,9 @@ export async function fetchAllSiteContentStaff(): Promise<SiteContent[]> {
   try {
     const snap = await getDocs(collection(db, 'siteContent'));
     if (snap.empty) return SEED_SITE_CONTENT;
-    const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) }));
+    const rows = normalizeSiteContentAssets(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) })),
+    );
     return rows.sort((a, b) => a.ordem - b.ordem);
   } catch (err) {
     handleFirestoreError(err, OperationType.LIST, 'siteContent');
@@ -240,6 +361,28 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
     const cfgSnap = await getDoc(cfgRef);
     if (!cfgSnap.exists()) {
       await setDoc(cfgRef, { ...DEFAULT_EMPRESA_CONFIG, updatedAt: new Date().toISOString() });
+    } else {
+      const data = cfgSnap.data() as Partial<EmpresaConfig>;
+      const cfgPatch: Record<string, unknown> = {};
+      if (data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL) {
+        cfgPatch.razao_social_cnpj_rut = DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut;
+      }
+      if (data.responsavel_tecnico === LEGACY_RESPONSAVEL_TECNICO) {
+        cfgPatch.responsavel_tecnico = DEFAULT_EMPRESA_CONFIG.responsavel_tecnico;
+      }
+      if (data.endereco_cidade === LEGACY_ENDERECO_CIDADE) {
+        cfgPatch.endereco_cidade = CURRENT_ENDERECO_CIDADE;
+      }
+      if (typeof data.textoContratoPadrao === 'string' && data.textoContratoPadrao.includes('inscrita sob CNPJ/RUT {{empresa_doc}}')) {
+        cfgPatch.textoContratoPadrao = DEFAULT_CONTRATO_TEMPLATE;
+      }
+      if (typeof data.termoLgpd === 'string' && data.termoLgpd.includes(LEGACY_TERMO_LGPD_LINE)) {
+        cfgPatch.termoLgpd = data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE);
+      }
+      if (Object.keys(cfgPatch).length > 0) {
+        cfgPatch.updatedAt = new Date().toISOString();
+        await updateDoc(cfgRef, cfgPatch);
+      }
     }
 
     const siteSnap = await getDocs(collection(db, 'siteContent'));
@@ -247,6 +390,48 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
       await Promise.all(
         SEED_SITE_CONTENT.map((s) => setDoc(doc(db, 'siteContent', s.id), { ...s, updatedAt: new Date().toISOString() })),
       );
+    } else {
+      const docsToUpgrade = siteSnap.docs.filter((d) => {
+        const data = d.data() as Partial<SiteContent>;
+        const hasLegacyImg = data.imagemUrl === LEGACY_QUEM_SOMOS_IMAGE;
+        const meta = (data.metadados || {}) as Record<string, unknown>;
+        const formacaoAtual = String(meta.formacao || '').trim();
+        const experienciaAtual = String(meta.experiencia || '').trim();
+        const hasLegacyFormacao =
+          data.secao === 'quem_somos' && (!formacaoAtual || LEGACY_FORMACAO_VALUES.has(formacaoAtual));
+        const hasLegacyExperiencia =
+          data.secao === 'quem_somos' && (!experienciaAtual || LEGACY_EXPERIENCIA_VALUES.has(experienciaAtual));
+        return hasLegacyImg || hasLegacyFormacao || hasLegacyExperiencia;
+      });
+      if (docsToUpgrade.length > 0) {
+        await Promise.all(
+          docsToUpgrade.map((d) => {
+            const data = d.data() as Partial<SiteContent>;
+            const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+            if (data.imagemUrl === LEGACY_QUEM_SOMOS_IMAGE) {
+              patch.imagemUrl = CURRENT_QUEM_SOMOS_IMAGE;
+            }
+            const meta = { ...((data.metadados || {}) as Record<string, unknown>) };
+            let metaChanged = false;
+            const formacaoAtual = String(meta.formacao || '').trim();
+            if (data.secao === 'quem_somos' && (!formacaoAtual || LEGACY_FORMACAO_VALUES.has(formacaoAtual))) {
+              meta.formacaoTitulo = meta.formacaoTitulo || CURRENT_FORMACAO_TITULO;
+              meta.formacao = CURRENT_FORMACAO_TEXT;
+              metaChanged = true;
+            }
+            const experienciaAtual = String(meta.experiencia || '').trim();
+            if (data.secao === 'quem_somos' && (!experienciaAtual || LEGACY_EXPERIENCIA_VALUES.has(experienciaAtual))) {
+              meta.experienciaTitulo = meta.experienciaTitulo || CURRENT_EXPERIENCIA_TITULO;
+              meta.experiencia = CURRENT_EXPERIENCIA_TEXT;
+              metaChanged = true;
+            }
+            if (metaChanged) {
+              patch.metadados = meta;
+            }
+            return updateDoc(doc(db, 'siteContent', d.id), patch);
+          }),
+        );
+      }
     }
 
     // Sempre auto-reparar Cód. 15
@@ -272,6 +457,14 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
       await Promise.all(
         SEED_LEGAL_SOURCES.map((l) => setDoc(doc(db, 'legalSources', l.id), { ...l, updatedAt: new Date().toISOString() })),
       );
+    } else {
+      const existingLegIds = new Set(legSnap.docs.map((d) => d.id));
+      const missingSeeds = SEED_LEGAL_SOURCES.filter((s) => !existingLegIds.has(s.id));
+      if (missingSeeds.length > 0) {
+        await Promise.all(
+          missingSeeds.map((l) => setDoc(doc(db, 'legalSources', l.id), { ...l, updatedAt: new Date().toISOString() })),
+        );
+      }
     }
 
     const msgSnap = await getDocs(collection(db, 'messageTemplates'));
@@ -282,6 +475,22 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
     const docTplSnap = await getDocs(collection(db, 'documentTemplates'));
     if (docTplSnap.empty) {
       await Promise.all(SEED_DOCUMENT_TEMPLATES.map((dt) => setDoc(doc(db, 'documentTemplates', dt.id), dt)));
+    } else {
+      const tplsToUpgrade = docTplSnap.docs
+        .map((d) => ({
+          id: d.id,
+          upgradedHtml: getUpgradedDocumentTemplateHtml({ id: d.id, ...(d.data() as Partial<DocumentTemplate>) }),
+        }))
+        .filter((item): item is { id: string; upgradedHtml: string } => Boolean(item.upgradedHtml));
+      if (tplsToUpgrade.length > 0) {
+        await Promise.all(
+          tplsToUpgrade.map((item) =>
+            updateDoc(doc(db, 'documentTemplates', item.id), {
+              conteudoHtml: item.upgradedHtml,
+            }),
+          ),
+        );
+      }
     }
 
     const partPubSnap = await getDocs(collection(db, 'partnersPublic'));
@@ -1221,7 +1430,7 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     partners,
     partnerProposals,
     messageTemplates: messageTemplates.length > 0 ? messageTemplates : SEED_MESSAGE_TEMPLATES,
-    documentTemplates: documentTemplates.length > 0 ? documentTemplates : SEED_DOCUMENT_TEMPLATES,
+    documentTemplates: documentTemplates.length > 0 ? normalizeDocumentTemplates(documentTemplates) : SEED_DOCUMENT_TEMPLATES,
     generatedDocuments,
     auditLogs,
   };
@@ -1486,3 +1695,61 @@ export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<U
   }
   return user;
 }
+
+export async function syncOfficialLegalCatalog(
+  role: UserRole,
+): Promise<{ updatedSources: number; updatedVisas: number }> {
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Somente administradores ou consultores podem sincronizar a Base Legal oficial.');
+  }
+
+  const [legSnap, visaSnap] = await Promise.all([
+    getDocs(collection(db, 'legalSources')),
+    getDocs(collection(db, 'visaCategories')),
+  ]);
+
+  const currentSources = legSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LegalSource, 'id'>) }));
+  const currentVisas = visaSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaCategory, 'id'>) }));
+
+  const { sourcesToUpsert, visasToUpsert } = buildOfficialLegalCatalogDiff(
+    currentSources,
+    currentVisas,
+    SEED_LEGAL_SOURCES,
+    SEED_VISA_CATEGORIES,
+  );
+
+  const nowIso = new Date().toISOString();
+  const todayIso = nowIso.slice(0, 10);
+
+  await Promise.all([
+    ...sourcesToUpsert.map((src) =>
+      setDoc(doc(db, 'legalSources', src.id), stripUndefined({ ...src, updatedAt: nowIso }), { merge: true }),
+    ),
+    ...visasToUpsert.map((visa) =>
+      setDoc(doc(db, 'visaCategories', visa.id), stripUndefined({ ...visa, updatedAt: nowIso }), { merge: true }),
+    ),
+  ]);
+
+  if (role === 'admin' && (sourcesToUpsert.length > 0 || visasToUpsert.length > 0)) {
+    await updateDoc(doc(db, 'config', 'empresa'), {
+      ultimaRevisaoNormativa: todayIso,
+      updatedAt: nowIso,
+    }).catch(() => {});
+  }
+
+  await registrarAuditoria(
+    'Sincronizar Base Legal Oficial SERMIG/BCN',
+    'legalSources',
+    'catalogo_sermig',
+    'sincronizar_base_legal',
+    { totalNormas: currentSources.length, totalVistos: currentVisas.length },
+    { updatedSources: sourcesToUpsert.length, updatedVisas: visasToUpsert.length },
+    role,
+  );
+
+  return {
+    updatedSources: sourcesToUpsert.length,
+    updatedVisas: visasToUpsert.length,
+  };
+}
+

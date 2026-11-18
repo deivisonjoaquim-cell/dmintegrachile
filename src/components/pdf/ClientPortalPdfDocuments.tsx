@@ -11,10 +11,12 @@ import type {
   DiagnosticAnswers,
   EmpresaConfig,
   Lead,
+  Task,
   ViabilityAssessment,
 } from '../../types/domain';
 import type { ThermometerResult } from '../../utils/caseMetrics';
 import type { DiagnosticResult } from '../../utils/diagnosticEngine';
+import type { TaskProgressOverview } from '../../utils/taskProgressMetrics';
 import {
   formatCurrency,
   formatDateBR,
@@ -78,6 +80,18 @@ export interface DossieCasoPdfInput {
   thermo: ThermometerResult;
   assessments?: ViabilityAssessment[];
   filterMode?: 'all' | 'apostila' | 'pacote';
+  logoDataUrl?: string;
+}
+
+export interface ResumoProcessoClientePdfInput {
+  empresa: EmpresaConfig;
+  client: Client | null;
+  activeCase: Case | null;
+  cases?: Case[];
+  clients?: Client[];
+  tasks: Task[];
+  docs: CaseDocument[];
+  overview: TaskProgressOverview;
   logoDataUrl?: string;
 }
 
@@ -1311,6 +1325,327 @@ export const DossieCasoPdfDocument: React.FC<DossieCasoPdfInput> = ({
   );
 };
 
+export const ResumoProcessoClientePdfDocument: React.FC<ResumoProcessoClientePdfInput> = ({
+  empresa,
+  client,
+  activeCase,
+  cases = [],
+  clients = [],
+  tasks,
+  docs,
+  overview,
+  logoDataUrl,
+}) => {
+  const primary = safeHex(empresa.corPrimaria, '#0F2537');
+  const accent = safeHex(empresa.corDestaque, '#C5A059');
+  const s = createStyles(primary, accent);
+  const generatedAt = formatDateTimeBR(new Date());
+
+  const clientMap = new Map(clients.map((c) => [c.id, c]));
+  const activeCasesList = cases.filter((c) => !c.arquivado);
+  const currentStageMeta = activeCase
+    ? PIPELINE_STAGES.find((st) => st.numero === activeCase.etapaPipeline)
+    : null;
+
+  const submittedDocs = docs
+    .filter(
+      (d) =>
+        d.status !== 'Pendente' ||
+        Boolean(d.arquivoUrl) ||
+        (d.anexos && d.anexos.length > 0) ||
+        (d.historicoVersoes && d.historicoVersoes.length > 0),
+    )
+    .sort((a, b) => {
+      const da = a.analisadoEm || a.updatedAt || a.anexos?.[0]?.data || '';
+      const db = b.analisadoEm || b.updatedAt || b.anexos?.[0]?.data || '';
+      return db.localeCompare(da) || a.ordemEmissao - b.ordemEmissao;
+    });
+
+  const approvedDocsCount = docs.filter((d) => d.status === 'Aprovado').length;
+  const reviewDocsCount = docs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise').length;
+  const pendingUploadCount = Math.max(0, docs.length - submittedDocs.length);
+
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const rank: Record<Task['status'], number> = { 'Em andamento': 0, Pendente: 1, 'Concluída': 2 };
+    return (rank[a.status] ?? 3) - (rank[b.status] ?? 3) || (a.prazo || '9999').localeCompare(b.prazo || '9999');
+  });
+
+  return (
+    <Document
+      title={`Resumo do Processo - ${client?.nomeCompleto || activeCase?.titulo || 'Consolidado'}`}
+      author={empresa.nome_empresa}
+    >
+      <Page size="A4" style={s.page}>
+        <View style={s.headerBand}>
+          <View style={s.brandWrap}>
+            {logoDataUrl && <Image src={logoDataUrl} style={s.headerLogo} />}
+            <View>
+              <Text style={s.brandName}>{safeStr(empresa.nome_empresa)}</Text>
+              <Text style={s.brandSub}>{safeStr(empresa.razao_social_cnpj_rut)}</Text>
+              <Text style={s.brandSub}>
+                {safeStr(empresa.whatsapp)} · {safeStr(empresa.email)}
+              </Text>
+            </View>
+          </View>
+          <View style={s.docTitleWrap}>
+            <Text style={s.docEyebrow}>ACOMPANHAMENTO DO PROCESSO</Text>
+            <Text style={s.docTitle}>Resumo de Status, Tarefas e Documentos</Text>
+            <Text style={s.docDate}>Emitido em {generatedAt}</Text>
+          </View>
+        </View>
+
+        {/* 1. Status Atual do Processo */}
+        <View style={s.section}>
+          <Text style={s.sectionHeading}>1. Resumo do Status Atual do Processo</Text>
+          {activeCase ? (
+            <>
+              <View style={s.cardBlock}>
+                <Text style={s.cardTitle}>{safeStr(activeCase.titulo)}</Text>
+                <Text style={s.cardMeta}>
+                  Titular: {safeStr(client?.nomeCompleto)} · Tipo: {safeStr(activeCase.tipoServico)} · Status SERMIG:{' '}
+                  {safeStr(activeCase.statusSermig)}
+                </Text>
+              </View>
+              <View style={s.gridTwo}>
+                <View style={s.gridCell}>
+                  <Text style={s.cellLabel}>Etapa no Fluxo Operacional</Text>
+                  <Text style={s.cellValue}>
+                    Etapa {activeCase.etapaPipeline} de 15{currentStageMeta ? ` — ${currentStageMeta.nome}` : ''}
+                  </Text>
+                </View>
+                <View style={s.gridCell}>
+                  <Text style={s.cellLabel}>Protocolo SERMIG</Text>
+                  <Text style={s.cellValue}>{safeStr(activeCase.numeroPedidoSermig, 'Aguardando protocolo')}</Text>
+                </View>
+                <View style={s.gridCell}>
+                  <Text style={s.cellLabel}>Data de Protocolo / Entrada Limite</Text>
+                  <Text style={s.cellValue}>
+                    {activeCase.dataProtocolo ? formatDateBR(activeCase.dataProtocolo) : '—'}
+                    {activeCase.dataLimiteEntrada ? ` · Limite entrada: ${formatDateBR(activeCase.dataLimiteEntrada)}` : ''}
+                  </Text>
+                </View>
+                <View style={s.gridCell}>
+                  <Text style={s.cellLabel}>Vencimento Residência</Text>
+                  <Text style={s.cellValue}>
+                    {activeCase.dataVencimentoResidencia ? formatDateBR(activeCase.dataVencimentoResidencia) : 'Não aplicável'}
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <View style={s.table}>
+              <View style={s.tableHeader}>
+                <Text style={[s.tableHeaderCell, { width: '28%' }]}>Cliente</Text>
+                <Text style={[s.tableHeaderCell, { width: '32%' }]}>Processo</Text>
+                <Text style={[s.tableHeaderCell, { width: '20%' }]}>Etapa</Text>
+                <Text style={[s.tableHeaderCell, { width: '20%' }]}>Status SERMIG</Text>
+              </View>
+              {activeCasesList.length === 0 ? (
+                <View style={s.tableRow}>
+                  <Text style={[s.tableCell, { width: '100%' }]}>Nenhum processo ativo cadastrado.</Text>
+                </View>
+              ) : (
+                activeCasesList.slice(0, 20).map((c) => {
+                  const cli = clientMap.get(c.clientId);
+                  return (
+                    <View key={c.id} style={s.tableRow} wrap={false}>
+                      <Text style={[s.tableCell, { width: '28%', fontFamily: 'Helvetica-Bold' }]}>
+                        {safeStr(cli?.nomeCompleto)}
+                      </Text>
+                      <Text style={[s.tableCell, { width: '32%' }]}>{safeStr(c.titulo)}</Text>
+                      <Text style={[s.tableCell, { width: '20%' }]}>Etapa {c.etapaPipeline}/15</Text>
+                      <Text style={[s.tableCell, { width: '20%' }]}>{safeStr(c.statusSermig)}</Text>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* 2. Progresso das Tarefas */}
+        <View style={s.section}>
+          <Text style={s.sectionHeading}>2. Progresso das Tarefas ({overview.concluidoPct}% concluído)</Text>
+          <View style={s.cardBlock}>
+            <Text style={s.kpiLabel}>
+              {overview.activeLabel} — {overview.completedTasks} de {overview.totalTasks} tarefa(s) concluída(s)
+            </Text>
+            <View style={s.progressTrack}>
+              <View
+                style={[
+                  s.progressFill,
+                  {
+                    width: `${Math.min(100, Math.max(overview.concluidoPct > 0 ? 4 : 0, overview.concluidoPct))}%`,
+                    backgroundColor: overview.concluidoPct >= 80 ? '#16A34A' : primary,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+
+          <View style={s.kpiRow}>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Total de Tarefas</Text>
+              <Text style={s.kpiValue}>{overview.totalTasks}</Text>
+            </View>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Concluídas</Text>
+              <Text style={[s.kpiValue, { color: '#16A34A' }]}>{overview.completedTasks}</Text>
+            </View>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Em Andamento</Text>
+              <Text style={[s.kpiValue, { color: '#D97706' }]}>{overview.inProgressTasks}</Text>
+            </View>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Pendentes</Text>
+              <Text style={s.kpiValue}>{overview.pendingTasks}</Text>
+            </View>
+          </View>
+
+          {sortedTasks.length === 0 ? (
+            <Text style={s.paragraph}>Nenhuma tarefa cadastrada para este filtro até o momento.</Text>
+          ) : (
+            <View style={s.table}>
+              <View style={s.tableHeader}>
+                <Text style={[s.tableHeaderCell, { width: '50%' }]}>Tarefa</Text>
+                <Text style={[s.tableHeaderCell, { width: '16%' }]}>Prioridade</Text>
+                <Text style={[s.tableHeaderCell, { width: '16%' }]}>Prazo</Text>
+                <Text style={[s.tableHeaderCell, { width: '18%' }]}>Status</Text>
+              </View>
+              {sortedTasks.slice(0, 35).map((t) => (
+                <View key={t.id} style={s.tableRow} wrap={false}>
+                  <Text style={[s.tableCell, { width: '50%', fontFamily: 'Helvetica-Bold' }]}>
+                    {safeStr(t.titulo)}
+                  </Text>
+                  <Text style={[s.tableCell, { width: '16%' }]}>{safeStr(t.prioridade)}</Text>
+                  <Text style={[s.tableCell, { width: '16%' }]}>{t.prazo ? formatDateBR(t.prazo) : '—'}</Text>
+                  <Text
+                    style={[
+                      s.tableCell,
+                      {
+                        width: '18%',
+                        fontFamily: 'Helvetica-Bold',
+                        color:
+                          t.status === 'Concluída'
+                            ? '#16A34A'
+                            : t.status === 'Em andamento'
+                              ? '#D97706'
+                              : '#475569',
+                      },
+                    ]}
+                  >
+                    {t.status}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* 3. Histórico de Documentos Enviados */}
+        <View style={s.section}>
+          <Text style={s.sectionHeading}>
+            3. Histórico de Documentos Enviados ({submittedDocs.length} registro(s))
+          </Text>
+          <View style={s.kpiRow}>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Enviados / Em Histórico</Text>
+              <Text style={s.kpiValue}>{submittedDocs.length}</Text>
+            </View>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Aprovados</Text>
+              <Text style={[s.kpiValue, { color: '#16A34A' }]}>{approvedDocsCount}</Text>
+            </View>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Em Conferência</Text>
+              <Text style={[s.kpiValue, { color: '#D97706' }]}>{reviewDocsCount}</Text>
+            </View>
+            <View style={s.kpiBox}>
+              <Text style={s.kpiLabel}>Aguardando Envio</Text>
+              <Text style={s.kpiValue}>{pendingUploadCount}</Text>
+            </View>
+          </View>
+
+          {submittedDocs.length === 0 ? (
+            <Text style={s.paragraph}>
+              Nenhum documento foi enviado até o momento ({pendingUploadCount} item(ns) aguardando envio pelo cliente).
+            </Text>
+          ) : (
+            <View style={s.table}>
+              <View style={s.tableHeader}>
+                <Text style={[s.tableHeaderCell, { width: '34%' }]}>Documento / Pessoa</Text>
+                <Text style={[s.tableHeaderCell, { width: '12%' }]}>Versão</Text>
+                <Text style={[s.tableHeaderCell, { width: '16%' }]}>Data Ref.</Text>
+                <Text style={[s.tableHeaderCell, { width: '20%' }]}>Apost. / Trad.</Text>
+                <Text style={[s.tableHeaderCell, { width: '18%' }]}>Status</Text>
+              </View>
+              {submittedDocs.slice(0, 40).map((d) => {
+                const lastDate =
+                  d.analisadoEm ||
+                  d.anexos?.[d.anexos.length - 1]?.data ||
+                  d.historicoVersoes?.[d.historicoVersoes.length - 1]?.data ||
+                  d.updatedAt;
+                const versionCount = d.historicoVersoes?.length || 0;
+                const attachCount = d.anexos?.length || 0;
+                return (
+                  <View key={d.id} style={s.tableRow} wrap={false}>
+                    <View style={{ width: '34%', paddingRight: 4 }}>
+                      <Text style={[s.tableCell, { fontFamily: 'Helvetica-Bold' }]}>
+                        {safeStr(d.nomeDocumento)}
+                      </Text>
+                      <Text style={[s.cardMeta, { marginBottom: 0, marginTop: 1 }]}>
+                        {safeStr(d.pessoa)}
+                        {d.arquivoNome ? ` · ${d.arquivoNome}` : ''}
+                        {attachCount > 1 ? ` (${attachCount} anexos)` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[s.tableCell, { width: '12%' }]}>
+                      v{d.versao || 1}
+                      {versionCount > 0 ? ` (+${versionCount})` : ''}
+                    </Text>
+                    <Text style={[s.tableCell, { width: '16%' }]}>
+                      {lastDate ? formatDateBR(lastDate) : '—'}
+                    </Text>
+                    <Text style={[s.tableCell, { width: '20%' }]}>
+                      {d.exigeApostila ? (d.apostilado ? 'Apost. OK' : 'Apost. Pend.') : 'S/ Apost.'} /{' '}
+                      {d.exigeTraducao ? (d.traduzido ? 'Trad. OK' : 'Trad. Pend.') : 'S/ Trad.'}
+                    </Text>
+                    <Text
+                      style={[
+                        s.tableCell,
+                        {
+                          width: '18%',
+                          fontFamily: 'Helvetica-Bold',
+                          color:
+                            d.status === 'Aprovado'
+                              ? '#16A34A'
+                              : d.status === 'Reprovado' || d.status === 'Vencido'
+                                ? '#C82333'
+                                : '#D97706',
+                        },
+                      ]}
+                    >
+                      {d.status}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        <View style={s.footer} fixed>
+          <Text style={s.footerLegal}>{safeStr(empresa.avisoLegal)}</Text>
+          <Text
+            style={s.footerPage}
+            render={({ pageNumber, totalPages }) => `Pág. ${pageNumber} / ${totalPages}`}
+          />
+        </View>
+      </Page>
+    </Document>
+  );
+};
+
 export function triggerPdfBlobDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1398,6 +1733,28 @@ export async function buildDossieCasoPdfBlob(input: DossieCasoPdfInput): Promise
 
 export async function exportDossieCasoPdf(input: DossieCasoPdfInput): Promise<string> {
   const { blob, filename } = await buildDossieCasoPdfBlob(input);
+  triggerPdfBlobDownload(blob, filename);
+  return filename;
+}
+
+export async function buildResumoProcessoClientePdfBlob(
+  input: ResumoProcessoClientePdfInput,
+): Promise<{ blob: Blob; filename: string }> {
+  const logoDataUrl = input.logoDataUrl ?? (await resolvePdfLogoDataUrl(input.empresa.logoUrl));
+  const blob = await pdf(<ResumoProcessoClientePdfDocument {...input} logoDataUrl={logoDataUrl} />).toBlob();
+  const filename = formatStandardDocFilename(
+    input.client?.nomeCompleto || input.activeCase?.titulo || 'PROCESSOS_ATIVOS',
+    'RESUMO_STATUS_PROCESSO',
+    toIsoDate(new Date()),
+    'pdf',
+  );
+  return { blob, filename };
+}
+
+export async function exportResumoProcessoClientePdf(
+  input: ResumoProcessoClientePdfInput,
+): Promise<string> {
+  const { blob, filename } = await buildResumoProcessoClientePdfBlob(input);
   triggerPdfBlobDownload(blob, filename);
   return filename;
 }

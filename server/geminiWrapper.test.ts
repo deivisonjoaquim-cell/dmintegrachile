@@ -10,6 +10,7 @@ import {
   buildCustosSpec,
   buildDiagnosticoSpec,
   buildNormaSpec,
+  buildNormaVerificarSpec,
   buildParecerSpec,
   buildPropostaSpec,
   runAiRouteExecution,
@@ -460,4 +461,104 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     assert.equal(JSON.stringify(audits[0].audit).includes('Maria Secreta'), false);
     assert.equal(classifyGeminiError(FORCED_503_MSG).isHighDemand, true);
   });
+
+  it('forwards googleSearch tool on buildNormaVerificarSpec and extracts groundingChunks into fontesOnline', async () => {
+    let capturedTools: unknown;
+    const spec = buildNormaVerificarSpec({
+      currentSource: {
+        titulo: 'Decreto Supremo Nº 177/2022',
+        numeroAno: 'Decreto Nº 177/2022',
+        pais: 'Chile',
+        linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1176043',
+      },
+    });
+
+    const res = await chamarGemini({
+      ...spec,
+      configOverride: { apiKey: 'k', maxAttempts: 2, fallbackAttempts: 1, baseDelayMs: 0 },
+      sleepFn: async () => {},
+      generateFn: async ({ config }) => {
+        capturedTools = config.tools;
+        return {
+          text: JSON.stringify({
+            possuiAtualizacao: false,
+            situacaoAtual: 'Vigente',
+            artigosExtraidos: 'Subcategorías de Residencia Temporal',
+            resumoExecutivo: 'Norma confirmada na BCN LeyChile sem alterações impeditivas.',
+            explicacaoCliente: 'Esta regra define os tipos de visto temporário no Chile.',
+            impactosVistos: ['Acordo Mercosul', 'Vínculo Familiar'],
+            divergencias: [],
+            fontesCitadas: ['https://www.bcn.cl/leychile/navegar?idNorma=1176043'],
+          }),
+          candidates: [
+            {
+              finishReason: 'STOP',
+              groundingMetadata: {
+                groundingChunks: [
+                  {
+                    web: {
+                      uri: 'https://www.bcn.cl/leychile/navegar?idNorma=1176043',
+                      title: 'BCN LeyChile - Decreto 177',
+                    },
+                  },
+                  {
+                    web: {
+                      uri: 'https://serviciomigraciones.cl/residencia-temporal/',
+                      title: 'SERMIG - Residencia Temporal',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        } as unknown as GenerateContentResponse;
+      },
+    });
+
+    assert.deepEqual(capturedTools, [{ googleSearch: {} }]);
+    assert.equal(res.ok, true);
+    assert.equal(res.payload?.origem, 'principal');
+    const data = res.payload as Record<string, unknown>;
+    assert.equal(data.situacaoAtual, 'Vigente');
+    const fontesOnline = data.fontesOnline as Array<{ titulo: string; url: string }>;
+    assert.equal(Array.isArray(fontesOnline), true);
+    assert.equal(fontesOnline.length, 2);
+    assert.equal(fontesOnline[0].url, 'https://www.bcn.cl/leychile/navegar?idNorma=1176043');
+    assert.equal(fontesOnline[1].titulo, 'SERMIG - Residencia Temporal');
+  });
+
+  it('uses deterministic rule fallback in PT-BR with official link when buildNormaVerificarSpec hits 503', async () => {
+    const spec = buildNormaVerificarSpec({
+      currentSource: {
+        titulo: 'Decreto Supremo Nº 181/2023 (PNME)',
+        numeroAno: 'Decreto Nº 181/2023',
+        pais: 'Chile',
+        linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1215233',
+      },
+    });
+
+    const res = await chamarGemini({
+      ...spec,
+      configOverride: { apiKey: 'k', maxAttempts: 2, fallbackAttempts: 1, baseDelayMs: 0 },
+      sleepFn: async () => {},
+      generateFn: async () => {
+        const err = new Error(FORCED_503_MSG) as Error & { status?: number };
+        err.status = 503;
+        throw err;
+      },
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.payload?.fallback, true);
+    assert.equal(res.payload?.origem, 'regras');
+    const data = res.payload as Record<string, unknown>;
+    assert.equal(data.possuiAtualizacao, false);
+    assert.ok(String(data.resumoExecutivo).includes('Decreto Supremo Nº 181/2023'));
+    assert.deepEqual(data.fontesCitadas, [
+      'https://www.bcn.cl/leychile/navegar?idNorma=1215233',
+      'https://serviciomigraciones.cl',
+      'https://www.bcn.cl/leychile',
+    ]);
+  });
 });
+

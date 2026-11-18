@@ -24,3 +24,6 @@
 10. **Audit Log Tampering (`auditLogs/{id}`)**: Even `admin` attempts `update` or `delete` on `/auditLogs/log1` -> `PERMISSION_DENIED`.
 11. **Public Reads Partner Commissions (`partners/{id}`)**: Unauthenticated or `cliente` user attempts `get` on `/partners/p1` -> `PERMISSION_DENIED`.
 12. **Unverified Email Write / Spam Honeypot (`partnerProposals/{id}`)**: Public submission with non-empty `website_honeypot` or oversized string (> 3000 chars) -> `PERMISSION_DENIED`.
+13. **FCM Token & Notification Isolation (`/fcmTokens/{id}`, `/clientNotifications/{id}`)**:
+    - Clients can register/update/deactivate ONLY their own `/fcmTokens/{id}` (`uid == request.auth.uid` and `clientId == userClientId()`) and cannot read or list tokens of other users/clients.
+    - Only verified staff (`admin`, `consultor`, `assistente`) can create `/clientNotifications/{id}`; clients can ONLY read notifications matching their `clientId` and update strictly `['lida', 'lidaEm', 'updatedAt']` without mutating `titulo`, `mensagem`, or `clientId`.

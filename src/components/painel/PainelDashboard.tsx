@@ -6,9 +6,11 @@ import {
   Calendar,
   CheckCircle2,
   CheckSquare,
+  ClipboardCheck,
   FileWarning,
   FolderArchive,
   MessageCircle,
+  Scale,
   TrendingUp,
   UserCheck,
   Users,
@@ -19,14 +21,18 @@ import type {
   Case,
   CaseDocument,
   Client,
+  CommunicationLog,
   Deadline,
   FinancialRecord,
   Lead,
+  LegalSource,
   Task,
   UserRole,
 } from '../../types/domain';
 import { calcularTermometroDocumentos, calcularUrgencias } from '../../utils/caseMetrics';
-import { buildWhatsAppUrl, formatCurrency, formatDateBR, toIsoDate } from '../../utils/formatters';
+import { countUnreadChatForStaff, getPendingClientChatThreads } from '../../utils/documentChat';
+import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, toIsoDate } from '../../utils/formatters';
+import { countLegalReviewPending } from '../../utils/legalSync';
 
 interface PainelDashboardProps {
   role: UserRole;
@@ -38,8 +44,11 @@ interface PainelDashboardProps {
   tasks?: Task[];
   appointments?: Appointment[];
   financialRecords: FinancialRecord[];
+  communicationLogs?: CommunicationLog[];
+  legalSources?: LegalSource[];
+  diasAlertaRevisaoLegal?: number;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
-  onOpenCase: (caseId: string) => void;
+  onOpenCase: (caseId: string, targetTab?: 'resumo' | 'comunicacao') => void;
   onToggleTask?: (task: Task) => Promise<void>;
   onNavigateSection?: (
     section:
@@ -47,6 +56,7 @@ interface PainelDashboardProps {
       | 'leads'
       | 'clientes'
       | 'casos'
+      | 'checklist'
       | 'documentos'
       | 'contratos'
       | 'financeiro'
@@ -66,6 +76,9 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   tasks = [],
   appointments = [],
   financialRecords,
+  communicationLogs = [],
+  legalSources = [],
+  diasAlertaRevisaoLegal = 90,
   onLogWhatsApp,
   onOpenCase,
   onToggleTask,
@@ -185,6 +198,16 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     return { rows, maxCount };
   }, [activeCases]);
 
+  const chatThreads = useMemo(
+    () => getPendingClientChatThreads(communicationLogs, clients, cases).slice(0, 5),
+    [communicationLogs, clients, cases],
+  );
+  const unreadChatTotal = useMemo(() => countUnreadChatForStaff(communicationLogs), [communicationLogs]);
+  const legalPending = useMemo(
+    () => countLegalReviewPending(legalSources, diasAlertaRevisaoLegal),
+    [legalSources, diasAlertaRevisaoLegal],
+  );
+
   const handleNotifyUrgency = async (u: (typeof urgencias)[number]) => {
     const text = `Olá${u.clientNome ? `, ${u.clientNome}` : ''}! Alerta operacional D&M Integra Chile: ${u.titulo} — ${u.detalhe} (Data ref.: ${u.dataReferenciaBR}).`;
     if (u.clientWhatsapp) {
@@ -244,15 +267,15 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
               icon: <Calendar className="w-4 h-4 text-[var(--color-primary)]" />,
             },
             {
-              sec: 'documentos' as const,
-              title: 'Dossiês & Exportação',
+              sec: 'checklist' as const,
+              title: 'Checklist por Visto',
               sub: `${totalPendingDocs} doc(s) em conferência`,
-              icon: <FolderArchive className="w-4 h-4 text-[var(--color-primary)]" />,
+              icon: <ClipboardCheck className="w-4 h-4 text-[var(--color-primary)]" />,
             },
             {
               sec: 'ferramentas' as const,
               title: 'Calculadoras & Simulador',
-              sub: 'Prazos SERMIG · Câmbio · Checklist',
+              sub: 'Prazos SERMIG · Câmbio · Custos',
               icon: <Calculator className="w-4 h-4 text-[var(--color-primary)]" />,
             },
           ].map((item) => (
@@ -275,6 +298,39 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
               <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 shrink-0" />
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Alerta Governança Normativa SERMIG / BCN */}
+      {!isAssistente && legalPending.totalAttention > 0 && onNavigateSection && (
+        <div
+          className="border border-amber-200 bg-amber-50/70 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          style={{ borderRadius: 'var(--card-radius, 12px)' }}
+        >
+          <div className="flex items-start gap-3">
+            <Scale className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-950">
+                Governança Normativa SERMIG / BCN — {legalPending.totalAttention} norma(s) pedindo atenção
+              </p>
+              <p className="text-[11px] text-amber-900">
+                {legalPending.aVerificar > 0 ? `${legalPending.aVerificar} aguardando verificação` : 'Status vigentes'}
+                {legalPending.outdated > 0
+                  ? ` · ${legalPending.outdated} sem conferência há mais de ${diasAlertaRevisaoLegal} dias`
+                  : ''}
+                . Use o verificador online com IA ou sincronize a base oficial.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateSection('legal')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white shrink-0"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Revisar Base Legal
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -486,6 +542,99 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             </ul>
           )}
         </div>
+      </section>
+
+      {/* Dúvidas Rápidas no Chat (Portal do Cliente) */}
+      <section className="border border-slate-200 p-5 space-y-3" style={cardStyle}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-[var(--color-primary)]" />
+              Dúvidas Rápidas no Chat (Documentos)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Mensagens enviadas pelo cliente no widget do Portal e integradas ao histórico de cada processo
+            </p>
+          </div>
+          <span
+            className={`text-xs font-bold tabular-nums ${
+              unreadChatTotal > 0 ? 'text-[#C82333]' : 'text-slate-600'
+            }`}
+          >
+            {unreadChatTotal > 0
+              ? `${unreadChatTotal} não lida(s)`
+              : `${chatThreads.length} conversa(s)`}
+          </span>
+        </div>
+
+        {chatThreads.length === 0 ? (
+          <p className="text-xs text-slate-500 py-2">
+            Nenhuma dúvida de documento enviada pelos clientes no chat até o momento.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {chatThreads.map((thread) => (
+              <div
+                key={thread.clientId}
+                className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-slate-900">{thread.clientName}</span>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-slate-600 truncate">{thread.caseTitle}</span>
+                    <span
+                      className={`font-semibold tabular-nums ${
+                        thread.unreadCount > 0
+                          ? 'text-[#C82333]'
+                          : thread.awaitingReply
+                            ? 'text-amber-700'
+                            : 'text-[#1E7E34]'
+                      }`}
+                    >
+                      {thread.unreadCount > 0
+                        ? `· ${thread.unreadCount} nova(s)`
+                        : thread.awaitingReply
+                          ? '· Aguardando resposta'
+                          : '· Respondido'}
+                    </span>
+                  </div>
+                  {thread.lastMessage.documentNome && (
+                    <p className="text-[11px] font-semibold text-[var(--color-primary)]">
+                      Doc: {thread.lastMessage.documentNome}
+                    </p>
+                  )}
+                  <p className="text-slate-700 line-clamp-2">{thread.lastMessage.mensagem}</p>
+                  <p className="text-[11px] text-slate-500 tabular-nums">
+                    Última atividade: {formatDateTimeBR(thread.lastMessage.createdAt)}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  {thread.caseId ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenCase(thread.caseId, 'comunicacao')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      Responder no Histórico
+                    </button>
+                  ) : (
+                    onNavigateSection && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateSection('clientes')}
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                      >
+                        Abrir Clientes
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Central de Urgências */}

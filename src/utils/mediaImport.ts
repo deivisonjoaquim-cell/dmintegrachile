@@ -35,7 +35,7 @@ export const BUILT_IN_MEDIA_GALLERY: { id: string; nome: string; categoria: Medi
     id: 'builtin_founder_portrait',
     nome: 'Retrato Institucional / Diretoria Técnica',
     categoria: 'equipe',
-    url: '/src/assets/images/quem_somos_founder_1794944012517.jpg',
+    url: '/src/assets/images/quem_somos_founder_1794993847940.jpg',
   },
 ];
 

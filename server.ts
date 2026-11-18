@@ -10,11 +10,16 @@ import {
   buildCustosSpec,
   buildDiagnosticoSpec,
   buildNormaSpec,
+  buildNormaVerificarSpec,
   buildParecerSpec,
   buildPropostaSpec,
   runAiRouteExecution,
   type AiRouteDependencies,
 } from './server/geminiRoutes';
+import {
+  dispatchProcessPushNotification,
+  type ProcessNotificationType,
+} from './server/fcmService';
 
 const PORT = Number(process.env.PORT || 3000);
 const PROJECT_ID = firebaseConfig.projectId;
@@ -271,6 +276,57 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
 
+app.get(
+  '/api/notifications/health',
+  requireAuth,
+  requireRole(['admin', 'consultor', 'assistente']),
+  (_req: AuthedRequest, res: Response) => {
+    res.json({
+      ok: true,
+      vapidEnvConfigured: Boolean((process.env.VITE_FIREBASE_VAPID_KEY || '').trim()),
+      projectId: PROJECT_ID,
+    });
+  },
+);
+
+app.post(
+  '/api/notifications/process-update',
+  requireAuth,
+  requireRole(['admin', 'consultor', 'assistente']),
+  async (req: AuthedRequest, res: Response) => {
+    const body = (req.body || {}) as {
+      clientId?: string;
+      caseId?: string;
+      notificationId?: string;
+      tipo?: ProcessNotificationType;
+      titulo?: string;
+      mensagem?: string;
+      etapaPipeline?: number;
+      statusSermig?: string;
+      targetUrl?: string;
+    };
+
+    if (!body.clientId || !body.titulo || !body.mensagem) {
+      res.status(400).json({ error: 'Campos clientId, titulo e mensagem são obrigatórios.' });
+      return;
+    }
+
+    const result = await dispatchProcessPushNotification({
+      clientId: body.clientId,
+      caseId: body.caseId,
+      notificationId: body.notificationId,
+      tipo: body.tipo || 'geral',
+      titulo: body.titulo,
+      mensagem: body.mensagem,
+      etapaPipeline: body.etapaPipeline,
+      statusSermig: body.statusSermig,
+      targetUrl: body.targetUrl || '/portal',
+    });
+
+    res.json(result);
+  },
+);
+
 app.post('/api/auth/check-admin', requireAuth, (req: AuthedRequest, res: Response) => {
   const adminEmails = getAdminEmails();
   const isAdminEmail = Boolean(req.authUser && adminEmails.has(req.authUser.email));
@@ -434,6 +490,25 @@ app.post(
     const body = (req.body || {}) as Record<string, unknown>;
     const wantsStream = req.headers['x-ai-progress'] === '1';
     await runAiRouteExecution(req.authUser, wantsStream, res, buildNormaSpec(body, UPLOAD_DIR), aiRouteDeps);
+  },
+);
+
+// -----------------------------------------------------------------------------
+// 7. /api/ai/norma-verificar — Verificação online SERMIG/BCN via Google Search Grounding
+// -----------------------------------------------------------------------------
+app.post(
+  '/api/ai/norma-verificar',
+  requireAuth,
+  requireRole(['admin', 'consultor']),
+  aiRateLimit,
+  async (req: AuthedRequest, res: Response) => {
+    const body = (req.body || {}) as Record<string, unknown>;
+    if (!body.currentSource || typeof body.currentSource !== 'object') {
+      res.status(400).json({ error: 'Informe a norma atual para consulta oficial.' });
+      return;
+    }
+    const wantsStream = req.headers['x-ai-progress'] === '1';
+    await runAiRouteExecution(req.authUser, wantsStream, res, buildNormaVerificarSpec(body), aiRouteDeps);
   },
 );
 
