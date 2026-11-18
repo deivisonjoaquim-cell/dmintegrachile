@@ -52,7 +52,9 @@ interface PainelDashboardProps {
   legalSources?: LegalSource[];
   visaRequirements?: VisaRequirement[];
   diasAlertaRevisaoLegal?: number;
+  brandName?: string;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
+  onEmailLogsCreated?: (logs: CommunicationLog[]) => void;
   onOpenCase: (caseId: string, targetTab?: 'resumo' | 'comunicacao') => void;
   onOpenChecklist?: (caseId?: string) => void;
   onToggleTask?: (task: Task) => Promise<void>;
@@ -87,7 +89,9 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   legalSources = [],
   visaRequirements = [],
   diasAlertaRevisaoLegal = 90,
+  brandName,
   onLogWhatsApp,
+  onEmailLogsCreated,
   onOpenCase,
   onOpenChecklist,
   onToggleTask,
@@ -560,12 +564,15 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         clients={clients}
         dependents={dependents}
         visaRequirements={visaRequirements}
+        communicationLogs={communicationLogs}
+        brandName={brandName}
         onOpenCase={(id) => onOpenCase(id)}
         onOpenChecklist={(caseId) => {
           if (onOpenChecklist) onOpenChecklist(caseId);
           else onNavigateSection?.('checklist');
         }}
         onLogWhatsApp={onLogWhatsApp}
+        onEmailLogsCreated={onEmailLogsCreated}
       />
 
       {/* Dúvidas Rápidas no Chat (Portal do Cliente) */}

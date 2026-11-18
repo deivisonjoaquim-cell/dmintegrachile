@@ -133,23 +133,30 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     userProfile?.status === 'ativo' &&
     (role === 'admin' || role === 'consultor' || role === 'assistente');
 
-  const loadWorkspace = useCallback(async () => {
-    if (!userProfile || !isStaff) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const [ws, cms] = await Promise.all([
-        fetchStaffWorkspaceData(userProfile.role),
-        fetchAllSiteContentStaff().catch(() => siteContent),
-      ]);
-      setWorkspace(ws);
-      setStaffSiteContent(cms);
-    } finally {
-      setLoading(false);
-    }
-  }, [userProfile, isStaff, siteContent]);
+  const loadWorkspace = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!userProfile || !isStaff) {
+        setLoading(false);
+        return;
+      }
+      if (!options?.silent) {
+        setLoading(true);
+      }
+      try {
+        const [ws, cms] = await Promise.all([
+          fetchStaffWorkspaceData(userProfile.role),
+          fetchAllSiteContentStaff().catch(() => siteContent),
+        ]);
+        setWorkspace(ws);
+        setStaffSiteContent(cms);
+      } finally {
+        if (!options?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [userProfile, isStaff, siteContent],
+  );
 
   useEffect(() => {
     void loadWorkspace();
@@ -170,11 +177,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([loadWorkspace(), firestore.refresh()]);
+      await Promise.all([loadWorkspace({ silent: Boolean(workspace) }), firestore.refresh()]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadWorkspace, firestore]);
+  }, [loadWorkspace, firestore, workspace]);
 
   const effectiveWorkspace = useMemo(() => {
     if (!workspace) return null;
@@ -262,6 +269,20 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     );
     await handleRefreshAll();
   };
+
+  const handleEmailLogsCreated = useCallback((newLogs: CommunicationLog[]) => {
+    if (!newLogs || newLogs.length === 0) return;
+    setWorkspace((prev) => {
+      if (!prev) return prev;
+      const existingIds = new Set(prev.communicationLogs.map((l) => l.id));
+      const fresh = newLogs.filter((l) => !existingIds.has(l.id));
+      if (fresh.length === 0) return prev;
+      return {
+        ...prev,
+        communicationLogs: [...fresh, ...prev.communicationLogs],
+      };
+    });
+  }, []);
 
   const handleQuickToggleTask = async (task: Task) => {
     if (!userProfile) return;
@@ -1034,7 +1055,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </div>
         )}
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main
+          className={`flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full mx-auto ${
+            section === 'leads' ? 'max-w-[1560px]' : 'max-w-7xl'
+          }`}
+        >
           {firestore.error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 flex items-center justify-between gap-3">
               <span>Erro ao sincronizar dados com o Firestore: {firestore.error}</span>
@@ -1078,7 +1103,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   legalSources={legalSources}
                   visaRequirements={visaRequirements}
                   diasAlertaRevisaoLegal={empresa.diasAlertaRevisaoLegal || 90}
+                  brandName={empresa.nome_empresa}
                   onLogWhatsApp={handleLogWhatsApp}
+                  onEmailLogsCreated={handleEmailLogsCreated}
                   onOpenCase={handleOpenCase}
                   onOpenChecklist={handleOpenChecklist}
                   onToggleTask={handleQuickToggleTask}

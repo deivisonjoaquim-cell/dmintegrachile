@@ -20,6 +20,12 @@ import {
   dispatchProcessPushNotification,
   type ProcessNotificationType,
 } from './server/fcmService';
+import {
+  dispatchExpirationReminderEmails,
+  getSmtpConfigFromEnv,
+  type EmailReminderItemPayload,
+} from './server/emailReminderService';
+import type { CommunicationLog } from './src/types/domain';
 
 const PORT = Number(process.env.PORT || 3000);
 const PROJECT_ID = firebaseConfig.projectId;
@@ -321,6 +327,63 @@ app.post(
       etapaPipeline: body.etapaPipeline,
       statusSermig: body.statusSermig,
       targetUrl: body.targetUrl || '/portal',
+    });
+
+    res.json(result);
+  },
+);
+
+app.get(
+  '/api/emails/health',
+  requireAuth,
+  requireRole(['admin', 'consultor', 'assistente']),
+  (_req: AuthedRequest, res: Response) => {
+    const smtp = getSmtpConfigFromEnv();
+    res.json({
+      ok: true,
+      smtpConfigured: smtp.configured,
+      from: smtp.from,
+      cooldownDays: smtp.cooldownDays,
+    });
+  },
+);
+
+app.post(
+  '/api/emails/expiration-reminders',
+  requireAuth,
+  requireRole(['admin', 'consultor', 'assistente']),
+  async (req: AuthedRequest, res: Response) => {
+    const body = (req.body || {}) as {
+      items?: EmailReminderItemPayload[];
+      communicationLogs?: CommunicationLog[];
+      brandName?: string;
+      portalUrl?: string;
+      copyConsultant?: boolean;
+      forceSend?: boolean;
+      previewOnly?: boolean;
+    };
+
+    if (!Array.isArray(body.items)) {
+      res.status(400).json({ error: 'Informe a lista de documentos para verificação de vencimento.' });
+      return;
+    }
+
+    const appUrl = (process.env.APP_URL || '').trim().replace(/\/$/, '');
+    const portalUrl = body.portalUrl || (appUrl ? `${appUrl}/portal` : '');
+
+    const result = await dispatchExpirationReminderEmails({
+      items: body.items.slice(0, 100),
+      communicationLogs: Array.isArray(body.communicationLogs) ? body.communicationLogs.slice(0, 500) : [],
+      brandName: body.brandName,
+      portalUrl,
+      copyConsultantEmail: body.copyConsultant ? req.authUser?.email : undefined,
+      forceSend: Boolean(body.forceSend),
+      previewOnly: Boolean(body.previewOnly),
+      staffUid: req.authUser?.uid,
+      staffName: req.authUser?.name || req.authUser?.email || 'Equipe D&M Integra Chile',
+      rawToken: req.authUser?.rawToken,
+      projectId: PROJECT_ID,
+      databaseId: DATABASE_ID,
     });
 
     res.json(result);

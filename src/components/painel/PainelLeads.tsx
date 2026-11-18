@@ -18,6 +18,7 @@ import {
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
 import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
+import { buildUpdatedLeadFromPatch, type LeadQuickEditPatch } from '../../utils/leadKanban';
 import {
   callAiEndpoint,
   convertLeadToClientAndCaseEnhanced,
@@ -160,7 +161,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const filtered = useMemo(() => {
     return effectiveLeads
       .filter((l) => {
-        if (statusFilter !== 'Todos' && l.statusFunil !== statusFilter) return false;
+        if (view !== 'kanban' && statusFilter !== 'Todos' && l.statusFunil !== statusFilter) return false;
         if (smartFilter === 'alta_urgente' && l.prioridade !== 'Alta' && l.prioridade !== 'Urgente') return false;
         if (smartFilter === 'confianca_baixa' && l.confianca !== 'Baixa') return false;
         if (smartFilter === 'abandonados' && l.statusConclusao !== 'Abandonado' && l.statusConclusao !== 'Em andamento') {
@@ -181,7 +182,17 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         return true;
       })
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  }, [effectiveLeads, search, statusFilter, smartFilter]);
+  }, [effectiveLeads, view, search, statusFilter, smartFilter]);
+
+  const hasActiveFilters = Boolean(
+    search.trim() || smartFilter !== 'todos' || (view !== 'kanban' && statusFilter !== 'Todos'),
+  );
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setSmartFilter('todos');
+    if (view !== 'kanban') setStatusFilter('Todos');
+  };
 
   const openInspectModal = (lead: Lead) => {
     setInspectingLead(lead);
@@ -243,44 +254,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     }
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingLead) return;
-    const patch: Lead = {
-      ...editingLead,
-      primeiroContatoEm:
-        editingLead.statusFunil !== 'Novo' && !editingLead.primeiroContatoEm
-          ? new Date().toISOString()
-          : editingLead.primeiroContatoEm,
-    };
-    await saveDocumentAudited(
-      'leads',
-      patch.id,
-      patch as unknown as Record<string, unknown>,
-      false,
-      role,
-      'edicao_lead',
-    );
-    setEditingLead(null);
-    setFeedback('Lead atualizado com sucesso.');
-    await onRefresh();
-  };
-
-  const handleMoveLeadStage = async (
-    lead: Lead,
-    nextStage: Lead['statusFunil'],
-    motivoPerda?: string,
-  ) => {
-    if (lead.statusFunil === nextStage) return;
-    const nowIso = new Date().toISOString();
-    const updatedLead: Lead = {
-      ...lead,
-      statusFunil: nextStage,
-      primeiroContatoEm:
-        nextStage !== 'Novo' && !lead.primeiroContatoEm ? nowIso : lead.primeiroContatoEm,
-      motivoPerda: nextStage === 'Perdido' ? (motivoPerda || lead.motivoPerda || 'Não informado') : undefined,
-      updatedAt: nowIso,
-    };
+  const handleQuickUpdateLead = async (lead: Lead, patch: LeadQuickEditPatch) => {
+    const updatedLead = buildUpdatedLeadFromPatch(lead, patch);
     setMovingLeadId(lead.id);
     setOptimisticLeads((prev) => ({ ...prev, [lead.id]: updatedLead }));
     setFeedback(null);
@@ -291,10 +266,14 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         updatedLead as unknown as Record<string, unknown>,
         false,
         role,
-        'statusFunil',
-        lead.statusFunil,
+        'edicao_rapida_lead',
+        {
+          statusFunil: lead.statusFunil,
+          prioridade: lead.prioridade,
+          temperatura: lead.temperatura,
+        },
       );
-      setFeedback(`Lead "${lead.nome}" movido para "${nextStage}".`);
+      setFeedback(`Lead "${lead.nome}" atualizado: ${updatedLead.statusFunil} · Prioridade ${updatedLead.prioridade}.`);
       await onRefresh();
     } catch (err) {
       setOptimisticLeads((prev) => {
@@ -302,7 +281,9 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         delete clone[lead.id];
         return clone;
       });
-      setFeedback(err instanceof Error ? err.message : 'Não foi possível atualizar a etapa do lead.');
+      const msg = err instanceof Error ? err.message : 'Não foi possível atualizar o lead.';
+      setFeedback(msg);
+      throw err instanceof Error ? err : new Error(msg);
     } finally {
       setMovingLeadId(null);
       setOptimisticLeads((prev) => {
@@ -311,6 +292,35 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         return clone;
       });
     }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLead) return;
+    const base = leads.find((l) => l.id === editingLead.id) || editingLead;
+    await handleQuickUpdateLead(base, {
+      statusFunil: editingLead.statusFunil,
+      prioridade: editingLead.prioridade,
+      temperatura: editingLead.temperatura,
+      motivoPerda: editingLead.motivoPerda,
+      notas: editingLead.notas,
+    });
+    setEditingLead(null);
+  };
+
+  const handleMoveLeadStage = async (
+    lead: Lead,
+    nextStage: Lead['statusFunil'],
+    motivoPerda?: string,
+  ) => {
+    if (lead.statusFunil === nextStage) return;
+    await handleQuickUpdateLead(lead, {
+      statusFunil: nextStage,
+      prioridade: lead.prioridade,
+      temperatura: lead.temperatura,
+      motivoPerda,
+      notas: lead.notas,
+    });
   };
 
   const handleDelete = async (lead: Lead) => {
@@ -478,15 +488,15 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
+    <div className="space-y-5 min-w-0 w-full">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">Gestão de Leads &amp; Inteligência do Diagnóstico</h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 mt-0.5">
             Triagem por prioridade e confiança, simulador &quot;E se&quot;, recálculo sob demanda e conversão em 1 clique
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <div className="flex items-center p-1 bg-slate-200/70 rounded-lg">
             {[
               { id: 'lista', label: 'Lista' },
@@ -505,8 +515,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                     // ignore
                   }
                 }}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${
-                  view === t.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                  view === t.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {t.label}
@@ -517,7 +527,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             type="button"
             disabled={busyAction}
             onClick={() => void handleSyncFollowUps()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
           >
             <BellPlus className="w-3.5 h-3.5 text-[var(--color-primary)]" />
             Sincronizar Follow-ups
@@ -546,7 +556,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 ]),
               )
             }
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             Exportar CSV
@@ -718,64 +728,79 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       ) : (
         <>
           {/* Barra de Filtros + Ação Recalcular */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-              <div className="relative flex-1">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
+            <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center min-w-0">
+              <div className="relative flex-1 min-w-0">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar lead por nome, e-mail, WhatsApp, UTM ou subcategoria..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm"
                 />
               </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
-              >
-                <option value="Todos">Todos os status do funil</option>
-                {FUNIL_STAGES.map((st) => (
-                  <option key={st} value={st}>
-                    {st}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={smartFilter}
-                onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
-              >
-                <option value="todos">Todos os perfis</option>
-                <option value="alta_urgente">Prioridade Alta / Urgente</option>
-                <option value="quente">Temperatura Quente</option>
-                <option value="confianca_baixa">Confiança Baixa</option>
-                <option value="revisar_consultor">Solicitou falar c/ consultor</option>
-                <option value="abandonados">Abandonados / Em andamento</option>
-              </select>
-              <select
-                value={selectedTplId}
-                onChange={(e) => setSelectedTplId(e.target.value)}
-                aria-label="Selecionar modelo de mensagem"
-                className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-              >
-                {messageTemplates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    Modelo: {t.titulo}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+                {view === 'lista' && (
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    aria-label="Filtrar por status do funil"
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white min-w-0"
+                  >
+                    <option value="Todos">Todos os status do funil</option>
+                    {FUNIL_STAGES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <select
+                  value={smartFilter}
+                  onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
+                  aria-label="Filtrar por perfil do lead"
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white min-w-0"
+                >
+                  <option value="todos">Todos os perfis</option>
+                  <option value="alta_urgente">Prioridade Alta / Urgente</option>
+                  <option value="quente">Temperatura Quente</option>
+                  <option value="confianca_baixa">Confiança Baixa</option>
+                  <option value="revisar_consultor">Solicitou falar c/ consultor</option>
+                  <option value="abandonados">Abandonados / Em andamento</option>
+                </select>
+                <select
+                  value={selectedTplId}
+                  onChange={(e) => setSelectedTplId(e.target.value)}
+                  aria-label="Selecionar modelo de mensagem"
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white max-w-[240px] min-w-0"
+                >
+                  {messageTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      Modelo: {t.titulo}
+                    </option>
+                  ))}
+                </select>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="px-2.5 py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap shrink-0"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
             </div>
 
             {selectedLeadIds.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-                <span className="font-semibold text-slate-700">{selectedLeadIds.length} lead(s) selecionado(s)</span>
+                <span className="font-semibold text-slate-700 tabular-nums">{selectedLeadIds.length} lead(s) selecionado(s)</span>
                 <button
                   type="button"
                   disabled={busyAction}
                   onClick={() => void handleRecalculateSelected()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white font-semibold disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white font-semibold whitespace-nowrap shrink-0 disabled:opacity-50"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
@@ -928,8 +953,11 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               selectedLeadIds={selectedLeadIds}
               convertingId={convertingId}
               movingLeadId={movingLeadId}
+              hasActiveFilters={hasActiveFilters}
+              onClearFilters={handleClearFilters}
               onToggleSelect={toggleSelect}
               onMoveStage={handleMoveLeadStage}
+              onQuickUpdateLead={handleQuickUpdateLead}
               onInspectLead={openInspectModal}
               onEditLead={setEditingLead}
               onSendWhatsApp={handleSendTemplate}

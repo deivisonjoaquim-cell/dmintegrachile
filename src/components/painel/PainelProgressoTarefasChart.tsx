@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import type { Case, CaseDocument, Client, EmpresaConfig, Task } from '../../types/domain';
 import { computeClientTaskProgress } from '../../utils/taskProgressMetrics';
-import { exportResumoProcessoClientePdf } from '../pdf/ClientPortalPdfDocuments';
+import { exportResumoProcessoVisualPdf } from '../pdf/ResumoProcessoVisualPdf';
 
 interface PainelProgressoTarefasChartProps {
   empresa: EmpresaConfig;
@@ -185,7 +185,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
     setPdfBusy(true);
     setPdfError(null);
     try {
-      await exportResumoProcessoClientePdf({
+      await exportResumoProcessoVisualPdf({
         empresa,
         client: targetClient,
         activeCase: singleTargetCase,
@@ -197,7 +197,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
       });
     } catch (err) {
       setPdfError(
-        err instanceof Error ? err.message : 'Não foi possível gerar o PDF de resumo do processo.',
+        err instanceof Error ? err.message : 'Não foi possível gerar o PDF visual de resumo do processo.',
       );
     } finally {
       setPdfBusy(false);
