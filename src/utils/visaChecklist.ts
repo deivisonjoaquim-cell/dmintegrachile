@@ -22,6 +22,8 @@ export interface ChecklistRowEntry {
   orgaoEmissor: string;
   comoObterInstrucoes?: string;
   comoObterUrl?: string;
+  dataEmissao?: string;
+  dataValidadeCalculada?: string;
   status: CaseDocument['status'];
   completed: boolean;
 }
@@ -120,6 +122,8 @@ export function buildVisaChecklistEntries(params: {
       orgaoEmissor: matchedDoc?.orgaoEmissor || req.orgaoEmissor || '',
       comoObterInstrucoes: req.comoObterInstrucoes,
       comoObterUrl: req.comoObterUrl,
+      dataEmissao: matchedDoc?.dataEmissao,
+      dataValidadeCalculada: matchedDoc?.dataValidadeCalculada,
       status,
       completed: status === 'Aprovado',
     };
@@ -142,6 +146,8 @@ export function buildVisaChecklistEntries(params: {
         apostilado: doc.apostilado,
         traduzido: doc.traduzido,
         orgaoEmissor: doc.orgaoEmissor || '',
+        dataEmissao: doc.dataEmissao,
+        dataValidadeCalculada: doc.dataValidadeCalculada,
         status: doc.status,
         completed: doc.status === 'Aprovado',
       });
@@ -186,6 +192,8 @@ export function buildCaseDocumentFromChecklistToggle(params: {
   nextStatus?: CaseDocument['status'];
   nextApostilado?: boolean;
   nextTraduzido?: boolean;
+  nextDataEmissao?: string;
+  nextDataValidadeCalculada?: string;
   nowIso?: string;
   newId: string;
 }): { docId: string; isNew: boolean; payload: CaseDocument } {
@@ -197,6 +205,8 @@ export function buildCaseDocumentFromChecklistToggle(params: {
     nextStatus,
     nextApostilado,
     nextTraduzido,
+    nextDataEmissao,
+    nextDataValidadeCalculada,
     nowIso = new Date().toISOString(),
     newId,
   } = params;
@@ -223,6 +233,11 @@ export function buildCaseDocumentFromChecklistToggle(params: {
       etapaEsteira: resolvedStep,
       apostilado: nextApostilado ?? existing.apostilado,
       traduzido: nextTraduzido ?? existing.traduzido,
+      dataEmissao: nextDataEmissao !== undefined ? nextDataEmissao : existing.dataEmissao,
+      dataValidadeCalculada:
+        nextDataValidadeCalculada !== undefined
+          ? nextDataValidadeCalculada
+          : existing.dataValidadeCalculada,
       analisadoPor,
       analisadoEm: nowIso,
       updatedAt: nowIso,
@@ -242,7 +257,9 @@ export function buildCaseDocumentFromChecklistToggle(params: {
     etapaEsteira: resolvedStep,
     ordemEmissao: entry.ordem,
     status: resolvedStatus,
+    dataEmissao: nextDataEmissao,
     validadeDias: entry.validadeDias,
+    dataValidadeCalculada: nextDataValidadeCalculada,
     orgaoEmissor: entry.orgaoEmissor || '',
     apostilado: nextApostilado ?? false,
     traduzido: nextTraduzido ?? false,

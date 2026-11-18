@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   Bell,
   BellOff,
   BellRing,
@@ -69,10 +70,10 @@ import type {
   ViabilityAssessment,
 } from '../types/domain';
 import { calcularTermometroDocumentos } from '../utils/caseMetrics';
+import { resolveDocumentExpiration } from '../utils/documentExpiration';
 import {
   buildGoogleCalendarUrl,
   buildWhatsAppUrl,
-  daysUntilDate,
   downloadIcsFile,
   formatCurrency,
   formatDateBR,
@@ -1079,35 +1080,78 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 {activeDocs.length === 0 ? (
                   <p className="text-sm text-slate-600 py-6 text-center">Nenhum item documental gerado ainda para este processo.</p>
                 ) : (
-                  <div className="divide-y divide-slate-200">
-                    {[...activeDocs]
-                      .sort((a, b) => a.ordemEmissao - b.ordemEmissao)
-                      .map((d) => {
-                        const expDays = daysUntilDate(d.dataValidadeCalculada);
-                        const suggestedName = formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao, 'pdf');
-                        return (
-                          <div key={d.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="space-y-1">
-                              <p className="text-xs text-slate-500">
-                                Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
-                                {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
+                  (() => {
+                    const sortedDocs = [...activeDocs].sort((a, b) => a.ordemEmissao - b.ordemEmissao);
+                    const evalByDocId = new Map(
+                      sortedDocs.map((d) => [
+                        d.id,
+                        resolveDocumentExpiration({
+                          doc: d,
+                          visaRequirements,
+                          client: client || undefined,
+                          dependents,
+                        }),
+                      ]),
+                    );
+                    const expiringClientDocs = sortedDocs.filter(
+                      (d) => evalByDocId.get(d.id)?.isExpiringUnder30Days,
+                    );
+
+                    return (
+                      <>
+                        {expiringClientDocs.length > 0 && (
+                          <div
+                            role="region"
+                            aria-label="Lembretes de vencimento dos documentos"
+                            className="rounded-xl border border-amber-200 bg-amber-50/75 px-4 py-3 flex items-start gap-2.5"
+                          >
+                            <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" aria-hidden="true" />
+                            <div className="text-xs space-y-0.5">
+                              <p className="font-bold text-slate-900">
+                                Lembretes de Vencimento: {expiringClientDocs.length} documento(s) expira(m) em menos de 30 dias
                               </p>
-                              <p className="text-sm font-semibold text-slate-900">{d.nomeDocumento}</p>
-                              <p className="text-xs font-medium" style={{ color: d.status === 'Aprovado' ? '#1E7E34' : d.status === 'Reprovado' ? '#C82333' : '#0F2537' }}>
-                                Status: {d.status} · Etapa: {d.etapaEsteira} · Versão {d.versao}
+                              <p className="text-slate-700">
+                                {expiringClientDocs
+                                  .map((d) => `${d.nomeDocumento} (${evalByDocId.get(d.id)?.statusLabel})`)
+                                  .join(' · ')}
                               </p>
-                              {expDays !== null && expDays <= 30 && (
-                                <p className={`text-xs font-semibold ${expDays <= 7 ? 'text-[#C82333]' : 'text-amber-700'}`}>
-                                  {expDays <= 0
-                                    ? `Documento vencido em ${formatDateBR(d.dataValidadeCalculada)}`
-                                    : `Atenção: validade expira em ${expDays} dia(s) (${formatDateBR(d.dataValidadeCalculada)})`}
-                                </p>
-                              )}
-                              <p className="text-[11px] text-slate-400">Nome sugerido do arquivo: {suggestedName}</p>
-                              {d.motivoReprovacao && (
-                                <p className="text-xs text-[#C82333]">Motivo da pendência: {d.motivoReprovacao}</p>
-                              )}
                             </div>
+                          </div>
+                        )}
+                        <div className="divide-y divide-slate-200">
+                          {sortedDocs.map((d) => {
+                            const expEval = evalByDocId.get(d.id);
+                            const isExpiring = Boolean(expEval?.isExpiringUnder30Days);
+                            const isCritical = expEval?.severity === 'vencido' || expEval?.severity === 'critico';
+                            const suggestedName = formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao, 'pdf');
+                            return (
+                              <div key={d.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                  <p className="text-xs text-slate-500">
+                                    Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
+                                    {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
+                                  </p>
+                                  <p className="text-sm font-semibold text-slate-900">{d.nomeDocumento}</p>
+                                  <p className="text-xs font-medium" style={{ color: d.status === 'Aprovado' ? '#1E7E34' : d.status === 'Reprovado' ? '#C82333' : '#0F2537' }}>
+                                    Status: {d.status} · Etapa: {d.etapaEsteira} · Versão {d.versao}
+                                  </p>
+                                  {isExpiring && expEval && (
+                                    <p
+                                      className="inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums"
+                                      style={{ color: isCritical ? '#DC2626' : '#D97706' }}
+                                    >
+                                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                                      <span>
+                                        {expEval.statusLabel}
+                                        {expEval.dataValidadeEfetiva ? ` (${expEval.dataValidadeBR})` : ''}
+                                      </span>
+                                    </p>
+                                  )}
+                                  <p className="text-[11px] text-slate-400">Nome sugerido do arquivo: {suggestedName}</p>
+                                  {d.motivoReprovacao && (
+                                    <p className="text-xs text-[#C82333]">Motivo da pendência: {d.motivoReprovacao}</p>
+                                  )}
+                                </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {d.arquivoUrl && (
                                 <a
@@ -1138,7 +1182,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           </div>
                         );
                       })}
-                  </div>
+                    </div>
+                  </>
+                    );
+                  })()
                 )}
               </div>
             )}

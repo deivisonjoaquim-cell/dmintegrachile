@@ -23,21 +23,25 @@ import type {
   Client,
   CommunicationLog,
   Deadline,
+  Dependent,
   FinancialRecord,
   Lead,
   LegalSource,
   Task,
   UserRole,
+  VisaRequirement,
 } from '../../types/domain';
 import { calcularTermometroDocumentos, calcularUrgencias } from '../../utils/caseMetrics';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../../utils/documentChat';
 import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, toIsoDate } from '../../utils/formatters';
 import { countLegalReviewPending } from '../../utils/legalSync';
+import { PainelLembretesVencimento } from './PainelLembretesVencimento';
 
 interface PainelDashboardProps {
   role: UserRole;
   leads: Lead[];
   clients: Client[];
+  dependents?: Dependent[];
   cases: Case[];
   docs: CaseDocument[];
   deadlines: Deadline[];
@@ -46,9 +50,11 @@ interface PainelDashboardProps {
   financialRecords: FinancialRecord[];
   communicationLogs?: CommunicationLog[];
   legalSources?: LegalSource[];
+  visaRequirements?: VisaRequirement[];
   diasAlertaRevisaoLegal?: number;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
   onOpenCase: (caseId: string, targetTab?: 'resumo' | 'comunicacao') => void;
+  onOpenChecklist?: (caseId?: string) => void;
   onToggleTask?: (task: Task) => Promise<void>;
   onNavigateSection?: (
     section:
@@ -70,6 +76,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   role,
   leads,
   clients,
+  dependents = [],
   cases,
   docs,
   deadlines,
@@ -78,9 +85,11 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   financialRecords,
   communicationLogs = [],
   legalSources = [],
+  visaRequirements = [],
   diasAlertaRevisaoLegal = 90,
   onLogWhatsApp,
   onOpenCase,
+  onOpenChecklist,
   onToggleTask,
   onNavigateSection,
 }) => {
@@ -543,6 +552,21 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           )}
         </div>
       </section>
+
+      {/* Lembretes de Vencimento (< 30 dias) */}
+      <PainelLembretesVencimento
+        docs={docs}
+        cases={cases}
+        clients={clients}
+        dependents={dependents}
+        visaRequirements={visaRequirements}
+        onOpenCase={(id) => onOpenCase(id)}
+        onOpenChecklist={(caseId) => {
+          if (onOpenChecklist) onOpenChecklist(caseId);
+          else onNavigateSection?.('checklist');
+        }}
+        onLogWhatsApp={onLogWhatsApp}
+      />
 
       {/* Dúvidas Rápidas no Chat (Portal do Cliente) */}
       <section className="border border-slate-200 p-5 space-y-3" style={cardStyle}>

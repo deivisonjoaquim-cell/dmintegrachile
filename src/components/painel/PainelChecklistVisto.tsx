@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowUpRight,
   BookOpen,
   Check,
@@ -26,6 +27,12 @@ import type {
   VisaRequirement,
 } from '../../types/domain';
 import { calcularTermometroDocumentos } from '../../utils/caseMetrics';
+import {
+  computeCalculatedExpirationIso,
+  resolveDocumentExpiration,
+  type DocumentExpirationEvaluation,
+} from '../../utils/documentExpiration';
+import { formatDateBR } from '../../utils/formatters';
 import {
   buildCaseDocumentFromChecklistToggle,
   buildVisaChecklistEntries,
@@ -113,7 +120,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
   }, [activeCase, availableVisas]);
 
   const [selectedPessoa, setSelectedPessoa] = useState<string>('Titular');
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendentes' | 'concluidos'>('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendentes' | 'concluidos' | 'vencendo'>('todos');
   const [priorityFilter, setPriorityFilter] = useState<'todos' | 'obrigatorios' | 'opcionais'>('todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -181,6 +188,52 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
     });
   }, [canPersistToCase, rawEntries, previewStatusMap, selectedVisaId, selectedPessoa]);
 
+  const activeClient = activeCase ? clientMap.get(activeCase.clientId) : undefined;
+
+  const expirationByKey = useMemo(() => {
+    const map = new Map<string, DocumentExpirationEvaluation>();
+    for (const entry of entries) {
+      const syntheticDoc: CaseDocument = entry.document ?? {
+        id: entry.key,
+        caseId: activeCase?.id || '',
+        clientId: activeCase?.clientId || '',
+        pessoa: selectedPessoa,
+        visaRequirementId: entry.requirement?.id,
+        nomeDocumento: entry.nomeDocumento,
+        categoriaDoc: entry.categoriaDoc,
+        etapaEsteira: '1 Aguardando Envio',
+        ordemEmissao: entry.ordem,
+        status: entry.status,
+        dataEmissao: entry.dataEmissao,
+        validadeDias: entry.validadeDias,
+        dataValidadeCalculada: entry.dataValidadeCalculada,
+        orgaoEmissor: entry.orgaoEmissor,
+        apostilado: entry.apostilado,
+        traduzido: entry.traduzido,
+        exigeApostila: entry.exigeApostila,
+        exigeTraducao: entry.exigeTraducao,
+        obrigatorio: entry.obrigatorio,
+        peso: entry.peso,
+        versao: 1,
+      };
+      map.set(
+        entry.key,
+        resolveDocumentExpiration({
+          doc: syntheticDoc,
+          visaRequirements,
+          client: activeClient,
+          dependents: caseDependents,
+        }),
+      );
+    }
+    return map;
+  }, [entries, activeCase, selectedPessoa, visaRequirements, activeClient, caseDependents]);
+
+  const expiringEntries = useMemo(
+    () => entries.filter((e) => expirationByKey.get(e.key)?.isExpiringUnder30Days),
+    [entries, expirationByKey],
+  );
+
   const summary = useMemo(() => summarizeChecklist(entries), [entries]);
   const thermometer = useMemo(() => {
     if (!canPersistToCase || caseDocs.length === 0) return null;
@@ -192,6 +245,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
     return entries.filter((item) => {
       if (statusFilter === 'pendentes' && item.completed) return false;
       if (statusFilter === 'concluidos' && !item.completed) return false;
+      if (statusFilter === 'vencendo' && !expirationByKey.get(item.key)?.isExpiringUnder30Days) return false;
       if (priorityFilter === 'obrigatorios' && !item.obrigatorio) return false;
       if (priorityFilter === 'opcionais' && item.obrigatorio) return false;
       if (q) {
@@ -200,7 +254,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
       }
       return true;
     });
-  }, [entries, statusFilter, priorityFilter, searchQuery]);
+  }, [entries, statusFilter, priorityFilter, searchQuery, expirationByKey]);
 
   const missingInCaseCount = useMemo(
     () => (canPersistToCase ? entries.filter((e) => !e.document).length : 0),
@@ -251,6 +305,8 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
       nextStatus?: CaseDocument['status'];
       nextApostilado?: boolean;
       nextTraduzido?: boolean;
+      nextDataEmissao?: string;
+      nextDataValidadeCalculada?: string;
     },
     actionName: string,
   ) => {
@@ -279,6 +335,8 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
         nextStatus: overrides.nextStatus,
         nextApostilado: overrides.nextApostilado,
         nextTraduzido: overrides.nextTraduzido,
+        nextDataEmissao: overrides.nextDataEmissao,
+        nextDataValidadeCalculada: overrides.nextDataValidadeCalculada,
         newId: makeId('doc'),
       });
 
@@ -348,6 +406,22 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
     );
   };
 
+  const handleEmissionDateChange = (entry: ChecklistRowEntry, nextDate: string) => {
+    const validadeDias = Number(entry.validadeDias || entry.requirement?.validadeDias || 0);
+    const calculatedExp = nextDate
+      ? computeCalculatedExpirationIso(nextDate, validadeDias) || ''
+      : '';
+    void persistEntryChange(
+      entry,
+      {
+        nextStatus: entry.status,
+        nextDataEmissao: nextDate,
+        nextDataValidadeCalculada: calculatedExp,
+      },
+      'checklist_data_emissao',
+    );
+  };
+
   const handleGenerateMissingDocs = async () => {
     if (!canPersistToCase || !activeCase) return;
     const missing = entries.filter((e) => !e.document);
@@ -390,7 +464,6 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
     }
   };
 
-  const activeClient = activeCase ? clientMap.get(activeCase.clientId) : undefined;
   const progressPercent = thermometer ? thermometer.notaGeral : summary.percentObrigatorios;
 
   return (
@@ -643,6 +716,40 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
         )}
       </section>
 
+      {/* Alerta de Lembretes de Vencimento (< 30 dias) dentro do Checklist */}
+      {expiringEntries.length > 0 && (
+        <section
+          aria-label="Lembretes de vencimento do checklist"
+          className="border border-amber-200 bg-amber-50/70 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          style={{ borderRadius: 'var(--card-radius, 12px)' }}
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="text-xs space-y-0.5">
+              <p className="font-bold text-slate-900">
+                Lembretes de Vencimento: {expiringEntries.length} item(ns) expira(m) em menos de 30 dias
+              </p>
+              <p className="text-slate-700">
+                {expiringEntries
+                  .slice(0, 3)
+                  .map((e) => `${e.nomeDocumento} (${expirationByKey.get(e.key)?.statusLabel || 'Vencendo'})`)
+                  .join(' · ')}
+                {expiringEntries.length > 3 ? ` · +${expiringEntries.length - 3} outro(s)` : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === 'vencendo' ? 'todos' : 'vencendo')}
+            className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-xs font-semibold text-amber-900 hover:bg-amber-100/60 whitespace-nowrap shrink-0"
+          >
+            {statusFilter === 'vencendo'
+              ? 'Mostrar todos'
+              : `Ver vencendo < 30d (${expiringEntries.length})`}
+          </button>
+        </section>
+      )}
+
       {/* Filtros & Busca */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -652,6 +759,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                 { id: 'todos', label: `Todos (${summary.total})` },
                 { id: 'pendentes', label: `Pendentes (${summary.pending})` },
                 { id: 'concluidos', label: `Concluídos (${summary.completed})` },
+                { id: 'vencendo', label: `Vencendo < 30d (${expiringEntries.length})` },
               ] as const
             ).map((btn) => (
               <button
@@ -768,6 +876,9 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
               const isBusy = busyKey === entry.key;
               const isExpanded = expandedKey === entry.key;
               const hasDetails = Boolean(entry.requirement?.descricao || entry.comoObterInstrucoes || entry.comoObterUrl);
+              const expEval = expirationByKey.get(entry.key);
+              const isExpiring = Boolean(expEval?.isExpiringUnder30Days);
+              const isExpCritical = expEval?.severity === 'vencido' || expEval?.severity === 'critico';
 
               return (
                 <div
@@ -800,7 +911,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                       </button>
 
                       <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex flex-wrap items-baseline gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-mono text-slate-400 tabular-nums shrink-0">
                             {String(entry.ordem).padStart(2, '0')}
                           </span>
@@ -816,6 +927,19 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                           >
                             {entry.nomeDocumento}
                           </button>
+                          {isExpiring && expEval && (
+                            <span
+                              className="inline-flex items-center gap-1 text-xs font-bold tabular-nums"
+                              style={{ color: isExpCritical ? '#DC2626' : '#D97706' }}
+                              title={`Alerta de vencimento: ${expEval.statusLabel}`}
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                              <span>
+                                {expEval.statusLabel}
+                                {expEval.dataValidadeEfetiva ? ` (${expEval.dataValidadeBR})` : ''}
+                              </span>
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
@@ -834,6 +958,20 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                           <span className="tabular-nums">
                             {entry.validadeDias > 0 ? `Validade: ${entry.validadeDias} dias` : 'Sem vencimento'}
                           </span>
+                          {entry.dataEmissao && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="tabular-nums">Emissão: {formatDateBR(entry.dataEmissao)}</span>
+                            </>
+                          )}
+                          {expEval?.dataValidadeEfetiva && !isExpiring && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="tabular-nums text-slate-600">
+                                Válido até {expEval.dataValidadeBR}
+                              </span>
+                            </>
+                          )}
                           <span aria-hidden="true">·</span>
                           <span
                             className="font-semibold"
@@ -854,8 +992,22 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                       </div>
                     </div>
 
-                    {/* Coluna Direita: Controles Interativos (Apostila, Tradução, Status, Detalhes) */}
+                    {/* Coluna Direita: Emissão, Apostila, Tradução, Status, Detalhes */}
                     <div className="flex flex-wrap items-center gap-2 pl-9 md:pl-0 shrink-0">
+                      {canPersistToCase && (entry.validadeDias > 0 || entry.dataEmissao || entry.dataValidadeCalculada) && (
+                        <label className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                          <span>Emissão:</span>
+                          <input
+                            type="date"
+                            aria-label={`Data de emissão de ${entry.nomeDocumento}`}
+                            value={entry.dataEmissao ? entry.dataEmissao.slice(0, 10) : ''}
+                            disabled={isBusy}
+                            onChange={(e) => handleEmissionDateChange(entry, e.target.value)}
+                            className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs text-slate-800 tabular-nums disabled:opacity-50"
+                          />
+                        </label>
+                      )}
+
                       {canPersistToCase && entry.exigeApostila && (
                         <button
                           type="button"

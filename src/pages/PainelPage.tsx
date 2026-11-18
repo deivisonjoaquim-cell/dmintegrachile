@@ -294,6 +294,12 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleOpenChecklist = (caseId?: string) => {
+    if (caseId) setSelectedCaseId(caseId);
+    setSection('checklist');
+    setMobileMenuOpen(false);
+  };
+
   const handleSelectSection = (next: PanelSection) => {
     setSection(next);
     if (next !== 'casos') setSelectedCaseId(null);
@@ -1061,6 +1067,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   role={userProfile.role}
                   leads={effectiveWorkspace.leads}
                   clients={effectiveWorkspace.clients}
+                  dependents={effectiveWorkspace.dependents}
                   cases={effectiveWorkspace.cases}
                   docs={effectiveWorkspace.caseDocuments}
                   deadlines={effectiveWorkspace.deadlines}
@@ -1069,9 +1076,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   financialRecords={effectiveWorkspace.financialRecords}
                   communicationLogs={effectiveWorkspace.communicationLogs}
                   legalSources={legalSources}
+                  visaRequirements={visaRequirements}
                   diasAlertaRevisaoLegal={empresa.diasAlertaRevisaoLegal || 90}
                   onLogWhatsApp={handleLogWhatsApp}
                   onOpenCase={handleOpenCase}
+                  onOpenChecklist={handleOpenChecklist}
                   onToggleTask={handleQuickToggleTask}
                   onNavigateSection={(sec) => handleSelectSection(sec)}
                 />
