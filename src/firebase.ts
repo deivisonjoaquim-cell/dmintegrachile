@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { reportAppError } from './services/errorService';
@@ -9,7 +9,17 @@ export const firebaseProjectId = firebaseConfig.projectId;
 export const firebaseDatabaseId = firebaseConfig.firestoreDatabaseId;
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+auth.languageCode = 'pt-BR';
+
+if (typeof window !== 'undefined') {
+  void setPersistence(auth, browserLocalPersistence).catch(() => {
+    // Fallback automático caso o navegador bloqueie localStorage em modo restrito
+  });
+}
+
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {

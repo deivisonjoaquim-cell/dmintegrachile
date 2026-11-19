@@ -113,13 +113,20 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           <nav className="hidden lg:flex items-center gap-7" aria-label="Navegação principal">
             {navItems.map((item) => {
               const active = currentPath === item.path;
+              const resolvedPath =
+                item.path === '/acompanhar' &&
+                userProfile?.role === 'cliente' &&
+                userProfile.status === 'ativo' &&
+                Boolean(userProfile.clientId)
+                  ? '/portal'
+                  : item.path;
               return (
                 <a
                   key={item.path}
-                  href={`#${item.path}`}
+                  href={`#${resolvedPath}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    onNavigate(item.path);
+                    onNavigate(resolvedPath);
                   }}
                   className={`text-[13.5px] font-medium whitespace-nowrap shrink-0 py-1.5 border-b-2 transition-colors ${
                     active

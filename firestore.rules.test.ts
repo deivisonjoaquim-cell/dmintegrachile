@@ -125,4 +125,14 @@ test('rules isolate non-chat communicationLogs to staff and enforce sender ident
   assert.match(commBlock, /affectedKeys\(\)\.hasOnly\(\['lidaPelaEquipe', 'updatedAt'\]\)/);
 });
 
+test('rules allow verified Google client self-linking only when matching admin-approved client record', () => {
+  assert.match(rulesText, /function isVerifiedClientEmailMatch\(clientData\)/);
+  assert.match(rulesText, /function canClientSelfLink\(clientId, targetStatus\)/);
+  assert.match(rulesText, /get\(clientPath\)\.data\.portalLiberado == true && targetStatus == 'ativo'/);
+  const usersBlock = rulesText.slice(rulesText.indexOf('match /users/{uid}'), rulesText.indexOf('match /config/{docId}'));
+  assert.match(usersBlock, /existing\(\)\.role == 'cliente' && incoming\(\)\.role == 'cliente'/);
+  assert.match(usersBlock, /canClientSelfLink\(incoming\(\)\.clientId, incoming\(\)\.status\)/);
+});
+
+
 

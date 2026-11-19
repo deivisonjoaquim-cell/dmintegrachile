@@ -89,6 +89,26 @@ service cloud.firestore {
       return 'clientId' in userDoc() ? userDoc().clientId : '';
     }
 
+    function isVerifiedClientEmailMatch(clientData) {
+      return isSignedIn()
+        && 'email' in request.auth.token
+        && request.auth.token.email is string
+        && 'email' in clientData
+        && clientData.email is string
+        && clientData.email.lower() == request.auth.token.email.lower();
+    }
+
+    function canClientSelfLink(clientId, targetStatus) {
+      let clientPath = /databases/$(database)/documents/clients/$(clientId);
+      return isValidId(clientId)
+        && exists(clientPath)
+        && isVerifiedClientEmailMatch(get(clientPath).data)
+        && (
+          (get(clientPath).data.portalLiberado == true && targetStatus == 'ativo') ||
+          (get(clientPath).data.portalLiberado == false && targetStatus == 'pendente')
+        );
+    }
+
     function isOptString(data, field, maxLen) {
       return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
     }
@@ -540,7 +560,8 @@ service cloud.firestore {
         (!('email' in existing()) || !isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == existing().uid))
       ) && (
         isValidatedAdmin() ||
-        (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt']))
+        (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
+        (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt']) && 'clientId' in incoming() && incoming().clientId is string && canClientSelfLink(incoming().clientId, incoming().status))
       );
       allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
     }
@@ -646,11 +667,28 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      allow get: if isValidId(clientId) && (isStaff() || (isCliente() && (existing().userId == request.auth.uid || (request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower()))));
-      allow list: if isStaff() || (isCliente() && (existing().userId == request.auth.uid || (request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower())));
+      allow get: if isValidId(clientId) && (
+        isStaff() ||
+        (isCliente() && existing().userId == request.auth.uid) ||
+        (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isVerifiedClientEmailMatch(existing()))
+      );
+      allow list: if isStaff() ||
+        (isCliente() && existing().userId == request.auth.uid) ||
+        (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isVerifiedClientEmailMatch(existing()));
       allow create: if isAdminOrConsultor() && isValidId(clientId) && isValidClient(incoming());
       allow update: if isValidId(clientId) && isValidClient(incoming()) && (
         isAdminOrConsultor() ||
+        (isSignedIn()
+          && hasUserDoc()
+          && 'role' in userDoc()
+          && userDoc().role == 'cliente'
+          && isVerifiedClientEmailMatch(existing())
+          && existing().portalLiberado == true
+          && incoming().portalLiberado == existing().portalLiberado
+          && incoming().statusAcessoPortal == existing().statusAcessoPortal
+          && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
+          && incoming().userId == request.auth.uid
+          && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
         (isCliente() && existing().userId == request.auth.uid && incoming().portalLiberado == existing().portalLiberado && incoming().statusAcessoPortal == existing().statusAcessoPortal && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
       );
       allow delete: if isAdmin() && isValidId(clientId);

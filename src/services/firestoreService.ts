@@ -1704,28 +1704,42 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
 }
 
 export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {
-  // Procura cliente já existente por e-mail
+  if (user.role !== 'cliente') return user;
+
+  const normalizedEmail = (user.email || '').trim().toLowerCase();
+  if (!normalizedEmail) return user;
+
   try {
-    const clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', user.email)));
+    let clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', normalizedEmail)));
+    if (clSnap.empty && user.email && user.email !== normalizedEmail) {
+      clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', user.email)));
+    }
+
     if (!clSnap.empty) {
       const clDoc = clSnap.docs[0];
       const clientData = clDoc.data() as Client;
-      const updatedRole: UserRole = user.role;
-      const newStatus = clientData.portalLiberado ? 'ativo' : 'pendente';
+      const nowIso = new Date().toISOString();
+      const newStatus: UserProfile['status'] = clientData.portalLiberado ? 'ativo' : 'pendente';
+
+      if (clientData.portalLiberado && clientData.userId !== user.uid) {
+        await updateDoc(doc(db, 'clients', clDoc.id), {
+          userId: user.uid,
+          updatedAt: nowIso,
+        }).catch(() => {});
+      }
+
       if (user.clientId !== clDoc.id || user.status !== newStatus) {
         await updateDoc(doc(db, 'users', user.uid), {
           clientId: clDoc.id,
-          status: user.role === 'cliente' ? newStatus : user.status,
-          updatedAt: new Date().toISOString(),
+          status: newStatus,
+          updatedAt: nowIso,
         }).catch(() => {});
       }
-      if (!clientData.userId) {
-        await updateDoc(doc(db, 'clients', clDoc.id), { userId: user.uid }).catch(() => {});
-      }
-      return { ...user, clientId: clDoc.id, status: updatedRole === 'cliente' ? newStatus : user.status };
+
+      return { ...user, clientId: clDoc.id, status: newStatus, updatedAt: nowIso };
     }
   } catch {
-    // fallback if rules reject query before linking
+    // Fallback silencioso caso o cliente ainda não tenha cadastro vinculado
   }
   return user;
 }

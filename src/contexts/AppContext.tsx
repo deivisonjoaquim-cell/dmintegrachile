@@ -52,6 +52,7 @@ interface AppContextValue {
   activeDiagnosticRules: DiagnosticRuleVersion;
   loginWithGoogle: () => Promise<UserProfile | null>;
   logout: () => Promise<void>;
+  clearAuthError: () => void;
   refreshPublicData: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
 }
@@ -59,11 +60,32 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 function mapFirebaseAuthErrorPT(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('popup-closed-by-user')) return 'Login cancelado antes da conclusão.';
-  if (msg.includes('popup-blocked')) return 'O navegador bloqueou a janela de login do Google. Libere pop-ups e tente novamente.';
-  if (msg.includes('unauthorized-domain')) return 'Domínio não autorizado no Firebase Authentication. Verifique as configurações de deploy.';
-  if (msg.includes('network-request-failed')) return 'Falha de conexão ao autenticar. Verifique sua internet.';
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code || '')
+      : '';
+  const msg = `${code} ${err instanceof Error ? err.message : String(err)}`;
+  if (msg.includes('popup-closed-by-user') || msg.includes('cancelled-popup-request')) {
+    return 'Login cancelado antes da conclusão. Clique novamente para escolher sua conta Google.';
+  }
+  if (msg.includes('popup-blocked')) {
+    return 'O navegador bloqueou a janela de login do Google. Libere pop-ups para este site e tente novamente.';
+  }
+  if (msg.includes('unauthorized-domain')) {
+    return 'Este domínio ainda não está autorizado no Firebase Authentication. Verifique a lista de domínios autorizados.';
+  }
+  if (msg.includes('user-disabled')) {
+    return 'Esta conta Google foi desativada no Firebase Authentication. Entre em contato com o administrador.';
+  }
+  if (msg.includes('account-exists-with-different-credential')) {
+    return 'Já existe uma conta cadastrada com este e-mail usando outro método de acesso.';
+  }
+  if (msg.includes('operation-not-allowed')) {
+    return 'O provedor Google Sign-In não está habilitado no projeto Firebase. Ative-o no console do Firebase Authentication.';
+  }
+  if (msg.includes('network-request-failed')) {
+    return 'Falha de conexão ao autenticar. Verifique sua internet e tente novamente.';
+  }
   return 'Não foi possível concluir o login com Google. Tente novamente.';
 }
 
@@ -154,7 +176,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void refreshPublicData();
   }, [refreshPublicData]);
 
-  const syncUserDocument = useCallback(async (fbUser: User): Promise<UserProfile> => {
+  const inFlightSyncRef = React.useRef<Map<string, Promise<UserProfile>>>(new Map());
+
+  const runUserDocumentSync = useCallback(async (fbUser: User): Promise<UserProfile> => {
     const normalizedEmail = (fbUser.email || '').trim().toLowerCase();
     let isAdminEmail = isPrimaryAdminEmail(normalizedEmail);
 
@@ -238,6 +262,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return profile;
   }, [refreshPublicData]);
 
+  const syncUserDocument = useCallback(
+    (fbUser: User): Promise<UserProfile> => {
+      const existingPromise = inFlightSyncRef.current.get(fbUser.uid);
+      if (existingPromise) return existingPromise;
+      const promise = runUserDocumentSync(fbUser).finally(() => {
+        inFlightSyncRef.current.delete(fbUser.uid);
+      });
+      inFlightSyncRef.current.set(fbUser.uid, promise);
+      return promise;
+    },
+    [runUserDocumentSync],
+  );
+
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
+
   const refreshUserProfile = useCallback(async () => {
     if (!auth.currentUser) {
       setUserProfile(null);
@@ -317,6 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeDiagnosticRules,
         loginWithGoogle,
         logout,
+        clearAuthError,
         refreshPublicData,
         refreshUserProfile,
       }}

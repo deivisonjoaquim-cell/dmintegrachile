@@ -91,7 +91,7 @@ interface PortalClientePageProps {
 type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
 
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
-  const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
+  const { userProfile, authLoading, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
   const [tab, setTab] = useState<PortalTab>('processo');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -201,7 +201,15 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     };
   }, [userProfile?.clientId, userProfile?.uid, loadPortal]);
 
-  if (!userProfile || userProfile.role !== 'cliente' || !userProfile.clientId) {
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+        <div className="text-sm text-slate-600">Verificando sessão segura no Portal do Cliente...</div>
+      </div>
+    );
+  }
+
+  if (!userProfile || userProfile.role !== 'cliente' || userProfile.status !== 'ativo' || !userProfile.clientId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
         <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
