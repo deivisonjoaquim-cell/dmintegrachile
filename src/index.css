@@ -1,30 +1,52 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ============================================================================
+ * D&M Integra Chile — Sistema Visual Oficial (derivado do Emblema Institucional)
+ * 60% Pergaminho / Marfim Arquitetônico (#F7F5F0 · #FFFFFF)
+ * 30% Marinho Andino Profundo (#0B1F33 · #081726)
+ * 10% Assinatura Bilateral: Dourado Estrela-Guia (#C8A236),
+ *     Esmeralda Brasil (#146B43) e Carmim Andino Chile (#A61C2B)
+ * Tipografia: Playfair Display (Display Editorial / D&M) + Plus Jakarta Sans (UI)
+ * ============================================================================ */
+
 :root {
   --color-primary: #0B1F33;
-  --color-accent: #C9A227;
-  --color-bg: #F6F7F9;
+  --color-primary-soft: #153553;
+  --color-accent: #C8A236;
+  --color-accent-ink: #8C6D14;
+  --color-accent-light: #E5C76B;
+  --color-brand-emerald: #146B43;
+  --color-brand-emerald-dark: #0F5434;
+  --color-brand-crimson: #A61C2B;
+  --color-bg: #F7F5F0;
   --color-surface: #FFFFFF;
+  --color-surface-subtle: #F1EDE4;
+  --color-border-subtle: #E5DFD2;
   --color-text: #0B1523;
-  --color-text-muted: #475569;
-  --color-footer-bg: #071422;
-  --color-success: #1E7E34;
+  --color-text-muted: #4A5A6D;
+  --color-footer-bg: #081726;
+  --color-success: #146B43;
   --color-warning: #B45309;
-  --color-critical: #C82333;
+  --color-critical: #A61C2B;
   --font-main: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
-  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --radius-card: 1rem;
   --radius-button: 0.625rem;
 }
 
 .panel-dark {
-  --color-primary: #3B82F6;
-  --color-accent: #EAB308;
-  --color-bg: #090E1A;
-  --color-surface: #0F1629;
+  --color-primary: #1B4D7A;
+  --color-primary-soft: #245D91;
+  --color-accent: #E5C76B;
+  --color-accent-ink: #E5C76B;
+  --color-bg: #071320;
+  --color-surface: #0D1E31;
+  --color-surface-subtle: #11263D;
+  --color-border-subtle: #1C324B;
   --color-text: #F1F5F9;
-  --color-text-muted: #94A3B8;
+  --color-text-muted: #9AB0C7;
   color-scheme: dark;
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -35,7 +57,7 @@
 .panel-dark input:focus-visible,
 .panel-dark select:focus-visible,
 .panel-dark textarea:focus-visible {
-  outline: 2px solid #60A5FA;
+  outline: 2px solid #E5C76B;
   outline-offset: 2px;
 }
 
@@ -45,16 +67,16 @@
 }
 
 .panel-dark ::-webkit-scrollbar-track {
-  background: #090E1A;
+  background: #071320;
 }
 
 .panel-dark ::-webkit-scrollbar-thumb {
-  background: #273449;
+  background: #1E3754;
   border-radius: 9999px;
 }
 
 .panel-dark ::-webkit-scrollbar-thumb:hover {
-  background: #3B4C69;
+  background: #2C4D72;
 }
 
 html {
@@ -75,18 +97,73 @@ body {
 }
 
 ::selection {
-  background-color: rgba(201, 162, 39, 0.24);
+  background-color: rgba(200, 162, 54, 0.25);
   color: #0B1523;
 }
 
 .panel-dark ::selection {
-  background-color: rgba(59, 130, 246, 0.35);
+  background-color: rgba(229, 199, 107, 0.28);
   color: #F8FAFC;
 }
 
-h1, h2, h3, h4 {
+/* Tipografia Editorial derivada do Emblema:
+ * h1/h2 carregam a autoridade serifada de "D&M" (Playfair Display),
+ * enquanto h3/h4 e áreas operacionais densas mantêm Plus Jakarta Sans. */
+h1, h2 {
   font-family: var(--font-display);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
+}
+
+h3, h4 {
+  font-family: var(--font-main);
+  letter-spacing: -0.02em;
+}
+
+.panel-workspace h1,
+.panel-workspace h2,
+.panel-workspace h3,
+.panel-workspace h4 {
+  font-family: var(--font-main);
+  letter-spacing: -0.02em;
+}
+
+.font-brand-serif {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-brand-sans {
+  font-family: var(--font-main);
+}
+
+/* Filete Arquitetônico Bilateral derivado das cores oficiais da logo:
+ * Esmeralda Brasil -> Dourado Estrela-Guia -> Marinho Andino -> Carmim Chile */
+.brand-ribbon {
+  background: linear-gradient(
+    90deg,
+    #146B43 0%,
+    #146B43 24%,
+    #C8A236 24%,
+    #C8A236 42%,
+    #0B1F33 42%,
+    #0B1F33 78%,
+    #A61C2B 78%,
+    #A61C2B 100%
+  );
+}
+
+.brand-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px rgba(11, 31, 51, 0.035);
+}
+
+.brand-kicker {
+  font-family: var(--font-main);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-accent-ink);
 }
 
 .card-radius {
@@ -110,7 +187,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 

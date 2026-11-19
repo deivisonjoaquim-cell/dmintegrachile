@@ -102,16 +102,16 @@ export const ParceirosPage: React.FC = () => {
         {/* Lista pública de parceiros recomendados */}
         <section>
           <div className="max-w-3xl mb-8">
-            <p className="text-xs font-semibold text-slate-500 mb-2">Rede homologada</p>
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 text-balance mb-3">
+            <p className="brand-kicker mb-2">Rede homologada · Brasil &amp; Chile</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#0B1F33] text-balance mb-3">
               Rede de parceiros homologados pela D&amp;M Integra Chile
             </h1>
-            <p className="text-base text-slate-600 leading-relaxed">
+            <p className="text-base text-[#4A5A6D] leading-relaxed">
               Profissionais e empresas avaliados por nossa equipe técnica no Brasil e no Chile para apoiar cada etapa da sua jornada migratória e de relocation.
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6 flex flex-col md:flex-row gap-3">
+          <div className="bg-white border border-[#E5DFD2] rounded-xl p-4 mb-6 flex flex-col md:flex-row gap-3 shadow-[0_1px_2px_rgba(11,31,51,0.03)]">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -120,14 +120,14 @@ export const ParceirosPage: React.FC = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nome, cidade ou especialidade..."
                 aria-label="Buscar parceiro"
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#DDD6C7] text-sm text-[#0B1523] bg-white"
               />
             </div>
             <select
               value={filterPais}
               onChange={(e) => setFilterPais(e.target.value)}
               aria-label="Filtrar por país"
-              className="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+              className="px-3 py-2 rounded-lg border border-[#DDD6C7] text-sm bg-white text-[#0B1523]"
             >
               <option value="Todos">Todos os países</option>
               <option value="Brasil">Brasil</option>
@@ -137,7 +137,7 @@ export const ParceirosPage: React.FC = () => {
               value={filterCat}
               onChange={(e) => setFilterCat(e.target.value)}
               aria-label="Filtrar por categoria"
-              className="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+              className="px-3 py-2 rounded-lg border border-[#DDD6C7] text-sm bg-white text-[#0B1523]"
             >
               <option value="Todas">Todas as categorias</option>
               {PARTNER_CATEGORIES.map((c) => (
@@ -149,34 +149,37 @@ export const ParceirosPage: React.FC = () => {
           </div>
 
           {filteredPartners.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-600">
+            <div className="bg-white border border-[#E5DFD2] rounded-xl p-10 text-center text-sm text-[#4A5A6D]">
               Nenhum parceiro recomendado encontrado para os filtros aplicados.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredPartners.map((p) => (
-                <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between">
+                <div
+                  key={p.id}
+                  className="bg-white border border-[#E5DFD2] hover:border-[#C8A236]/70 rounded-xl p-6 flex flex-col justify-between transition-colors shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+                >
                   <div>
-                    <div className="flex items-center justify-between gap-2 text-xs text-slate-500 mb-2">
+                    <div className="flex items-center justify-between gap-2 text-xs text-[#4A5A6D] mb-2">
                       <span>
-                        {p.categoria} · {p.pais}
+                        {p.categoria} · <strong className={p.pais === 'Brasil' ? 'text-[#146B43]' : 'text-[#0B1F33]'}>{p.pais}</strong>
                       </span>
-                      <span className="inline-flex items-center gap-1 font-semibold text-slate-700 tabular-nums">
-                        <Star className="w-3.5 h-3.5 fill-[var(--color-accent)] text-[var(--color-accent)]" />
+                      <span className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] tabular-nums">
+                        <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
                         {p.avaliacao}/5
                       </span>
                     </div>
-                    <h2 className="text-lg font-semibold text-slate-900 mb-2">{p.nome}</h2>
-                    <p className="text-sm text-slate-600 leading-relaxed mb-3">{p.descricaoPublica}</p>
+                    <h2 className="text-lg font-bold text-[#0B1F33] font-brand-sans mb-2">{p.nome}</h2>
+                    <p className="text-sm text-[#4A5A6D] leading-relaxed mb-3">{p.descricaoPublica}</p>
                     <p className="text-xs text-slate-500 mb-4">{p.cidadeRegiao}</p>
                   </div>
-                  <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
+                  <div className="pt-4 border-t border-[#F1EDE4] flex items-center gap-3">
                     {p.whatsapp && (
                       <a
                         href={buildWhatsAppUrl(p.whatsapp, `Olá! Recebi a indicação da D&M Integra Chile para ${p.nome}.`)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1E7E34] hover:underline"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#146B43] hover:underline"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         WhatsApp

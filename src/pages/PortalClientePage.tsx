@@ -29,7 +29,7 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { BrandLogo } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon, BrandWordmark } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
@@ -93,6 +93,7 @@ type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'supo
 
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
   const { userProfile, authLoading, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
+  const isAdminPortal = Boolean(userProfile && userProfile.status === 'ativo' && userProfile.role === 'admin');
   const [tab, setTab] = useState<PortalTab>('processo');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -594,8 +595,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
-      {/* Header do Portal */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      {/* Header do Portal padronizado pela identidade da logo */}
+      <header className="bg-white border-b border-[#E5DFD2] sticky top-0 z-30">
+        <BrandRibbon className="h-[3px] w-full no-print" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <BrandLogo
@@ -605,8 +607,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               className="h-10 w-10 object-contain shrink-0"
             />
             <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-900 truncate">Portal do Cliente</p>
-              <p className="text-xs text-slate-500 truncate">{client?.nomeCompleto || userProfile.nome}</p>
+              <div className="flex items-center gap-2">
+                <BrandWordmark tone="light" size="sm" className="hidden sm:inline-flex" />
+                <span className="hidden sm:inline text-slate-300" aria-hidden="true">·</span>
+                <p className="text-xs sm:text-sm font-bold text-[#0B1F33] truncate">Portal do Cliente</p>
+              </div>
+              <p className="text-xs text-[#4A5A6D] truncate mt-0.5">{client?.nomeCompleto || userProfile.nome}</p>
             </div>
           </div>
 
@@ -615,12 +621,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               type="button"
               onClick={() => setNotifDrawerOpen(true)}
               aria-label="Abrir central de notificações do processo"
-              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0]"
             >
               <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
               <span className="hidden sm:inline">Alertas</span>
               {unreadNotifCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#C82333] text-white text-[10px] font-bold tabular-nums">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#A61C2B] text-white text-[10px] font-bold tabular-nums">
                   {unreadNotifCount}
                 </span>
               )}
@@ -628,14 +634,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] text-xs font-medium text-[#0B1F33] hover:bg-[#F7F5F0]"
             >
               Site público
             </button>
             <button
               type="button"
               onClick={logout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] hover:text-[#0B1F33]"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sair
@@ -644,7 +650,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
 
         {/* Abas desktop/tablet */}
-        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-slate-100 no-print">
+        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#F1EDE4] no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
@@ -659,8 +665,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={() => setTab(item.id as PortalTab)}
               className={`px-3.5 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 tab === item.id
-                  ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-semibold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-[#C8A236] text-[#0B1F33] font-semibold'
+                  : 'border-transparent text-[#4A5A6D] hover:text-[#0B1F33]'
               }`}
             >
               {item.label}
@@ -809,15 +815,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           <Download className="w-3.5 h-3.5" />
                           {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Progresso (PDF)'}
                         </button>
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handleExportDiagnosticoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Exportar Diagnóstico (PDF)'}
-                        </button>
+                        {isAdminPortal && (
+                          <button
+                            type="button"
+                            disabled={pdfBusy !== null}
+                            onClick={() => void handleExportDiagnosticoPdf()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Exportar Diagnóstico (PDF)'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -869,49 +877,53 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
                 {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
                 {(primaryLead || releasedAssessments.length > 0) && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                  <div className="bg-white border border-[#E5DFD2] rounded-xl p-6 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h2 className="text-base font-semibold text-slate-900">
-                          Diagnóstico de Viabilidade &amp; Parecer Técnico
+                        <h2 className="text-base font-semibold text-[#0B1F33]">
+                          Diagnóstico &amp; Parecer Técnico Liberado
                         </h2>
                         <p className="text-xs text-slate-500">
-                          Histórico do seu diagnóstico inicial e orientações técnicas liberadas pela consultoria
+                          {isAdminPortal
+                            ? 'Histórico do diagnóstico inicial e orientações técnicas liberadas pela consultoria'
+                            : 'Resumo do diagnóstico registrado e pareceres liberados oficialmente pelo seu consultor'}
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 no-print">
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handlePreviewPdf('diagnostico')}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          Pré-visualizar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handleExportDiagnosticoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Diagnóstico (PDF)'}
-                        </button>
-                      </div>
+                      {isAdminPortal && (
+                        <div className="flex flex-wrap items-center gap-2 no-print">
+                          <button
+                            type="button"
+                            disabled={pdfBusy !== null}
+                            onClick={() => void handlePreviewPdf('diagnostico')}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0] whitespace-nowrap shrink-0 disabled:opacity-50"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            Pré-visualizar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pdfBusy !== null}
+                            onClick={() => void handleExportDiagnosticoPdf()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0] whitespace-nowrap shrink-0 disabled:opacity-50"
+                          >
+                            <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Diagnóstico (PDF)'}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    {primaryLead && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                    {primaryLead && isAdminPortal && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs">
                         <div>
                           <p className="text-slate-500">Subcategoria sugerida</p>
-                          <p className="font-bold text-slate-900 mt-0.5">
+                          <p className="font-bold text-[#0B1F33] mt-0.5">
                             {primaryLead.subcategoriaSugerida || primaryLead.interesse || 'Em análise'}
                           </p>
                         </div>
                         <div>
                           <p className="text-slate-500">Índice de viabilidade</p>
-                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                          <p className="font-bold text-[#0B1F33] mt-0.5 tabular-nums">
                             {typeof primaryLead.notaViabilidade === 'number'
                               ? `${primaryLead.notaViabilidade}/100`
                               : 'Em avaliação'}
@@ -920,11 +932,22 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         </div>
                         <div>
                           <p className="text-slate-500">Realizado em</p>
-                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                          <p className="font-bold text-[#0B1F33] mt-0.5 tabular-nums">
                             {formatDateBR(primaryLead.createdAt)}
                             {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
                           </p>
                         </div>
+                      </div>
+                    )}
+
+                    {primaryLead && !isAdminPortal && (
+                      <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs text-slate-700 space-y-1">
+                        <p className="font-semibold text-[#0B1F33]">
+                          Diagnóstico inicial registrado em {formatDateBR(primaryLead.createdAt)}
+                        </p>
+                        <p className="text-slate-600 leading-relaxed">
+                          O relatório técnico completo do diagnóstico é de uso interno da administração. Caso tenha dúvidas, fale diretamente com o seu consultor pelo WhatsApp.
+                        </p>
                       </div>
                     )}
 

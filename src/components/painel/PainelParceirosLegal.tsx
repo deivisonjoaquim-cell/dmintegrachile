@@ -561,9 +561,13 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         setLiveCheckedAt(report.checkedAt);
       }
       const reachable = report.summary.online + report.summary.redirect;
+      const modeNote =
+        report.verificationMode === 'browser_fallback'
+          ? ' (verificação direta pelo navegador)'
+          : ' (verificação HTTP ao vivo pelo servidor)';
       setFeedback(
-        `Monitoramento SERMIG/BCN concluído: ${reachable} de ${report.summary.total} fonte(s) oficial(is) respondendo online` +
-          (report.summary.degraded > 0 ? `, ${report.summary.degraded} protegida(s) por WAF/timeout` : '') +
+        `Monitoramento SERMIG/BCN concluído${modeNote}: ${reachable} de ${report.summary.total} fonte(s) oficial(is) respondendo online` +
+          (report.summary.degraded > 0 ? `, ${report.summary.degraded} com restrição WAF/rede` : '') +
           (report.summary.unreachable + report.summary.invalidUrl > 0
             ? `, ${report.summary.unreachable + report.summary.invalidUrl} com link a revisar.`
             : '.'),

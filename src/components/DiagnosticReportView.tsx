@@ -12,16 +12,17 @@ import {
   FileCheck2,
   FlaskConical,
   HelpCircle,
+  Lock,
   MessageCircle,
+  PhoneCall,
   Printer,
   RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
   Sparkles,
-  UserCheck,
   Users,
 } from 'lucide-react';
-import { BrandLogo } from './BrandLogo';
+import { BrandLogo, BrandRibbon, BrandWordmark } from './BrandLogo';
 import { PdfPreviewModal } from './pdf/PdfPreviewModal';
 import type {
   DiagnosticAnswers,
@@ -115,19 +116,19 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 
   const scoreColor =
     result.viabilidade.total >= 80
-      ? '#1E7E34'
+      ? '#146B43'
       : result.viabilidade.total >= 60
-        ? '#0F2537'
+        ? '#0B1F33'
         : result.viabilidade.total >= 40
-          ? '#D4AF37'
-          : '#C82333';
+          ? '#C8A236'
+          : '#A61C2B';
 
   const confidenceBadge =
     result.confianca === 'Alta'
-      ? 'bg-emerald-50 text-[#1E7E34] border-emerald-200'
+      ? 'bg-emerald-50 text-[#146B43] border-emerald-200'
       : result.confianca === 'Média'
-        ? 'bg-amber-50 text-amber-800 border-amber-200'
-        : 'bg-red-50 text-[#C82333] border-red-200';
+        ? 'bg-amber-50 text-[#8C6D14] border-amber-200'
+        : 'bg-red-50 text-[#A61C2B] border-red-200';
 
   const tpl = SEED_MESSAGE_TEMPLATES.find((t) => t.codigo === 'POS_DIAGNOSTICO') || SEED_MESSAGE_TEMPLATES[0];
   const recommendedTitle = result.recomendada
@@ -257,7 +258,229 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     </div>
   );
 
-  // Perfil 29 — Dados insuficientes
+  const OBJECTIVE_PUBLIC_LABELS: Record<string, string> = {
+    trabalho_formal: 'Trabalho formal / emprego no Chile',
+    empreender_investir: 'Empreender ou investir no Chile',
+    estudar: 'Estudos no Chile',
+    renda_passiva: 'Aposentadoria ou renda passiva',
+    familia: 'Reunião / vínculo familiar no Chile',
+    explorar: 'Morar no Chile / avaliar melhor opção',
+  };
+
+  // =========================================================================
+  // VISÃO BÁSICA DO CLIENTE (mode === 'public')
+  // O cliente vê apenas a confirmação, resumo básico do perfil e opções para
+  // falar com o consultor ou aguardar o contato. O diagnóstico técnico completo
+  // fica restrito exclusivamente ao Administrador.
+  // =========================================================================
+  if (mode === 'public') {
+    const protocolText =
+      savedLeadId && savedLeadId !== 'local-preview' ? savedLeadId : 'Registrado no atendimento';
+    const composicaoLabel =
+      answers.composicaoFamiliar === 'casal' ||
+      answers.composicaoFamiliar === 'familia_com_filhos' ||
+      answers.familiaAcompanhante === true
+        ? `Familiar (${1 + Math.max(1, answers.quantidadeDependentes || (answers.pessoasFamilia?.length ? answers.pessoasFamilia.length - 1 : 1))} pessoas)`
+        : 'Individual (titular)';
+    const objetivoLabel = OBJECTIVE_PUBLIC_LABELS[answers.objetivo] || 'Residência no Chile';
+    const basicClientWaMessage = [
+      `Olá! Acabei de concluir meu diagnóstico no site da ${empresa.nome_empresa}.`,
+      savedLeadId && savedLeadId !== 'local-preview' ? `Protocolo: ${savedLeadId}` : null,
+      `Nome: ${answers.nome || 'Visitante'}`,
+      `Localização atual: ${answers.localizacao || 'Não informada'}`,
+      `Objetivo: ${objetivoLabel}`,
+      'Gostaria de conversar com um consultor sobre o resultado completo do meu diagnóstico.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const handleClientContactWhatsApp = async () => {
+      const url = buildWhatsAppUrl(empresa.whatsapp, basicClientWaMessage);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      if (onLogWhatsApp) {
+        await onLogWhatsApp(`Contato Pós-Diagnóstico: ${answers.nome || 'Lead'}`, basicClientWaMessage);
+      }
+    };
+
+    return (
+      <div className="max-w-3xl mx-auto space-y-6" id="diagnostic-client-basic-root">
+        {/* Card Principal de Confirmação */}
+        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-sm">
+          <BrandRibbon className="h-[3.5px] w-full" />
+          <div className="p-6 sm:p-8 space-y-6">
+            {/* Identidade Oficial da Logo */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#E5DFD2]">
+              <div className="flex items-center gap-3">
+                <BrandLogo
+                  src={empresa.logoUrl}
+                  alt={empresa.nome_empresa}
+                  variant="emblem"
+                  className="h-12 w-12 shrink-0"
+                />
+                <BrandWordmark
+                  size="md"
+                  showSubtitle
+                  subtitle="Relocation & Assessoria"
+                />
+              </div>
+              <div className="text-left sm:text-right text-xs text-slate-600 tabular-nums">
+                <p className="font-semibold text-[#8C6D14]">Protocolo de atendimento</p>
+                <p className="font-bold text-[#0B1F33] text-sm mt-0.5">{protocolText}</p>
+                <p className="text-[11px] text-slate-500">Registrado em {formatDateBR(new Date())}</p>
+              </div>
+            </div>
+
+            {/* Confirmação clara */}
+            <div className="space-y-2.5">
+              <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#146B43]">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Diagnóstico recebido e registrado com sucesso</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0B1F33] leading-tight">
+                Obrigado, {answers.nome ? answers.nome.split(' ')[0] : 'visitante'}. Recebemos suas informações.
+              </h1>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {result.dadosInsuficientes
+                  ? 'Suas informações iniciais foram registradas com segurança. Nosso consultor complementará a análise diretamente com você no atendimento.'
+                  : 'Sua pré-análise migratória preliminar foi registrada com sucesso e encaminhada para revisão técnica exclusiva da nossa administração.'}
+              </p>
+            </div>
+
+            {/* Resumo Básico (sem dados técnicos restritos) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs">
+              <div>
+                <p className="text-slate-500">Titular</p>
+                <p className="font-semibold text-[#0B1F33] mt-0.5">{answers.nome || '—'}</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Situação geográfica</p>
+                <p className="font-semibold text-[#0B1F33] mt-0.5">
+                  {answers.localizacao || '—'}
+                  {answers.cidadeUf ? ` · ${answers.cidadeUf}` : ''}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500">Composição do processo</p>
+                <p className="font-semibold text-[#0B1F33] mt-0.5">{composicaoLabel}</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Objetivo informado</p>
+                <p className="font-semibold text-[#0B1F33] mt-0.5">{objetivoLabel}</p>
+              </div>
+            </div>
+
+            {/* Bloco explicativo: Relatório Completo Restrito à Administração */}
+            <div className="rounded-xl border border-[#E5DFD2] bg-white p-5 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center shrink-0 mt-0.5">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-sm font-bold text-[#0B1F33]">
+                    Diagnóstico Técnico Completo · Revisão Exclusiva do Consultor
+                  </h2>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Para evitar interpretações equivocadas das regras do SERMIG e garantir segurança jurídica ao seu caso, o relatório técnico completo é acessado exclusivamente pela nossa administração e apresentado a você diretamente pelo consultor.
+                  </p>
+                </div>
+              </div>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-[#E5DFD2] text-xs text-slate-700">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
+                  <span>Enquadramento na legislação chilena e Acordo Mercosul</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
+                  <span>Checklist documental personalizado com prazos e apostilamentos</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
+                  <span>Plano de ação em etapas e cronograma estimado</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
+                  <span>Estimativa de taxas oficiais e proposta de assessoria</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Próximos Passos: Entrar em contato ou aguardar */}
+            <div className="space-y-4 pt-1">
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-[#8C6D14]">
+                  Como receber seu diagnóstico completo
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleClientContactWhatsApp()}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-[#146B43] hover:bg-[#0F5434] text-white text-sm font-semibold transition-colors shadow-sm"
+                  >
+                    <MessageCircle className="w-4 h-4 shrink-0" />
+                    Falar agora com o consultor no WhatsApp
+                  </button>
+                  {onOpenCalendly && empresa.linkCalendly && (
+                    <button
+                      type="button"
+                      onClick={onOpenCalendly}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-95"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      <Calendar className="w-4 h-4 shrink-0" />
+                      Agendar reunião
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Opção de aguardar contato */}
+              <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] flex items-start gap-3">
+                <PhoneCall className="w-4 h-4 text-[#0B1F33] shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-700 space-y-1 leading-relaxed">
+                  <p className="font-bold text-[#0B1F33]">Prefere aguardar o nosso contato? Tudo certo.</p>
+                  <p>
+                    Seus dados já foram encaminhados à equipe administrativa. Um consultor entrará em contato pelo{' '}
+                    <strong>WhatsApp ({answers.whatsapp || 'informado'})</strong> ou pelo{' '}
+                    <strong>e-mail ({answers.email || 'informado'})</strong> para apresentar seu estudo completo.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Rodapé discreto de navegação e LGPD */}
+            <div className="pt-4 border-t border-[#E5DFD2] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <p className="text-[11px] text-slate-500 leading-relaxed max-w-md">
+                Dados protegidos conforme a legislação brasileira (LGPD — Lei nº 13.709/2018). Atendimento consultivo e orientativo.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                {onRestart && (
+                  <button
+                    type="button"
+                    onClick={onRestart}
+                    className="inline-flex items-center gap-1.5 text-slate-600 hover:text-[#0B1F33] font-semibold"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Refazer diagnóstico
+                  </button>
+                )}
+                {onNavigate && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/')}
+                    className="text-[#0B1F33] hover:text-[#146B43] font-semibold underline underline-offset-4"
+                  >
+                    Voltar ao início
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Perfil 29 — Dados insuficientes (visão Administrador)
   if (result.dadosInsuficientes || !result.recomendada) {
     return (
       <div className="space-y-6">
@@ -394,7 +617,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           <button
             type="button"
             onClick={() => void handleSendWhatsApp()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#146B43] text-white text-xs font-semibold hover:bg-[#0F5434] whitespace-nowrap shrink-0"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             Enviar WhatsApp
@@ -560,50 +783,6 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               </div>
             </div>
           </div>
-
-          {mode === 'public' && (
-            <div className="no-print pt-4 border-t border-slate-200 flex flex-wrap gap-2.5">
-              {onOpenCalendly && (
-                <button
-                  type="button"
-                  onClick={onOpenCalendly}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Agendar consulta
-                </button>
-              )}
-              {empresa.linkCalendly && (
-                <a
-                  href={empresa.linkCalendly}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-                >
-                  Abrir agenda em nova aba
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={() => void handleSendWhatsApp()}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#1E7E34] hover:opacity-95"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Falar no WhatsApp
-              </button>
-              {onNavigate && (
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/acompanhar')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                >
-                  <UserCheck className="w-4 h-4" />
-                  Acompanhar meu processo
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Viabilidade 7 Dimensões */}

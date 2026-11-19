@@ -3,6 +3,7 @@ import { BookOpen, ExternalLink, FileText, X } from 'lucide-react';
 import type { LegalSource } from '../types/domain';
 import { formatDateBR } from '../utils/formatters';
 import { getJurisdictionLabel, getJurisdictionTextClass } from '../utils/legalJurisdiction';
+import { BrandRibbon } from './BrandLogo';
 
 interface LegalBaseModalProps {
   open: boolean;
@@ -23,22 +24,23 @@ export const LegalBaseModal: React.FC<LegalBaseModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#071320]/70 backdrop-blur-xs flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        <BrandRibbon className="h-[2.5px] w-full" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5DFD2] dark:border-[#1C324B]">
           <div className="flex items-center gap-2.5">
-            <BookOpen className="w-5 h-5 text-[var(--color-primary)] dark:text-sky-400" />
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+            <BookOpen className="w-5 h-5 text-[var(--color-primary)] dark:text-[#E5C76B]" />
+            <h2 className="text-lg font-bold text-[#0B1F33] dark:text-slate-100">{title}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar base legal"
-            className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+            className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] hover:text-[#0B1F33] dark:hover:text-slate-100"
           >
             <X className="w-5 h-5" />
           </button>

@@ -106,12 +106,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Aplica tema e layout dinâmicos lidos do Firestore (config/empresa) via CSS variables + Favicon
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--color-primary', empresa.corPrimaria || '#0F2537');
-    root.style.setProperty('--color-accent', empresa.corDestaque || '#D4AF37');
-    root.style.setProperty('--color-bg', empresa.corFundo || '#F8F9FA');
+    root.style.setProperty('--color-primary', empresa.corPrimaria || '#0B1F33');
+    root.style.setProperty('--color-accent', empresa.corDestaque || '#C8A236');
+    root.style.setProperty('--color-bg', empresa.corFundo || '#F7F5F0');
     root.style.setProperty('--color-surface', empresa.corSuperficie || '#FFFFFF');
-    root.style.setProperty('--color-text', empresa.corTexto || '#0F172A');
-    root.style.setProperty('--color-footer-bg', empresa.corRodapeBg || '#0B1B29');
+    root.style.setProperty('--color-text', empresa.corTexto || '#0B1523');
+    root.style.setProperty('--color-footer-bg', empresa.corRodapeBg || '#081726');
 
     const fontMap: Record<string, string> = {
       'Plus Jakarta Sans': "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
@@ -123,14 +123,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       Inter: "'Inter', system-ui, sans-serif",
     };
     const displayMap: Record<string, string> = {
+      'Playfair Display': "'Playfair Display', Georgia, serif",
       'Plus Jakarta Sans': "'Plus Jakarta Sans', system-ui, sans-serif",
       Outfit: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
       Manrope: "'Manrope', system-ui, sans-serif",
-      'Playfair Display': "'Playfair Display', Georgia, serif",
       Montserrat: "'Montserrat', system-ui, sans-serif",
     };
     root.style.setProperty('--font-main', fontMap[empresa.fontePrincipal] || fontMap['Plus Jakarta Sans']);
-    root.style.setProperty('--font-display', displayMap[empresa.fonteDisplay || empresa.fontePrincipal] || fontMap[empresa.fontePrincipal] || displayMap['Plus Jakarta Sans']);
+    root.style.setProperty('--font-display', displayMap[empresa.fonteDisplay || 'Playfair Display'] || displayMap['Playfair Display']);
 
     const raio = empresa.layoutConfig?.raioBordas || 'editorial';
     if (raio === 'sharp') {

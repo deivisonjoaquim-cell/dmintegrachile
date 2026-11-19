@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RotateCcw, X } from 'lucide-react';
+import { BrandRibbon } from '../BrandLogo';
 
 interface UiButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'success' | 'ghost';
@@ -19,14 +20,14 @@ export const UiButton: React.FC<UiButtonProps> = ({
     variant === 'primary'
       ? 'text-white border border-transparent shadow-[0_1px_2px_rgba(11,31,51,0.18)] hover:opacity-95 active:scale-[0.99]'
       : variant === 'secondary'
-        ? 'bg-slate-900 dark:bg-slate-700 text-white border border-transparent shadow-[0_1px_2px_rgba(11,31,51,0.16)] hover:opacity-95'
+        ? 'bg-[#0B1F33] dark:bg-[#163452] text-white border border-transparent shadow-[0_1px_2px_rgba(11,31,51,0.16)] hover:opacity-95'
         : variant === 'success'
-          ? 'bg-[#1E7E34] text-white border border-transparent shadow-[0_1px_2px_rgba(30,126,52,0.2)] hover:opacity-95'
+          ? 'bg-[#146B43] text-white border border-transparent shadow-[0_1px_2px_rgba(20,107,67,0.22)] hover:bg-[#0F5434]'
           : variant === 'danger'
-            ? 'bg-[#C82333] text-white border border-transparent shadow-[0_1px_2px_rgba(200,35,51,0.2)] hover:opacity-95'
+            ? 'bg-[#A61C2B] text-white border border-transparent shadow-[0_1px_2px_rgba(166,28,43,0.22)] hover:bg-[#891522]'
             : variant === 'ghost'
-              ? 'bg-transparent text-slate-700 dark:text-slate-300 border border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/80'
-              : 'bg-white dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border border-slate-300/90 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/80';
+              ? 'bg-transparent text-slate-700 dark:text-slate-300 border border-transparent hover:bg-[#F1EDE4] dark:hover:bg-[#152B44]'
+              : 'bg-white dark:bg-[#0D1E31] text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#1E3754] hover:bg-[#F7F5F0] dark:hover:bg-[#142942]';
 
   const mergedStyle = variant === 'primary' ? { backgroundColor: 'var(--color-primary)', ...style } : style;
 
@@ -34,7 +35,7 @@ export const UiButton: React.FC<UiButtonProps> = ({
     <button
       {...rest}
       style={mergedStyle}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${sizeCls} ${variantCls} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold whitespace-nowrap transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${sizeCls} ${variantCls} ${className}`}
     >
       {children}
     </button>
@@ -48,13 +49,13 @@ export const EmptyState: React.FC<{
   actionLabel?: string;
   onAction?: () => void;
 }> = ({ icon, title, description, actionLabel, onAction }) => (
-  <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(11,31,51,0.03)]">
+  <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(11,31,51,0.03)]">
     {icon && (
-      <div className="mx-auto w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800/90 text-slate-500 dark:text-slate-400 flex items-center justify-center">
+      <div className="mx-auto w-11 h-11 rounded-xl bg-[#F7F5F0] dark:bg-[#142942] text-[#0B1F33] dark:text-[#E5C76B] flex items-center justify-center">
         {icon}
       </div>
     )}
-    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+    <h3 className="text-sm font-bold text-[#0B1523] dark:text-slate-100">{title}</h3>
     <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">{description}</p>
     {actionLabel && onAction && (
       <div className="pt-1">
@@ -68,12 +69,12 @@ export const EmptyState: React.FC<{
 
 export const SkeletonBlock: React.FC<{ rows?: number }> = ({ rows = 3 }) => (
   <div
-    className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-6 space-y-3 animate-pulse"
+    className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-6 space-y-3 animate-pulse"
     aria-busy="true"
   >
-    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+    <div className="h-4 bg-[#E5DFD2] dark:bg-[#1C324B] rounded w-1/3" />
     {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="h-3 bg-slate-100 dark:bg-slate-800/70 rounded w-full" />
+      <div key={i} className="h-3 bg-[#F1EDE4] dark:bg-[#142942] rounded w-full" />
     ))}
   </div>
 );
@@ -87,15 +88,16 @@ export const UiModal: React.FC<{
 }> = ({ open, onClose, title, maxWidth = 'max-w-2xl', children }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className={`bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-2xl text-slate-900 dark:text-slate-100 overflow-hidden`}>
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-200/80 dark:border-slate-800">
-          <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">{title}</h3>
+    <div className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className={`bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-2xl text-[#0B1523] dark:text-slate-100 overflow-hidden`}>
+        <BrandRibbon className="h-[2.5px] w-full" />
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[#E5DFD2] dark:border-[#1C324B]">
+          <h3 className="text-base font-bold tracking-tight text-[#0B1523] dark:text-slate-100">{title}</h3>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -141,22 +143,24 @@ export const ConfirmTypedModal: React.FC<{
   const matches = typed.trim().toUpperCase() === requiredKeyword.trim().toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-slate-900 dark:text-slate-100">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 text-[#C82333] dark:text-red-400">
-            <AlertTriangle className="w-5 h-5 shrink-0" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+    <div className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl text-[#0B1523] dark:text-slate-100">
+        <BrandRibbon className="h-[2.5px] w-full" />
+        <div className="p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2 text-[#A61C2B] dark:text-red-400">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-[#0B1523] dark:text-slate-100">{title}</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{description}</p>
 
@@ -218,6 +222,7 @@ export const ConfirmTypedModal: React.FC<{
           >
             {busy ? 'Processando...' : confirmLabel}
           </UiButton>
+        </div>
         </div>
       </div>
     </div>

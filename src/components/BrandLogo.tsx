@@ -297,3 +297,69 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     </svg>
   );
 };
+
+/**
+ * Filete arquitetônico bilateral (Esmeralda Brasil · Dourado · Marinho Andino · Carmim Chile)
+ * derivado diretamente dos arcos da logo oficial D&M Integra Chile.
+ */
+export const BrandRibbon: React.FC<{ className?: string }> = ({ className = 'h-[2.5px] w-full' }) => (
+  <div className={`brand-ribbon shrink-0 ${className}`} aria-hidden="true" />
+);
+
+/**
+ * Assinatura tipográfica oficial derivada da logo:
+ * "D&M" em Playfair Display serifada + "INTEGRA" em Marinho/Branco + "CHILE" em Esmeralda Brasil.
+ */
+export const BrandWordmark: React.FC<{
+  tone?: 'light' | 'dark';
+  size?: 'sm' | 'md' | 'lg';
+  showSubtitle?: boolean;
+  subtitle?: string;
+  className?: string;
+}> = ({
+  tone = 'light',
+  size = 'md',
+  showSubtitle = false,
+  subtitle = 'Relocation & Assessoria',
+  className = '',
+}) => {
+  const isDark = tone === 'dark';
+  const dmSize =
+    size === 'sm' ? 'text-[17px]' : size === 'lg' ? 'text-[26px]' : 'text-[21px]';
+  const nameSize =
+    size === 'sm' ? 'text-[13.5px]' : size === 'lg' ? 'text-[19px]' : 'text-[16px]';
+  const subSize =
+    size === 'sm' ? 'text-[10px]' : size === 'lg' ? 'text-[12px]' : 'text-[11px]';
+
+  return (
+    <span className={`inline-flex flex-col leading-none ${className}`}>
+      <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+        <span
+          className={`font-brand-serif font-bold tracking-tight ${dmSize} ${
+            isDark ? 'text-white' : 'text-[#0B1F33]'
+          }`}
+        >
+          D&amp;M
+        </span>
+        <span
+          className={`font-brand-sans font-extrabold tracking-[0.04em] ${nameSize} ${
+            isDark ? 'text-slate-100' : 'text-[#0B1F33]'
+          }`}
+        >
+          INTEGRA{' '}
+          <span className={isDark ? 'text-[#5CD48D]' : 'text-[#146B43]'}>CHILE</span>
+        </span>
+      </span>
+      {showSubtitle && (
+        <span
+          className={`font-brand-sans font-semibold tracking-[0.14em] mt-1 whitespace-nowrap ${subSize} ${
+            isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'
+          }`}
+        >
+          {subtitle}
+        </span>
+      )}
+    </span>
+  );
+};
+

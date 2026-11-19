@@ -1026,34 +1026,62 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               </div>
             </div>
 
-            <DiagnosticReportView
-              mode="consultant"
-              result={inspectedResult}
-              answers={inspectingLead.respostasTriagem}
-              empresa={empresa}
-              hideCosts={role === 'assistente'}
-              savedLeadId={inspectingLead.id}
-              aiDraft={aiDraft}
-              aiLoading={aiLoading}
-              aiProgress={aiProgress}
-              aiError={aiError}
-              onRefineAi={() => void handleRefineInspectAi()}
-              onUpdateAiDraft={(next) => {
-                setAiDraft(next);
-                if (inspectingLead) saveAiDraftCache(`diagnostico_lead_${inspectingLead.id}`, next);
-              }}
-              onOpenLaw={() => setLawModalOpen(true)}
-              onLogWhatsApp={async (assunto, msg) => {
-                await onLogWhatsApp(inspectingLead.convertedClientId, inspectingLead.convertedCaseId, assunto, msg);
-              }}
-              whatIfAnswers={whatIfAnswers}
-              whatIfComparison={whatIfComparison}
-              onChangeWhatIf={setWhatIfAnswers}
-              onResetWhatIf={() =>
-                setWhatIfAnswers(inspectingLead.respostasTriagem ? { ...inspectingLead.respostasTriagem } : null)
-              }
-              leadHistory={inspectingLead.historicoResultados}
-            />
+            {role === 'admin' ? (
+              <DiagnosticReportView
+                mode="consultant"
+                result={inspectedResult}
+                answers={inspectingLead.respostasTriagem}
+                empresa={empresa}
+                hideCosts={false}
+                savedLeadId={inspectingLead.id}
+                aiDraft={aiDraft}
+                aiLoading={aiLoading}
+                aiProgress={aiProgress}
+                aiError={aiError}
+                onRefineAi={() => void handleRefineInspectAi()}
+                onUpdateAiDraft={(next) => {
+                  setAiDraft(next);
+                  if (inspectingLead) saveAiDraftCache(`diagnostico_lead_${inspectingLead.id}`, next);
+                }}
+                onOpenLaw={() => setLawModalOpen(true)}
+                onLogWhatsApp={async (assunto, msg) => {
+                  await onLogWhatsApp(inspectingLead.convertedClientId, inspectingLead.convertedCaseId, assunto, msg);
+                }}
+                whatIfAnswers={whatIfAnswers}
+                whatIfComparison={whatIfComparison}
+                onChangeWhatIf={setWhatIfAnswers}
+                onResetWhatIf={() =>
+                  setWhatIfAnswers(inspectingLead.respostasTriagem ? { ...inspectingLead.respostasTriagem } : null)
+                }
+                leadHistory={inspectingLead.historicoResultados}
+              />
+            ) : (
+              <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-6 space-y-4">
+                <div className="space-y-1">
+                  <p className="brand-kicker">Acesso Restrito ao Administrador</p>
+                  <h3 className="text-lg font-bold text-[#0B1F33] dark:text-slate-100">
+                    Resumo básico do diagnóstico — {inspectingLead.nome}
+                  </h3>
+                  <p className="text-xs text-[#4A5A6D] dark:text-slate-400 leading-relaxed">
+                    O relatório técnico completo (pontuação detalhada, subcategorias SERMIG, plano de ação documental, custos e simulador de cenários) é de acesso exclusivo do perfil Administrador.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] text-xs">
+                  <div>
+                    <p className="text-[#4A5A6D] dark:text-slate-400">Protocolo</p>
+                    <p className="font-semibold text-[#0B1F33] dark:text-slate-100 mt-0.5 tabular-nums">{inspectingLead.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#4A5A6D] dark:text-slate-400">Contato do cliente</p>
+                    <p className="font-semibold text-[#0B1F33] dark:text-slate-100 mt-0.5">{inspectingLead.whatsapp || inspectingLead.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#4A5A6D] dark:text-slate-400">Status do atendimento</p>
+                    <p className="font-semibold text-[#0B1F33] dark:text-slate-100 mt-0.5">{inspectingLead.statusFunil || 'Novo'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

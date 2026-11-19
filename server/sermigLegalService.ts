@@ -23,6 +23,7 @@ export interface SermigSourceCheckResult {
 export interface SermigBatchCheckResponse {
   ok: true;
   checkedAt: string;
+  verificationMode?: 'server_live' | 'browser_fallback';
   summary: {
     total: number;
     online: number;
@@ -36,16 +37,24 @@ export interface SermigBatchCheckResponse {
 
 const ALLOWED_OFFICIAL_HOST_SUFFIXES = [
   'serviciomigraciones.cl',
+  'sermig.cl',
   'extranjeria.gob.cl',
   'bcn.cl',
   'leychile.cl',
   'diariooficial.interior.gob.cl',
   'registrocivil.cl',
+  'registrocivil.gob.cl',
   'chileatiende.gob.cl',
   'minrel.gob.cl',
+  'sii.cl',
+  'pdi.cl',
+  'pdichile.cl',
   'planalto.gov.br',
   'cnj.jus.br',
   'gov.br',
+  'itamaraty.gov.br',
+  'justica.gov.br',
+  'pf.gov.br',
   'mercosur.int',
   'mercosul.gov.br',
   'gob.cl',
@@ -110,7 +119,7 @@ export async function checkOfficialLegalSourceUrl(
   options?: { timeoutMs?: number; fetchFn?: FetchLike },
 ): Promise<SermigSourceCheckResult> {
   const checkedAt = new Date().toISOString();
-  const timeoutMs = options?.timeoutMs ?? 6500;
+  const timeoutMs = options?.timeoutMs ?? 7000;
   const fetchFn: FetchLike =
     options?.fetchFn ||
     ((url, init) => fetch(url, init) as unknown as ReturnType<FetchLike>);
@@ -137,17 +146,35 @@ export async function checkOfficialLegalSourceUrl(
   try {
     const commonHeaders = {
       'User-Agent':
-        'Mozilla/5.0 (compatible; DMIntegraChileLegalMonitor/1.0; +https://serviciomigraciones.cl)',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'es-CL,pt-BR;q=0.9,en;q=0.8',
     };
 
     // First try lightweight GET (many gov portals reject HEAD with 405/403)
-    const resp = await fetchFn(check.parsed.toString(), {
+    let resp = await fetchFn(check.parsed.toString(), {
       method: 'GET',
       redirect: 'follow',
       signal: controller.signal,
       headers: commonHeaders,
     });
+
+    // If GET was blocked by WAF/bot-filter, try a fast HEAD request as fallback
+    if ((resp.status === 403 || resp.status === 405 || resp.status === 406 || resp.status === 503) && !options?.fetchFn) {
+      try {
+        const headResp = await fetchFn(check.parsed.toString(), {
+          method: 'HEAD',
+          redirect: 'follow',
+          signal: controller.signal,
+          headers: commonHeaders,
+        });
+        if (headResp.status >= 200 && headResp.status < 400) {
+          resp = headResp;
+        }
+      } catch {
+        // Keep original GET response
+      }
+    }
 
     const latencyMs = Math.max(1, Date.now() - start);
     const resolvedUrl = resp.url || check.parsed.toString();
@@ -184,8 +211,8 @@ export async function checkOfficialLegalSourceUrl(
       };
     }
 
-    // Some government WAFs return 403/429 to automated clients even when the site is online
-    if (resp.status === 403 || resp.status === 429 || resp.status === 405) {
+    // Some government WAFs return 403/429/405/503 to automated clients even when the site is online
+    if (resp.status === 403 || resp.status === 429 || resp.status === 405 || resp.status === 503) {
       return {
         id: input.id,
         titulo: input.titulo,
@@ -270,6 +297,7 @@ export async function runBatchOfficialLegalCheck(
   return {
     ok: true,
     checkedAt,
+    verificationMode: 'server_live',
     summary,
     results,
   };

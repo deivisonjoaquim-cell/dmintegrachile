@@ -20,7 +20,7 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
-import { BrandLogo } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon, BrandWordmark } from '../components/BrandLogo';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
@@ -638,20 +638,18 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     return (
       <div className={`min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)] ${panelThemeClass}`}>
         <div
-          className="border border-slate-200/90 dark:border-slate-800 max-w-md w-full overflow-hidden shadow-[0_12px_36px_rgba(11,31,51,0.08)]"
+          className="border border-[#E5DFD2] dark:border-[#1C324B] max-w-md w-full overflow-hidden shadow-[0_12px_36px_rgba(11,31,51,0.08)]"
           style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-card, 16px)' }}
         >
-          <div className="flex h-1.5 w-full" aria-hidden="true">
-            <div className="flex-[3] bg-[var(--color-primary)]" />
-            <div className="flex-1 bg-[var(--color-accent)]" />
-          </div>
+          <BrandRibbon className="h-[3px] w-full" />
           <div className="p-8 sm:p-10 text-center space-y-5">
-            <div
-              className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white tracking-tight shadow-xs"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-              aria-hidden="true"
-            >
-              D&amp;M
+            <div className="flex justify-center">
+              <BrandLogo
+                src={empresa.logoUrl}
+                alt={empresa.nome_empresa}
+                variant={isDark ? 'emblem-dark' : 'emblem'}
+                className="h-14 w-14 object-contain"
+              />
             </div>
             <div className="space-y-2">
               <p className="text-xs font-semibold text-[#9A7B1C] dark:text-amber-400">
@@ -703,14 +701,15 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           : null;
 
   return (
-    <div className={`min-h-screen flex bg-[var(--color-bg)] text-slate-900 dark:text-slate-100 transition-colors ${panelThemeClass}`}>
-      {/* Sidebar Desktop Enxuta (6 hubs práticos em vez de 15 itens espalhados) */}
+    <div className={`min-h-screen flex bg-[var(--color-bg)] text-[#0B1523] dark:text-slate-100 transition-colors panel-workspace ${panelThemeClass}`}>
+      {/* Sidebar Desktop Enxuta padronizada pela identidade D&M */}
       <aside
-        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0F1629] border-r border-slate-200/90 dark:border-slate-800 shrink-0 no-print transition-all ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
+        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
         }`}
       >
-        <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+        <BrandRibbon className="h-[3px] w-full" />
+        <div className="h-14 px-4 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-2">
           <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
             <BrandLogo
               src={activeLogoUrl}
@@ -719,16 +718,14 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               className="h-9 w-9 object-contain shrink-0"
             />
             {!sidebarCollapsed && (
-              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
-                {empresa.nome_empresa.split('–')[0].trim()}
-              </span>
+              <BrandWordmark tone={isDark ? 'dark' : 'light'} size="sm" className="truncate" />
             )}
           </button>
           <button
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
             aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
+            className="p-1.5 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-slate-600 dark:text-slate-300 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] shrink-0"
           >
             {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
@@ -835,8 +832,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
+        <BrandRibbon className="h-[3px] w-full no-print" />
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
-        <header className="bg-white/90 dark:bg-[#0F1629]/90 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
+        <header className="bg-white/92 dark:bg-[#0D1E31]/92 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"

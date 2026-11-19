@@ -133,9 +133,22 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
       upgradeLegacyCopyString(mergedLayout.rodapeSubtitulo) || mergedLayout.rodapeSubtitulo;
   }
 
+  const isLegacyDefaultTheme =
+    (!data.corPrimaria || data.corPrimaria.toUpperCase() === '#0F2537') &&
+    (!data.corFundo || data.corFundo.toUpperCase() === '#F8F9FA' || data.corFundo.toUpperCase() === '#F6F7F9');
+
   const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
+    corPrimaria: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corPrimaria : data.corPrimaria || DEFAULT_EMPRESA_CONFIG.corPrimaria,
+    corDestaque: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corDestaque : data.corDestaque || DEFAULT_EMPRESA_CONFIG.corDestaque,
+    corFundo: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corFundo : data.corFundo || DEFAULT_EMPRESA_CONFIG.corFundo,
+    corTexto: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corTexto : data.corTexto || DEFAULT_EMPRESA_CONFIG.corTexto,
+    corRodapeBg: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corRodapeBg : data.corRodapeBg || DEFAULT_EMPRESA_CONFIG.corRodapeBg,
+    fonteDisplay:
+      isLegacyDefaultTheme && (!data.fonteDisplay || data.fonteDisplay === 'Plus Jakarta Sans')
+        ? DEFAULT_EMPRESA_CONFIG.fonteDisplay
+        : data.fonteDisplay || DEFAULT_EMPRESA_CONFIG.fonteDisplay,
     logoUrl: data.logoUrl?.trim() ? data.logoUrl : DEFAULT_EMPRESA_CONFIG.logoUrl,
     logoDarkUrl: data.logoDarkUrl?.trim() ? data.logoDarkUrl : DEFAULT_EMPRESA_CONFIG.logoDarkUrl,
     faviconUrl: data.faviconUrl?.trim() ? data.faviconUrl : DEFAULT_EMPRESA_CONFIG.faviconUrl,

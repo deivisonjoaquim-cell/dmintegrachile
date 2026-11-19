@@ -21,7 +21,7 @@ import type {
   SiteSectionKey,
 } from '../types/domain';
 import { buildWhatsAppUrl, sanitizeHtml } from '../utils/formatters';
-import { BrandLogo } from './BrandLogo';
+import { BrandLogo, BrandRibbon, BrandWordmark } from './BrandLogo';
 
 export interface ServiceItemMeta {
   numero: string;
@@ -96,22 +96,22 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       isDark: false,
       sectionStyle: { backgroundColor: 'var(--color-bg)' } as React.CSSProperties,
       sectionClass: 'text-[var(--color-text)]',
-      headingClass: 'text-[var(--color-text)]',
-      subClass: 'text-slate-600',
-      eyebrowClass: 'text-[#8F6F16]',
+      headingClass: 'text-[#0B1F33]',
+      subClass: 'text-[#4A5A6D]',
+      eyebrowClass: 'text-[#8C6D14]',
       cardClass:
-        'bg-[var(--color-surface)] border border-slate-200/90 shadow-[0_1px_2px_rgba(11,31,51,0.03)] hover:border-slate-300 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
+        'bg-[var(--color-surface)] border border-[#E5DFD2] shadow-[0_1px_2px_rgba(11,31,51,0.035)] hover:border-[#C8A236]/75 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
     };
   }
   return {
     isDark: false,
     sectionStyle: { backgroundColor: 'var(--color-surface)' } as React.CSSProperties,
-    sectionClass: 'border-y border-slate-200/80 text-[var(--color-text)]',
-    headingClass: 'text-[var(--color-text)]',
-    subClass: 'text-slate-600',
-    eyebrowClass: 'text-[#8F6F16]',
+    sectionClass: 'border-y border-[#E5DFD2] text-[var(--color-text)]',
+    headingClass: 'text-[#0B1F33]',
+    subClass: 'text-[#4A5A6D]',
+    eyebrowClass: 'text-[#8C6D14]',
     cardClass:
-      'bg-[var(--color-surface)] border border-slate-200/90 shadow-[0_1px_2px_rgba(11,31,51,0.03)] hover:border-slate-300 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
+      'bg-[var(--color-surface)] border border-[#E5DFD2] shadow-[0_1px_2px_rgba(11,31,51,0.035)] hover:border-[#C8A236]/75 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
   };
 }
 
@@ -475,39 +475,37 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       return (
         <section
           key={sec.id}
-          className="bg-[var(--color-surface)] border-b border-slate-200/80 relative overflow-hidden"
+          className="bg-[var(--color-surface)] border-b border-[#E5DFD2] relative overflow-hidden"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-12 lg:pt-14 lg:pb-16">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
               {/* Coluna Editorial Principal */}
               <div className={`lg:col-span-7 flex flex-col justify-center ${imageFirst ? 'lg:order-2' : 'lg:order-1'}`}>
                 {/* Identidade Institucional Visível na Dobra Principal */}
-                <div className="flex items-center gap-4 pb-5 mb-6 border-b border-slate-200/80">
+                <div className="flex items-center gap-4 pb-5 mb-6 border-b border-[#E5DFD2]">
                   <BrandLogo
                     src={empresa.logoUrl}
                     alt={empresa.nome_empresa}
                     variant="emblem"
                     className="h-14 w-14 sm:h-16 sm:w-16 shrink-0"
                   />
-                  <div className="min-w-0">
-                    <p className="text-base sm:text-lg font-bold tracking-tight text-[var(--color-text)] leading-tight">
-                      {brandShortName}
-                    </p>
-                    <p className="text-xs font-semibold text-[#8F6F16] mt-0.5 leading-snug">
+                  <div className="min-w-0 space-y-1">
+                    <BrandWordmark tone="light" size="md" />
+                    <p className="text-xs font-semibold text-[#8C6D14] leading-snug">
                       {eyebrow}
                     </p>
                   </div>
                 </div>
 
-                <h1 className="text-[clamp(2.15rem,3.6vw,3.3rem)] font-bold tracking-[-0.03em] text-[var(--color-text)] leading-[1.08] text-balance mb-4">
+                <h1 className="text-[clamp(2.15rem,3.6vw,3.3rem)] font-bold tracking-[-0.02em] text-[#0B1F33] leading-[1.1] text-balance mb-4">
                   {sec.titulo}
                 </h1>
-                <p className="text-base sm:text-[17px] text-slate-600 leading-[1.65] max-w-2xl mb-4">
+                <p className="text-base sm:text-[17px] text-[#4A5A6D] leading-[1.65] max-w-2xl mb-4">
                   {sec.subtitulo}
                 </p>
                 {sec.conteudoHtml && (
                   <div
-                    className="text-sm text-slate-600 leading-relaxed max-w-2xl mb-7"
+                    className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mb-7"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
                   />
                 )}
@@ -527,15 +525,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={whatsappHeroUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-slate-800 border border-slate-300/90 bg-white hover:bg-slate-50 hover:border-slate-400 transition-all duration-150 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#F7F5F0] hover:border-[#C8A236] transition-all duration-150 whitespace-nowrap shrink-0"
                   >
-                    <MessageCircle className="w-4 h-4 text-[#1E7E34]" />
+                    <MessageCircle className="w-4 h-4 text-[#146B43]" />
                     {ctaSecundario}
                   </a>
                   <button
                     type="button"
                     onClick={() => navigateAction('/acompanhar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-[var(--color-primary)] transition-colors whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#4A5A6D] hover:text-[#0B1F33] transition-colors whitespace-nowrap shrink-0"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     Acompanhar meu processo
@@ -1305,80 +1303,83 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       {orderedSections.map((sec) => renderSection(sec))}
 
       {serviceDrawer && !previewMode && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex justify-end" role="dialog" aria-modal="true">
-          <div className="bg-white w-full max-w-md h-full p-6 sm:p-8 flex flex-col justify-between overflow-y-auto shadow-2xl">
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
-                <div>
-                  <p className="text-xs font-semibold text-[#8F6F16] tabular-nums">
-                    Serviço {serviceDrawer.numero} ·{' '}
-                    {serviceDrawer.jurisdicao ||
-                      SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.jurisdicao ||
-                      'Legislação Chilena · SERMIG'}
-                  </p>
-                  <h3 className="text-lg font-bold text-slate-900 mt-0.5">{serviceDrawer.titulo}</h3>
+        <div className="fixed inset-0 z-50 bg-[#0B1F33]/65 flex justify-end" role="dialog" aria-modal="true">
+          <div className="bg-white w-full max-w-md h-full flex flex-col overflow-hidden shadow-2xl border-l border-[#E5DFD2]">
+            <BrandRibbon className="h-[3px] w-full" />
+            <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between overflow-y-auto">
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3 border-b border-[#E5DFD2] pb-4">
+                  <div>
+                    <p className="text-xs font-semibold text-[#8C6D14] tabular-nums">
+                      Serviço {serviceDrawer.numero} ·{' '}
+                      {serviceDrawer.jurisdicao ||
+                        SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.jurisdicao ||
+                        'Legislação Chilena · SERMIG'}
+                    </p>
+                    <h3 className="text-lg font-bold text-[#0B1F33] mt-0.5">{serviceDrawer.titulo}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setServiceDrawer(null)}
+                    aria-label="Fechar detalhes do serviço"
+                    className="p-2 btn-radius text-slate-500 hover:bg-[#F7F5F0]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
+                <p className="text-sm text-slate-700 leading-relaxed">{serviceDrawer.descricao}</p>
+                <div className="space-y-3 text-xs pt-2">
+                  <div className="p-3.5 card-radius bg-[#F7F5F0] border border-[#E5DFD2]">
+                    <p className="font-bold text-[#0B1F33]">Para quem é indicado</p>
+                    <p className="text-slate-600 mt-1">
+                      {serviceDrawer.paraQuem ||
+                        SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.paraQuem ||
+                        'Avaliado individualmente no diagnóstico.'}
+                    </p>
+                  </div>
+                  <div className="p-3.5 card-radius bg-[#F7F5F0] border border-[#E5DFD2]">
+                    <p className="font-bold text-[#0B1F33]">Enquadramento normativo e documentos típicos</p>
+                    <p className="text-slate-600 mt-1">
+                      {serviceDrawer.subcategoriaTipica ||
+                        SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.subcategoriaTipica ||
+                        'Conforme legislação chilena vigente (SERMIG).'}
+                    </p>
+                  </div>
+                  <div className="p-3.5 card-radius bg-[#F7F5F0] border border-[#E5DFD2]">
+                    <p className="font-bold text-[#0B1F33]">Faixa referencial de prazos</p>
+                    <p className="text-slate-600 mt-1">
+                      {serviceDrawer.faixaPrazo ||
+                        SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.faixaPrazo ||
+                        'Definido conforme fila do SERMIG.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-6 border-t border-[#E5DFD2] space-y-2 mt-6">
                 <button
                   type="button"
-                  onClick={() => setServiceDrawer(null)}
-                  aria-label="Fechar detalhes do serviço"
-                  className="p-2 btn-radius text-slate-500 hover:bg-slate-100"
+                  onClick={() => {
+                    setServiceDrawer(null);
+                    onNavigate('/diagnostico');
+                  }}
+                  className="w-full py-2.5 px-4 btn-radius text-xs font-semibold text-white"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
                 >
-                  <X className="w-5 h-5" />
+                  Iniciar diagnóstico para este serviço
                 </button>
+                <a
+                  href={buildWhatsAppUrl(
+                    empresa.whatsapp,
+                    `Olá! Gostaria de saber mais sobre o serviço: ${serviceDrawer.titulo}.`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0]"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#146B43]" />
+                  Consultar no WhatsApp
+                </a>
               </div>
-              <p className="text-sm text-slate-700 leading-relaxed">{serviceDrawer.descricao}</p>
-              <div className="space-y-3 text-xs pt-2">
-                <div className="p-3.5 card-radius bg-slate-50 border border-slate-200">
-                  <p className="font-bold text-slate-900">Para quem é indicado</p>
-                  <p className="text-slate-600 mt-1">
-                    {serviceDrawer.paraQuem ||
-                      SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.paraQuem ||
-                      'Avaliado individualmente no diagnóstico.'}
-                  </p>
-                </div>
-                <div className="p-3.5 card-radius bg-slate-50 border border-slate-200">
-                  <p className="font-bold text-slate-900">Enquadramento normativo e documentos típicos</p>
-                  <p className="text-slate-600 mt-1">
-                    {serviceDrawer.subcategoriaTipica ||
-                      SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.subcategoriaTipica ||
-                      'Conforme legislação chilena vigente (SERMIG).'}
-                  </p>
-                </div>
-                <div className="p-3.5 card-radius bg-slate-50 border border-slate-200">
-                  <p className="font-bold text-slate-900">Faixa referencial de prazos</p>
-                  <p className="text-slate-600 mt-1">
-                    {serviceDrawer.faixaPrazo ||
-                      SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.faixaPrazo ||
-                      'Definido conforme fila do SERMIG.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setServiceDrawer(null);
-                  onNavigate('/diagnostico');
-                }}
-                className="w-full py-2.5 px-4 btn-radius text-xs font-semibold text-white"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                Iniciar diagnóstico para este serviço
-              </button>
-              <a
-                href={buildWhatsAppUrl(
-                  empresa.whatsapp,
-                  `Olá! Gostaria de saber mais sobre o serviço: ${serviceDrawer.titulo}.`,
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                <MessageCircle className="w-4 h-4 text-[#1E7E34]" />
-                Consultar no WhatsApp
-              </a>
             </div>
           </div>
         </div>

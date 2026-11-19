@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Clock, RefreshCw, ShieldAlert, ShieldCheck, UserCheck } from 'lucide-react';
-import { BrandLogo } from '../components/BrandLogo';
+import { ArrowRight, Clock, RefreshCw, ShieldAlert, UserCheck } from 'lucide-react';
+import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
 import { useApp } from '../contexts/AppContext';
 
 interface AuthGatePageProps {
@@ -108,24 +108,26 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
   return (
     <div className="py-16 lg:py-24 bg-[var(--color-bg)]">
       <div className="max-w-lg mx-auto px-4 sm:px-6">
-        <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-8 text-center space-y-5 shadow-[0_12px_32px_rgba(11,31,51,0.06)]">
-          <div className="flex justify-center">
-            <BrandLogo
-              src={empresa.logoUrl}
-              alt={empresa.nome_empresa}
-              variant="full"
-              className="h-24 w-auto max-w-[300px] object-contain mx-auto"
-            />
-          </div>
+        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] card-radius overflow-hidden shadow-[0_14px_38px_rgba(11,31,51,0.07)]">
+          <BrandRibbon className="h-[3px] w-full" />
+          <div className="p-8 sm:p-9 text-center space-y-5">
+            <div className="flex justify-center">
+              <BrandLogo
+                src={empresa.logoUrl}
+                alt={empresa.nome_empresa}
+                variant="full"
+                className="h-24 w-auto max-w-[300px] object-contain mx-auto"
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-[#9A7B1C]">
-              {mode === 'equipe' ? 'Painel Administrativo e Consultoria' : 'Portal Seguro do Cliente'}
-            </p>
-            <h1 className="text-2xl font-bold text-slate-900">
-              {mode === 'equipe' ? 'Área da Equipe' : 'Acompanhar Meu Processo'}
-            </h1>
-          </div>
+            <div className="space-y-1.5">
+              <p className="brand-kicker">
+                {mode === 'equipe' ? 'Painel Administrativo e Consultoria' : 'Portal Seguro do Cliente'}
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0B1F33]">
+                {mode === 'equipe' ? 'Área da Equipe' : 'Acompanhar Meu Processo'}
+              </h1>
+            </div>
 
           {!userProfile ? (
             <>
@@ -252,6 +254,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
   Trash2,
   Wrench,
 } from 'lucide-react';
+import { BrandRibbon } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../components/DiagnosticReportView';
 import { LegalBaseModal } from '../components/LegalBaseModal';
@@ -197,8 +198,12 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     legalSources,
     activeDiagnosticRules,
     firebaseUser,
+    userProfile,
     loginWithGoogle,
   } = useApp();
+
+  const isAdmin = Boolean(userProfile && userProfile.status === 'ativo' && userProfile.role === 'admin');
+  const [adminViewFull, setAdminViewFull] = useState(true);
 
   const {
     saveDiagnostic: saveDiagnosticFirestore,
@@ -797,35 +802,72 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   };
 
   if (result) {
+    const effectiveMode: 'public' | 'consultant' = isAdmin && adminViewFull ? 'consultant' : 'public';
     return (
       <div className="py-10 lg:py-14 bg-[var(--color-bg)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-5">
+          {isAdmin && (
+            <div className="no-print bg-white border border-[#E5DFD2] rounded-xl overflow-hidden shadow-xs">
+              <BrandRibbon className="h-[2.5px] w-full" />
+              <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-[#0B1F33]">
+                  <ShieldCheck className="w-4 h-4 text-[#146B43] shrink-0" />
+                  <span>
+                    <strong>Acesso Administrador:</strong> o cliente final visualiza apenas o resumo básico; você pode alternar para conferir o relatório completo.
+                  </span>
+                </div>
+                <div className="inline-flex rounded-lg border border-[#DDD6C7] bg-[#F7F5F0] p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAdminViewFull(false)}
+                    className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
+                      !adminViewFull ? 'bg-[#0B1F33] text-white' : 'text-slate-700 hover:text-[#0B1F33]'
+                    }`}
+                  >
+                    Visão do Cliente (Básica)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminViewFull(true)}
+                    className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
+                      adminViewFull ? 'bg-[#0B1F33] text-white' : 'text-slate-700 hover:text-[#0B1F33]'
+                    }`}
+                  >
+                    Diagnóstico Completo (Admin)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <DiagnosticReportView
-            mode="public"
+            mode={effectiveMode}
             result={result}
             answers={answers}
             empresa={empresa}
             savedLeadId={savedLeadId}
             resumeUrl={resumeUrlSaved}
-            aiDraft={aiDraft}
-            aiLoading={aiLoading}
-            aiProgress={aiProgress}
-            aiError={aiError}
-            onRefineAi={() => void handleRefineAi()}
-            onUpdateAiDraft={handleUpdateAiDraft}
-            onOpenLaw={() => setLawOpen(true)}
+            aiDraft={isAdmin ? aiDraft : null}
+            aiLoading={isAdmin ? aiLoading : false}
+            aiProgress={isAdmin ? aiProgress : null}
+            aiError={isAdmin ? aiError : null}
+            onRefineAi={isAdmin ? () => void handleRefineAi() : undefined}
+            onUpdateAiDraft={isAdmin ? handleUpdateAiDraft : undefined}
+            onOpenLaw={isAdmin ? () => setLawOpen(true) : undefined}
             onOpenCalendly={() => setCalendlyOpen(true)}
             onRestart={handleRestart}
             onNavigate={onNavigate}
           />
         </div>
         <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} />
-        <LegalBaseModal
-          open={lawOpen}
-          onClose={() => setLawOpen(false)}
-          title="Base Legal Consultada — Legislação Chilena, Brasileira e Mercosul"
-          sources={result.fontesLegais}
-        />
+        {isAdmin && (
+          <LegalBaseModal
+            open={lawOpen}
+            onClose={() => setLawOpen(false)}
+            title="Base Legal Consultada — Legislação Chilena, Brasileira e Mercosul"
+            sources={result.fontesLegais}
+          />
+        )}
       </div>
     );
   }
@@ -1997,118 +2039,168 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             </div>
           </form>
 
-          {/* RADAR SERMIG EM TEMPO REAL (4 colunas sticky no desktop) */}
+          {/* PAINEL LATERAL (4 colunas sticky no desktop) — Radar técnico restrito ao Administrador */}
           <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-              <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
-                <div>
-                  <p className="text-[11px] font-semibold text-[#8F6F16] flex items-center gap-1.5">
-                    <Compass className="w-3.5 h-3.5" />
-                    Radar SERMIG em Tempo Real
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Pré-enquadramento dinâmico atualizado a cada resposta
-                  </p>
+            {isAdmin ? (
+              <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden">
+                <BrandRibbon className="h-[3px] w-full" />
+                <div className="p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-2 pb-3 border-b border-[#E5DFD2]">
+                    <div>
+                      <p className="text-[11px] font-semibold text-[#8C6D14] flex items-center gap-1.5">
+                        <Compass className="w-3.5 h-3.5" />
+                        Radar SERMIG · Visão Administrador
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Pré-enquadramento dinâmico atualizado a cada resposta
+                      </p>
+                    </div>
+                  </div>
+
+                  {livePreview.prontoParaPrevia && livePreview.subcategoriaLider ? (
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                          Subcategoria líder · Cód. {livePreview.subcategoriaLider.codigo} · Compatibilidade{' '}
+                          <strong className="text-[#0B1F33]">{livePreview.subcategoriaLider.nota}/100</strong>
+                        </p>
+                        <p className="text-base font-bold text-[#0B1F33] leading-snug">
+                          {livePreview.subcategoriaLider.nomePortugues}
+                        </p>
+                        <p className="text-xs text-slate-500 italic">{livePreview.subcategoriaLider.nomeEspanhol}</p>
+                        {livePreview.situacaoResidenciaAtual && (
+                          <p className="text-xs font-semibold text-[var(--color-primary)] pt-1">
+                            Fluxo atual: {livePreview.situacaoResidenciaAtual}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-3 border-t border-[#E5DFD2] space-y-1">
+                        <p className="text-xs font-bold text-[#0B1F33]">{livePreview.regraProtocoloTitulo}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{livePreview.regraProtocoloDetalhe}</p>
+                      </div>
+
+                      {livePreview.alertaPrincipal && (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2 leading-relaxed">
+                          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                          <span>{livePreview.alertaPrincipal}</span>
+                        </div>
+                      )}
+
+                      <div className="pt-3 border-t border-[#E5DFD2] grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-slate-500 flex items-center gap-1">
+                            <FileCheck2 className="w-3.5 h-3.5 text-[#146B43]" />
+                            Obrigatórios
+                          </p>
+                          <p className="text-base font-bold text-[#0B1F33] tabular-nums mt-0.5">
+                            {livePreview.requisitosObrigatoriosCount} itens
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Validade 60 dias</p>
+                          <p className="text-base font-bold text-[#0B1F33] tabular-nums mt-0.5">
+                            {livePreview.requisitosPrazoCurtoCount}{' '}
+                            {livePreview.requisitosPrazoCurtoCount === 1 ? 'certidão' : 'certidões'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {livePreview.alternativas.length > 0 && (
+                        <div className="pt-3 border-t border-[#E5DFD2] space-y-1.5 text-xs">
+                          <p className="font-semibold text-slate-700">Rotas alternativas em análise</p>
+                          <ul className="space-y-1 text-slate-600">
+                            {livePreview.alternativas.map((alt) => (
+                              <li key={alt.codigo} className="flex items-baseline justify-between gap-2 tabular-nums">
+                                <span className="truncate">
+                                  {alt.codigo} · {alt.nomePortugues}
+                                </span>
+                                <span className="font-semibold text-[#0B1F33] shrink-0">{alt.nota}/100</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {livePreview.fontesLegais.length > 0 && (
+                        <div className="pt-3 border-t border-[#E5DFD2] space-y-1.5 text-xs">
+                          <p className="font-semibold text-slate-700 flex items-center gap-1.5">
+                            <Scale className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            Normas consultadas por país
+                          </p>
+                          <ul className="space-y-1.5">
+                            {livePreview.fontesLegais.map((src) => (
+                              <li key={src.id} className="text-[11px] leading-snug">
+                                <span className={getJurisdictionTextClass(src.pais)}>{src.jurisdicao}</span>
+                                <span className="text-slate-600">
+                                  {' · '}
+                                  {src.titulo.split('–')[0].trim()}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-600 leading-relaxed">{livePreview.regraProtocoloDetalhe}</p>
+                  )}
                 </div>
               </div>
-
-              {livePreview.prontoParaPrevia && livePreview.subcategoriaLider ? (
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                      Subcategoria líder · Cód. {livePreview.subcategoriaLider.codigo} · Compatibilidade{' '}
-                      <strong className="text-slate-900">{livePreview.subcategoriaLider.nota}/100</strong>
+            ) : (
+              <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden">
+                <BrandRibbon className="h-[3px] w-full" />
+                <div className="p-5 space-y-4">
+                  <div className="pb-3 border-b border-[#E5DFD2]">
+                    <p className="text-[11px] font-semibold text-[#8C6D14] flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5" />
+                      Acompanhamento do Diagnóstico
                     </p>
-                    <p className="text-base font-bold text-slate-900 leading-snug">
-                      {livePreview.subcategoriaLider.nomePortugues}
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Questionário guiado com base nas regras oficiais do SERMIG
                     </p>
-                    <p className="text-xs text-slate-500 italic">{livePreview.subcategoriaLider.nomeEspanhol}</p>
-                    {livePreview.situacaoResidenciaAtual && (
-                      <p className="text-xs font-semibold text-[var(--color-primary)] pt-1">
-                        Fluxo atual: {livePreview.situacaoResidenciaAtual}
-                      </p>
-                    )}
                   </div>
 
-                  {/* Regra de protocolo (Exterior vs Chile) */}
-                  <div className="pt-3 border-t border-slate-100 space-y-1">
-                    <p className="text-xs font-bold text-slate-900">{livePreview.regraProtocoloTitulo}</p>
-                    <p className="text-xs text-slate-600 leading-relaxed">{livePreview.regraProtocoloDetalhe}</p>
+                  <div className="space-y-2">
+                    {STEP_LABELS.map((item) => {
+                      const done = item.num < step;
+                      const active = item.num === step;
+                      return (
+                        <div
+                          key={item.num}
+                          className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${
+                            active
+                              ? 'border-[#0B1F33] bg-[#F7F5F0] font-semibold text-[#0B1F33]'
+                              : done
+                                ? 'border-emerald-200 bg-emerald-50/50 text-[#146B43]'
+                                : 'border-[#E5DFD2] bg-white text-slate-500'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="tabular-nums font-bold">{item.num}.</span>
+                            <span>{item.title}</span>
+                          </span>
+                          {done && <Check className="w-3.5 h-3.5 text-[#146B43] shrink-0" />}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Alerta principal (quando aplicável) */}
-                  {livePreview.alertaPrincipal && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2 leading-relaxed">
-                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                      <span>{livePreview.alertaPrincipal}</span>
-                    </div>
-                  )}
-
-                  {/* Indicadores documentais */}
-                  <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <p className="text-slate-500 flex items-center gap-1">
-                        <FileCheck2 className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                        Obrigatórios
-                      </p>
-                      <p className="text-base font-bold text-slate-900 tabular-nums mt-0.5">
-                        {livePreview.requisitosObrigatoriosCount} itens
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Validade 60 dias</p>
-                      <p className="text-base font-bold text-slate-900 tabular-nums mt-0.5">
-                        {livePreview.requisitosPrazoCurtoCount}{' '}
-                        {livePreview.requisitosPrazoCurtoCount === 1 ? 'certidão' : 'certidões'}
-                      </p>
-                    </div>
+                  <div className="p-3.5 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs text-slate-700 space-y-1.5 leading-relaxed">
+                    <p className="font-bold text-[#0B1F33] flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-[#8C6D14] shrink-0" />
+                      Entrega do diagnóstico completo
+                    </p>
+                    <p>
+                      Ao finalizar, você receberá a confirmação e seu protocolo. O estudo técnico completo fica reservado à nossa administração e será apresentado diretamente por um consultor.
+                    </p>
                   </div>
-
-                  {/* Alternativas mapeadas */}
-                  {livePreview.alternativas.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs">
-                      <p className="font-semibold text-slate-700">Rotas alternativas em análise</p>
-                      <ul className="space-y-1 text-slate-600">
-                        {livePreview.alternativas.map((alt) => (
-                          <li key={alt.codigo} className="flex items-baseline justify-between gap-2 tabular-nums">
-                            <span className="truncate">
-                              {alt.codigo} · {alt.nomePortugues}
-                            </span>
-                            <span className="font-semibold text-slate-800 shrink-0">{alt.nota}/100</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Fontes legais consultadas com jurisdição explícita */}
-                  {livePreview.fontesLegais.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs">
-                      <p className="font-semibold text-slate-700 flex items-center gap-1.5">
-                        <Scale className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                        Normas consultadas por país
-                      </p>
-                      <ul className="space-y-1.5">
-                        {livePreview.fontesLegais.map((src) => (
-                          <li key={src.id} className="text-[11px] leading-snug">
-                            <span className={getJurisdictionTextClass(src.pais)}>{src.jurisdicao}</span>
-                            <span className="text-slate-600">
-                              {' · '}
-                              {src.titulo.split('–')[0].trim()}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-600 leading-relaxed">{livePreview.regraProtocoloDetalhe}</p>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 space-y-1.5">
-              <p className="font-semibold text-slate-900">Transparência normativa Brasil–Chile</p>
+            <div className="bg-white border border-[#E5DFD2] rounded-2xl p-4 text-xs text-slate-600 space-y-1.5">
+              <p className="font-semibold text-[#0B1F33]">Transparência normativa Brasil–Chile</p>
               <p className="leading-relaxed">
                 Regras de residência seguem a <strong>legislação chilena</strong> e o <strong>Acordo Mercosul</strong>; o tratamento dos seus dados segue a <strong>legislação brasileira (LGPD)</strong>.
               </p>

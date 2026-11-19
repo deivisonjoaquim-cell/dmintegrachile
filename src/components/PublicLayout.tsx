@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
-import { BrandLogo } from './BrandLogo';
+import { BrandLogo, BrandRibbon, BrandWordmark } from './BrandLogo';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -26,7 +26,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   const navItems = (lc.linksNavegacao && lc.linksNavegacao.length > 0 ? lc.linksNavegacao : DEFAULT_NAV_LINKS).filter(
     (item) => item.visivel !== false,
   );
-  const logoHeight = Math.min(64, Math.max(24, Number(lc.logoAlturaPx || 36)));
+  const logoHeight = Math.min(64, Math.max(24, Number(lc.logoAlturaPx || 42)));
   const showBrandText = lc.mostrarNomeComLogo !== false || !empresa.logoUrl;
   const headerStyle = lc.estiloCabecalho || 'sticky_vidro';
   const headerCtaLabel = lc.textoCtaCabecalho || 'Área da Equipe';
@@ -60,50 +60,38 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white border-b border-slate-200/80 no-print'
+      ? 'bg-white border-b border-[#E5DFD2] no-print'
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-slate-200/90 shadow-[0_1px_3px_rgba(11,31,51,0.05)] no-print'
-        : 'sticky top-0 z-40 bg-white/88 backdrop-blur-xl border-b border-slate-200/75 shadow-[0_1px_2px_rgba(11,31,51,0.03)] no-print';
+        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E5DFD2] shadow-[0_1px_3px_rgba(11,31,51,0.05)] no-print'
+        : 'sticky top-0 z-40 bg-[#FFFFFF]/92 backdrop-blur-xl border-b border-[#E5DFD2]/90 shadow-[0_1px_2px_rgba(11,31,51,0.035)] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const brandShortName = empresa.nome_empresa.split('–')[0].trim();
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
-      {/* Filete arquitetônico de identidade institucional */}
-      <div className="flex h-[2px] w-full no-print" aria-hidden="true">
-        <div className="flex-[4] bg-[var(--color-primary)]" />
-        <div className="flex-1 bg-[var(--color-accent)]" />
-      </div>
+      {/* Filete arquitetônico bilateral derivado da logo oficial */}
+      <BrandRibbon className="h-[3px] w-full no-print" />
 
       <header className={headerClass}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[72px] flex items-center justify-between gap-6">
-          {/* Zona 1: Marca em linha única */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[74px] flex items-center justify-between gap-8">
+          {/* Zona 1: Emblema + Assinatura Tipográfica em linha única */}
           <a
             href="#/"
             onClick={(e) => {
               e.preventDefault();
               onNavigate('/');
             }}
-            className="flex items-center gap-3 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] rounded group"
+            className="flex items-center gap-3 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] rounded group"
           >
             <BrandLogo
               src={empresa.logoUrl}
               alt={empresa.nome_empresa}
               variant="emblem"
-              style={{ height: `${Math.max(40, logoHeight)}px` }}
+              style={{ height: `${Math.max(42, logoHeight)}px` }}
               className="w-auto max-w-[190px] object-contain shrink-0 transition-transform duration-200 group-hover:scale-[1.03]"
             />
-            {showBrandText && (
-              <span className="flex flex-col leading-none">
-                <span className="text-[15.5px] sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap">
-                  {brandShortName}
-                </span>
-                <span className="text-[10.5px] font-medium tracking-wide text-slate-500 mt-0.5 hidden sm:block">
-                  Relocation &amp; Assessoria
-                </span>
-              </span>
-            )}
+            {showBrandText && <BrandWordmark tone="light" size="sm" />}
           </a>
 
           {/* Zona 2: Links de navegação em linha única */}
@@ -127,8 +115,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   }}
                   className={`text-[13.5px] font-medium whitespace-nowrap shrink-0 py-1.5 border-b-2 transition-colors ${
                     active
-                      ? 'text-[var(--color-text)] font-semibold border-[var(--color-accent)]'
-                      : 'text-slate-600 border-transparent hover:text-[var(--color-text)] hover:border-slate-300'
+                      ? 'text-[#0B1F33] font-semibold border-[var(--color-accent)]'
+                      : 'text-[#4A5A6D] border-transparent hover:text-[#0B1F33] hover:border-[#D5CCB8]'
                   }`}
                 >
                   {item.label}
@@ -142,7 +130,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             <button
               type="button"
               onClick={handleHeaderCtaClick}
-              className="hidden sm:inline-flex items-center justify-center px-4.5 py-2.5 text-xs font-semibold text-white btn-radius whitespace-nowrap shrink-0 shadow-[0_2px_6px_rgba(11,31,51,0.16)] transition-all duration-150 hover:opacity-95 hover:-translate-y-[0.5px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+              className="hidden sm:inline-flex items-center justify-center px-4.5 py-2.5 text-xs font-semibold text-white btn-radius whitespace-nowrap shrink-0 shadow-[0_2px_6px_rgba(11,31,51,0.18)] transition-all duration-150 hover:opacity-95 hover:-translate-y-[0.5px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               {headerCtaLabel}
@@ -151,7 +139,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="lg:hidden p-2 btn-radius text-slate-700 hover:bg-slate-100 min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+              className="lg:hidden p-2 btn-radius text-[#0B1F33] hover:bg-[#F7F5F0] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -159,7 +147,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-3 space-y-1 shadow-lg">
+          <div className="lg:hidden bg-white border-t border-[#E5DFD2] px-4 py-3 space-y-1 shadow-lg">
             {navItems.map((item) => (
               <a
                 key={item.path}
@@ -170,7 +158,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   onNavigate(item.path);
                 }}
                 className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
-                  currentPath === item.path ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+                  currentPath === item.path ? 'bg-[#F7F5F0] text-[#0B1F33] font-semibold' : 'text-slate-700 hover:bg-[#F7F5F0]/70'
                 }`}
               >
                 {item.label}
@@ -194,13 +182,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         className="text-slate-300 border-t border-white/10 no-print relative"
         style={{ backgroundColor: 'var(--color-footer-bg)' }}
       >
-        <div className="h-[2px] w-full flex" aria-hidden="true">
-          <div className="flex-[3] bg-white/10" />
-          <div className="flex-1 bg-[var(--color-accent)]/70" />
-        </div>
+        <BrandRibbon className="h-[3px] w-full" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-16">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-white/10">
-            <div className="md:col-span-5 space-y-3">
+            <div className="md:col-span-5 space-y-3.5">
               <div className="flex items-center gap-3.5">
                 <BrandLogo
                   src={footerLogoSrc}
@@ -208,10 +193,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   variant="emblem-dark"
                   className="h-14 w-14 object-contain shrink-0"
                 />
-                <div>
-                  <p className="text-lg font-bold tracking-tight text-white leading-snug">{brandShortName}</p>
-                  <p className="text-xs font-medium text-[#E5C76B] tracking-wide">Relocation &amp; Assessoria</p>
-                </div>
+                <BrandWordmark tone="dark" size="md" showSubtitle />
               </div>
               {lc.rodapeSubtitulo && (
                 <p className="text-sm text-slate-300 leading-relaxed max-w-md">{lc.rodapeSubtitulo}</p>
@@ -267,16 +249,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     LinkedIn
                   </a>
                 )}
-                <a
-                  href="#/logos"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onNavigate('/logos');
-                  }}
-                  className="inline-block text-xs text-[#E5C76B] hover:text-white underline underline-offset-4"
-                >
-                  Baixar Kit de Logos
-                </a>
               </div>
               {empresa.ultimaRevisaoNormativa && (
                 <p className="text-xs text-slate-400 mt-5 pt-4 border-t border-white/10 tabular-nums">
@@ -295,14 +267,14 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
       </footer>
 
-      {/* Botão flutuante discreto do WhatsApp no desktop */}
+      {/* Botão flutuante discreto do WhatsApp no desktop (Esmeralda Brasil da logo) */}
       {showFloatingWa && (
         <a
           href={waFloatingUrl}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Falar com ${brandShortName} no WhatsApp`}
-          className="hidden md:inline-flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4.5 py-3 rounded-full bg-[#1E7E34] text-white text-xs font-semibold shadow-[0_8px_24px_rgba(11,31,51,0.22)] hover:shadow-[0_10px_28px_rgba(11,31,51,0.28)] hover:-translate-y-0.5 transition-all duration-150 no-print"
+          className="hidden md:inline-flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4.5 py-3 rounded-full bg-[#146B43] hover:bg-[#0F5434] text-white text-xs font-semibold shadow-[0_8px_24px_rgba(11,31,51,0.24)] hover:shadow-[0_10px_28px_rgba(11,31,51,0.3)] hover:-translate-y-0.5 transition-all duration-150 no-print"
         >
           <MessageCircle className="w-4 h-4" />
           WhatsApp
@@ -311,7 +283,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
       {/* Barra inferior fixa CTA no mobile */}
       {showMobileCtaBar && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 px-3 py-2 flex items-center gap-2 no-print shadow-lg">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#E5DFD2] px-3 py-2 flex items-center gap-2 no-print shadow-lg">
           <button
             type="button"
             onClick={() => onNavigate('/diagnostico')}
@@ -325,7 +297,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             href={waFloatingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius bg-[#1E7E34] text-white text-xs font-semibold min-h-[42px]"
+            className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius bg-[#146B43] hover:bg-[#0F5434] text-white text-xs font-semibold min-h-[42px]"
           >
             <MessageCircle className="w-4 h-4" />
             WhatsApp
