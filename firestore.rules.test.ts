@@ -94,9 +94,9 @@ test('rules restrict mediaAssets reads to staff and writes strictly to validated
 
 test('rules recognize primary admin deivisonjoaquim@gmail.com case-insensitively and block downgrade or deletion', () => {
   assert.match(rulesText, /function isPrimaryAdminEmail\(email\) \{\s*return email is string && email\.lower\(\) == 'deivisonjoaquim@gmail\.com';/);
-  assert.match(rulesText, /function isValidatedAdmin\(\) \{\s*return isBootstrappedAdmin\(\) \|\| \(isActiveUser\(\) && userDoc\(\)\.role == 'admin'\);/);
-  assert.match(rulesText, /!isPrimaryAdminEmail\(existing\(\)\.email\) \|\| \(incoming\(\)\.role == 'admin' && incoming\(\)\.status == 'ativo' && incoming\(\)\.uid == existing\(\)\.uid\)/);
-  assert.match(rulesText, /allow delete:\s*if isSignedIn\(\) && isValidId\(uid\) && isValidatedAdmin\(\) && !isPrimaryAdminEmail\(existing\(\)\.email\);/);
+  assert.match(rulesText, /function isValidatedAdmin\(\) \{\s*return isBootstrappedAdmin\(\)\s*\|\| \(isActiveUser\(\) && 'role' in userDoc\(\) && userDoc\(\)\.role == 'admin'\);/);
+  assert.match(rulesText, /!\('email' in existing\(\)\) \|\| !isPrimaryAdminEmail\(existing\(\)\.email\) \|\| \(incoming\(\)\.role == 'admin' && incoming\(\)\.status == 'ativo' && incoming\(\)\.uid == existing\(\)\.uid\)/);
+  assert.match(rulesText, /allow delete:\s*if isSignedIn\(\) && isValidId\(uid\) && isValidatedAdmin\(\) && \(!\('email' in existing\(\)\) \|\| !isPrimaryAdminEmail\(existing\(\)\.email\)\);/);
   assert.match(rulesText, /function isOptBool\(data, field\) \{\s*return !\(field in data\) \|\| data\[field\] == null \|\| data\[field\] is bool;/);
   assert.match(rulesText, /function isOptNum\(data, field\) \{\s*return !\(field in data\) \|\| data\[field\] == null \|\| data\[field\] is number;/);
 });

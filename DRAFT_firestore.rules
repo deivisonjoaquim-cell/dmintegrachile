@@ -22,7 +22,9 @@ service cloud.firestore {
     }
 
     function isSignedIn() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null
+        && 'email_verified' in request.auth.token
+        && request.auth.token.email_verified == true;
     }
 
     function isPrimaryAdminEmail(email) {
@@ -30,7 +32,9 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isSignedIn() && isPrimaryAdminEmail(request.auth.token.email);
+      return isSignedIn()
+        && 'email' in request.auth.token
+        && isPrimaryAdminEmail(request.auth.token.email);
     }
 
     function userPath() {
@@ -46,11 +50,15 @@ service cloud.firestore {
     }
 
     function isActiveUser() {
-      return isSignedIn() && hasUserDoc() && userDoc().status == 'ativo';
+      return isSignedIn()
+        && hasUserDoc()
+        && 'status' in userDoc()
+        && userDoc().status == 'ativo';
     }
 
     function isValidatedAdmin() {
-      return isBootstrappedAdmin() || (isActiveUser() && userDoc().role == 'admin');
+      return isBootstrappedAdmin()
+        || (isActiveUser() && 'role' in userDoc() && userDoc().role == 'admin');
     }
 
     function isAdmin() {
@@ -58,11 +66,11 @@ service cloud.firestore {
     }
 
     function isConsultor() {
-      return isActiveUser() && userDoc().role == 'consultor';
+      return isActiveUser() && 'role' in userDoc() && userDoc().role == 'consultor';
     }
 
     function isAssistente() {
-      return isActiveUser() && userDoc().role == 'assistente';
+      return isActiveUser() && 'role' in userDoc() && userDoc().role == 'assistente';
     }
 
     function isStaff() {
@@ -74,11 +82,11 @@ service cloud.firestore {
     }
 
     function isCliente() {
-      return isActiveUser() && userDoc().role == 'cliente';
+      return isActiveUser() && 'role' in userDoc() && userDoc().role == 'cliente';
     }
 
     function userClientId() {
-      return userDoc().clientId;
+      return 'clientId' in userDoc() ? userDoc().clientId : '';
     }
 
     function isOptString(data, field, maxLen) {
@@ -525,16 +533,16 @@ service cloud.firestore {
       allow list: if isValidatedAdmin() || isConsultor();
       allow create: if isSignedIn() && isValidId(uid) && request.auth.uid == uid && isValidUser(incoming()) && (
         (isBootstrappedAdmin() && incoming().role == 'admin' && incoming().status == 'ativo' && isPrimaryAdminEmail(incoming().email)) ||
-        (incoming().role == 'cliente' && incoming().status == 'pendente' && incoming().uid == request.auth.uid && request.auth.token.email is string && incoming().email.lower() == request.auth.token.email.lower())
+        (incoming().role == 'cliente' && incoming().status == 'pendente' && incoming().uid == request.auth.uid && 'email' in request.auth.token && request.auth.token.email is string && incoming().email.lower() == request.auth.token.email.lower())
       );
       allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
         // Protect primary bootstrapped admin document from accidental downgrade or deactivation
-        (!isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == existing().uid))
+        (!('email' in existing()) || !isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == existing().uid))
       ) && (
         isValidatedAdmin() ||
         (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt']))
       );
-      allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && !isPrimaryAdminEmail(existing().email);
+      allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
     }
 
     match /config/{docId} {
