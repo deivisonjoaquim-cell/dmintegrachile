@@ -15,17 +15,17 @@ import {
   buildPropostaSpec,
   runAiRouteExecution,
   type AiRouteDependencies,
-} from './server/geminiRoutes';
+} from './server/geminiRoutes.ts';
 import {
   dispatchProcessPushNotification,
   type ProcessNotificationType,
-} from './server/fcmService';
+} from './server/fcmService.ts';
 import {
   dispatchExpirationReminderEmails,
   getSmtpConfigFromEnv,
   type EmailReminderItemPayload,
-} from './server/emailReminderService';
-import type { CommunicationLog } from './src/types/domain';
+} from './server/emailReminderService.ts';
+import type { CommunicationLog } from './src/types/domain.ts';
 
 const PORT = Number(process.env.PORT || 3000);
 const PROJECT_ID = firebaseConfig.projectId;

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { useApp } from '../contexts/AppContext';
 import { db, handleFirestoreError, OperationType, testConnection } from '../firebase';
+import { translateAppError } from '../services/errorService';
 import { makeId } from '../services/firestoreService';
 import type {
   Client,
@@ -115,7 +116,7 @@ function captureSnapshotError(err: unknown, op: OperationType, path: string, set
   try {
     handleFirestoreError(err, op, path);
   } catch (wrapped) {
-    setError(wrapped instanceof Error ? wrapped.message : String(wrapped));
+    setError(translateAppError(wrapped, { source: 'useFirestore', operation: op, path }).message);
   }
 }
 
@@ -225,7 +226,7 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
       setDiagnostics(sortByNewest(lSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lead, 'id'>) }))));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(translateAppError(err, { source: 'useFirestore.refresh' }).message);
     } finally {
       setLoadingClients(false);
       setLoadingDiagnostics(false);

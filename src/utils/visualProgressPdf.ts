@@ -156,7 +156,6 @@ export function buildVisualProgressPdfModel(input: VisualProgressPdfInput): Visu
       if (diff !== 0) return diff;
       return (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31');
     })
-    .slice(0, 48)
     .map((t) => ({
       id: t.id,
       titulo: t.titulo || 'Tarefa operacional',
@@ -170,7 +169,7 @@ export function buildVisualProgressPdfModel(input: VisualProgressPdfInput): Visu
   const reviewDocsCount = docs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise').length;
   const pendingUploadCount = docs.filter((d) => d.status === 'Pendente').length;
 
-  const submittedDocs: VisualPdfDocRow[] = submittedDocsRaw.slice(0, 48).map((d) => {
+  const submittedDocs: VisualPdfDocRow[] = submittedDocsRaw.map((d) => {
     const lastDate =
       d.analisadoEm ||
       d.anexos?.[d.anexos.length - 1]?.data ||
@@ -217,10 +216,10 @@ export function buildVisualProgressPdfModel(input: VisualProgressPdfInput): Visu
   // Planejamento conservador de páginas A4 (794x1123px) para nunca cortar linhas no meio
   const chartExtraRows = !isSingleCaseView ? Math.min(5, overview.rows.length) : 0;
   const page1RowBudget = Math.max(
-    4,
-    (isSingleCaseView ? 9 : 7) - Math.ceil(caseRows.length * 0.6) - Math.ceil(chartExtraRows * 0.5),
+    2,
+    (isSingleCaseView ? 5 : 4) - Math.ceil(caseRows.length * 0.6) - Math.ceil(chartExtraRows * 0.5),
   );
-  const nextPageRowBudget = 16;
+  const nextPageRowBudget = 14;
 
   const pages: VisualPdfPagePlan[] = [];
   let taskIdx = 0;
@@ -282,7 +281,7 @@ export function buildVisualProgressPdfModel(input: VisualProgressPdfInput): Visu
     (submittedDocs.length === 0 && !pages.some((p) => p.showDocsHeader))
   ) {
     pages.push(takeChunk(nextPageRowBudget, false));
-    if (pages.length >= 12) break; // guarda de segurança
+    if (pages.length >= 60) break; // guarda de segurança ampla para dossiês extensos
   }
 
   const totalPages = pages.length;

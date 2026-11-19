@@ -285,3 +285,83 @@ test('ResumoProcessoClientePdfDocument renders client-safe process status, tasks
   assert.ok(summaryPdf.subarray(0, 5).toString('utf8').startsWith('%PDF-'));
   assert.ok(summaryPdf.byteLength > 1000);
 });
+
+function countPdfPages(buf: Buffer): number {
+  const text = buf.toString('latin1');
+  const matches = text.match(/\/Type\s*\/Page\b/g);
+  return matches ? matches.length : 0;
+}
+
+test('GeneratedOfficialDocPdfDocument generates multiple A4 pages for long contracts without clipping', async () => {
+  const { GeneratedOfficialDocPdfDocument } = await import('./ClientPortalPdfDocuments');
+  const longClauses = Array.from(
+    { length: 45 },
+    (_, i) =>
+      `CLÁUSULA ${i + 1}ª — OBRIGAÇÕES E PROCEDIMENTOS MIGRATÓRIOS\n` +
+      `A contratada compromete-se a acompanhar integralmente o protocolo perante o Servicio Nacional de Migraciones (SERMIG), ` +
+      `observando rigorosamente os prazos legais previstos na Ley 21.325 e Decreto Supremo 177, incluindo revisão documental, ` +
+      `conferência de apostilamento de Haia, tradução juramentada e notificações eletrônicas ao titular e dependentes.\n`,
+  ).join('\n');
+
+  const pdfBuf = await renderToBuffer(
+    React.createElement(GeneratedOfficialDocPdfDocument, {
+      empresa: DEFAULT_EMPRESA_CONFIG,
+      titulo: 'Contrato de Prestação de Serviços de Assessoria Migratória',
+      conteudo: longClauses,
+      codigoVerificacao: 'DM-2026-TEST-99',
+      versao: 2,
+      status: 'Assinado',
+      clienteNome: sampleClient.nomeCompleto,
+      assinadoEm: '2026-11-18T12:00:00.000Z',
+    }) as React.ReactElement<DocumentProps>,
+  );
+
+  assert.ok(pdfBuf.subarray(0, 5).toString('utf8').startsWith('%PDF-'));
+  const pageCount = countPdfPages(pdfBuf);
+  assert.ok(pageCount >= 3, `Expected >= 3 pages for long contract, got ${pageCount}`);
+});
+
+test('ResumoProcessoClientePdfDocument paginates all 50 tasks and 50 submitted docs across multiple pages', async () => {
+  const manyTasks: Task[] = Array.from({ length: 50 }, (_, i) => ({
+    id: `task_multi_${i}`,
+    titulo: `Etapa operacional detalhada número ${i + 1} para conferência SERMIG`,
+    caseId: 'case_test_1',
+    clientId: 'cli_test_1',
+    prioridade: i % 2 === 0 ? 'Alta' : 'Média',
+    status: i < 20 ? 'Concluída' : i < 35 ? 'Em andamento' : 'Pendente',
+    prazo: '2026-12-15',
+    createdAt: '2026-10-02T12:00:00.000Z',
+  }));
+  const manyDocs: CaseDocument[] = Array.from({ length: 50 }, (_, i) => ({
+    ...sampleDocs[0],
+    id: `doc_multi_${i}`,
+    nomeDocumento: `Certidão Oficial Apostilada #${i + 1}`,
+    arquivoNome: `certidao_${i + 1}.pdf`,
+    arquivoUrl: `https://exemplo.invalid/certidao_${i + 1}.pdf`,
+    updatedAt: '2026-11-10T10:00:00.000Z',
+  }));
+  const overview = computeClientTaskProgress({
+    tasks: manyTasks,
+    cases: [sampleCase],
+    clients: [sampleClient],
+    selectedCaseId: sampleCase.id,
+  });
+
+  const multiPdf = await renderToBuffer(
+    React.createElement(ResumoProcessoClientePdfDocument, {
+      empresa: DEFAULT_EMPRESA_CONFIG,
+      client: sampleClient,
+      activeCase: sampleCase,
+      cases: [sampleCase],
+      clients: [sampleClient],
+      tasks: manyTasks,
+      docs: manyDocs,
+      overview,
+    }) as React.ReactElement<DocumentProps>,
+  );
+
+  assert.ok(multiPdf.subarray(0, 5).toString('utf8').startsWith('%PDF-'));
+  const pageCount = countPdfPages(multiPdf);
+  assert.ok(pageCount >= 3, `Expected >= 3 pages for 50 tasks + 50 docs, got ${pageCount}`);
+});
+

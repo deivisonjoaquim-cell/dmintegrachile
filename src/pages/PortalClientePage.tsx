@@ -43,6 +43,7 @@ import {
   saveDocumentAudited,
   uploadFileToServer,
 } from '../services/firestoreService';
+import { reportAppError } from '../services/errorService';
 import {
   deactivateUserPushTokens,
   getBrowserPushSupport,
@@ -1556,8 +1557,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
       {/* Modal Visualização / Impressão A4 Documento Oficial */}
       {viewingGenDoc && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4 print-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl print-modal-dialog">
             <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between gap-3 no-print">
               <div>
                 <p className="text-sm font-bold text-slate-900">{viewingGenDoc.titulo}</p>
@@ -1565,22 +1566,50 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   Versão {viewingGenDoc.versao} · Código {viewingGenDoc.codigoVerificacao || viewingGenDoc.id}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {!viewingGenDoc.confirmadoLeituraEm && (
                   <UiButton type="button" size="sm" variant="primary" onClick={() => void handleConfirmGenDocRead(viewingGenDoc)}>
                     Confirmar leitura
                   </UiButton>
                 )}
+                <UiButton
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={async () => {
+                    try {
+                      const { exportGeneratedOfficialDocPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
+                      await exportGeneratedOfficialDocPdf({
+                        empresa,
+                        titulo: viewingGenDoc.titulo,
+                        conteudo: viewingGenDoc.conteudoHtml,
+                        codigoVerificacao: viewingGenDoc.codigoVerificacao || viewingGenDoc.id,
+                        versao: viewingGenDoc.versao,
+                        status: viewingGenDoc.status,
+                        clienteNome: client?.nomeCompleto,
+                        assinaturaDataUrl: viewingGenDoc.assinaturaDataUrl,
+                        assinadoEm: viewingGenDoc.assinadoEm,
+                        confirmadoLeituraEm: viewingGenDoc.confirmadoLeituraEm,
+                        canceladoMotivo: viewingGenDoc.canceladoEm ? viewingGenDoc.motivoCancelamento : undefined,
+                      });
+                    } catch (err) {
+                      reportAppError(err, { source: 'pdf' });
+                    }
+                  }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Baixar PDF A4
+                </UiButton>
                 <UiButton type="button" size="sm" variant="outline" onClick={() => window.print()}>
                   <Printer className="w-3.5 h-3.5" />
-                  Imprimir / PDF
+                  Imprimir
                 </UiButton>
                 <button type="button" onClick={() => setViewingGenDoc(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <div className="p-6 sm:p-8 overflow-y-auto space-y-5 text-xs text-slate-800">
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-5 text-xs text-slate-800 print-modal-scroll">
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                 <div>
                   <p className="text-sm font-bold text-slate-900">{empresa.nome_empresa}</p>
@@ -1593,7 +1622,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewingGenDoc.conteudoHtml) }}
               />
               {viewingGenDoc.assinaturaDataUrl && (
-                <div className="pt-4 border-t border-slate-200">
+                <div className="pt-4 border-t border-slate-200 print-avoid-break">
                   <p className="text-[11px] font-semibold text-slate-600 mb-1">Assinatura registrada:</p>
                   <img src={viewingGenDoc.assinaturaDataUrl} alt="Assinatura" className="h-16 border border-slate-200 rounded bg-white" />
                 </div>

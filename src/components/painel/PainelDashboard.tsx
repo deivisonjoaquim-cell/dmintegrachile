@@ -2,20 +2,13 @@ import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
-  Calculator,
   Calendar,
   CheckCircle2,
   CheckSquare,
-  ClipboardCheck,
   FileWarning,
-  FolderArchive,
   MessageCircle,
   Scale,
-  TrendingUp,
-  UserCheck,
-  Users,
 } from 'lucide-react';
-import { PIPELINE_STAGES } from '../../data/seeds';
 import type {
   Appointment,
   Case,
@@ -24,6 +17,7 @@ import type {
   CommunicationLog,
   Deadline,
   Dependent,
+  EmpresaConfig,
   FinancialRecord,
   Lead,
   LegalSource,
@@ -34,11 +28,16 @@ import type {
 import { calcularTermometroDocumentos, calcularUrgencias } from '../../utils/caseMetrics';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../../utils/documentChat';
 import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, toIsoDate } from '../../utils/formatters';
+import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../utils/funnelModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
+import { computeDailyPrioritySummary, type LegacyPanelSection } from '../../utils/panelNavigation';
 import { PainelLembretesVencimento } from './PainelLembretesVencimento';
+import { PainelProgressoTarefasChart } from './PainelProgressoTarefasChart';
 
 interface PainelDashboardProps {
   role: UserRole;
+  empresa: EmpresaConfig;
+  isDark?: boolean;
   leads: Lead[];
   clients: Client[];
   dependents?: Dependent[];
@@ -57,25 +56,17 @@ interface PainelDashboardProps {
   onEmailLogsCreated?: (logs: CommunicationLog[]) => void;
   onOpenCase: (caseId: string, targetTab?: 'resumo' | 'comunicacao') => void;
   onOpenChecklist?: (caseId?: string) => void;
+  onOpenFunnelStage?: (stageId: MacroFunnelStageId) => void;
   onToggleTask?: (task: Task) => Promise<void>;
-  onNavigateSection?: (
-    section:
-      | 'agenda'
-      | 'leads'
-      | 'clientes'
-      | 'casos'
-      | 'checklist'
-      | 'documentos'
-      | 'contratos'
-      | 'financeiro'
-      | 'parceiros'
-      | 'legal'
-      | 'ferramentas',
-  ) => void;
+  onNavigateSection?: (section: LegacyPanelSection) => void;
 }
+
+type DailyWorkTab = 'hoje' | 'documentos' | 'chat' | 'relatorio';
 
 export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   role,
+  empresa,
+  isDark = false,
   leads,
   clients,
   dependents = [],
@@ -94,18 +85,25 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   onEmailLogsCreated,
   onOpenCase,
   onOpenChecklist,
+  onOpenFunnelStage,
   onToggleTask,
   onNavigateSection,
 }) => {
+  const [workTab, setWorkTab] = useState<DailyWorkTab>('hoje');
   const [filterOrigem, setFilterOrigem] = useState('Todas');
   const [urgencyFilter, setUrgencyFilter] = useState<'todas' | 'Critica' | 'Alta' | 'Media'>('todas');
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const isAssistente = role === 'assistente';
 
-  const cardStyle: React.CSSProperties = {
-    backgroundColor: 'var(--color-surface)',
-    borderRadius: 'var(--card-radius, 12px)',
-  };
+  const todayIso = useMemo(() => toIsoDate(new Date()), []);
+
+  const filteredLeads = useMemo(
+    () => (filterOrigem === 'Todas' ? leads : leads.filter((l) => l.origem === filterOrigem)),
+    [leads, filterOrigem],
+  );
+
+  const activeClients = useMemo(() => clients.filter((c) => !c.arquivado), [clients]);
+  const activeCases = useMemo(() => cases.filter((c) => !c.arquivado), [cases]);
 
   const urgencias = useMemo(
     () =>
@@ -125,13 +123,28 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     [urgencias, urgencyFilter],
   );
 
-  const filteredLeads = useMemo(
-    () => (filterOrigem === 'Todas' ? leads : leads.filter((l) => l.origem === filterOrigem)),
-    [leads, filterOrigem],
+  const dailySummary = useMemo(
+    () =>
+      computeDailyPrioritySummary({
+        role,
+        leads: filteredLeads,
+        clients,
+        cases,
+        docs,
+        deadlines,
+        tasks,
+        appointments,
+        financialRecords,
+        communicationLogs,
+        todayIso,
+      }),
+    [role, filteredLeads, clients, cases, docs, deadlines, tasks, appointments, financialRecords, communicationLogs, todayIso],
   );
 
-  const activeClients = useMemo(() => clients.filter((c) => !c.arquivado), [clients]);
-  const activeCases = useMemo(() => cases.filter((c) => !c.arquivado), [cases]);
+  const unifiedFunnel = useMemo(
+    () => computeUnifiedFunnelMetrics(filteredLeads, activeCases),
+    [filteredLeads, activeCases],
+  );
 
   const avgThermometer = useMemo(() => {
     if (activeCases.length === 0) return 0;
@@ -141,25 +154,6 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     });
     return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   }, [activeCases, docs]);
-
-  const topReprovados = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const d of docs) {
-      if (d.status === 'Reprovado') {
-        counts.set(d.nomeDocumento, (counts.get(d.nomeDocumento) || 0) + 1);
-      }
-    }
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4);
-  }, [docs]);
-
-  const npsMedio = useMemo(() => {
-    const rated = activeCases.filter((c) => typeof c.npsNota === 'number');
-    if (rated.length === 0) return null;
-    const sum = rated.reduce((a, c) => a + (c.npsNota || 0), 0);
-    return (sum / rated.length).toFixed(1);
-  }, [activeCases]);
 
   const receitaTotalBrl = useMemo(() => {
     if (isAssistente) return 0;
@@ -171,16 +165,15 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     return financialRecords.filter((f) => f.status === 'Atrasado' && f.moeda === 'BRL').reduce((a, b) => a + b.valor, 0);
   }, [financialRecords, isAssistente]);
 
-  const todayIso = useMemo(() => toIsoDate(new Date()), []);
   const pendingTasksToday = useMemo(
     () =>
       tasks
         .filter((t) => t.status !== 'Concluída')
         .sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31'))
-        .slice(0, 6),
+        .slice(0, 8),
     [tasks],
   );
-  const totalOpenTasks = useMemo(() => tasks.filter((t) => t.status !== 'Concluída').length, [tasks]);
+
   const appointmentsToday = useMemo(
     () =>
       appointments
@@ -188,34 +181,30 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         .sort((a, b) => a.dataHoraInicio.localeCompare(b.dataHoraInicio)),
     [appointments, todayIso],
   );
+
   const pendingDocsReview = useMemo(
-    () => docs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise').slice(0, 6),
+    () => docs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise'),
     [docs],
-  );
-  const totalPendingDocs = useMemo(
-    () => docs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise').length,
-    [docs],
-  );
-  const portalPendingClients = useMemo(
-    () => activeClients.filter((c) => c.statusAcessoPortal === 'Pendente liberação'),
-    [activeClients],
   );
 
-  const pipelineRows = useMemo(() => {
-    const rows = PIPELINE_STAGES.map((st) => ({
-      numero: st.numero,
-      nome: st.nome,
-      count: activeCases.filter((c) => c.etapaPipeline === st.numero).length,
-    })).filter((r) => r.count > 0);
-    const maxCount = rows.reduce((m, r) => Math.max(m, r.count), 1);
-    return { rows, maxCount };
-  }, [activeCases]);
+  const topReprovados = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of docs) {
+      if (d.status === 'Reprovado') {
+        counts.set(d.nomeDocumento, (counts.get(d.nomeDocumento) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [docs]);
 
   const chatThreads = useMemo(
-    () => getPendingClientChatThreads(communicationLogs, clients, cases).slice(0, 5),
+    () => getPendingClientChatThreads(communicationLogs, clients, cases),
     [communicationLogs, clients, cases],
   );
   const unreadChatTotal = useMemo(() => countUnreadChatForStaff(communicationLogs), [communicationLogs]);
+
   const legalPending = useMemo(
     () => countLegalReviewPending(legalSources, diasAlertaRevisaoLegal),
     [legalSources, diasAlertaRevisaoLegal],
@@ -239,565 +228,639 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     }
   };
 
+  const handleRecommendedClick = () => {
+    const action = dailySummary.recommendedAction;
+    if (action.target === 'hoje') {
+      if (dailySummary.criticalUrgenciesCount > 0) {
+        setWorkTab('hoje');
+        setUrgencyFilter('Critica');
+      } else if (dailySummary.unreadChatsCount > 0) {
+        setWorkTab('chat');
+      }
+      return;
+    }
+    onNavigateSection?.(action.target);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Hoje &amp; Central de Operações</h1>
-          <p className="text-xs text-slate-500">
-            Resumo diário acionável: prazos críticos, conferência documental, agenda e funil operacional
+      {/* Cabeçalho direto com foco imediato do dia */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            Central do Dia
+          </h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            {dailySummary.recommendedAction.label} — {dailySummary.recommendedAction.detail}
           </p>
         </div>
-        <select
-          value={filterOrigem}
-          onChange={(e) => setFilterOrigem(e.target.value)}
-          aria-label="Filtrar métricas por origem"
-          className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-medium"
-        >
-          <option value="Todas">Todas as origens de leads</option>
-          <option value="Site">Site</option>
-          <option value="Instagram">Instagram</option>
-          <option value="Indicação">Indicação</option>
-          <option value="Parceiro">Parceiro</option>
-          <option value="Outro">Outro</option>
-        </select>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <select
+            value={filterOrigem}
+            onChange={(e) => setFilterOrigem(e.target.value)}
+            aria-label="Filtrar métricas por origem de leads"
+            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200"
+          >
+            <option value="Todas">Origem: Todas</option>
+            <option value="Site">Site</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Indicação">Indicação</option>
+            <option value="Parceiro">Parceiro</option>
+            <option value="Outro">Outro</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={handleRecommendedClick}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-opacity hover:opacity-95"
+            style={{
+              backgroundColor:
+                dailySummary.recommendedAction.tone === 'critical'
+                  ? '#C82333'
+                  : 'var(--color-primary)',
+            }}
+          >
+            <span>Iniciar prioridade</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
-      {/* Atalhos Rápidos da Operação */}
-      {onNavigateSection && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            {
-              sec: 'leads' as const,
-              title: 'Triagem de Leads',
-              sub: `${filteredLeads.filter((l) => l.statusFunil === 'Novo').length} novo(s) aguardando`,
-              icon: <UserCheck className="w-4 h-4 text-[var(--color-primary)]" />,
-            },
-            {
-              sec: 'agenda' as const,
-              title: 'Agenda, Tarefas & Prazos',
-              sub: `${totalOpenTasks} tarefa(s) em aberto`,
-              icon: <Calendar className="w-4 h-4 text-[var(--color-primary)]" />,
-            },
-            {
-              sec: 'checklist' as const,
-              title: 'Checklist por Visto',
-              sub: `${totalPendingDocs} doc(s) em conferência`,
-              icon: <ClipboardCheck className="w-4 h-4 text-[var(--color-primary)]" />,
-            },
-            {
-              sec: 'ferramentas' as const,
-              title: 'Calculadoras & Simulador',
-              sub: 'Prazos SERMIG · Câmbio · Custos',
-              icon: <Calculator className="w-4 h-4 text-[var(--color-primary)]" />,
-            },
-          ].map((item) => (
-            <button
-              key={item.sec}
-              type="button"
-              onClick={() => onNavigateSection(item.sec)}
-              className="text-left border border-slate-200 px-4 py-3 hover:border-slate-300 transition-colors flex items-center justify-between gap-2 group"
-              style={cardStyle}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                  {item.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 truncate">{item.title}</p>
-                  <p className="text-[11px] text-slate-500 truncate tabular-nums">{item.sub}</p>
-                </div>
-              </div>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 shrink-0" />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Alerta Governança Normativa SERMIG / BCN */}
+      {/* Aviso normativo discreto apenas quando houver normas pendentes */}
       {!isAssistente && legalPending.totalAttention > 0 && onNavigateSection && (
-        <div
-          className="border border-amber-200 bg-amber-50/70 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          style={{ borderRadius: 'var(--card-radius, 12px)' }}
-        >
-          <div className="flex items-start gap-3">
-            <Scale className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-bold text-amber-950">
-                Governança Normativa SERMIG / BCN — {legalPending.totalAttention} norma(s) pedindo atenção
-              </p>
-              <p className="text-[11px] text-amber-900">
-                {legalPending.aVerificar > 0 ? `${legalPending.aVerificar} aguardando verificação` : 'Status vigentes'}
-                {legalPending.outdated > 0
-                  ? ` · ${legalPending.outdated} sem conferência há mais de ${diasAlertaRevisaoLegal} dias`
-                  : ''}
-                . Use o verificador online com IA ou sincronize a base oficial.
-              </p>
-            </div>
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-xs text-amber-950 dark:text-amber-200">
+            <Scale className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+            <span>
+              <strong className="font-semibold">{legalPending.totalAttention} norma(s)</strong> SERMIG/BCN precisam de conferência de vigência.
+            </span>
           </div>
           <button
             type="button"
             onClick={() => onNavigateSection('legal')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white shrink-0"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            className="text-xs font-semibold text-amber-900 dark:text-amber-200 hover:underline whitespace-nowrap shrink-0"
           >
-            Revisar Base Legal
-            <ArrowRight className="w-3.5 h-3.5" />
+            Revisar Base Legal →
           </button>
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <button
-          type="button"
-          onClick={() => onNavigateSection?.('leads')}
-          className="text-left border border-slate-200 p-5 hover:border-slate-300 transition-colors"
-          style={cardStyle}
-        >
-          <p className="text-xs font-medium text-slate-500">Leads no funil</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{filteredLeads.length}</p>
-          <p className="text-xs text-slate-500 mt-1 tabular-nums">
-            {filteredLeads.filter((l) => l.statusFunil === 'Novo').length} aguardando 1º contato
-          </p>
-        </button>
-
+      {/* 4 Indicadores Principais (Superfície plana, 1px hairline, tabular-nums) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <button
           type="button"
           onClick={() => onNavigateSection?.('casos')}
-          className="text-left border border-slate-200 p-5 hover:border-slate-300 transition-colors"
-          style={cardStyle}
+          className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
         >
-          <p className="text-xs font-medium text-slate-500">Casos ativos / Clientes</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-            {activeCases.length} / {activeClients.length}
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Processos ativos</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+            {activeCases.length}
           </p>
-          <p className="text-xs text-slate-500 mt-1 tabular-nums">
-            Termômetro médio: {avgThermometer}%
-            {portalPendingClients.length > 0 ? ` · ${portalPendingClients.length} portal pendente` : ''}
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+            {activeClients.length} clientes · Docs {avgThermometer}%
           </p>
         </button>
 
-        <div className="border border-slate-200 p-5" style={cardStyle}>
-          <p className="text-xs font-medium text-slate-500">Urgências identificadas</p>
-          <p className="text-2xl font-bold mt-1 tabular-nums" style={{ color: urgencias.length > 0 ? '#C82333' : '#1E7E34' }}>
+        <button
+          type="button"
+          onClick={() => {
+            setWorkTab('hoje');
+            setUrgencyFilter('todas');
+          }}
+          className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+        >
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Urgências</p>
+          <p
+            className="text-2xl font-bold mt-1 tabular-nums"
+            style={{ color: urgencias.length > 0 ? '#C82333' : '#1E7E34' }}
+          >
             {urgencias.length}
           </p>
-          <p className="text-xs text-slate-500 mt-1 tabular-nums">
-            NPS médio: {npsMedio ? `${npsMedio}/5` : 'Sem avaliações'}
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+            {dailySummary.criticalUrgenciesCount} crítica(s) · {dailySummary.openTasksCount} tarefa(s)
           </p>
-        </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setWorkTab('documentos')}
+          className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+        >
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Docs para conferir</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+            {pendingDocsReview.length}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+            {dailySummary.newLeadsCount} lead(s) novo(s) · {unreadChatTotal} chat(s)
+          </p>
+        </button>
 
         {!isAssistente ? (
           <button
             type="button"
             onClick={() => onNavigateSection?.('financeiro')}
-            className="text-left border border-slate-200 p-5 hover:border-slate-300 transition-colors"
-            style={cardStyle}
+            className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
           >
-            <p className="text-xs font-medium text-slate-500">Receita recebida / Em atraso (BRL)</p>
-            <p className="text-xl font-bold text-[#1E7E34] mt-1 tabular-nums">{formatCurrency(receitaTotalBrl, 'BRL')}</p>
-            <p className="text-xs text-[#C82333] mt-1 tabular-nums">Em atraso: {formatCurrency(inadimplenciaBrl, 'BRL')}</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Recebido (BRL)</p>
+            <p className="text-xl font-bold text-[#1E7E34] mt-1 tabular-nums">
+              {formatCurrency(receitaTotalBrl, 'BRL')}
+            </p>
+            <p className="text-xs text-[#C82333] mt-1 tabular-nums">
+              Em atraso: {formatCurrency(inadimplenciaBrl, 'BRL')}
+            </p>
           </button>
         ) : (
           <button
             type="button"
-            onClick={() => onNavigateSection?.('documentos')}
-            className="text-left border border-slate-200 p-5 hover:border-slate-300 transition-colors"
-            style={cardStyle}
+            onClick={() => onNavigateSection?.('agenda')}
+            className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
           >
-            <p className="text-xs font-medium text-slate-500">Documentos na esteira</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{docs.length}</p>
-            <p className="text-xs text-slate-500 mt-1 tabular-nums">{totalPendingDocs} aguardando conferência</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Agenda de hoje</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+              {appointmentsToday.length}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+              {dailySummary.openTasksCount} tarefa(s) em aberto
+            </p>
           </button>
         )}
       </div>
 
-      {/* O que fazer hoje */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="border border-slate-200 p-5 space-y-3" style={cardStyle}>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <CheckSquare className="w-4 h-4 text-[var(--color-primary)]" />
-              Tarefas Prioritárias ({totalOpenTasks})
-            </h2>
-            {onNavigateSection && (
-              <button
-                type="button"
-                onClick={() => onNavigateSection('agenda')}
-                className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline whitespace-nowrap"
-              >
-                Ver todas
-              </button>
-            )}
-          </div>
-          {pendingTasksToday.length === 0 ? (
-            <p className="text-xs text-slate-500">Nenhuma tarefa pendente no momento.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100 text-xs">
-              {pendingTasksToday.map((t) => (
-                <li key={t.id} className="py-2 flex items-center justify-between gap-2">
-                  <div className="flex items-start gap-2 min-w-0">
-                    {onToggleTask && (
-                      <button
-                        type="button"
-                        disabled={busyTaskId === t.id}
-                        onClick={() => void handleQuickToggleTask(t)}
-                        aria-label={`Concluir tarefa ${t.titulo}`}
-                        title="Marcar como concluída"
-                        className="mt-0.5 text-slate-400 hover:text-[#1E7E34] shrink-0 disabled:opacity-50"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-semibold text-slate-900 truncate">{t.titulo}</p>
-                      <p className="text-[11px] text-slate-500 tabular-nums">
-                        {t.prioridade} {t.prazo ? `· Até ${formatDateBR(t.prazo)}` : ''}
-                      </p>
-                    </div>
-                  </div>
-                  {t.caseId && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenCase(t.caseId!)}
-                      className="px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 shrink-0 hover:bg-slate-50"
-                    >
-                      Abrir
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="border border-slate-200 p-5 space-y-3" style={cardStyle}>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <FileWarning className="w-4 h-4 text-amber-700" />
-              Docs para Conferir ({totalPendingDocs})
-            </h2>
-            {onNavigateSection && (
-              <button
-                type="button"
-                onClick={() => onNavigateSection('documentos')}
-                className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline whitespace-nowrap"
-              >
-                Dossiês
-              </button>
-            )}
-          </div>
-          {pendingDocsReview.length === 0 ? (
-            <p className="text-xs text-slate-500">Nenhum documento enviado aguardando triagem.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100 text-xs">
-              {pendingDocsReview.map((d) => (
-                <li key={d.id} className="py-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 truncate">{d.nomeDocumento}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {d.pessoa} · {d.status}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onOpenCase(d.caseId)}
-                    className="px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 shrink-0 hover:bg-slate-50"
-                  >
-                    Conferir
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="border border-slate-200 p-5 space-y-3" style={cardStyle}>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[var(--color-primary)]" />
-              Agenda de Hoje ({appointmentsToday.length})
-            </h2>
-            {onNavigateSection && (
-              <button
-                type="button"
-                onClick={() => onNavigateSection('agenda')}
-                className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline whitespace-nowrap"
-              >
-                Abrir agenda
-              </button>
-            )}
-          </div>
-          {appointmentsToday.length === 0 ? (
-            <p className="text-xs text-slate-500">Nenhuma reunião agendada para hoje ({formatDateBR(todayIso)}).</p>
-          ) : (
-            <ul className="divide-y divide-slate-100 text-xs">
-              {appointmentsToday.map((a) => (
-                <li key={a.id} className="py-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 truncate">{a.titulo}</p>
-                    <p className="text-[11px] text-slate-500 tabular-nums">
-                      {a.dataHoraInicio.slice(11, 16) || formatDateBR(a.dataHoraInicio)} · {a.tipo}
-                    </p>
-                  </div>
-                  {a.caseId && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenCase(a.caseId!)}
-                      className="px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 shrink-0 hover:bg-slate-50"
-                    >
-                      Caso
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
-
-      {/* Lembretes de Vencimento (< 30 dias) */}
-      <PainelLembretesVencimento
-        docs={docs}
-        cases={cases}
-        clients={clients}
-        dependents={dependents}
-        visaRequirements={visaRequirements}
-        communicationLogs={communicationLogs}
-        brandName={brandName}
-        onOpenCase={(id) => onOpenCase(id)}
-        onOpenChecklist={(caseId) => {
-          if (onOpenChecklist) onOpenChecklist(caseId);
-          else onNavigateSection?.('checklist');
-        }}
-        onLogWhatsApp={onLogWhatsApp}
-        onEmailLogsCreated={onEmailLogsCreated}
-      />
-
-      {/* Dúvidas Rápidas no Chat (Portal do Cliente) */}
-      <section className="border border-slate-200 p-5 space-y-3" style={cardStyle}>
+      {/* Funil Interativo em 5 Marcos: clique em qualquer marco para ir direto aos registros */}
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-[var(--color-primary)]" />
-              Dúvidas Rápidas no Chat (Documentos)
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Fluxo Operacional em 5 Marcos
             </h2>
-            <p className="text-xs text-slate-500">
-              Mensagens enviadas pelo cliente no widget do Portal e integradas ao histórico de cada processo
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Clique em uma etapa para abrir diretamente os leads ou processos naquele momento
             </p>
           </div>
-          <span
-            className={`text-xs font-bold tabular-nums ${
-              unreadChatTotal > 0 ? 'text-[#C82333]' : 'text-slate-600'
-            }`}
-          >
-            {unreadChatTotal > 0
-              ? `${unreadChatTotal} não lida(s)`
-              : `${chatThreads.length} conversa(s)`}
-          </span>
+          <div className="flex items-center gap-3 text-xs tabular-nums text-slate-600 dark:text-slate-300">
+            <span>
+              Conversão: <strong className="text-slate-900 dark:text-slate-100">{unifiedFunnel.commercialConversionPct}%</strong>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              Conclusão: <strong className="text-[#1E7E34]">{unifiedFunnel.completionRatePct}%</strong>
+            </span>
+          </div>
         </div>
 
-        {chatThreads.length === 0 ? (
-          <p className="text-xs text-slate-500 py-2">
-            Nenhuma dúvida de documento enviada pelos clientes no chat até o momento.
-          </p>
-        ) : (
-          <div className="divide-y divide-slate-200">
-            {chatThreads.map((thread) => (
-              <div
-                key={thread.clientId}
-                className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+          {unifiedFunnel.stages.map((item) => {
+            const isBottleneck =
+              unifiedFunnel.bottleneckStage?.id === item.stage.id && item.totalCount > 0;
+            const handleStageClick = () => {
+              if (onOpenFunnelStage) {
+                onOpenFunnelStage(item.stage.id);
+              } else if (item.stage.id === 'diagnostico' || item.stage.id === 'proposta') {
+                onNavigateSection?.('leads');
+              } else {
+                onNavigateSection?.('casos');
+              }
+            };
+
+            return (
+              <button
+                key={item.stage.id}
+                type="button"
+                onClick={handleStageClick}
+                className="text-left p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50/60 dark:bg-slate-800/40 transition-colors space-y-1.5"
               >
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-slate-900">{thread.clientName}</span>
-                    <span className="text-slate-400">·</span>
-                    <span className="text-slate-600 truncate">{thread.caseTitle}</span>
-                    <span
-                      className={`font-semibold tabular-nums ${
-                        thread.unreadCount > 0
-                          ? 'text-[#C82333]'
-                          : thread.awaitingReply
-                            ? 'text-amber-700'
-                            : 'text-[#1E7E34]'
-                      }`}
-                    >
-                      {thread.unreadCount > 0
-                        ? `· ${thread.unreadCount} nova(s)`
-                        : thread.awaitingReply
-                          ? '· Aguardando resposta'
-                          : '· Respondido'}
-                    </span>
-                  </div>
-                  {thread.lastMessage.documentNome && (
-                    <p className="text-[11px] font-semibold text-[var(--color-primary)]">
-                      Doc: {thread.lastMessage.documentNome}
-                    </p>
-                  )}
-                  <p className="text-slate-700 line-clamp-2">{thread.lastMessage.mensagem}</p>
-                  <p className="text-[11px] text-slate-500 tabular-nums">
-                    Última atividade: {formatDateTimeBR(thread.lastMessage.createdAt)}
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                    {item.stage.ordem}. {item.stage.nome}
+                  </span>
+                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums shrink-0">
+                    {item.totalCount}
+                  </span>
                 </div>
-                <div className="shrink-0">
-                  {thread.caseId ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenCase(thread.caseId, 'comunicacao')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    >
-                      Responder no Histórico
-                    </button>
-                  ) : (
-                    onNavigateSection && (
-                      <button
-                        type="button"
-                        onClick={() => onNavigateSection('clientes')}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-                      >
-                        Abrir Clientes
-                      </button>
-                    )
-                  )}
+                <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${
+                        unifiedFunnel.totalActive > 0
+                          ? Math.max(item.totalCount > 0 ? 12 : 0, Math.round((item.totalCount / unifiedFunnel.totalActive) * 100))
+                          : 0
+                      }%`,
+                      backgroundColor: item.stage.corHex,
+                    }}
+                  />
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums">
+                  {isBottleneck
+                    ? 'Maior volume atual'
+                    : item.conversionFromPrevPct !== null
+                      ? `${item.conversionFromPrevPct}% avanço da anterior`
+                      : `${item.leadsCount} lead(s) ativos`}
+                </p>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      {/* Central de Urgências */}
-      <section className="border border-slate-200 p-6 space-y-4" style={cardStyle}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-[#C82333]" />
-              <h2 className="text-lg font-bold text-slate-900">Central de Urgências</h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Vencimentos ≤ 15d · Estampado 90d · Prorrogação · &gt;180d SERMIG · Descargos
-            </p>
-          </div>
-
-          <div className="inline-flex items-center p-1 bg-slate-100 rounded-lg text-xs font-semibold">
-            {(
-              [
-                { id: 'todas', label: `Todas (${urgencias.length})` },
-                { id: 'Critica', label: `Críticas (${urgencias.filter((u) => u.severidade === 'Critica').length})` },
-                { id: 'Alta', label: `Altas (${urgencias.filter((u) => u.severidade === 'Alta').length})` },
-                { id: 'Media', label: `Médias (${urgencias.filter((u) => u.severidade === 'Media').length})` },
-              ] as const
-            ).map((opt) => (
+      {/* Fila de Trabalho Unificada em 4 Abas Práticas */}
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+        <div
+          role="tablist"
+          aria-label="Fila de trabalho diária"
+          className="flex items-center gap-1 overflow-x-auto px-4 pt-3 border-b border-slate-200 dark:border-slate-800"
+        >
+          {(
+            [
+              { id: 'hoje', label: 'Atenção Hoje', count: urgencias.length + dailySummary.openTasksCount },
+              { id: 'documentos', label: 'Docs & Vencimentos', count: pendingDocsReview.length },
+              { id: 'chat', label: 'Dúvidas do Portal', count: unreadChatTotal },
+              { id: 'relatorio', label: 'Progresso & PDF', count: undefined },
+            ] as const
+          ).map((tab) => {
+            const active = workTab === tab.id;
+            return (
               <button
-                key={opt.id}
+                key={tab.id}
                 type="button"
-                onClick={() => setUrgencyFilter(opt.id)}
-                className={`px-2.5 py-1 rounded-md whitespace-nowrap tabular-nums transition-colors ${
-                  urgencyFilter === opt.id ? 'bg-white text-slate-900 border border-slate-200' : 'text-slate-600'
+                role="tab"
+                aria-selected={active}
+                onClick={() => setWorkTab(tab.id)}
+                className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-colors tabular-nums ${
+                  active
+                    ? 'border-[var(--color-primary)] text-[var(--color-primary)] dark:text-sky-400 dark:border-sky-400'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                {opt.label}
+                {tab.label}
+                {tab.count !== undefined && tab.count > 0 ? ` (${tab.count})` : ''}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {filteredUrgencias.length === 0 ? (
-          <p className="text-sm text-slate-600 py-4">Nenhum alerta nesta severidade no momento.</p>
-        ) : (
-          <div className="divide-y divide-slate-200">
-            {filteredUrgencias.map((u) => (
-              <div key={u.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold tabular-nums" style={{ color: u.severidade === 'Critica' ? '#C82333' : '#B45309' }}>
-                    {u.categoria} · {u.severidade} · Ref.: {u.dataReferenciaBR}
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900 mt-0.5">{u.titulo}</p>
-                  <p className="text-xs text-slate-600">
-                    {u.clientNome ? `${u.clientNome} — ` : ''}
-                    {u.detalhe}
-                  </p>
+        <div className="p-5">
+          {/* ABA 1: ATENÇÃO HOJE (Urgências + Tarefas & Agenda) */}
+          {workTab === 'hoje' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[#C82333]" />
+                    Urgências e Prazos Críticos ({filteredUrgencias.length})
+                  </h3>
+                  <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-[11px] font-semibold">
+                    {(
+                      [
+                        { id: 'todas', label: `Todas (${urgencias.length})` },
+                        { id: 'Critica', label: `Críticas (${urgencias.filter((u) => u.severidade === 'Critica').length})` },
+                        { id: 'Alta', label: `Altas (${urgencias.filter((u) => u.severidade === 'Alta').length})` },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setUrgencyFilter(opt.id)}
+                        className={`px-2.5 py-1 rounded-md whitespace-nowrap tabular-nums ${
+                          urgencyFilter === opt.id
+                            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {u.caseId && (
+
+                {filteredUrgencias.length === 0 ? (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
+                    Nenhuma urgência pendente nesta severidade.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredUrgencias.map((u) => (
+                      <div key={u.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p
+                            className="text-[11px] font-semibold tabular-nums"
+                            style={{ color: u.severidade === 'Critica' ? '#C82333' : '#B45309' }}
+                          >
+                            {u.categoria} · {u.severidade} · Ref.: {u.dataReferenciaBR}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{u.titulo}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            {u.clientNome ? `${u.clientNome} — ` : ''}
+                            {u.detalhe}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {u.caseId && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCase(u.caseId!)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
+                            >
+                              Abrir Caso
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => void handleNotifyUrgency(u)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] hover:opacity-95 whitespace-nowrap"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            WhatsApp
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-5 lg:border-l lg:border-slate-100 dark:lg:border-slate-800 lg:pl-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      <CheckSquare className="w-4 h-4 text-[var(--color-primary)]" />
+                      Próximas Tarefas ({dailySummary.openTasksCount})
+                    </h3>
                     <button
                       type="button"
-                      onClick={() => onOpenCase(u.caseId!)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                      onClick={() => onNavigateSection?.('agenda')}
+                      className="text-xs font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
                     >
-                      Abrir Caso
+                      Abrir Agenda
                     </button>
+                  </div>
+                  {pendingTasksToday.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma tarefa em aberto.</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      {pendingTasksToday.map((t) => (
+                        <li key={t.id} className="py-2 flex items-center justify-between gap-2">
+                          <div className="flex items-start gap-2 min-w-0">
+                            {onToggleTask && (
+                              <button
+                                type="button"
+                                disabled={busyTaskId === t.id}
+                                onClick={() => void handleQuickToggleTask(t)}
+                                aria-label={`Concluir tarefa ${t.titulo}`}
+                                title="Marcar como concluída"
+                                className="mt-0.5 text-slate-400 hover:text-[#1E7E34] shrink-0 disabled:opacity-50"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{t.titulo}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                                {t.prioridade}
+                                {t.prazo ? ` · Até ${formatDateBR(t.prazo)}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          {t.caseId && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCase(t.caseId!)}
+                              className="text-[11px] font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline shrink-0"
+                            >
+                              Caso
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleNotifyUrgency(u)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] whitespace-nowrap"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Avisar no WhatsApp
-                  </button>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-[var(--color-primary)]" />
+                    Reuniões Hoje ({appointmentsToday.length})
+                  </h3>
+                  {appointmentsToday.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Sem reuniões agendadas para {formatDateBR(todayIso)}.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      {appointmentsToday.map((a) => (
+                        <li key={a.id} className="py-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{a.titulo}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                              {a.dataHoraInicio.slice(11, 16) || formatDateBR(a.dataHoraInicio)} · {a.tipo}
+                            </p>
+                          </div>
+                          {a.caseId && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCase(a.caseId!)}
+                              className="text-[11px] font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline shrink-0"
+                            >
+                              Abrir
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Métricas gerenciais */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="border border-slate-200 p-6 space-y-3" style={cardStyle}>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-[var(--color-primary)]" />
-            <h2 className="text-base font-semibold text-slate-900">Casos por Etapa do Pipeline</h2>
-          </div>
-          <div className="space-y-2.5">
-            {pipelineRows.rows.length === 0 ? (
-              <p className="text-xs text-slate-500">Nenhum caso ativo cadastrado ainda.</p>
-            ) : (
-              pipelineRows.rows.map((st) => {
-                const pct = Math.max(8, Math.round((st.count / pipelineRows.maxCount) * 100));
-                return (
-                  <div key={st.numero} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs gap-2">
-                      <span className="text-slate-700 truncate">
-                        Etapa {st.numero}: {st.nome}
-                      </span>
-                      <span className="font-bold tabular-nums text-slate-900 shrink-0">{st.count}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${pct}%`, backgroundColor: 'var(--color-primary)' }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        <div className="border border-slate-200 p-6 space-y-3" style={cardStyle}>
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-[var(--color-primary)]" />
-            <h2 className="text-base font-semibold text-slate-900">Documentos Mais Reprovados</h2>
-          </div>
-          {topReprovados.length === 0 ? (
-            <p className="text-xs text-slate-500">Nenhuma reprovação documental registrada até o momento.</p>
-          ) : (
-            <div className="space-y-2">
-              {topReprovados.map(([nome, qtd]) => (
-                <div key={nome} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100">
-                  <span className="text-slate-700">{nome}</span>
-                  <span className="font-bold tabular-nums text-[#C82333]">{qtd} reprovação(ões)</span>
-                </div>
-              ))}
             </div>
           )}
+
+          {/* ABA 2: DOCS PARA CONFERIR + VENCIMENTOS < 30 DIAS */}
+          {workTab === 'documentos' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <FileWarning className="w-4 h-4 text-amber-700" />
+                      Documentos Enviados Aguardando Conferência ({pendingDocsReview.length})
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => onNavigateSection?.('checklist')}
+                      className="text-xs font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
+                    >
+                      Ir para Checklist →
+                    </button>
+                  </div>
+                  {pendingDocsReview.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 py-3">
+                      Nenhum documento enviado aguardando triagem agora.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      {pendingDocsReview.slice(0, 12).map((d) => (
+                        <div key={d.id} className="py-2.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{d.nomeDocumento}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {d.pessoa} · {d.status}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onOpenCase(d.caseId)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
+                          >
+                            Conferir
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2.5 lg:border-l lg:border-slate-100 dark:lg:border-slate-800 lg:pl-6">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Reprovações Frequentes
+                  </h3>
+                  {topReprovados.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma reprovação registrada.</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      {topReprovados.map(([nome, qtd]) => (
+                        <li key={nome} className="py-2 flex items-center justify-between gap-2">
+                          <span className="text-slate-700 dark:text-slate-300 truncate">{nome}</span>
+                          <span className="font-bold tabular-nums text-[#C82333] shrink-0">{qtd}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                <PainelLembretesVencimento
+                  docs={docs}
+                  cases={cases}
+                  clients={clients}
+                  dependents={dependents}
+                  visaRequirements={visaRequirements}
+                  communicationLogs={communicationLogs}
+                  brandName={brandName}
+                  onOpenCase={(id) => onOpenCase(id)}
+                  onOpenChecklist={(caseId) => {
+                    if (onOpenChecklist) onOpenChecklist(caseId);
+                    else onNavigateSection?.('checklist');
+                  }}
+                  onLogWhatsApp={onLogWhatsApp}
+                  onEmailLogsCreated={onEmailLogsCreated}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ABA 3: DÚVIDAS DO PORTAL (CHAT) */}
+          {workTab === 'chat' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Conversas do Portal do Cliente
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Mensagens enviadas pelos clientes integradas ao histórico de cada processo
+                  </p>
+                </div>
+                <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300">
+                  {unreadChatTotal > 0 ? `${unreadChatTotal} não lida(s)` : `${chatThreads.length} conversa(s)`}
+                </span>
+              </div>
+
+              {chatThreads.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
+                  Nenhuma dúvida de documento enviada no chat do portal até o momento.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {chatThreads.map((thread) => (
+                    <div
+                      key={thread.clientId}
+                      className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{thread.clientName}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-600 dark:text-slate-300 truncate">{thread.caseTitle}</span>
+                          <span
+                            className={`font-semibold tabular-nums ${
+                              thread.unreadCount > 0
+                                ? 'text-[#C82333]'
+                                : thread.awaitingReply
+                                  ? 'text-amber-700'
+                                  : 'text-[#1E7E34]'
+                            }`}
+                          >
+                            {thread.unreadCount > 0
+                              ? `· ${thread.unreadCount} nova(s)`
+                              : thread.awaitingReply
+                                ? '· Aguardando resposta'
+                                : '· Respondido'}
+                          </span>
+                        </div>
+                        {thread.lastMessage.documentNome && (
+                          <p className="text-[11px] font-semibold text-[var(--color-primary)] dark:text-sky-400">
+                            Doc: {thread.lastMessage.documentNome}
+                          </p>
+                        )}
+                        <p className="text-slate-700 dark:text-slate-300 line-clamp-2">{thread.lastMessage.mensagem}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                          {formatDateTimeBR(thread.lastMessage.createdAt)}
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        {thread.caseId ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCase(thread.caseId, 'comunicacao')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
+                            style={{ backgroundColor: 'var(--color-primary)' }}
+                          >
+                            Responder no Caso
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onNavigateSection?.('clientes')}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap"
+                          >
+                            Abrir Cliente
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ABA 4: PROGRESSO DE TAREFAS & EXPORTAÇÃO PDF VISUAL */}
+          {workTab === 'relatorio' && (
+            <PainelProgressoTarefasChart
+              empresa={empresa}
+              tasks={tasks}
+              cases={cases}
+              clients={clients}
+              docs={docs}
+              selectedCaseId={null}
+              isDark={isDark}
+              onOpenAgenda={() => onNavigateSection?.('agenda')}
+              onOpenCase={onOpenCase}
+            />
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 };

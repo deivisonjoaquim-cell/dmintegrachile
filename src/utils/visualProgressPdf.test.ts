@@ -152,4 +152,43 @@ describe('visualProgressPdf — Executive PDF Model & Pagination', () => {
       16,
     );
   });
+
+  it('never truncates > 50 tasks and documents and numbers every generated page sequentially', () => {
+    const client = makeClient('cli_3', 'Roberto Mendes');
+    const activeCase = makeCase('case_3', 'cli_3', 'Residência Mercosul Família');
+    const tasks = Array.from({ length: 55 }, (_, i) => makeTask(`t_big_${i}`, 'cli_3', 'case_3', 'Em andamento'));
+    const docs = Array.from({ length: 55 }, (_, i) => makeDoc(`d_big_${i}`, 'case_3', 'cli_3', 'Aprovado'));
+    const overview = computeClientTaskProgress({
+      tasks,
+      cases: [activeCase],
+      clients: [client],
+      selectedCaseId: 'case_3',
+    });
+
+    const model = buildVisualProgressPdfModel({
+      empresa: DEFAULT_EMPRESA_CONFIG,
+      client,
+      activeCase,
+      cases: [activeCase],
+      clients: [client],
+      tasks,
+      docs,
+      overview,
+    });
+
+    assert.ok(model.pages.length >= 6, `Expected >= 6 pages, got ${model.pages.length}`);
+    assert.equal(
+      model.pages.reduce((acc, p) => acc + p.taskRows.length, 0),
+      55,
+    );
+    assert.equal(
+      model.pages.reduce((acc, p) => acc + p.docRows.length, 0),
+      55,
+    );
+    model.pages.forEach((p, idx) => {
+      assert.equal(p.pageNumber, idx + 1);
+      assert.equal(p.totalPages, model.pages.length);
+    });
+  });
 });
+

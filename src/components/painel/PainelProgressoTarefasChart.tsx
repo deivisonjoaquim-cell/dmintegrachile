@@ -19,6 +19,7 @@ interface PainelProgressoTarefasChartProps {
   clients: Client[];
   docs: CaseDocument[];
   selectedCaseId?: string | null;
+  isDark?: boolean;
   onOpenAgenda?: () => void;
   onOpenCase?: (caseId: string) => void;
 }
@@ -44,13 +45,13 @@ const ProgressBarTooltip: React.FC<{
   if (!active || !row) return null;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-md text-xs text-slate-800 space-y-1">
-      <p className="font-bold text-slate-900">{row.fullName}</p>
-      {row.stageText && <p className="text-[11px] text-slate-500">{row.stageText}</p>}
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-md text-xs text-slate-800 dark:text-slate-200 space-y-1">
+      <p className="font-bold text-slate-900 dark:text-slate-100">{row.fullName}</p>
+      {row.stageText && <p className="text-[11px] text-slate-500 dark:text-slate-400">{row.stageText}</p>}
       <div className="flex items-center gap-3 pt-0.5 tabular-nums">
-        <span className="font-semibold text-[#16A34A]">Concluídas: {row.completedTasks} ({row.concluidoPct}%)</span>
-        <span className="text-[#D97706]">Em andamento: {row.inProgressTasks}</span>
-        <span className="text-slate-500">Pendentes: {row.pendingTasks}</span>
+        <span className="font-semibold text-[#16A34A] dark:text-emerald-400">Concluídas: {row.completedTasks} ({row.concluidoPct}%)</span>
+        <span className="text-[#D97706] dark:text-amber-400">Em andamento: {row.inProgressTasks}</span>
+        <span className="text-slate-500 dark:text-slate-400">Pendentes: {row.pendingTasks}</span>
       </div>
     </div>
   );
@@ -63,6 +64,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
   clients,
   docs,
   selectedCaseId,
+  isDark = false,
   onOpenAgenda,
   onOpenCase,
 }) => {
@@ -209,13 +211,13 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
   return (
     <section
       aria-label="Progresso do status de imigração por tarefas concluídas"
-      className="mb-6 border border-slate-200 px-5 py-4 space-y-3 no-print"
+      className="mb-6 border border-slate-200 dark:border-slate-800 px-5 py-4 space-y-3 no-print"
       style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
     >
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h2 className="text-sm font-bold text-slate-900">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
               Progresso do Status de Imigração (Tarefas Concluídas)
             </h2>
             <span
@@ -223,17 +225,23 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
               style={{
                 color:
                   overview.concluidoPct >= 80
-                    ? '#16A34A'
+                    ? isDark
+                      ? '#34D399'
+                      : '#16A34A'
                     : overview.concluidoPct >= 40
-                      ? 'var(--color-primary)'
-                      : '#D97706',
+                      ? isDark
+                        ? '#60A5FA'
+                        : 'var(--color-primary)'
+                      : isDark
+                        ? '#FBBF24'
+                        : '#D97706',
               }}
             >
               {overview.concluidoPct}% concluído
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-            <span className="font-medium text-slate-700">{overview.activeLabel}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-medium text-slate-700 dark:text-slate-200">{overview.activeLabel}</span>
             <span aria-hidden="true">·</span>
             <span>{overview.stageSummary}</span>
             <span aria-hidden="true">·</span>
@@ -248,7 +256,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
             aria-label="Filtrar progresso de tarefas por cliente"
             value={selectedClientId}
             onChange={(e) => setSelectedClientId(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 max-w-[240px]"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 max-w-[240px]"
           >
             <option value="">
               {effectiveCaseFilter ? 'Processo selecionado no painel' : 'Todos os clientes ativos'}
@@ -276,7 +284,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
             <button
               type="button"
               onClick={() => onOpenCase(singleTargetCase.id)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
             >
               Abrir Processo
             </button>
@@ -286,7 +294,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
             <button
               type="button"
               onClick={onOpenAgenda}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
             >
               <ListTodo className="w-3.5 h-3.5" />
               Tarefas
@@ -298,7 +306,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
             onClick={() => setCollapsed((v) => !v)}
             aria-expanded={!collapsed}
             aria-label={collapsed ? 'Expandir gráfico de progresso' : 'Recolher gráfico de progresso'}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
           >
             {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
@@ -308,7 +316,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
       {pdfError && (
         <div
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 flex items-center justify-between gap-2"
+          className="rounded-lg border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-xs text-red-800 dark:text-red-200 flex items-center justify-between gap-2"
         >
           <span>{pdfError}</span>
           <button type="button" onClick={() => setPdfError(null)} className="font-semibold underline shrink-0">
@@ -320,13 +328,13 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
       {!collapsed && (
         <>
           {overview.totalTasks === 0 ? (
-            <div className="py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 border-t border-slate-100">
+            <div className="py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
               <span>Nenhuma tarefa operacional registrada para este filtro ainda.</span>
               {onOpenAgenda && (
                 <button
                   type="button"
                   onClick={onOpenAgenda}
-                  className="font-semibold text-[var(--color-primary)] hover:underline"
+                  className="font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline"
                 >
                   Criar primeira tarefa
                 </button>
@@ -347,13 +355,13 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
                       type="category"
                       dataKey="name"
                       width={chartData.length > 1 ? 115 : 74}
-                      tick={{ fontSize: 11, fill: '#334155', fontWeight: 600 }}
+                      tick={{ fontSize: 11, fill: isDark ? '#CBD5E1' : '#334155', fontWeight: 600 }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <Tooltip
                       content={<ProgressBarTooltip />}
-                      cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }}
+                      cursor={{ fill: isDark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(15, 23, 42, 0.04)' }}
                     />
                     <Bar
                       dataKey="concluidoPct"
@@ -374,7 +382,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
                       dataKey="pendentePct"
                       name="Pendentes"
                       stackId="progress"
-                      fill="#E2E8F0"
+                      fill={isDark ? '#334155' : '#E2E8F0'}
                       radius={[0, 4, 4, 0]}
                       isAnimationActive={false}
                     />
@@ -382,7 +390,7 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
                 </ResponsiveContainer>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex flex-wrap items-center gap-4 tabular-nums">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-sm bg-[#16A34A] inline-block" aria-hidden="true" />
@@ -393,12 +401,12 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
                     Em andamento ({overview.inProgressTasks})
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-[#E2E8F0] inline-block border border-slate-300" aria-hidden="true" />
+                    <span className="w-2.5 h-2.5 rounded-sm bg-[#E2E8F0] dark:bg-slate-700 inline-block border border-slate-300 dark:border-slate-600" aria-hidden="true" />
                     Pendentes ({overview.pendingTasks})
                   </span>
                 </div>
                 {overview.rows.length > 5 && !selectedClientId && !effectiveCaseFilter && (
-                  <span className="text-slate-500">
+                  <span className="text-slate-500 dark:text-slate-400">
                     Exibindo 5 de {overview.rows.length} clientes com tarefas
                   </span>
                 )}

@@ -1,8 +1,10 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { GlobalErrorToast } from './components/GlobalErrorToast';
 import { PublicLayout } from './components/PublicLayout';
 import { SkeletonBlock } from './components/ui/DesignSystem';
 import { AppProvider } from './contexts/AppContext';
+import { installGlobalErrorHandlers } from './services/errorService';
 
 const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
 const QuemSomosPage = lazy(() => import('./pages/QuemSomosPage').then((m) => ({ default: m.QuemSomosPage })));
@@ -133,10 +135,15 @@ function RouterView() {
 }
 
 export default function App() {
+  useEffect(() => {
+    installGlobalErrorHandlers();
+  }, []);
+
   return (
     <ErrorBoundary>
       <AppProvider>
         <RouterView />
+        <GlobalErrorToast />
       </AppProvider>
     </ErrorBoundary>
   );

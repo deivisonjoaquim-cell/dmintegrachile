@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
+import { reportAppError } from '../services/errorService';
+import { sanitizeFirestoreData } from '../utils/firestoreUtils';
 import {
   DEFAULT_DIAGNOSTIC_RULE_VERSION,
   DEFAULT_EMPRESA_CONFIG,
@@ -179,12 +181,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: now,
         updatedAt: now,
       };
-      await setDoc(userRef, profile);
+      await setDoc(userRef, sanitizeFirestoreData(profile));
     } else {
       profile = snap.data() as UserProfile;
       if (isAdminEmail && (profile.role !== 'admin' || profile.status !== 'ativo')) {
         profile = { ...profile, role: 'admin', status: 'ativo', updatedAt: now };
-        await setDoc(userRef, profile, { merge: true });
+        await setDoc(userRef, sanitizeFirestoreData(profile), { merge: true });
       }
     }
 
@@ -206,7 +208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const p = await syncUserDocument(auth.currentUser);
       setUserProfile(p);
     } catch (err) {
-      console.error('Erro ao atualizar perfil:', err);
+      reportAppError(err, { source: 'auth-profile-refresh', path: `users/${auth.currentUser.uid}` });
     }
   }, [syncUserDocument]);
 
@@ -223,7 +225,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserProfile(p);
         setAuthError(null);
       } catch (err) {
-        setAuthError(mapFirebaseAuthErrorPT(err));
+        const msg = mapFirebaseAuthErrorPT(err);
+        setAuthError(msg);
+        reportAppError(err, { source: 'auth-state-sync', path: `users/${user.uid}` });
       } finally {
         setAuthLoading(false);
       }
@@ -241,14 +245,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       const msg = mapFirebaseAuthErrorPT(err);
       setAuthError(msg);
+      reportAppError(err, { source: 'auth-google-login' });
       return null;
     }
   }, [syncUserDocument]);
 
   const logout = useCallback(async () => {
-    await signOut(auth);
-    setUserProfile(null);
-    setFirebaseUser(null);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      reportAppError(err, { source: 'auth-logout' });
+    } finally {
+      setUserProfile(null);
+      setFirebaseUser(null);
+    }
   }, []);
 
   return (

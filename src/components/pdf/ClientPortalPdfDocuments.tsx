@@ -95,6 +95,21 @@ export interface ResumoProcessoClientePdfInput {
   logoDataUrl?: string;
 }
 
+export interface GeneratedOfficialDocPdfInput {
+  empresa: EmpresaConfig;
+  titulo: string;
+  conteudo: string;
+  codigoVerificacao?: string;
+  versao?: number;
+  status?: string;
+  clienteNome?: string;
+  assinaturaDataUrl?: string;
+  assinadoEm?: string;
+  confirmadoLeituraEm?: string;
+  canceladoMotivo?: string;
+  logoDataUrl?: string;
+}
+
 function safeStr(val: unknown, fallback = '—'): string {
   if (val === null || val === undefined) return fallback;
   const s = String(val).trim();
@@ -518,7 +533,7 @@ export const DiagnosticoPdfDocument: React.FC<DiagnosticoPdfInput> = ({
       title={`Diagnóstico de Viabilidade - ${client?.nomeCompleto || 'Cliente'}`}
       author={empresa.nome_empresa}
     >
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page} wrap>
         {renderBrandHeader(
           s,
           empresa,
@@ -626,7 +641,7 @@ export const DiagnosticoPdfDocument: React.FC<DiagnosticoPdfInput> = ({
             </View>
           ) : (
             assessments.map((ass) => (
-              <View key={ass.id} style={s.cardBlock} wrap={false}>
+              <View key={ass.id} style={s.cardBlock}>
                 <Text style={s.cardTitle}>
                   Parecer Técnico — Versão {ass.versao} (Nota {ass.notaGeral}/100)
                 </Text>
@@ -703,7 +718,7 @@ export const RelatorioProgressoPdfDocument: React.FC<ProgressoPdfInput> = ({
       title={`Relatório de Progresso - ${client?.nomeCompleto || 'Cliente'}`}
       author={empresa.nome_empresa}
     >
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page} wrap>
         {renderBrandHeader(
           s,
           empresa,
@@ -872,8 +887,8 @@ export const RelatorioProgressoPdfDocument: React.FC<ProgressoPdfInput> = ({
 
         {/* Parecer Liberado resumido */}
         {assessments[0] && (
-          <View style={s.section} wrap={false}>
-            <Text style={s.sectionHeading}>5. Orientações do Parecer Técnico Vigente</Text>
+          <View style={s.section}>
+            <Text style={s.sectionHeading} minPresenceAhead={40}>5. Orientações do Parecer Técnico Vigente</Text>
             <View style={s.cardBlock}>
               <Text style={s.paragraph}>{safeStr(assessments[0].recomendacoes)}</Text>
             </View>
@@ -911,7 +926,7 @@ export const DiagnosticoCompletoPdfDocument: React.FC<DiagnosticoCompletoPdfInpu
       title={`Pré-Análise Migratória - ${answers.nome || 'Solicitante'}`}
       author={empresa.nome_empresa}
     >
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page} wrap>
         {renderBrandHeader(
           s,
           empresa,
@@ -1012,8 +1027,8 @@ export const DiagnosticoCompletoPdfDocument: React.FC<DiagnosticoCompletoPdfInpu
             { titulo: 'Bloco B — Em 30 Dias (Preparação)', items: result.planoAcao.em30Dias },
             { titulo: 'Bloco C — Antes do Protocolo (Validade curta 60d)', items: result.planoAcao.antesProtocolo },
           ].map((grp) => (
-            <View key={grp.titulo} style={s.cardBlock} wrap={false}>
-              <Text style={s.cardTitle}>{grp.titulo}</Text>
+            <View key={grp.titulo} style={s.cardBlock}>
+              <Text style={s.cardTitle} minPresenceAhead={36}>{grp.titulo}</Text>
               {grp.items.length === 0 ? (
                 <Text style={s.paragraph}>Nenhuma ação pendente neste bloco.</Text>
               ) : (
@@ -1029,12 +1044,12 @@ export const DiagnosticoCompletoPdfDocument: React.FC<DiagnosticoCompletoPdfInpu
 
         {/* Estimativa de Taxas & Cronograma */}
         <View style={s.section}>
-          <Text style={s.sectionHeading}>
+          <Text style={s.sectionHeading} minPresenceAhead={40}>
             4. {hideCosts ? 'Cronograma Estimado em Faixas' : 'Estimativa de Taxas Oficiais (BRL ↔ CLP) & Cronograma'}
           </Text>
           {!hideCosts && (
-            <View style={s.cardBlock} wrap={false}>
-              <Text style={s.cardTitle}>
+            <View style={s.cardBlock}>
+              <Text style={s.cardTitle} minPresenceAhead={36}>
                 Taxas Oficiais &amp; Terceiros: {formatCurrency(result.custosEstimados.totalMinBrl, 'BRL')} a{' '}
                 {formatCurrency(result.custosEstimados.totalMaxBrl, 'BRL')} ({formatCurrency(result.custosEstimados.totalMinClp, 'CLP')} a{' '}
                 {formatCurrency(result.custosEstimados.totalMaxClp, 'CLP')})
@@ -1060,9 +1075,9 @@ export const DiagnosticoCompletoPdfDocument: React.FC<DiagnosticoCompletoPdfInpu
         {/* Consolidado Familiar (se aplicável) */}
         {result.diagnosticoPorPessoa.length > 0 && (
           <View style={s.section}>
-            <Text style={s.sectionHeading}>5. Consolidado Familiar — Diagnóstico por Pessoa</Text>
+            <Text style={s.sectionHeading} minPresenceAhead={40}>5. Consolidado Familiar — Diagnóstico por Pessoa</Text>
             {result.diagnosticoPorPessoa.map((p, idx) => (
-              <View key={idx} style={s.cardBlock} wrap={false}>
+              <View key={idx} style={s.cardBlock}>
                 <Text style={s.cardTitle}>
                   {p.nome} ({p.papel} · {p.parentesco}) — {p.subcategoriaIndicada}
                 </Text>
@@ -1127,8 +1142,8 @@ export const DiagnosticoCompletoPdfDocument: React.FC<DiagnosticoCompletoPdfInpu
 
         {/* Rascunho IA se gerado */}
         {aiDraft && aiDraft.resumoExecutivo && (
-          <View style={s.section} wrap={false}>
-            <Text style={s.sectionHeading}>Síntese Complementar ({aiDraft.origemLabel || 'Rascunho Orientativo'})</Text>
+          <View style={s.section}>
+            <Text style={s.sectionHeading} minPresenceAhead={40}>Síntese Complementar ({aiDraft.origemLabel || 'Rascunho Orientativo'})</Text>
             <View style={s.cardBlock}>
               <Text style={s.paragraph}>{aiDraft.resumoExecutivo}</Text>
               {aiDraft.fontesCitadas && aiDraft.fontesCitadas.length > 0 && (
@@ -1187,7 +1202,7 @@ export const DossieCasoPdfDocument: React.FC<DossieCasoPdfInput> = ({
       title={`${titleByMode} - ${activeCase.titulo}`}
       author={empresa.nome_empresa}
     >
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page} wrap>
         {renderBrandHeader(
           s,
           empresa,
@@ -1304,8 +1319,8 @@ export const DossieCasoPdfDocument: React.FC<DossieCasoPdfInput> = ({
 
         {/* Parecer Mais Recente */}
         {assessments[0] && (
-          <View style={s.section} wrap={false}>
-            <Text style={s.sectionHeading}>Parecer Técnico Associado (v{assessments[0].versao})</Text>
+          <View style={s.section}>
+            <Text style={s.sectionHeading} minPresenceAhead={40}>Parecer Técnico Associado (v{assessments[0].versao})</Text>
             <View style={s.cardBlock}>
               <Text style={s.paragraph}>{safeStr(assessments[0].enquadramentoLegal)}</Text>
               <Text style={s.paragraph}>{safeStr(assessments[0].recomendacoes)}</Text>
@@ -1375,7 +1390,7 @@ export const ResumoProcessoClientePdfDocument: React.FC<ResumoProcessoClientePdf
       title={`Resumo do Processo - ${client?.nomeCompleto || activeCase?.titulo || 'Consolidado'}`}
       author={empresa.nome_empresa}
     >
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page} wrap>
         <View style={s.headerBand}>
           <View style={s.brandWrap}>
             {logoDataUrl && <Image src={logoDataUrl} style={s.headerLogo} />}
@@ -1445,7 +1460,7 @@ export const ResumoProcessoClientePdfDocument: React.FC<ResumoProcessoClientePdf
                   <Text style={[s.tableCell, { width: '100%' }]}>Nenhum processo ativo cadastrado.</Text>
                 </View>
               ) : (
-                activeCasesList.slice(0, 20).map((c) => {
+                activeCasesList.map((c) => {
                   const cli = clientMap.get(c.clientId);
                   return (
                     <View key={c.id} style={s.tableRow} wrap={false}>
@@ -1512,7 +1527,7 @@ export const ResumoProcessoClientePdfDocument: React.FC<ResumoProcessoClientePdf
                 <Text style={[s.tableHeaderCell, { width: '16%' }]}>Prazo</Text>
                 <Text style={[s.tableHeaderCell, { width: '18%' }]}>Status</Text>
               </View>
-              {sortedTasks.slice(0, 35).map((t) => (
+              {sortedTasks.map((t) => (
                 <View key={t.id} style={s.tableRow} wrap={false}>
                   <Text style={[s.tableCell, { width: '50%', fontFamily: 'Helvetica-Bold' }]}>
                     {safeStr(t.titulo)}
@@ -1579,7 +1594,7 @@ export const ResumoProcessoClientePdfDocument: React.FC<ResumoProcessoClientePdf
                 <Text style={[s.tableHeaderCell, { width: '20%' }]}>Apost. / Trad.</Text>
                 <Text style={[s.tableHeaderCell, { width: '18%' }]}>Status</Text>
               </View>
-              {submittedDocs.slice(0, 40).map((d) => {
+              {submittedDocs.map((d) => {
                 const lastDate =
                   d.analisadoEm ||
                   d.anexos?.[d.anexos.length - 1]?.data ||
@@ -1755,6 +1770,160 @@ export async function exportResumoProcessoClientePdf(
   input: ResumoProcessoClientePdfInput,
 ): Promise<string> {
   const { blob, filename } = await buildResumoProcessoClientePdfBlob(input);
+  triggerPdfBlobDownload(blob, filename);
+  return filename;
+}
+
+function htmlToParagraphLines(raw: string): string[] {
+  const normalized = (raw || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/\r\n/g, '\n');
+
+  return normalized
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trimEnd());
+}
+
+/**
+ * Documento oficial multi-páginas A4 (Contratos, Recibos, Termos LGPD, Procurações e Aditivos)
+ * com quebra automática ilimitada de folhas, cabeçalho institucional e numeração Pág. X / Y.
+ */
+export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfInput> = ({
+  empresa,
+  titulo,
+  conteudo,
+  codigoVerificacao,
+  versao = 1,
+  status,
+  clienteNome,
+  assinaturaDataUrl,
+  assinadoEm,
+  confirmadoLeituraEm,
+  canceladoMotivo,
+  logoDataUrl,
+}) => {
+  const primary = safeHex(empresa.corPrimaria, '#0F2537');
+  const accent = safeHex(empresa.corDestaque, '#C5A059');
+  const s = createStyles(primary, accent);
+  const generatedAt = formatDateTimeBR(new Date());
+  const lines = htmlToParagraphLines(conteudo);
+
+  return (
+    <Document title={safeStr(titulo, 'Documento Oficial')} author={empresa.nome_empresa}>
+      <Page size="A4" style={s.page} wrap>
+        {renderBrandHeader(
+          s,
+          empresa,
+          codigoVerificacao ? `Verificação ${codigoVerificacao} · v${versao}` : `Versão ${versao}`,
+          safeStr(titulo, 'Documento Oficial'),
+          `${status ? `${status} · ` : ''}Emitido em ${generatedAt}`,
+          logoDataUrl,
+        )}
+
+        {canceladoMotivo ? (
+          <View style={s.alertBlock} wrap={false}>
+            <Text style={[s.paragraph, { color: '#991B1B', fontFamily: 'Helvetica-Bold', marginBottom: 0 }]}>
+              DOCUMENTO CANCELADO — SEM VALIDADE ({canceladoMotivo})
+            </Text>
+          </View>
+        ) : null}
+
+        {clienteNome ? (
+          <View style={[s.cardBlock, { marginBottom: 10 }]} wrap={false}>
+            <Text style={s.cardMeta}>
+              Titular / Destinatário: {clienteNome}
+              {codigoVerificacao ? ` · Código de verificação: ${codigoVerificacao}` : ''}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={s.section}>
+          {lines.map((line, idx) => {
+            if (!line.trim()) {
+              return <View key={idx} style={{ height: 6 }} />;
+            }
+            const isClauseHeading =
+              /^(CLÁUSULA|CLAUSULA|RECIBO|TERMO|CONTRATO|ADITIVO|PROCURAÇÃO|PROCURACAO|\d+\.\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,})/.test(
+                line.trim(),
+              );
+            return (
+              <Text
+                key={idx}
+                style={
+                  isClauseHeading
+                    ? [s.cardTitle, { marginTop: 6, marginBottom: 3, color: primary }]
+                    : [s.paragraph, { lineHeight: 1.5, marginBottom: 3 }]
+                }
+                minPresenceAhead={isClauseHeading ? 36 : undefined}
+              >
+                {line}
+              </Text>
+            );
+          })}
+        </View>
+
+        {(assinaturaDataUrl || confirmadoLeituraEm) && (
+          <View style={[s.cardBlock, { marginTop: 10 }]} wrap={false}>
+            {assinaturaDataUrl && (
+              <>
+                <Text style={s.cardTitle}>
+                  Assinatura Eletrônica Registrada{assinadoEm ? ` (${formatDateTimeBR(assinadoEm)})` : ''}
+                </Text>
+                <Image
+                  src={assinaturaDataUrl}
+                  style={{ height: 48, width: 180, objectFit: 'contain', marginTop: 4, marginBottom: 4 }}
+                />
+              </>
+            )}
+            {confirmadoLeituraEm && (
+              <Text style={s.cardMeta}>
+                Leitura confirmada pelo cliente em {formatDateTimeBR(confirmadoLeituraEm)}.
+              </Text>
+            )}
+          </View>
+        )}
+
+        <View style={s.footer} fixed>
+          <Text style={s.footerLegal}>
+            {safeStr(empresa.avisoLegal)}
+            {codigoVerificacao ? ` · Cód. ${codigoVerificacao}` : ''}
+          </Text>
+          <Text
+            style={s.footerPage}
+            render={({ pageNumber, totalPages }) => `Pág. ${pageNumber} / ${totalPages}`}
+          />
+        </View>
+      </Page>
+    </Document>
+  );
+};
+
+export async function buildGeneratedOfficialDocPdfBlob(
+  input: GeneratedOfficialDocPdfInput,
+): Promise<{ blob: Blob; filename: string }> {
+  const logoDataUrl = input.logoDataUrl ?? (await resolvePdfLogoDataUrl(input.empresa.logoUrl));
+  const blob = await pdf(<GeneratedOfficialDocPdfDocument {...input} logoDataUrl={logoDataUrl} />).toBlob();
+  const filename = formatStandardDocFilename(
+    input.clienteNome || 'DOCUMENTO',
+    input.titulo || 'DOCUMENTO_OFICIAL',
+    toIsoDate(new Date()),
+    'pdf',
+  );
+  return { blob, filename };
+}
+
+export async function exportGeneratedOfficialDocPdf(input: GeneratedOfficialDocPdfInput): Promise<string> {
+  const { blob, filename } = await buildGeneratedOfficialDocPdfBlob(input);
   triggerPdfBlobDownload(blob, filename);
   return filename;
 }

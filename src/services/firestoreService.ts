@@ -61,26 +61,20 @@ import type {
 } from '../types/domain';
 import { registrarAuditoria } from '../utils/audit';
 import { computeLeadPriorityAndTemperature, runDiagnosticEngine } from '../utils/diagnosticEngine';
+import {
+  sanitizeFirestoreData,
+  validateBancarioConfigPayload,
+  validateEmpresaConfigPayload,
+} from '../utils/firestoreUtils';
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
+import { reportAppError } from './errorService';
 
 export function makeId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function stripUndefined<T>(val: T): T {
-  if (Array.isArray(val)) {
-    return val.map((item) => stripUndefined(item)) as unknown as T;
-  }
-  if (val !== null && typeof val === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      if (v !== undefined) {
-        out[k] = stripUndefined(v);
-      }
-    }
-    return out as T;
-  }
-  return val;
+  return sanitizeFirestoreData(val);
 }
 
 // =============================================================================
@@ -124,7 +118,7 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
       ? data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE)
       : data.termoLgpd || DEFAULT_EMPRESA_CONFIG.termoLgpd;
 
-  return {
+  const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
     razao_social_cnpj_rut:
@@ -141,12 +135,17 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
         : data.endereco_cidade,
     textoContratoPadrao,
     termoLgpd,
-    siteDraft: data.siteDraft ? normalizeSiteContentAssets(data.siteDraft) : undefined,
     layoutConfig: {
       ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
       ...(data.layoutConfig || {}),
     },
   };
+  if (data.siteDraft) {
+    normalized.siteDraft = normalizeSiteContentAssets(data.siteDraft);
+  } else {
+    delete normalized.siteDraft;
+  }
+  return sanitizeFirestoreData(normalized);
 }
 
 function getUpgradedDocumentTemplateHtml(tpl: Partial<DocumentTemplate>): string | null {
@@ -336,13 +335,15 @@ export async function publishDiagnosticRuleVersion(
   await Promise.all(
     existingVersions
       .filter((v) => v.ativa && v.id !== nextVersion.id)
-      .map((v) => setDoc(doc(db, 'diagnosticRuleVersions', v.id), { ...v, ativa: false }, { merge: true })),
+      .map((v) =>
+        setDoc(doc(db, 'diagnosticRuleVersions', v.id), sanitizeFirestoreData({ ...v, ativa: false }), { merge: true }),
+      ),
   );
-  const payload: DiagnosticRuleVersion = {
+  const payload: DiagnosticRuleVersion = sanitizeFirestoreData({
     ...nextVersion,
     ativa: true,
     createdAt: nextVersion.createdAt || now,
-  };
+  });
   await setDoc(doc(db, 'diagnosticRuleVersions', nextVersion.id), payload);
   await registrarAuditoria(
     'Publicar Versão Regras',
@@ -364,7 +365,7 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
     const cfgRef = doc(db, 'config', 'empresa');
     const cfgSnap = await getDoc(cfgRef);
     if (!cfgSnap.exists()) {
-      await setDoc(cfgRef, { ...DEFAULT_EMPRESA_CONFIG, updatedAt: new Date().toISOString() });
+      await setDoc(cfgRef, validateEmpresaConfigPayload(DEFAULT_EMPRESA_CONFIG));
     } else {
       const data = cfgSnap.data() as Partial<EmpresaConfig>;
       const cfgPatch: Record<string, unknown> = {};
@@ -388,7 +389,7 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
       }
       if (Object.keys(cfgPatch).length > 0) {
         cfgPatch.updatedAt = new Date().toISOString();
-        await updateDoc(cfgRef, cfgPatch);
+        await updateDoc(cfgRef, sanitizeFirestoreData(cfgPatch));
       }
     }
 
@@ -531,12 +532,15 @@ export async function submitPartnerProposalPublic(
 ): Promise<string> {
   const id = makeId('prop');
   try {
-    await setDoc(doc(db, 'partnerProposals', id), {
-      ...payload,
-      id,
-      status: 'Nova',
-      createdAt: new Date().toISOString(),
-    });
+    await setDoc(
+      doc(db, 'partnerProposals', id),
+      sanitizeFirestoreData({
+        ...payload,
+        id,
+        status: 'Nova',
+        createdAt: new Date().toISOString(),
+      }),
+    );
     return id;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, `partnerProposals/${id}`);
@@ -1297,8 +1301,9 @@ export async function fetchBancarioConfigAdmin(): Promise<BancarioConfig> {
 
 export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: BancarioConfig): Promise<void> {
   try {
-    await setDoc(doc(db, 'config', 'bancario'), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
-    await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, data, 'admin');
+    const validated = validateBancarioConfigPayload(data);
+    await setDoc(doc(db, 'config', 'bancario'), validated, { merge: true });
+    await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, validated, 'admin');
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'config/bancario');
   }
@@ -1306,8 +1311,9 @@ export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: Banca
 
 export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
   try {
-    await setDoc(doc(db, 'config', 'empresa'), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
-    await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, data, 'admin');
+    const validated = validateEmpresaConfigPayload(data);
+    await setDoc(doc(db, 'config', 'empresa'), validated, { merge: true });
+    await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'config/empresa');
   }
@@ -1317,7 +1323,7 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
   await saveDocumentAudited('partners', partner.id, partner as unknown as Record<string, unknown>, isNew, role);
   const pubRef = doc(db, 'partnersPublic', partner.id);
   if (partner.recomendadoAosClientes && partner.statusHomologacao === 'Ativo/Indicado') {
-    const pubPayload: PartnerPublic = {
+    const pubPayload: PartnerPublic = sanitizeFirestoreData({
       id: partner.id,
       nome: partner.nome,
       categoria: partner.categoria,
@@ -1330,7 +1336,7 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
       recomendadoAosClientes: true,
       statusHomologacao: 'Ativo/Indicado',
       updatedAt: new Date().toISOString(),
-    };
+    });
     await setDoc(pubRef, pubPayload);
   } else {
     try {
@@ -1369,7 +1375,11 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
       const snap = await getDocs(qOverride || collection(db, col));
       return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }) as T);
     } catch (err) {
-      console.warn(`Aviso ao ler ${col}:`, err);
+      reportAppError(err, {
+        source: 'workspace-load',
+        path: col,
+        operation: OperationType.LIST,
+      });
       return [];
     }
   };

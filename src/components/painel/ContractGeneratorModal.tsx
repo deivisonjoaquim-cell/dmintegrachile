@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Download,
   Eye,
   FileCheck,
   FileText,
@@ -14,7 +15,9 @@ import {
   X,
 } from 'lucide-react';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
+import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
+import { reportAppError } from '../../services/errorService';
 import { makeId, saveDocumentAudited, uploadFileToServer } from '../../services/firestoreService';
 import type {
   Case,
@@ -112,6 +115,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
   const [showCancelBox, setShowCancelBox] = useState(false);
   const [externalSignLink, setExternalSignLink] = useState('');
   const [saving, setSaving] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -432,9 +436,35 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
   const selectedClient = clientMap.get(clientId);
   const verCode = currentDoc?.codigoVerificacao || 'PRE-VISUALIZACAO';
 
+  const handleDownloadPdf = async () => {
+    setErrorMsg(null);
+    setExportingPdf(true);
+    try {
+      const filename = await exportGeneratedOfficialDocPdf({
+        empresa,
+        titulo: titulo || 'Documento Oficial',
+        conteudo: conteudoHtml,
+        codigoVerificacao: verCode,
+        versao: currentDoc?.versao || 1,
+        status,
+        clienteNome: selectedClient?.nomeCompleto,
+        assinaturaDataUrl: currentDoc?.assinaturaDataUrl,
+        assinadoEm: currentDoc?.assinadoEm,
+        confirmadoLeituraEm: currentDoc?.confirmadoLeituraEm,
+        canceladoMotivo: isCancelled ? currentDoc?.motivoCancelamento : undefined,
+      });
+      setFeedback(`PDF multi-páginas gerado: ${filename}`);
+    } catch (err) {
+      reportAppError(err, { source: 'pdf' });
+      setErrorMsg('Não foi possível gerar o PDF agora. Use a opção Imprimir ou tente novamente.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/65 flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
-      <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-slate-900/65 flex items-center justify-center p-3 sm:p-4 print-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl print-modal-dialog">
         {/* Topbar */}
         <div className="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 no-print">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -470,7 +500,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 print-modal-scroll">
           {feedback && (
             <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium no-print">
               {feedback}
@@ -724,9 +754,19 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                   Pré-visualização A4 institucional pronta para impressão ou exportação em PDF pelo navegador.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <UiButton type="button" size="sm" variant="primary" onClick={() => window.print()}>
+                  <UiButton
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    disabled={exportingPdf}
+                    onClick={() => void handleDownloadPdf()}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    {exportingPdf ? 'Gerando PDF...' : 'Baixar PDF A4'}
+                  </UiButton>
+                  <UiButton type="button" size="sm" variant="outline" onClick={() => window.print()}>
                     <Printer className="w-3.5 h-3.5" />
-                    Imprimir / Salvar PDF A4
+                    Imprimir
                   </UiButton>
                   {selectedClient?.whatsapp && (
                     <UiButton
@@ -761,7 +801,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
               </div>
 
               {/* A4 Sheet */}
-              <div className="bg-white border border-slate-300 rounded-xl p-8 sm:p-10 max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900">
+              <div className="bg-white border border-slate-300 rounded-xl p-8 sm:p-10 max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
                   <div className="flex items-center gap-3">
                     {empresa.logoUrl ? (

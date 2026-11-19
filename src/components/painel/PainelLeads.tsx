@@ -10,8 +10,10 @@ import {
   Eye,
   GitMerge,
   MessageCircle,
+  Moon,
   RefreshCw,
   Search,
+  Sun,
   Trash2,
   X,
 } from 'lucide-react';
@@ -54,6 +56,7 @@ import {
   sanitizeClientAiError,
   saveAiDraftCache,
 } from '../../utils/aiClient';
+type PanelTheme = 'light' | 'dark';
 
 interface PainelLeadsProps {
   role: UserRole;
@@ -67,6 +70,8 @@ interface PainelLeadsProps {
   legalSources: LegalSource[];
   activeRules: DiagnosticRuleVersion;
   messageTemplates: MessageTemplate[];
+  panelTheme?: PanelTheme;
+  onToggleTheme?: () => void;
   onRefresh: () => Promise<void>;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
@@ -84,6 +89,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   legalSources,
   activeRules,
   messageTemplates,
+  panelTheme = 'light',
+  onToggleTheme,
   onRefresh,
   onLogWhatsApp,
   onOpenCase,
@@ -481,23 +488,23 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   };
 
   const getPriorityBadge = (p: Lead['prioridade']) => {
-    if (p === 'Urgente') return 'bg-red-50 text-[#C82333] border-red-200';
-    if (p === 'Alta') return 'bg-amber-50 text-amber-800 border-amber-200';
-    if (p === 'Média') return 'bg-slate-100 text-slate-700 border-slate-200';
-    return 'bg-slate-50 text-slate-500 border-slate-200';
+    if (p === 'Urgente') return 'bg-red-50 dark:bg-red-950/40 text-[#C82333] dark:text-red-400 border-red-200 dark:border-red-800/70';
+    if (p === 'Alta') return 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/70';
+    if (p === 'Média') return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+    return 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700';
   };
 
   return (
     <div className="space-y-5 min-w-0 w-full">
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900">Gestão de Leads &amp; Inteligência do Diagnóstico</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Gestão de Leads &amp; Inteligência do Diagnóstico</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Triagem por prioridade e confiança, simulador &quot;E se&quot;, recálculo sob demanda e conversão em 1 clique
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex items-center p-1 bg-slate-200/70 rounded-lg">
+          <div className="flex items-center p-1 bg-slate-200/70 dark:bg-slate-800 rounded-lg">
             {[
               { id: 'lista', label: 'Lista' },
               { id: 'kanban', label: 'Kanban' },
@@ -516,7 +523,9 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   }
                 }}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
-                  view === t.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  view === t.id
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 {t.label}
@@ -527,9 +536,9 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             type="button"
             disabled={busyAction}
             onClick={() => void handleSyncFollowUps()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0 disabled:opacity-50"
           >
-            <BellPlus className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+            <BellPlus className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-sky-400" />
             Sincronizar Follow-ups
           </button>
           <button
@@ -556,24 +565,40 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 ]),
               )
             }
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             Exportar CSV
           </button>
+          {onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              title={panelTheme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Dark Mode'}
+              aria-label={panelTheme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Dark Mode'}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
+            >
+              {panelTheme === 'dark' ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-slate-600" />
+              )}
+              <span>{panelTheme === 'dark' ? 'Modo Claro' : 'Dark Mode'}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium">
+        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 font-medium">
           {feedback}
         </div>
       )}
 
       {duplicateGroups.length > 0 && (
-        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950">
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-700/60 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 dark:text-amber-200">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
             <span>
               Detectado(s) <strong>{duplicateGroups.length}</strong> grupo(s) de leads com mesmo e-mail ou WhatsApp.
             </span>
@@ -582,7 +607,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             type="button"
             disabled={busyAction}
             onClick={() => void handleMergeDuplicates()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-300 font-semibold text-slate-800 hover:bg-amber-100/40"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700/60 font-semibold text-slate-800 dark:text-slate-100 hover:bg-amber-100/40 dark:hover:bg-slate-700"
           >
             <GitMerge className="w-3.5 h-3.5" />
             Mesclar duplicados
@@ -593,16 +618,16 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       {/* PAINEL DE INTELIGÊNCIA DO DIAGNÓSTICO */}
       {view === 'inteligencia' ? (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-[var(--color-primary)]" />
-              <h2 className="text-base font-bold text-slate-900">Métricas de Diagnóstico, Funil e Abandono</h2>
+              <BarChart3 className="w-5 h-5 text-[var(--color-primary)] dark:text-sky-400" />
+              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Métricas de Diagnóstico, Funil e Abandono</h2>
             </div>
             <select
               value={periodDays}
               onChange={(e) => setPeriodDays(Number(e.target.value))}
               aria-label="Filtrar período das métricas"
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               <option value={0}>Todo o histórico</option>
               <option value={7}>Últimos 7 dias</option>
@@ -618,28 +643,28 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               { label: 'Conversão Lead → Cliente', val: `${intelligence.taxaConversaoLeadClientePct}%`, sub: `Tempo médio contato: ${intelligence.tempoMedioAteContatoHoras !== null ? `${intelligence.tempoMedioAteContatoHoras}h` : '—'}` },
               { label: 'BR com alerta saída Chile', val: `${intelligence.percentualBrasileirosComSaidaChilePct}%`, sub: `Risco alto: ${intelligence.leadsComRiscoAlto} · Confiança baixa: ${intelligence.leadsConfiancaBaixa}` },
             ].map((k) => (
-              <div key={k.label} className="bg-white border border-slate-200 rounded-xl p-4 space-y-1">
-                <p className="text-xs text-slate-500">{k.label}</p>
-                <p className="text-2xl font-bold text-slate-900 tabular-nums">{k.val}</p>
-                <p className="text-[11px] text-slate-500">{k.sub}</p>
+              <div key={k.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{k.label}</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">{k.val}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">{k.sub}</p>
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Abandono por Etapa */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-bold text-slate-900">Abandono / Parada por Etapa do Formulário</h3>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Abandono / Parada por Etapa do Formulário</h3>
               <div className="space-y-2.5">
                 {intelligence.abandonoPorEtapa.map((st) => (
                   <div key={st.etapa} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="font-medium text-slate-700">{st.nome}</span>
-                      <span className="tabular-nums text-slate-600">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{st.nome}</span>
+                      <span className="tabular-nums text-slate-600 dark:text-slate-400">
                         {st.quantidade} ({st.percentualPct}%)
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       <div className="h-full bg-[#C82333]" style={{ width: `${st.percentualPct}%` }} />
                     </div>
                   </div>
@@ -648,16 +673,16 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             </div>
 
             {/* Subcategorias mais indicadas */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-bold text-slate-900">Subcategorias Mais Indicadas</h3>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Subcategorias Mais Indicadas</h3>
               {intelligence.subcategoriasMaisIndicadas.length === 0 ? (
-                <p className="text-xs text-slate-500">Sem diagnósticos concluídos no período.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Sem diagnósticos concluídos no período.</p>
               ) : (
-                <ul className="divide-y divide-slate-100 text-xs">
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                   {intelligence.subcategoriasMaisIndicadas.slice(0, 8).map((s) => (
                     <li key={s.subcategoria} className="py-2 flex justify-between gap-2">
-                      <span className="font-medium text-slate-800">{s.subcategoria}</span>
-                      <span className="font-bold tabular-nums text-[var(--color-primary)]">{s.total}</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{s.subcategoria}</span>
+                      <span className="font-bold tabular-nums text-[var(--color-primary)] dark:text-sky-400">{s.total}</span>
                     </li>
                   ))}
                 </ul>
@@ -665,12 +690,12 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             </div>
 
             {/* Origens e UTM */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-bold text-slate-900">Origem dos Leads &amp; Campanhas UTM</h3>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Origem dos Leads &amp; Campanhas UTM</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <p className="font-semibold text-slate-600 mb-2">Por canal</p>
-                  <ul className="space-y-1.5">
+                  <p className="font-semibold text-slate-600 dark:text-slate-400 mb-2">Por canal</p>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-slate-300">
                     {intelligence.porOrigem.map((o) => (
                       <li key={o.origem} className="flex justify-between">
                         <span>{o.origem}</span>
@@ -682,8 +707,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   </ul>
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-600 mb-2">Por UTM (Source/Medium/Campaign)</p>
-                  <ul className="space-y-1.5">
+                  <p className="font-semibold text-slate-600 dark:text-slate-400 mb-2">Por UTM (Source/Medium/Campaign)</p>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-slate-300">
                     {intelligence.porUtm.slice(0, 6).map((u) => (
                       <li key={u.utm} className="flex justify-between gap-2">
                         <span className="truncate">{u.utm}</span>
@@ -696,26 +721,26 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             </div>
 
             {/* Heatmap de Campos em Branco */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-bold text-slate-900">Heatmap de Perguntas Deixadas em Branco</h3>
-              <p className="text-[11px] text-slate-500">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Heatmap de Perguntas Deixadas em Branco</h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Ajuda a identificar perguntas confusas ou com alta taxa de omissão no diagnóstico.
               </p>
               <div className="space-y-2">
                 {intelligence.heatmapCamposEmBranco.slice(0, 7).map((h) => (
                   <div key={h.campo} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-700">{h.rotulo}</span>
-                      <span className="tabular-nums font-semibold text-slate-700">
+                      <span className="text-slate-700 dark:text-slate-300">{h.rotulo}</span>
+                      <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-300">
                         {h.percentualPct}% ({h.emBranco}/{h.totalElegiveis})
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       <div
                         className="h-full"
                         style={{
                           width: `${h.percentualPct}%`,
-                          backgroundColor: h.percentualPct >= 50 ? '#C82333' : h.percentualPct >= 25 ? '#D4AF37' : '#0F2537',
+                          backgroundColor: h.percentualPct >= 50 ? '#C82333' : h.percentualPct >= 25 ? '#D4AF37' : 'var(--color-primary)',
                         }}
                       />
                     </div>
@@ -728,7 +753,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       ) : (
         <>
           {/* Barra de Filtros + Ação Recalcular */}
-          <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-3">
             <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center min-w-0">
               <div className="relative flex-1 min-w-0">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -737,7 +762,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar lead por nome, e-mail, WhatsApp, UTM ou subcategoria..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 text-xs sm:text-sm"
                 />
               </div>
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
@@ -746,7 +771,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     aria-label="Filtrar por status do funil"
-                    className="px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white min-w-0"
+                    className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100 min-w-0"
                   >
                     <option value="Todos">Todos os status do funil</option>
                     {FUNIL_STAGES.map((st) => (
@@ -760,7 +785,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   value={smartFilter}
                   onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
                   aria-label="Filtrar por perfil do lead"
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white min-w-0"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100 min-w-0"
                 >
                   <option value="todos">Todos os perfis</option>
                   <option value="alta_urgente">Prioridade Alta / Urgente</option>
@@ -773,7 +798,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   value={selectedTplId}
                   onChange={(e) => setSelectedTplId(e.target.value)}
                   aria-label="Selecionar modelo de mensagem"
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white max-w-[240px] min-w-0"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 max-w-[240px] min-w-0"
                 >
                   {messageTemplates.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -785,7 +810,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="px-2.5 py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap shrink-0"
+                    className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
                   >
                     Limpar
                   </button>
@@ -794,8 +819,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             </div>
 
             {selectedLeadIds.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-                <span className="font-semibold text-slate-700 tabular-nums">{selectedLeadIds.length} lead(s) selecionado(s)</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{selectedLeadIds.length} lead(s) selecionado(s)</span>
                 <button
                   type="button"
                   disabled={busyAction}
@@ -811,13 +836,13 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           </div>
 
           {view === 'lista' ? (
-            <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto">
               {filtered.length === 0 ? (
-                <div className="p-10 text-center text-sm text-slate-500">Nenhum lead encontrado.</div>
+                <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">Nenhum lead encontrado.</div>
               ) : (
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-xs text-slate-500 bg-slate-50">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/70">
                       <th className="py-3 px-3">
                         <input
                           type="checkbox"
@@ -836,9 +861,9 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                       <th className="py-3 px-3 font-semibold text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                     {filtered.map((l) => (
-                      <tr key={l.id} className="hover:bg-slate-50/70">
+                      <tr key={l.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50">
                         <td className="py-3 px-3">
                           <input
                             type="checkbox"
@@ -849,27 +874,27 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <p className="font-semibold text-slate-900">{l.nome}</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{l.nome}</p>
                             {l.statusConclusao && l.statusConclusao !== 'Concluído' && (
-                              <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800">
+                              <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-[10px] font-bold text-amber-800 dark:text-amber-300">
                                 {l.statusConclusao} (Et. {l.etapaAtual || 1})
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {l.email} · {l.whatsapp} · {l.origem}
                             {l.utmCampaign ? ` · UTM: ${l.utmCampaign}` : ''}
                           </p>
                         </td>
-                        <td className="py-3 px-3 text-xs text-slate-700">
+                        <td className="py-3 px-3 text-xs text-slate-700 dark:text-slate-300">
                           <p>{l.subcategoriaSugerida || l.interesse || '—'}</p>
-                          {l.versaoRegras && <p className="text-[11px] text-slate-400">Regras {l.versaoRegras}</p>}
+                          {l.versaoRegras && <p className="text-[11px] text-slate-400 dark:text-slate-500">Regras {l.versaoRegras}</p>}
                         </td>
                         <td className="py-3 px-3">
-                          <p className="font-bold tabular-nums text-slate-900">
+                          <p className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
                             {typeof l.notaViabilidade === 'number' ? `${l.notaViabilidade}/100` : '—'}
                           </p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
                             {l.confianca ? `Confiança ${l.confianca}` : '—'} {l.temperatura ? `· ${l.temperatura}` : ''}
                           </p>
                         </td>
@@ -877,16 +902,16 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                           <span className={`inline-block px-2 py-0.5 rounded border text-[11px] font-semibold ${getPriorityBadge(l.prioridade)}`}>
                             {l.prioridade}
                           </span>
-                          <p className="text-xs font-medium text-slate-700">{l.statusFunil}</p>
+                          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{l.statusFunil}</p>
                         </td>
-                        <td className="py-3 px-3 text-xs text-slate-500 tabular-nums">{formatDateBR(l.createdAt)}</td>
+                        <td className="py-3 px-3 text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatDateBR(l.createdAt)}</td>
                         <td className="py-3 px-3 text-right space-x-1 whitespace-nowrap">
                           {l.respostasTriagem && (
                             <button
                               type="button"
                               onClick={() => openInspectModal(l)}
                               title="Analisar diagnóstico e simular cenário E se"
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               Analisar
@@ -905,7 +930,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                             <button
                               type="button"
                               onClick={() => onOpenCase(l.convertedCaseId!)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
                               Ver Caso
                             </button>
@@ -925,7 +950,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                             type="button"
                             onClick={() => setEditingLead(l)}
                             aria-label={`Editar ${l.nome}`}
-                            className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100"
+                            className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -934,7 +959,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                               type="button"
                               onClick={() => void handleDelete(l)}
                               aria-label={`Excluir ${l.nome}`}
-                              className="p-1.5 rounded-lg border border-red-200 text-[#C82333] hover:bg-red-50"
+                              className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -970,15 +995,15 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
 
       {/* Modal de Análise Completa & Simulador "E se" */}
       {inspectingLead && inspectedResult && inspectingLead.respostasTriagem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-start justify-center p-4 overflow-y-auto" role="dialog" aria-modal="true">
-          <div className="bg-[var(--color-bg)] rounded-2xl max-w-6xl w-full p-5 sm:p-8 my-6 space-y-4">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-900/75 flex items-start justify-center p-4 overflow-y-auto" role="dialog" aria-modal="true">
+          <div className="bg-[var(--color-bg)] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-6xl w-full p-5 sm:p-8 my-6 space-y-4">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-[var(--color-primary)]" />
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-[var(--color-primary)] dark:text-sky-400" />
                   Diagnóstico Completo — {inspectingLead.nome}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {inspectingLead.email} · {inspectingLead.whatsapp} · Versão {inspectingLead.versaoRegras || activeRules.versao}
                 </p>
               </div>
@@ -986,7 +1011,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 <button
                   type="button"
                   onClick={() => handleExportLeadLgpd(inspectingLead)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   Exportar LGPD (JSON)
                 </button>
@@ -994,7 +1019,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   type="button"
                   onClick={() => setInspectingLead(null)}
                   aria-label="Fechar análise"
-                  className="p-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1039,16 +1064,16 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
 
       {/* Modal Editar Lead */}
       {editingLead && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handleSaveEdit} className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4">
-            <h2 className="text-lg font-bold text-slate-900">Editar Lead: {editingLead.nome}</h2>
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <form onSubmit={handleSaveEdit} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Editar Lead: {editingLead.nome}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Status no funil</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Status no funil</label>
                 <select
                   value={editingLead.statusFunil}
                   onChange={(e) => setEditingLead({ ...editingLead, statusFunil: e.target.value as Lead['statusFunil'] })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
                 >
                   {FUNIL_STAGES.map((st) => (
                     <option key={st} value={st}>
@@ -1058,11 +1083,11 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Prioridade</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Prioridade</label>
                 <select
                   value={editingLead.prioridade}
                   onChange={(e) => setEditingLead({ ...editingLead, prioridade: e.target.value as Lead['prioridade'] })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
                 >
                   <option value="Urgente">Urgente</option>
                   <option value="Alta">Alta</option>
@@ -1073,28 +1098,28 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             </div>
             {editingLead.statusFunil === 'Perdido' && (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Motivo da perda</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Motivo da perda</label>
                 <input
                   value={editingLead.motivoPerda || ''}
                   onChange={(e) => setEditingLead({ ...editingLead, motivoPerda: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 text-sm"
                 />
               </div>
             )}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Notas internas</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas internas</label>
               <textarea
                 rows={3}
                 value={editingLead.notas || ''}
                 onChange={(e) => setEditingLead({ ...editingLead, notas: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 text-sm"
               />
             </div>
             <div className="flex flex-wrap justify-between items-center gap-2">
               <button
                 type="button"
                 onClick={() => handleExportLeadLgpd(editingLead)}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600"
+                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Exportar LGPD
               </button>
@@ -1102,7 +1127,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingLead(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
+                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   Cancelar
                 </button>

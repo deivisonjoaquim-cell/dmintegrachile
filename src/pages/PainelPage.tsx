@@ -1,29 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Briefcase,
-  Calculator,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   Clock,
   DollarSign,
-  FileSignature,
-  FolderArchive,
-  Handshake,
   LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
-  Palette,
+  Moon,
   Plus,
   RefreshCw,
-  Scale,
   Search,
-  ShieldCheck,
-  Sliders,
+  Settings,
+  Sun,
   UserCheck,
-  Users,
   X,
 } from 'lucide-react';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
@@ -36,49 +29,62 @@ import { PainelFerramentas } from '../components/painel/PainelFerramentas';
 import { PainelFinanceiro } from '../components/painel/PainelFinanceiro';
 import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
-import { PainelProgressoTarefasChart } from '../components/painel/PainelProgressoTarefasChart';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { useFirestore } from '../hooks/useFirestore';
+import { subscribeStaffDocumentChat } from '../services/chatService';
+import { reportAppError } from '../services/errorService';
 import {
   fetchAllSiteContentStaff,
   fetchStaffWorkspaceData,
   makeId,
   saveDocumentAudited,
 } from '../services/firestoreService';
-import { subscribeStaffDocumentChat } from '../services/chatService';
 import type { CommunicationLog, SiteContent, Task, UserRole } from '../types/domain';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../utils/documentChat';
 import { daysUntilDate, formatDateBR } from '../utils/formatters';
+import type { MacroFunnelStageId } from '../utils/funnelModel';
 import { countLegalReviewPending } from '../utils/legalSync';
+import {
+  getVisibleConfigSubTabs,
+  getVisibleFinanceiroSubTabs,
+  getVisiblePanelHubs,
+  getVisibleProcessosSubTabs,
+  resolveLegacyPanelRoute,
+  type ConfigSubTab,
+  type FinanceiroSubTab,
+  type LegacyPanelSection,
+  type PanelHubId,
+  type ProcessosSubTab,
+} from '../utils/panelNavigation';
+
+type PanelTheme = 'light' | 'dark';
+const PANEL_THEME_STORAGE_KEY = 'dm_painel_theme';
+
+function loadPanelTheme(): PanelTheme {
+  try {
+    return window.localStorage.getItem(PANEL_THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function savePanelTheme(theme: PanelTheme): void {
+  try {
+    window.localStorage.setItem(PANEL_THEME_STORAGE_KEY, theme);
+  } catch {
+    // ignore storage errors
+  }
+}
 
 interface PainelPageProps {
   onNavigate: (path: string) => void;
 }
 
-type PanelSection =
-  | 'dashboard'
-  | 'agenda'
-  | 'leads'
-  | 'clientes'
-  | 'casos'
-  | 'checklist'
-  | 'documentos'
-  | 'contratos'
-  | 'financeiro'
-  | 'parceiros'
-  | 'legal'
-  | 'ferramentas'
-  | 'admin_site'
-  | 'admin_regras'
-  | 'admin_gov';
-
-interface RecentItem {
+interface RecentCaseItem {
   id: string;
   label: string;
-  type: 'caso' | 'secao';
-  section: PanelSection;
-  caseId?: string;
+  caseId: string;
 }
 
 const ROLE_DISPLAY: Record<UserRole, string> = {
@@ -86,6 +92,15 @@ const ROLE_DISPLAY: Record<UserRole, string> = {
   consultor: 'Consultor',
   assistente: 'Assistente',
   cliente: 'Cliente',
+};
+
+const HUB_ICONS: Record<PanelHubId, React.ReactNode> = {
+  hoje: <LayoutDashboard className="w-4 h-4 shrink-0" />,
+  leads: <UserCheck className="w-4 h-4 shrink-0" />,
+  processos: <Briefcase className="w-4 h-4 shrink-0" />,
+  agenda: <CalendarClock className="w-4 h-4 shrink-0" />,
+  financeiro: <DollarSign className="w-4 h-4 shrink-0" />,
+  config: <Settings className="w-4 h-4 shrink-0" />,
 };
 
 export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
@@ -103,8 +118,27 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     refreshPublicData,
   } = useApp();
 
-  const [section, setSection] = useState<PanelSection>('dashboard');
+  // Arquitetura simplificada de 6 hubs + sub-abas contextuais
+  const [activeHub, setActiveHub] = useState<PanelHubId>('hoje');
+  const [processosTab, setProcessosTab] = useState<ProcessosSubTab>('casos');
+  const [financeiroTab, setFinanceiroTab] = useState<FinanceiroSubTab>('financeiro');
+  const [configTab, setConfigTab] = useState<ConfigSubTab>('ferramentas');
+
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [requestedCaseTab, setRequestedCaseTab] = useState<{
+    caseId: string;
+    tab: 'resumo' | 'comunicacao';
+    seq: number;
+  } | null>(null);
+  const [requestedStageFilter, setRequestedStageFilter] = useState<{
+    stageId: MacroFunnelStageId | 'all';
+    seq: number;
+  } | null>(null);
+  const [requestedQuickAction, setRequestedQuickAction] = useState<{
+    action: 'new_case' | 'new_client';
+    seq: number;
+  } | null>(null);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -114,17 +148,25 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalQuery, setGlobalQuery] = useState('');
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
-  const [recents, setRecents] = useState<RecentItem[]>([]);
+  const [recents, setRecents] = useState<RecentCaseItem[]>([]);
+  const [panelTheme, setPanelTheme] = useState<PanelTheme>(() => loadPanelTheme());
+
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const quickCreateRef = useRef<HTMLDivElement | null>(null);
 
+  const isDark = panelTheme === 'dark';
+  const panelThemeClass = isDark ? 'dark panel-dark' : '';
+
+  const handleTogglePanelTheme = useCallback(() => {
+    setPanelTheme((prev) => {
+      const next: PanelTheme = prev === 'dark' ? 'light' : 'dark';
+      savePanelTheme(next);
+      return next;
+    });
+  }, []);
+
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<typeof fetchStaffWorkspaceData>> | null>(null);
   const [liveChatLogs, setLiveChatLogs] = useState<CommunicationLog[]>([]);
-  const [caseTabRequest, setCaseTabRequest] = useState<{
-    caseId: string;
-    tab: 'resumo' | 'comunicacao';
-    seq: number;
-  } | null>(null);
   const firestore = useFirestore();
 
   const role = userProfile?.role;
@@ -149,6 +191,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         ]);
         setWorkspace(ws);
         setStaffSiteContent(cms);
+      } catch (err) {
+        reportAppError(err, { source: 'painel-workspace-load' });
       } finally {
         if (!options?.silent) {
           setLoading(false);
@@ -201,9 +245,16 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       leads: !firestore.loadingDiagnostics ? firestore.diagnostics : workspace.leads,
       communicationLogs: mergedCommunicationLogs,
     };
-  }, [workspace, liveChatLogs, firestore.clients, firestore.diagnostics, firestore.loadingClients, firestore.loadingDiagnostics]);
+  }, [
+    workspace,
+    liveChatLogs,
+    firestore.clients,
+    firestore.diagnostics,
+    firestore.loadingClients,
+    firestore.loadingDiagnostics,
+  ]);
 
-  // Global keyboard shortcut "/" or Ctrl+K for command search + outside click for Quick Create
+  // Atalhos de teclado: "/" ou Ctrl+K abre busca global; Esc fecha popovers
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -299,33 +350,90 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     await handleRefreshAll();
   };
 
-  const pushRecent = useCallback((item: RecentItem) => {
-    setRecents((prev) => [item, ...prev.filter((r) => r.id !== item.id)].slice(0, 5));
+  const pushRecentCase = useCallback((caseId: string, label: string) => {
+    setRecents((prev) => [{ id: `case_${caseId}`, label, caseId }, ...prev.filter((r) => r.caseId !== caseId)].slice(0, 4));
   }, []);
 
-  const handleOpenCase = (caseId: string, targetTab?: 'resumo' | 'comunicacao') => {
-    setSelectedCaseId(caseId);
-    setSection('casos');
-    if (targetTab) {
-      setCaseTabRequest({ caseId, tab: targetTab, seq: Date.now() });
-    }
-    const c = effectiveWorkspace?.cases.find((x) => x.id === caseId);
-    if (c) {
-      pushRecent({ id: `case_${caseId}`, label: c.titulo, type: 'caso', section: 'casos', caseId });
-    }
-  };
+  const handleSelectHub = useCallback((hub: PanelHubId) => {
+    setActiveHub(hub);
+    if (hub !== 'processos') setSelectedCaseId(null);
+    setMobileMenuOpen(false);
+  }, []);
 
-  const handleOpenChecklist = (caseId?: string) => {
+  const handleNavigateLegacySection = useCallback(
+    (legacySec: LegacyPanelSection) => {
+      const resolved = resolveLegacyPanelRoute(legacySec, role);
+      setActiveHub(resolved.hub);
+      if (resolved.processosTab) setProcessosTab(resolved.processosTab);
+      if (resolved.financeiroTab) setFinanceiroTab(resolved.financeiroTab);
+      if (resolved.configTab) setConfigTab(resolved.configTab);
+      if (resolved.hub !== 'processos' || resolved.processosTab !== 'casos') {
+        setSelectedCaseId(null);
+      }
+      setMobileMenuOpen(false);
+    },
+    [role],
+  );
+
+  const handleOpenCase = useCallback(
+    (caseId: string, targetTab?: 'resumo' | 'comunicacao') => {
+      setSelectedCaseId(caseId);
+      setActiveHub('processos');
+      setProcessosTab('casos');
+      if (targetTab) {
+        setRequestedCaseTab({ caseId, tab: targetTab, seq: Date.now() });
+      }
+      const c = effectiveWorkspace?.cases.find((x) => x.id === caseId);
+      if (c) pushRecentCase(caseId, c.titulo);
+      setMobileMenuOpen(false);
+    },
+    [effectiveWorkspace, pushRecentCase],
+  );
+
+  const handleOpenChecklist = useCallback((caseId?: string) => {
     if (caseId) setSelectedCaseId(caseId);
-    setSection('checklist');
+    setActiveHub('processos');
+    setProcessosTab('checklist');
     setMobileMenuOpen(false);
-  };
+  }, []);
 
-  const handleSelectSection = (next: PanelSection) => {
-    setSection(next);
-    if (next !== 'casos') setSelectedCaseId(null);
+  const handleOpenFunnelStage = useCallback((stageId: MacroFunnelStageId) => {
+    if (stageId === 'diagnostico' || stageId === 'proposta') {
+      setActiveHub('leads');
+      setSelectedCaseId(null);
+    } else {
+      setActiveHub('processos');
+      setProcessosTab('casos');
+      setSelectedCaseId(null);
+      setRequestedStageFilter({ stageId, seq: Date.now() });
+    }
     setMobileMenuOpen(false);
-  };
+  }, []);
+
+  const triggerQuickCreate = useCallback(
+    (action: 'new_case' | 'new_client' | 'agenda' | 'contratos' | 'financeiro') => {
+      setQuickCreateOpen(false);
+      if (action === 'new_case') {
+        setActiveHub('processos');
+        setProcessosTab('casos');
+        setSelectedCaseId(null);
+        setRequestedQuickAction({ action: 'new_case', seq: Date.now() });
+      } else if (action === 'new_client') {
+        setActiveHub('processos');
+        setProcessosTab('clientes');
+        setSelectedCaseId(null);
+        setRequestedQuickAction({ action: 'new_client', seq: Date.now() });
+      } else {
+        handleNavigateLegacySection(action);
+      }
+    },
+    [handleNavigateLegacySection],
+  );
+
+  const visibleHubs = useMemo(() => getVisiblePanelHubs(role), [role]);
+  const visibleProcessosTabs = useMemo(() => getVisibleProcessosSubTabs(role), [role]);
+  const visibleFinanceiroTabs = useMemo(() => getVisibleFinanceiroSubTabs(role), [role]);
+  const visibleConfigTabs = useMemo(() => getVisibleConfigSubTabs(role), [role]);
 
   const unreadChatCount = useMemo(
     () => countUnreadChatForStaff(effectiveWorkspace?.communicationLogs || []),
@@ -342,10 +450,21 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     return threads.find((t) => t.caseId) || null;
   }, [effectiveWorkspace]);
 
-  const navCounts = useMemo(() => {
+  const hubBadges = useMemo(() => {
     const legalAttention = countLegalReviewPending(legalSources, empresa.diasAlertaRevisaoLegal || 90).totalAttention;
     if (!effectiveWorkspace) {
-      return { agenda: 0, leads: 0, clientes: 0, casos: 0, checklist: 0, documentos: 0, contratos: 0, parceiros: 0, legal: legalAttention };
+      return {
+        hoje: 0,
+        leads: 0,
+        processos: 0,
+        agenda: 0,
+        financeiro: 0,
+        config: role === 'assistente' ? 0 : legalAttention,
+        checklist: 0,
+        docsToCheck: 0,
+        legal: legalAttention,
+        parceiros: 0,
+      };
     }
     const openTasks = effectiveWorkspace.tasks.filter((t) => t.status !== 'Concluída').length;
     const urgentDeadlines = effectiveWorkspace.deadlines.filter((d) => {
@@ -354,10 +473,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       return diff !== null && diff <= 15;
     }).length;
     const newLeads = effectiveWorkspace.leads.filter((l) => l.statusFunil === 'Novo').length;
-    const activeClients = effectiveWorkspace.clients.filter((c) => !c.arquivado).length;
     const activeCasesList = effectiveWorkspace.cases.filter((c) => !c.arquivado);
     const activeCaseIds = new Set(activeCasesList.map((c) => c.id));
-    const activeCases = activeCasesList.length;
     const pendingChecklist = effectiveWorkspace.caseDocuments.filter(
       (d) => activeCaseIds.has(d.caseId) && d.status !== 'Aprovado',
     ).length;
@@ -367,196 +484,34 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     const openProposals = effectiveWorkspace.partnerProposals.filter(
       (p) => p.status === 'Nova' || p.status === 'Em Análise',
     ).length;
+
     return {
-      agenda: openTasks + urgentDeadlines,
+      hoje: urgentDeadlines + unreadChatCount,
       leads: newLeads,
-      clientes: activeClients,
-      casos: activeCases,
+      processos: activeCasesList.length,
+      agenda: openTasks + urgentDeadlines,
+      financeiro: effectiveWorkspace.generatedDocuments.length,
+      config: role === 'assistente' ? 0 : legalAttention + openProposals,
       checklist: pendingChecklist,
-      documentos: docsToCheck,
-      contratos: effectiveWorkspace.generatedDocuments.length,
-      parceiros: openProposals,
+      docsToCheck,
       legal: legalAttention,
+      parceiros: openProposals,
     };
-  }, [effectiveWorkspace, legalSources, empresa.diasAlertaRevisaoLegal]);
-
-  const navGroups: {
-    group: string;
-    items: { id: PanelSection; label: string; icon: React.ReactNode; visible: boolean; badge?: number }[];
-  }[] = useMemo(
-    () => [
-      {
-        group: 'Operação Diária',
-        items: [
-          {
-            id: 'dashboard',
-            label: 'Visão Geral',
-            icon: <LayoutDashboard className="w-4 h-4 shrink-0" />,
-            visible: true,
-          },
-          {
-            id: 'agenda',
-            label: 'Agenda, Tarefas & Prazos',
-            icon: <CalendarClock className="w-4 h-4 shrink-0" />,
-            visible: true,
-            badge: navCounts.agenda > 0 ? navCounts.agenda : undefined,
-          },
-        ],
-      },
-      {
-        group: 'Atendimento & CRM',
-        items: [
-          {
-            id: 'leads',
-            label: 'Leads & Diagnósticos',
-            icon: <UserCheck className="w-4 h-4 shrink-0" />,
-            visible: true,
-            badge: navCounts.leads > 0 ? navCounts.leads : undefined,
-          },
-          {
-            id: 'clientes',
-            label: 'Clientes (CRM)',
-            icon: <Users className="w-4 h-4 shrink-0" />,
-            visible: true,
-            badge: navCounts.clientes > 0 ? navCounts.clientes : undefined,
-          },
-          {
-            id: 'casos',
-            label: 'Casos & Pipeline',
-            icon: <Briefcase className="w-4 h-4 shrink-0" />,
-            visible: true,
-            badge: navCounts.casos > 0 ? navCounts.casos : undefined,
-          },
-          {
-            id: 'checklist',
-            label: 'Checklist por Visto',
-            icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
-            visible: true,
-            badge: navCounts.checklist > 0 ? navCounts.checklist : undefined,
-          },
-          {
-            id: 'documentos',
-            label: 'Dossiês & Arquivos',
-            icon: <FolderArchive className="w-4 h-4 shrink-0" />,
-            visible: true,
-            badge: navCounts.documentos > 0 ? navCounts.documentos : undefined,
-          },
-        ],
-      },
-      {
-        group: 'Comercial & Financeiro',
-        items: [
-          {
-            id: 'contratos',
-            label: 'Contratos & Recibos',
-            icon: <FileSignature className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin' || role === 'consultor',
-            badge: navCounts.contratos > 0 ? navCounts.contratos : undefined,
-          },
-          {
-            id: 'financeiro',
-            label: 'Financeiro & Orçamentos',
-            icon: <DollarSign className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin' || role === 'consultor',
-          },
-          {
-            id: 'parceiros',
-            label: 'Parceiros & Propostas',
-            icon: <Handshake className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin' || role === 'consultor',
-            badge: navCounts.parceiros > 0 ? navCounts.parceiros : undefined,
-          },
-        ],
-      },
-      {
-        group: 'Normativa & Ferramentas',
-        items: [
-          {
-            id: 'legal',
-            label: 'Base Legal & Vistos',
-            icon: <Scale className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin' || role === 'consultor',
-            badge: navCounts.legal > 0 ? navCounts.legal : undefined,
-          },
-          {
-            id: 'ferramentas',
-            label: 'Calculadoras & Simulador',
-            icon: <Calculator className="w-4 h-4 shrink-0" />,
-            visible: true,
-          },
-        ],
-      },
-      {
-        group: 'Administração',
-        items: [
-          {
-            id: 'admin_site',
-            label: 'Site, Logos & CMS',
-            icon: <Palette className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin',
-          },
-          {
-            id: 'admin_regras',
-            label: 'Motor de Diagnóstico',
-            icon: <Sliders className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin',
-          },
-          {
-            id: 'admin_gov',
-            label: 'Equipe, Bancário & Audit.',
-            icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
-            visible: role === 'admin',
-          },
-        ],
-      },
-    ],
-    [role, navCounts],
-  );
-
-  const visibleFlatNav = useMemo(
-    () => navGroups.flatMap((g) => g.items.filter((i) => i.visible)),
-    [navGroups],
-  );
+  }, [effectiveWorkspace, legalSources, empresa.diasAlertaRevisaoLegal, role, unreadChatCount]);
 
   const searchResults = useMemo(() => {
     if (!effectiveWorkspace || !globalQuery.trim()) return [];
     const q = globalQuery.toLowerCase();
     const out: { id: string; category: string; title: string; subtitle: string; onSelect: () => void }[] = [];
 
-    if (
-      q.includes('checklist') ||
-      q.includes('visto') ||
-      q.includes('requisit') ||
-      q.includes('doc')
-    ) {
-      out.push({
-        id: 'tool_checklist_visto',
-        category: 'Checklist',
-        title: 'Checklist de Documentos por Visto',
-        subtitle: 'Conferir requisitos da categoria e marcar conclusão',
-        onSelect: () => {
-          handleSelectSection('checklist');
-          setGlobalSearchOpen(false);
-        },
-      });
-    }
-
-    if (
-      q.includes('calc') ||
-      q.includes('praz') ||
-      q.includes('cambi') ||
-      q.includes('câmb') ||
-      q.includes('clp') ||
-      q.includes('checklist') ||
-      q.includes('simula')
-    ) {
+    if (q.includes('calc') || q.includes('cambi') || q.includes('câmb') || q.includes('simula')) {
       out.push({
         id: 'tool_ferramentas',
         category: 'Ferramenta',
         title: 'Calculadoras de Prazos, Câmbio BRL/CLP & Simulador',
-        subtitle: 'Abrir utilitários da consultoria',
+        subtitle: 'Abrir em Recursos & Config.',
         onSelect: () => {
-          handleSelectSection('ferramentas');
+          handleNavigateLegacySection('ferramentas');
           setGlobalSearchOpen(false);
         },
       });
@@ -566,7 +521,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       if (c.titulo.toLowerCase().includes(q) || (c.numeroPedidoSermig || '').toLowerCase().includes(q)) {
         out.push({
           id: `case_${c.id}`,
-          category: 'Caso',
+          category: 'Processo',
           title: c.titulo,
           subtitle: `Etapa ${c.etapaPipeline} · SERMIG ${c.statusSermig}`,
           onSelect: () => {
@@ -590,7 +545,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           subtitle: `${cli.email} · ${cli.whatsapp}`,
           onSelect: () => {
             if (linkedCase) handleOpenCase(linkedCase.id);
-            else handleSelectSection('clientes');
+            else handleNavigateLegacySection('clientes');
             setGlobalSearchOpen(false);
           },
         });
@@ -608,7 +563,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           title: l.nome,
           subtitle: `${l.statusFunil} · ${l.subcategoriaSugerida || l.interesse}`,
           onSelect: () => {
-            handleSelectSection('leads');
+            handleSelectHub('leads');
             setGlobalSearchOpen(false);
           },
         });
@@ -623,22 +578,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           subtitle: `${t.status} · ${t.prioridade}${t.prazo ? ` · Até ${formatDateBR(t.prazo)}` : ''}`,
           onSelect: () => {
             if (t.caseId) handleOpenCase(t.caseId);
-            else handleSelectSection('agenda');
-            setGlobalSearchOpen(false);
-          },
-        });
-      }
-    }
-    for (const dl of effectiveWorkspace.deadlines) {
-      if (dl.titulo.toLowerCase().includes(q) || dl.tipo.toLowerCase().includes(q)) {
-        out.push({
-          id: `dl_${dl.id}`,
-          category: 'Prazo',
-          title: dl.titulo,
-          subtitle: `${dl.tipo} · Limite ${formatDateBR(dl.dataLimite)}`,
-          onSelect: () => {
-            if (dl.caseId) handleOpenCase(dl.caseId);
-            else handleSelectSection('agenda');
+            else handleSelectHub('agenda');
             setGlobalSearchOpen(false);
           },
         });
@@ -667,19 +607,19 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             title: s.titulo,
             subtitle: `${s.pais} · ${s.tipo} · ${s.statusVigencia}`,
             onSelect: () => {
-              handleSelectSection('legal');
+              handleNavigateLegacySection('legal');
               setGlobalSearchOpen(false);
             },
           });
         }
       }
     }
-    return out.slice(0, 14);
-  }, [effectiveWorkspace, globalQuery, legalSources, role]);
+    return out.slice(0, 12);
+  }, [effectiveWorkspace, globalQuery, legalSources, role, handleNavigateLegacySection, handleOpenCase, handleSelectHub]);
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] text-sm text-slate-600">
+      <div className={`min-h-screen flex items-center justify-center bg-[var(--color-bg)] text-sm text-slate-600 dark:text-slate-300 ${panelThemeClass}`}>
         Verificando credenciais da equipe...
       </div>
     );
@@ -687,13 +627,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
   if (!userProfile || !isStaff) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+      <div className={`min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)] ${panelThemeClass}`}>
         <div
-          className="border border-slate-200 p-8 max-w-md w-full text-center space-y-4"
+          className="border border-slate-200 dark:border-slate-800 p-8 max-w-md w-full text-center space-y-4"
           style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
         >
-          <h1 className="text-xl font-bold text-slate-900">Painel Interno da Equipe</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Painel Interno da Equipe</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Acesso restrito a colaboradores ativos da consultoria D&amp;M Integra Chile.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
@@ -708,7 +648,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               Voltar ao Site
             </button>
@@ -718,105 +658,101 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     );
   }
 
-  const activeNavMeta = visibleFlatNav.find((n) => n.id === section);
+  const activeHubMeta = visibleHubs.find((h) => h.id === activeHub);
   const activeCaseTitle = selectedCaseId
     ? effectiveWorkspace?.cases.find((c) => c.id === selectedCaseId)?.titulo
     : null;
+  const activeLogoUrl = isDark && empresa.logoDarkUrl ? empresa.logoDarkUrl : empresa.logoUrl;
+
+  const activeSubTabLabel =
+    activeHub === 'processos'
+      ? visibleProcessosTabs.find((t) => t.id === processosTab)?.label
+      : activeHub === 'financeiro'
+        ? visibleFinanceiroTabs.find((t) => t.id === financeiroTab)?.label
+        : activeHub === 'config'
+          ? visibleConfigTabs.find((t) => t.id === configTab)?.label
+          : null;
 
   return (
-    <div className="min-h-screen flex bg-[var(--color-bg)]">
-      {/* Sidebar Desktop agrupada e recolhível */}
+    <div className={`min-h-screen flex bg-[var(--color-bg)] text-slate-900 dark:text-slate-100 transition-colors ${panelThemeClass}`}>
+      {/* Sidebar Desktop Enxuta (6 hubs práticos em vez de 15 itens espalhados) */}
       <aside
-        className={`hidden lg:flex lg:flex-col bg-white border-r border-slate-200 shrink-0 no-print transition-all ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+        className={`hidden lg:flex lg:flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0 no-print transition-all ${
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
         }`}
       >
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
+        <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
           <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
-            {empresa.logoUrl ? (
+            {activeLogoUrl ? (
               <img
-                src={empresa.logoUrl}
+                src={activeLogoUrl}
                 alt={empresa.nome_empresa}
                 referrerPolicy="no-referrer"
-                className={sidebarCollapsed ? 'h-7 w-7 object-contain shrink-0' : 'h-8 max-w-[120px] object-contain shrink-0'}
+                className={sidebarCollapsed ? 'h-7 w-7 object-contain shrink-0' : 'h-7 max-w-[116px] object-contain shrink-0'}
               />
-            ) : null}
-            {!sidebarCollapsed && (
-              <div className="min-w-0">
-                {!empresa.logoUrl && (
-                  <p className="text-sm font-bold text-slate-900 truncate">{empresa.nome_empresa.split('–')[0].trim()}</p>
-                )}
-                <p className="text-[11px] font-medium text-slate-500 truncate">
-                  {ROLE_DISPLAY[userProfile.role]}
-                </p>
-              </div>
+            ) : (
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
+                {sidebarCollapsed ? 'D&M' : empresa.nome_empresa.split('–')[0].trim()}
+              </span>
             )}
           </button>
           <button
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
             aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
           >
             {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-4 overflow-y-auto" aria-label="Menu do painel operacional">
-          {navGroups.map((g) => {
-            const groupVisible = g.items.filter((i) => i.visible);
-            if (groupVisible.length === 0) return null;
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto" aria-label="Navegação principal do painel">
+          {visibleHubs.map((hub) => {
+            const isActive = activeHub === hub.id;
+            const badge = hubBadges[hub.id];
             return (
-              <div key={g.group} className="space-y-1">
-                {!sidebarCollapsed && (
-                  <p className="px-3 text-[11px] font-semibold text-slate-400">{g.group}</p>
+              <button
+                key={hub.id}
+                type="button"
+                title={hub.description}
+                onClick={() => handleSelectHub(hub.id)}
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+                } py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'text-white font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                }`}
+                style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  {HUB_ICONS[hub.id]}
+                  {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
+                </span>
+                {!sidebarCollapsed && badge > 0 && (
+                  <span
+                    className={`text-xs font-semibold tabular-nums shrink-0 ${
+                      isActive ? 'text-white/90' : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {badge}
+                  </span>
                 )}
-                {groupVisible.map((item) => {
-                  const isActive = section === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      title={item.label}
-                      onClick={() => handleSelectSection(item.id)}
-                      className={`w-full flex items-center ${
-                        sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
-                      } py-2.5 rounded-lg text-xs font-semibold transition-colors ${
-                        isActive ? 'text-white' : 'text-slate-700 hover:bg-slate-100'
-                      }`}
-                      style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
-                    >
-                      <span className="flex items-center gap-2.5 min-w-0">
-                        {item.icon}
-                        {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{item.label}</span>}
-                      </span>
-                      {!sidebarCollapsed && item.badge !== undefined && (
-                        <span
-                          className={`text-[11px] font-bold tabular-nums shrink-0 ${
-                            isActive ? 'text-white/90' : 'text-slate-400'
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              </button>
             );
           })}
 
           {!sidebarCollapsed && recents.length > 0 && (
-            <div className="pt-3 border-t border-slate-100 space-y-1">
-              <p className="px-3 text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Recentes
+            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 space-y-1">
+              <p className="px-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> Processos recentes
               </p>
               {recents.map((r) => (
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => (r.caseId ? handleOpenCase(r.caseId) : handleSelectSection(r.section))}
-                  className="w-full text-left px-3 py-1.5 rounded-lg text-[11px] text-slate-600 hover:bg-slate-100 truncate"
+                  onClick={() => handleOpenCase(r.caseId)}
+                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 truncate"
                 >
                   {r.label}
                 </button>
@@ -825,28 +761,45 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
         </nav>
 
-        <div className="p-4 border-t border-slate-200 space-y-2">
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
           {!sidebarCollapsed && (
-            <>
-              <p className="text-xs font-semibold text-slate-900 truncate">{userProfile.nome}</p>
-              <p className="text-[11px] text-slate-500 truncate">{userProfile.email}</p>
-            </>
+            <div className="px-1">
+              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{userProfile.nome}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                {ROLE_DISPLAY[userProfile.role]}
+              </p>
+            </div>
           )}
-          <div className={`flex gap-2 pt-1 ${sidebarCollapsed ? 'flex-col' : ''}`}>
+
+          <div className={`flex items-center gap-1.5 ${sidebarCollapsed ? 'flex-col' : ''}`}>
             <button
               type="button"
-              onClick={() => onNavigate('/')}
-              className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              onClick={handleTogglePanelTheme}
+              title={isDark ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
+              aria-label={isDark ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
             >
-              {sidebarCollapsed ? 'Site' : 'Site Público'}
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRefreshAll()}
+              disabled={refreshing}
+              title="Sincronizar dados agora"
+              aria-label="Sincronizar dados agora"
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
             <button
               type="button"
               onClick={() => void logout()}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              title="Sair do painel"
+              aria-label="Sair do painel"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              {!sidebarCollapsed && 'Sair'}
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              {!sidebarCollapsed && <span>Sair</span>}
             </button>
           </div>
         </div>
@@ -854,33 +807,52 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar Desktop + Mobile com Breadcrumb, Atualizar, Busca Global e Criar Novo */}
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 h-14 flex items-center justify-between gap-3 no-print sticky top-0 z-30">
+        {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Abrir menu do painel"
-              className="lg:hidden p-2 rounded-lg border border-slate-200 text-slate-700"
+              className="lg:hidden p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
-            <nav className="flex items-center gap-1.5 text-xs text-slate-500 truncate" aria-label="Breadcrumb">
+            <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate" aria-label="Localização atual">
               <button
                 type="button"
-                onClick={() => handleSelectSection('dashboard')}
-                className="hover:text-slate-900 font-medium whitespace-nowrap"
+                onClick={() => handleSelectHub('hoje')}
+                className="hover:text-slate-900 dark:hover:text-slate-100 font-medium whitespace-nowrap"
               >
                 Painel
               </button>
-              <span>/</span>
-              <span className="font-semibold text-slate-900 truncate whitespace-nowrap">
-                {activeNavMeta?.label || 'Início'}
-              </span>
+              <span aria-hidden="true">/</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCaseId(null);
+                  handleSelectHub(activeHub);
+                }}
+                className={`truncate whitespace-nowrap ${
+                  !activeSubTabLabel && !activeCaseTitle
+                    ? 'font-semibold text-slate-900 dark:text-slate-100'
+                    : 'hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+              >
+                {activeHubMeta?.label || 'Hoje'}
+              </button>
+              {activeSubTabLabel && !activeCaseTitle && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
+                    {activeSubTabLabel}
+                  </span>
+                </>
+              )}
               {activeCaseTitle && (
                 <>
-                  <span>/</span>
-                  <span className="text-[var(--color-primary)] font-semibold truncate max-w-[200px]">
+                  <span aria-hidden="true">/</span>
+                  <span className="font-semibold text-[var(--color-primary)] dark:text-sky-400 truncate max-w-[240px]">
                     {activeCaseTitle}
                   </span>
                 </>
@@ -896,37 +868,27 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   if (firstPendingChatThread?.caseId) {
                     handleOpenCase(firstPendingChatThread.caseId, 'comunicacao');
                   } else {
-                    handleSelectSection('casos');
+                    handleSelectHub('hoje');
                   }
                 }}
-                title="Abrir dúvida de documento enviada no Chat do Portal"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold hover:bg-amber-100 whitespace-nowrap"
+                title="Responder dúvida enviada no Portal do Cliente"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700/70 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-xs font-semibold hover:bg-amber-100 whitespace-nowrap"
               >
                 <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Dúvidas Chat</span>
-                <span className="font-bold tabular-nums">({unreadChatCount})</span>
+                <span className="hidden sm:inline">Portal</span>
+                <span className="tabular-nums">{unreadChatCount}</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => void handleRefreshAll()}
-              disabled={refreshing}
-              title="Atualizar dados sincronizados"
-              aria-label="Atualizar dados do painel"
-              className="p-2 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
 
             <button
               type="button"
               onClick={() => setGlobalSearchOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs text-slate-600 hover:bg-slate-100 whitespace-nowrap"
-              aria-label="Busca global (pressione barra ou Ctrl+K)"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/80 whitespace-nowrap"
+              aria-label="Busca rápida (pressione barra ou Ctrl+K)"
             >
               <Search className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Buscar cliente, caso, tarefa...</span>
-              <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-200 rounded">
+              <span className="hidden sm:inline">Buscar...</span>
+              <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded">
                 /
               </kbd>
             </button>
@@ -935,95 +897,53 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setQuickCreateOpen((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Criar novo</span>
+                <span>Novo</span>
               </button>
               {quickCreateOpen && (
-                <div className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 z-40 text-xs">
+                <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-1.5 z-40 text-xs">
                   <button
                     type="button"
-                    onClick={() => {
-                      handleSelectSection('clientes');
-                      setQuickCreateOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                    onClick={() => triggerQuickCreate('new_case')}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
                   >
-                    + Novo Cliente (CRM)
+                    Novo Processo
                   </button>
+                  {(role === 'admin' || role === 'consultor') && (
+                    <button
+                      type="button"
+                      onClick={() => triggerQuickCreate('new_client')}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                    >
+                      Novo Cliente
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => {
-                      handleSelectSection('casos');
-                      setQuickCreateOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                    onClick={() => triggerQuickCreate('agenda')}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
                   >
-                    + Novo Caso Migratório
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSelectSection('agenda');
-                      setQuickCreateOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
-                  >
-                    + Tarefa, Prazo ou Reunião
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSelectSection('leads');
-                      setQuickCreateOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
-                  >
-                    Triagem de Leads
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSelectSection('checklist');
-                      setQuickCreateOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
-                  >
-                    Checklist de Documentos por Visto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSelectSection('ferramentas');
-                      setQuickCreateOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
-                  >
-                    Calculadoras &amp; Simulador
+                    Tarefa, Prazo ou Reunião
                   </button>
                   {(role === 'admin' || role === 'consultor') && (
                     <>
+                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                       <button
                         type="button"
-                        onClick={() => {
-                          handleSelectSection('contratos');
-                          setQuickCreateOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                        onClick={() => triggerQuickCreate('contratos')}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
                       >
-                        + Gerar Contrato / Recibo
+                        Contrato / Recibo PDF
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          handleSelectSection('financeiro');
-                          setQuickCreateOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 font-medium text-slate-800"
+                        onClick={() => triggerQuickCreate('financeiro')}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
                       >
-                        + Novo Orçamento / Lançamento
+                        Orçamento / Lançamento
                       </button>
                     </>
                   )}
@@ -1033,36 +953,60 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </div>
         </header>
 
+        {/* Menu Mobile Simplificado */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-b border-slate-200 p-3 space-y-1 no-print">
-            {visibleFlatNav.map((item) => (
+          <div className="lg:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-3 space-y-1 no-print">
+            {visibleHubs.map((hub) => {
+              const badge = hubBadges[hub.id];
+              return (
+                <button
+                  key={hub.id}
+                  type="button"
+                  onClick={() => handleSelectHub(hub.id)}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                    activeHub === hub.id
+                      ? 'text-white font-semibold'
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  style={activeHub === hub.id ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                >
+                  <span className="flex items-center gap-2.5">
+                    {HUB_ICONS[hub.id]}
+                    <span>{hub.label}</span>
+                  </span>
+                  {badge > 0 && <span className="text-xs tabular-nums opacity-85">{badge}</span>}
+                </button>
+              );
+            })}
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
               <button
-                key={item.id}
                 type="button"
-                onClick={() => handleSelectSection(item.id)}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${
-                  section === item.id ? 'text-white' : 'text-slate-700'
-                }`}
-                style={section === item.id ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                onClick={handleTogglePanelTheme}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200"
               >
-                <span className="flex items-center gap-2.5">
-                  {item.icon}
-                  <span>{item.label}</span>
-                </span>
-                {item.badge !== undefined && <span className="tabular-nums opacity-80">{item.badge}</span>}
+                {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                {isDark ? 'Modo Claro' : 'Modo Escuro'}
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sair
+              </button>
+            </div>
           </div>
         )}
 
         <main
-          className={`flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full mx-auto ${
-            section === 'leads' ? 'max-w-[1560px]' : 'max-w-7xl'
+          className={`flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full mx-auto space-y-5 ${
+            activeHub === 'leads' ? 'max-w-[1560px]' : 'max-w-7xl'
           }`}
         >
           {firestore.error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 flex items-center justify-between gap-3">
-              <span>Erro ao sincronizar dados com o Firestore: {firestore.error}</span>
+            <div className="rounded-xl border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-xs text-red-800 dark:text-red-300 flex items-center justify-between gap-3">
+              <span>{firestore.error}</span>
               <button
                 type="button"
                 onClick={firestore.clearError}
@@ -1072,24 +1016,100 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               </button>
             </div>
           )}
+
+          {/* Barra de Sub-Abas Contextuais (Processos / Financeiro / Config) */}
+          {activeHub === 'processos' && !selectedCaseId && (
+            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit max-w-full no-print">
+              {visibleProcessosTabs.map((tab) => {
+                const active = processosTab === tab.id;
+                const count =
+                  tab.id === 'casos'
+                    ? hubBadges.processos
+                    : tab.id === 'checklist'
+                      ? hubBadges.checklist
+                      : tab.id === 'dossies'
+                        ? hubBadges.docsToCheck
+                        : undefined;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setProcessosTab(tab.id)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
+                      active
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    {tab.label}
+                    {count !== undefined && count > 0 ? ` (${count})` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {activeHub === 'financeiro' && visibleFinanceiroTabs.length > 0 && (
+            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit max-w-full no-print">
+              {visibleFinanceiroTabs.map((tab) => {
+                const active = financeiroTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFinanceiroTab(tab.id)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                      active
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {activeHub === 'config' && visibleConfigTabs.length > 1 && (
+            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit max-w-full no-print">
+              {visibleConfigTabs.map((tab) => {
+                const active = configTab === tab.id;
+                const count =
+                  tab.id === 'legal'
+                    ? hubBadges.legal
+                    : tab.id === 'parceiros'
+                      ? hubBadges.parceiros
+                      : undefined;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setConfigTab(tab.id)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
+                      active
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    {tab.label}
+                    {count !== undefined && count > 0 ? ` (${count})` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {loading || !effectiveWorkspace ? (
             <SkeletonBlock rows={5} />
           ) : (
             <>
-              <PainelProgressoTarefasChart
-                empresa={empresa}
-                tasks={effectiveWorkspace.tasks}
-                cases={effectiveWorkspace.cases}
-                clients={effectiveWorkspace.clients}
-                docs={effectiveWorkspace.caseDocuments}
-                selectedCaseId={selectedCaseId}
-                onOpenAgenda={() => handleSelectSection('agenda')}
-                onOpenCase={handleOpenCase}
-              />
-
-              {section === 'dashboard' && (
+              {/* HUB 1: HOJE */}
+              {activeHub === 'hoje' && (
                 <PainelDashboard
                   role={userProfile.role}
+                  empresa={empresa}
+                  isDark={isDark}
                   leads={effectiveWorkspace.leads}
                   clients={effectiveWorkspace.clients}
                   dependents={effectiveWorkspace.dependents}
@@ -1108,25 +1128,14 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   onEmailLogsCreated={handleEmailLogsCreated}
                   onOpenCase={handleOpenCase}
                   onOpenChecklist={handleOpenChecklist}
+                  onOpenFunnelStage={handleOpenFunnelStage}
                   onToggleTask={handleQuickToggleTask}
-                  onNavigateSection={(sec) => handleSelectSection(sec)}
+                  onNavigateSection={handleNavigateLegacySection}
                 />
               )}
 
-              {section === 'agenda' && (
-                <PainelAgendaTarefas
-                  role={userProfile.role}
-                  clients={effectiveWorkspace.clients}
-                  cases={effectiveWorkspace.cases}
-                  tasks={effectiveWorkspace.tasks}
-                  deadlines={effectiveWorkspace.deadlines}
-                  appointments={effectiveWorkspace.appointments}
-                  onRefresh={handleRefreshAll}
-                  onOpenCase={handleOpenCase}
-                />
-              )}
-
-              {section === 'leads' && (
+              {/* HUB 2: LEADS */}
+              {activeHub === 'leads' && (
                 <PainelLeads
                   role={userProfile.role}
                   userProfile={userProfile}
@@ -1139,15 +1148,18 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   legalSources={legalSources}
                   activeRules={activeDiagnosticRules}
                   messageTemplates={effectiveWorkspace.messageTemplates}
+                  panelTheme={panelTheme}
+                  onToggleTheme={handleTogglePanelTheme}
                   onRefresh={handleRefreshAll}
                   onLogWhatsApp={handleLogWhatsApp}
                   onOpenCase={handleOpenCase}
                 />
               )}
 
-              {(section === 'clientes' || section === 'casos') && (
+              {/* HUB 3: PROCESSOS (Funil de Casos + Clientes + Checklist + Dossiês) */}
+              {activeHub === 'processos' && (processosTab === 'casos' || processosTab === 'clientes') && (
                 <PainelClientesCasos
-                  mode={section === 'clientes' ? 'clientes' : 'casos'}
+                  mode={processosTab === 'clientes' ? 'clientes' : 'casos'}
                   role={userProfile.role}
                   userProfile={userProfile}
                   empresa={empresa}
@@ -1172,7 +1184,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   messageTemplates={effectiveWorkspace.messageTemplates}
                   partnersPublic={partnersPublic}
                   selectedCaseId={selectedCaseId}
-                  requestedCaseTab={caseTabRequest}
+                  requestedCaseTab={requestedCaseTab}
+                  requestedMacroStageFilter={requestedStageFilter}
+                  requestedQuickAction={requestedQuickAction}
                   onSelectCase={(id) => {
                     if (id) handleOpenCase(id);
                     else setSelectedCaseId(null);
@@ -1182,7 +1196,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 />
               )}
 
-              {section === 'checklist' && (
+              {activeHub === 'processos' && processosTab === 'checklist' && (
                 <PainelChecklistVisto
                   role={userProfile.role}
                   userProfile={userProfile}
@@ -1197,11 +1211,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   onSelectCase={setSelectedCaseId}
                   onRefresh={handleRefreshAll}
                   onOpenCase={handleOpenCase}
-                  onNavigateSection={(sec) => handleSelectSection(sec)}
+                  onNavigateSection={(sec) => handleNavigateLegacySection(sec)}
                 />
               )}
 
-              {section === 'documentos' && (
+              {activeHub === 'processos' && processosTab === 'dossies' && (
                 <PainelDocumentosExport
                   role={userProfile.role}
                   empresa={empresa}
@@ -1214,30 +1228,57 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 />
               )}
 
-              {(section === 'financeiro' || section === 'contratos') &&
-                (role === 'admin' || role === 'consultor') && (
-                  <PainelFinanceiro
-                    sectionGroup={section === 'contratos' ? 'contratos' : 'financeiro'}
-                    role={userProfile.role}
-                    userProfile={userProfile}
-                    empresa={empresa}
-                    clients={effectiveWorkspace.clients}
-                    cases={effectiveWorkspace.cases}
-                    dependents={effectiveWorkspace.dependents}
-                    budgets={effectiveWorkspace.budgets}
-                    financialRecords={effectiveWorkspace.financialRecords}
-                    documentTemplates={effectiveWorkspace.documentTemplates}
-                    generatedDocuments={effectiveWorkspace.generatedDocuments}
-                    onRefresh={handleRefreshAll}
-                    onRefreshPublic={refreshPublicData}
-                    onLogWhatsApp={handleLogWhatsApp}
-                  />
-                )}
+              {/* HUB 4: AGENDA */}
+              {activeHub === 'agenda' && (
+                <PainelAgendaTarefas
+                  role={userProfile.role}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  tasks={effectiveWorkspace.tasks}
+                  deadlines={effectiveWorkspace.deadlines}
+                  appointments={effectiveWorkspace.appointments}
+                  onRefresh={handleRefreshAll}
+                  onOpenCase={handleOpenCase}
+                />
+              )}
 
-              {(section === 'parceiros' || section === 'legal') &&
+              {/* HUB 5: FINANCEIRO & CONTRATOS */}
+              {activeHub === 'financeiro' && (role === 'admin' || role === 'consultor') && (
+                <PainelFinanceiro
+                  sectionGroup={financeiroTab === 'contratos' ? 'contratos' : 'financeiro'}
+                  role={userProfile.role}
+                  userProfile={userProfile}
+                  empresa={empresa}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  dependents={effectiveWorkspace.dependents}
+                  budgets={effectiveWorkspace.budgets}
+                  financialRecords={effectiveWorkspace.financialRecords}
+                  documentTemplates={effectiveWorkspace.documentTemplates}
+                  generatedDocuments={effectiveWorkspace.generatedDocuments}
+                  onRefresh={handleRefreshAll}
+                  onRefreshPublic={refreshPublicData}
+                  onLogWhatsApp={handleLogWhatsApp}
+                />
+              )}
+
+              {/* HUB 6: RECURSOS & CONFIGURAÇÕES */}
+              {activeHub === 'config' && configTab === 'ferramentas' && (
+                <PainelFerramentas
+                  role={userProfile.role}
+                  empresa={empresa}
+                  cases={effectiveWorkspace.cases}
+                  visaCategories={visaCategories}
+                  visaRequirements={visaRequirements}
+                  onRefresh={handleRefreshAll}
+                />
+              )}
+
+              {activeHub === 'config' &&
+                (configTab === 'parceiros' || configTab === 'legal') &&
                 (role === 'admin' || role === 'consultor') && (
                   <PainelParceirosLegal
-                    sectionGroup={section === 'legal' ? 'legal' : 'parceiros'}
+                    sectionGroup={configTab === 'legal' ? 'legal' : 'parceiros'}
                     role={userProfile.role}
                     userProfile={userProfile}
                     empresa={empresa}
@@ -1255,22 +1296,16 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   />
                 )}
 
-              {section === 'ferramentas' && (
-                <PainelFerramentas
-                  role={userProfile.role}
-                  empresa={empresa}
-                  cases={effectiveWorkspace.cases}
-                  visaCategories={visaCategories}
-                  visaRequirements={visaRequirements}
-                  onRefresh={handleRefreshAll}
-                />
-              )}
-
-              {(section === 'admin_site' || section === 'admin_regras' || section === 'admin_gov') &&
+              {activeHub === 'config' &&
+                (configTab === 'admin_site' || configTab === 'admin_regras' || configTab === 'admin_gov') &&
                 role === 'admin' && (
                   <PainelAdminConfig
                     sectionGroup={
-                      section === 'admin_site' ? 'site' : section === 'admin_regras' ? 'regras' : 'governanca'
+                      configTab === 'admin_site'
+                        ? 'site'
+                        : configTab === 'admin_regras'
+                          ? 'regras'
+                          : 'governanca'
                     }
                     role={userProfile.role}
                     userProfile={userProfile}
@@ -1290,7 +1325,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
         </main>
 
-        <footer className="bg-white border-t border-slate-200 px-6 py-4 text-[11px] text-slate-500 text-center">
+        <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3.5 text-[11px] text-slate-500 dark:text-slate-400 text-center no-print">
           {empresa.avisoLegal}
         </footer>
       </div>
@@ -1298,49 +1333,51 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Modal de Busca Global */}
       {globalSearchOpen && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 flex items-start justify-center p-4 pt-16"
+          className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 flex items-start justify-center p-4 pt-16"
           role="dialog"
           aria-modal="true"
-          aria-label="Busca global"
+          aria-label="Busca rápida"
         >
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
               <Search className="w-4 h-4 text-slate-400" />
               <input
                 ref={searchInputRef}
                 value={globalQuery}
                 onChange={(e) => setGlobalQuery(e.target.value)}
-                placeholder="Buscar clientes, casos, tarefas, prazos, documentos ou calculadoras..."
-                className="flex-1 text-sm focus:outline-none"
+                placeholder="Buscar cliente, processo, lead, tarefa ou norma..."
+                className="flex-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setGlobalSearchOpen(false)}
-                className="px-2 py-1 rounded text-xs text-slate-500 hover:bg-slate-100"
+                className="px-2 py-1 rounded text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Esc
               </button>
             </div>
-            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
               {!globalQuery.trim() ? (
-                <p className="p-6 text-center text-xs text-slate-500">
-                  Digite um nome, CPF, e-mail, nº SERMIG, tarefa, prazo ou norma (ex.: Mercosul, Ley 21.325, câmbio)...
+                <p className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Digite um nome, CPF, e-mail, nº SERMIG, tarefa ou norma legal...
                 </p>
               ) : searchResults.length === 0 ? (
-                <p className="p-6 text-center text-xs text-slate-500">Nenhum resultado encontrado.</p>
+                <p className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Nenhum resultado encontrado.
+                </p>
               ) : (
                 searchResults.map((res) => (
                   <button
                     key={res.id}
                     type="button"
                     onClick={res.onSelect}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between gap-3"
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{res.title}</p>
-                      <p className="text-[11px] text-slate-500 truncate">{res.subtitle}</p>
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{res.title}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{res.subtitle}</p>
                     </div>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0">
                       {res.category}
                     </span>
                   </button>

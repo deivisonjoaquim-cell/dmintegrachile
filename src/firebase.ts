@@ -1,9 +1,10 @@
-import { initializeApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+import { reportAppError } from './services/errorService';
 
-export const app = initializeApp(firebaseConfig);
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const firebaseProjectId = firebaseConfig.projectId;
 export const firebaseDatabaseId = firebaseConfig.firestoreDatabaseId;
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -60,6 +61,11 @@ export function handleFirestoreError(
     path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  reportAppError(error, {
+    source: 'firestore',
+    operation: operationType,
+    path,
+  });
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -70,6 +76,11 @@ export async function testConnection(): Promise<boolean> {
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.error('Erro de conexão com o Firestore. Verifique a configuração do Firebase.');
+      reportAppError(error, {
+        source: 'firestore-connection',
+        operation: OperationType.GET,
+        path: 'config/empresa',
+      });
     }
     return false;
   }

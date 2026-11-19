@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
-import type { CommunicationLog } from '../src/types/domain';
-import type { ExpirationSeverity } from '../src/utils/documentExpiration';
-import { formatDateBR } from '../src/utils/formatters';
+import type { CommunicationLog } from '../src/types/domain.ts';
+import type { ExpirationSeverity } from '../src/utils/documentExpiration.ts';
+import { formatDateBR } from '../src/utils/formatters.ts';
 
 export interface SmtpRuntimeConfig {
   host: string;

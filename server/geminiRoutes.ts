@@ -10,7 +10,7 @@ import {
   buildNormaVerificarFallback,
   buildParecerFallback,
   buildPropostaFallback,
-} from './geminiFallbacks';
+} from './geminiFallbacks.ts';
 import {
   acquireUserAiLock,
   chamarGemini,
@@ -21,7 +21,7 @@ import {
   type ChamarGeminiResult,
   type GeminiRuntimeConfig,
   type ModelTier,
-} from './geminiWrapper';
+} from './geminiWrapper.ts';
 
 export interface RouteAuthUser {
   uid: string;

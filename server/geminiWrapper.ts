@@ -1,5 +1,5 @@
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
-import { AI_FALLBACK_LABEL } from './geminiFallbacks';
+import { AI_FALLBACK_LABEL } from './geminiFallbacks.ts';
 
 export const MSG_AI_HIGH_DEMAND =
   'O serviço de IA está com alta demanda. Tentamos novamente automaticamente; se não responder, geramos um rascunho pelas regras. Você pode tentar de novo em instantes.';

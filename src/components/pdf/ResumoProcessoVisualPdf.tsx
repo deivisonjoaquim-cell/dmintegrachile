@@ -572,30 +572,29 @@ const ProcessStatusSection: React.FC<{
   );
 };
 
-const ResumoProcessoVisualPrintView: React.FC<{
+const ResumoProcessoSinglePageView: React.FC<{
   model: VisualProgressPdfModel;
+  page: VisualPdfPagePlan;
   overview: TaskProgressOverview;
   logoDataUrl?: string;
-}> = ({ model, overview, logoDataUrl }) => {
+}> = ({ model, page, overview, logoDataUrl }) => {
   return (
     <div style={{ fontFamily: FONT_STACK, color: '#0F172A', backgroundColor: '#FFFFFF' }}>
-      {model.pages.map((page) => (
-        <div
-          key={page.pageNumber}
-          data-pdf-page={page.pageNumber}
-          style={{
-            width: '794px',
-            height: '1123px',
-            backgroundColor: '#FFFFFF',
-            display: 'flex',
-            flexDirection: 'column',
-            boxSizing: 'border-box',
-            overflow: 'hidden',
-          }}
-        >
-          <PageHeader model={model} logoDataUrl={logoDataUrl} compact={!page.isFirstPage} />
+      <div
+        data-pdf-page={page.pageNumber}
+        style={{
+          width: '794px',
+          height: '1123px',
+          backgroundColor: '#FFFFFF',
+          display: 'flex',
+          flexDirection: 'column',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+        }}
+      >
+        <PageHeader model={model} logoDataUrl={logoDataUrl} compact={!page.isFirstPage} />
 
-          <div style={{ padding: '4px 36px 14px 36px', flex: 1, overflow: 'hidden' }}>
+        <div style={{ padding: '4px 36px 14px 36px', flex: 1, overflow: 'hidden' }}>
             {page.isFirstPage && (
               <>
                 <ProcessStatusSection model={model} page={page} />
@@ -764,8 +763,7 @@ const ResumoProcessoVisualPrintView: React.FC<{
           </div>
 
           <PageFooter model={model} page={page} />
-        </div>
-      ))}
+      </div>
     </div>
   );
 };
@@ -819,10 +817,12 @@ export async function exportResumoProcessoVisualPdf(input: ExportVisualResumoPdf
 
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
-  host.style.position = 'fixed';
+  host.style.position = 'absolute';
   host.style.left = '-12000px';
-  host.style.top = '0';
+  host.style.top = '0px';
   host.style.width = '794px';
+  host.style.height = '1123px';
+  host.style.overflow = 'hidden';
   host.style.pointerEvents = 'none';
   host.style.zIndex = '-1';
   host.style.backgroundColor = '#FFFFFF';
@@ -831,18 +831,7 @@ export async function exportResumoProcessoVisualPdf(input: ExportVisualResumoPdf
   const root = createRoot(host);
 
   try {
-    root.render(
-      <ResumoProcessoVisualPrintView
-        model={model}
-        overview={input.overview}
-        logoDataUrl={logoDataUrl}
-      />,
-    );
-
-    await waitForAssetsReady(host);
-
-    const pageNodes = Array.from(host.querySelectorAll<HTMLElement>('[data-pdf-page]'));
-    if (pageNodes.length === 0) {
+    if (model.pages.length === 0) {
       throw new Error('Nenhuma página foi montada para exportação em PDF.');
     }
 
@@ -853,8 +842,26 @@ export async function exportResumoProcessoVisualPdf(input: ExportVisualResumoPdf
       compress: true,
     });
 
-    for (let i = 0; i < pageNodes.length; i += 1) {
-      const pageEl = pageNodes[i];
+    // Renderiza e captura uma página A4 por vez exatamente na origem (0, 0),
+    // evitando o recorte de viewport do html2canvas nas folhas 2, 3, 4+.
+    for (let i = 0; i < model.pages.length; i += 1) {
+      const pagePlan = model.pages[i];
+      root.render(
+        <ResumoProcessoSinglePageView
+          model={model}
+          page={pagePlan}
+          overview={input.overview}
+          logoDataUrl={logoDataUrl}
+        />,
+      );
+
+      await waitForAssetsReady(host);
+
+      const pageEl = host.querySelector<HTMLElement>('[data-pdf-page]');
+      if (!pageEl) {
+        throw new Error(`Falha ao montar a página ${pagePlan.pageNumber} do PDF.`);
+      }
+
       const canvas = await html2canvas(pageEl, {
         scale: 2,
         useCORS: true,
@@ -863,6 +870,11 @@ export async function exportResumoProcessoVisualPdf(input: ExportVisualResumoPdf
         width: 794,
         height: 1123,
         windowWidth: 794,
+        windowHeight: 1123,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
         logging: false,
         onclone: sanitizeHtml2CanvasClone,
       });
