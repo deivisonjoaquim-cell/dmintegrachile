@@ -29,8 +29,10 @@ import { calcularTermometroDocumentos, calcularUrgencias } from '../../utils/cas
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../../utils/documentChat';
 import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, toIsoDate } from '../../utils/formatters';
 import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../utils/funnelModel';
+import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
 import { computeDailyPrioritySummary, type LegacyPanelSection } from '../../utils/panelNavigation';
+import { PainelFunnelPerformanceSummary } from './PainelFunnelPerformanceSummary';
 import { PainelLembretesVencimento } from './PainelLembretesVencimento';
 import { PainelProgressoTarefasChart } from './PainelProgressoTarefasChart';
 
@@ -91,6 +93,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
 }) => {
   const [workTab, setWorkTab] = useState<DailyWorkTab>('hoje');
   const [filterOrigem, setFilterOrigem] = useState('Todas');
+  const [perfPeriod, setPerfPeriod] = useState<FunnelPerformancePeriod>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<'todas' | 'Critica' | 'Alta' | 'Media'>('todas');
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const isAssistente = role === 'assistente';
@@ -386,6 +389,22 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           </button>
         )}
       </div>
+
+      {/* Resumo de Desempenho: Taxas de Conversão entre Etapas & Gargalos */}
+      <PainelFunnelPerformanceSummary
+        leads={filteredLeads}
+        cases={activeCases}
+        period={perfPeriod}
+        onChangePeriod={setPerfPeriod}
+        onSelectStage={(stageId) => {
+          if (onOpenFunnelStage) {
+            onOpenFunnelStage(stageId);
+          } else {
+            onNavigateSection?.('funil');
+          }
+        }}
+        onOpenKanban={onNavigateSection ? () => onNavigateSection('funil') : undefined}
+      />
 
       {/* Funil Interativo em 5 Marcos: clique em qualquer marco para ir direto aos registros */}
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">

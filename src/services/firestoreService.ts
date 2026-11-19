@@ -1367,6 +1367,7 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
   documentTemplates: DocumentTemplate[];
   generatedDocuments: GeneratedDocument[];
   auditLogs: AuditLog[];
+  staffUsers: UserProfile[];
 }> {
   const canSeeFinance = role === 'admin' || role === 'consultor';
 
@@ -1404,6 +1405,7 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     financialRecords,
     partners,
     partnerProposals,
+    rawUsers,
   ] = await Promise.all([
     safeList<Lead>('leads'),
     safeList<Client>('clients'),
@@ -1429,7 +1431,21 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     canSeeFinance ? safeList<FinancialRecord>('financialRecords') : Promise.resolve([]),
     canSeeFinance ? safeList<Partner>('partners') : Promise.resolve([]),
     canSeeFinance ? safeList<PartnerProposal>('partnerProposals') : Promise.resolve([]),
+    canSeeFinance ? safeList<UserProfile & { id?: string }>('users') : Promise.resolve([]),
   ]);
+
+  const staffUsers: UserProfile[] = rawUsers
+    .map((u) => ({
+      ...u,
+      uid: u.uid || u.id || '',
+    }))
+    .filter(
+      (u) =>
+        Boolean(u.uid) &&
+        (u.role === 'admin' || u.role === 'consultor' || u.role === 'assistente') &&
+        u.status !== 'inativo',
+    )
+    .sort((a, b) => (a.nome || a.email || '').localeCompare(b.nome || b.email || '', 'pt-BR'));
 
   return {
     leads,
@@ -1451,6 +1467,7 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     documentTemplates: documentTemplates.length > 0 ? normalizeDocumentTemplates(documentTemplates) : SEED_DOCUMENT_TEMPLATES,
     generatedDocuments,
     auditLogs,
+    staffUsers,
   };
 }
 

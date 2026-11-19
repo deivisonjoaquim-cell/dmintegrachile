@@ -1146,6 +1146,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               {activeHub === 'funil' && (
                 <PainelFunnelKanbanDashboard
                   role={userProfile.role}
+                  currentUser={userProfile}
+                  staffUsers={effectiveWorkspace.staffUsers}
                   empresa={empresa}
                   leads={effectiveWorkspace.leads}
                   clients={effectiveWorkspace.clients}

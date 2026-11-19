@@ -300,4 +300,185 @@ describe('funnelKanbanModel — Simplified 5-Column Client Funnel Kanban', () =>
       nextStatusSermig: 'Em trâmite',
     });
   });
+
+  it('filters by consultant assignee, unassigned records, creation date range, and sorts by urgency+date or explicit sort modes', () => {
+    const staffUsers = [
+      {
+        uid: 'u_ana',
+        nome: 'Ana Consultora',
+        email: 'ana@dmintegrachile.com',
+        role: 'consultor' as const,
+        status: 'ativo' as const,
+      },
+      {
+        uid: 'u_bruno',
+        nome: 'Bruno Gestor',
+        email: 'bruno@dmintegrachile.com',
+        role: 'admin' as const,
+        status: 'ativo' as const,
+      },
+    ];
+
+    const leadsWithAssignees: Lead[] = [
+      {
+        ...leads[0],
+        id: 'l_old_urgent',
+        nome: 'Carlos Antigo',
+        statusFunil: 'Contatado',
+        prioridade: 'Urgente',
+        responsavelId: 'u_ana',
+        createdAt: '2026-10-01T10:00:00.000Z',
+      },
+      {
+        ...leads[0],
+        id: 'l_new_normal',
+        nome: 'Amanda Recente',
+        statusFunil: 'Contatado',
+        prioridade: 'Média',
+        responsavelId: 'u_bruno',
+        createdAt: '2026-11-16T10:00:00.000Z',
+      },
+      {
+        ...leads[0],
+        id: 'l_unassigned',
+        nome: 'Zeca Sem Dono',
+        statusFunil: 'Contatado',
+        prioridade: 'Alta',
+        responsavelId: undefined,
+        createdAt: '2026-11-12T10:00:00.000Z',
+      },
+    ];
+
+    const casesWithAssignees: Case[] = [
+      { ...cases[0], consultorId: 'u_ana', createdAt: '2026-11-15T10:00:00.000Z' },
+      { ...cases[1], consultorId: undefined, createdAt: '2026-10-04T10:00:00.000Z' },
+    ];
+
+    const now = new Date('2026-11-18T12:00:00.000Z');
+
+    // Filter by assignee 'u_ana'
+    const onlyAna = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: casesWithAssignees,
+      docs,
+      tasks,
+      deadlines,
+      staffUsers,
+      now,
+      filters: { assigneeId: 'u_ana' },
+    });
+    assert.equal(onlyAna.totalVisibleCards, 2);
+    assert.equal(onlyAna.unassignedCount, 2);
+
+    // Search by consultant name
+    const searchBruno = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: casesWithAssignees,
+      docs,
+      tasks,
+      deadlines,
+      staffUsers,
+      now,
+      filters: { query: 'Bruno Gestor' },
+    });
+    assert.equal(searchBruno.totalVisibleCards, 1);
+    assert.equal(searchBruno.columns[0].cards[0].clientName, 'Amanda Recente');
+
+    // Filter unassigned
+    const onlyUnassigned = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: casesWithAssignees,
+      docs,
+      tasks,
+      deadlines,
+      staffUsers,
+      now,
+      filters: { assigneeId: 'unassigned' },
+    });
+    assert.equal(onlyUnassigned.totalVisibleCards, 2);
+
+    // Filter last 7 days
+    const last7d = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: casesWithAssignees,
+      docs,
+      tasks,
+      deadlines,
+      staffUsers,
+      now,
+      filters: { datePreset: '7d' },
+    });
+    assert.equal(last7d.totalVisibleCards, 3); // Amanda (11-16), Zeca (11-12), Beatriz case (11-15)
+
+    // Default sort ('urgency_date'): Carlos (Urgente + attention) -> Zeca (Alta) -> Amanda (Média)
+    const defaultSorted = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: [],
+      docs: [],
+      tasks: [],
+      deadlines: [],
+      staffUsers,
+      now,
+    });
+    assert.deepEqual(
+      defaultSorted.columns[0].cards.map((c) => c.clientName),
+      ['Carlos Antigo', 'Zeca Sem Dono', 'Amanda Recente'],
+    );
+
+    // Sort by newest created first ('created_desc')
+    const newestFirst = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: [],
+      docs: [],
+      tasks: [],
+      deadlines: [],
+      staffUsers,
+      now,
+      filters: { sortBy: 'created_desc' },
+    });
+    assert.deepEqual(
+      newestFirst.columns[0].cards.map((c) => c.clientName),
+      ['Amanda Recente', 'Zeca Sem Dono', 'Carlos Antigo'],
+    );
+
+    // Sort by oldest created first ('created_asc')
+    const oldestFirst = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: [],
+      docs: [],
+      tasks: [],
+      deadlines: [],
+      staffUsers,
+      now,
+      filters: { sortBy: 'created_asc' },
+    });
+    assert.deepEqual(
+      oldestFirst.columns[0].cards.map((c) => c.clientName),
+      ['Carlos Antigo', 'Zeca Sem Dono', 'Amanda Recente'],
+    );
+
+    // Sort by name ascending ('name_asc')
+    const nameAsc = buildFunnelKanbanBoard({
+      leads: leadsWithAssignees,
+      clients,
+      cases: [],
+      docs: [],
+      tasks: [],
+      deadlines: [],
+      staffUsers,
+      now,
+      filters: { sortBy: 'name_asc' },
+    });
+    assert.deepEqual(
+      nameAsc.columns[0].cards.map((c) => c.clientName),
+      ['Amanda Recente', 'Carlos Antigo', 'Zeca Sem Dono'],
+    );
+  });
 });
