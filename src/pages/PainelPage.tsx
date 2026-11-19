@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Columns3,
   DollarSign,
   LayoutDashboard,
   LogOut,
@@ -27,6 +28,7 @@ import { PainelDashboard } from '../components/painel/PainelDashboard';
 import { PainelDocumentosExport } from '../components/painel/PainelDocumentosExport';
 import { PainelFerramentas } from '../components/painel/PainelFerramentas';
 import { PainelFinanceiro } from '../components/painel/PainelFinanceiro';
+import { PainelFunnelKanbanDashboard } from '../components/painel/PainelFunnelKanbanDashboard';
 import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
@@ -96,6 +98,7 @@ const ROLE_DISPLAY: Record<UserRole, string> = {
 
 const HUB_ICONS: Record<PanelHubId, React.ReactNode> = {
   hoje: <LayoutDashboard className="w-4 h-4 shrink-0" />,
+  funil: <Columns3 className="w-4 h-4 shrink-0" />,
   leads: <UserCheck className="w-4 h-4 shrink-0" />,
   processos: <Briefcase className="w-4 h-4 shrink-0" />,
   agenda: <CalendarClock className="w-4 h-4 shrink-0" />,
@@ -455,6 +458,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     if (!effectiveWorkspace) {
       return {
         hoje: 0,
+        funil: 0,
         leads: 0,
         processos: 0,
         agenda: 0,
@@ -473,6 +477,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       return diff !== null && diff <= 15;
     }).length;
     const newLeads = effectiveWorkspace.leads.filter((l) => l.statusFunil === 'Novo').length;
+    const activeLeadsCount = effectiveWorkspace.leads.filter(
+      (l) => l.statusFunil !== 'Perdido' && l.statusFunil !== 'Fechado' && !l.convertedCaseId,
+    ).length;
     const activeCasesList = effectiveWorkspace.cases.filter((c) => !c.arquivado);
     const activeCaseIds = new Set(activeCasesList.map((c) => c.id));
     const pendingChecklist = effectiveWorkspace.caseDocuments.filter(
@@ -487,6 +494,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
     return {
       hoje: urgentDeadlines + unreadChatCount,
+      funil: activeLeadsCount + activeCasesList.length,
       leads: newLeads,
       processos: activeCasesList.length,
       agenda: openTasks + urgentDeadlines,
@@ -1001,7 +1009,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
         <main
           className={`flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full mx-auto space-y-5 ${
-            activeHub === 'leads' ? 'max-w-[1560px]' : 'max-w-7xl'
+            activeHub === 'leads' || activeHub === 'funil' ? 'max-w-[1600px]' : 'max-w-7xl'
           }`}
         >
           {firestore.error && (
@@ -1134,7 +1142,24 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 />
               )}
 
-              {/* HUB 2: LEADS */}
+              {/* HUB 2: FUNIL KANBAN (5 MARCOS DE CONVERSÃO) */}
+              {activeHub === 'funil' && (
+                <PainelFunnelKanbanDashboard
+                  role={userProfile.role}
+                  empresa={empresa}
+                  leads={effectiveWorkspace.leads}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  docs={effectiveWorkspace.caseDocuments}
+                  tasks={effectiveWorkspace.tasks}
+                  deadlines={effectiveWorkspace.deadlines}
+                  onOpenCase={handleOpenCase}
+                  onOpenLeads={() => handleSelectHub('leads')}
+                  onRefresh={handleRefreshAll}
+                />
+              )}
+
+              {/* HUB 3: LEADS */}
               {activeHub === 'leads' && (
                 <PainelLeads
                   role={userProfile.role}

@@ -398,7 +398,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
               Clique em uma etapa para abrir diretamente os leads ou processos naquele momento
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs tabular-nums text-slate-600 dark:text-slate-300">
+          <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums text-slate-600 dark:text-slate-300">
             <span>
               Conversão: <strong className="text-slate-900 dark:text-slate-100">{unifiedFunnel.commercialConversionPct}%</strong>
             </span>
@@ -406,6 +406,18 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             <span>
               Conclusão: <strong className="text-[#1E7E34]">{unifiedFunnel.completionRatePct}%</strong>
             </span>
+            {onNavigateSection && (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigateSection('funil')}
+                  className="font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
+                >
+                  Abrir Quadro Kanban →
+                </button>
+              </>
+            )}
           </div>
         </div>
 

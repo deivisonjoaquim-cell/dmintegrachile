@@ -18,7 +18,7 @@ import { toIsoDate } from './formatters';
  * Nova arquitetura simplificada do Painel da Equipe:
  * Reduz 15 itens fragmentados na barra lateral para 6 hubs orientados ao fluxo real de trabalho.
  */
-export type PanelHubId = 'hoje' | 'leads' | 'processos' | 'agenda' | 'financeiro' | 'config';
+export type PanelHubId = 'hoje' | 'funil' | 'leads' | 'processos' | 'agenda' | 'financeiro' | 'config';
 
 export type ProcessosSubTab = 'casos' | 'clientes' | 'checklist' | 'dossies';
 export type FinanceiroSubTab = 'financeiro' | 'contratos';
@@ -33,6 +33,7 @@ export type ConfigSubTab =
 export type LegacyPanelSection =
   | 'dashboard'
   | 'hoje'
+  | 'funil'
   | 'agenda'
   | 'leads'
   | 'clientes'
@@ -69,6 +70,13 @@ export const PANEL_HUBS: PanelHubDefinition[] = [
     label: 'Hoje',
     shortLabel: 'Hoje',
     description: 'Central diária com urgências, tarefas, conferência documental e funil de 5 marcos',
+    roles: ['admin', 'consultor', 'assistente'],
+  },
+  {
+    id: 'funil',
+    label: 'Funil Kanban',
+    shortLabel: 'Funil',
+    description: 'Quadro visual em 5 etapas (Diagnóstico até Finalização) com progresso de cada cliente',
     roles: ['admin', 'consultor', 'assistente'],
   },
   {
@@ -231,6 +239,8 @@ export function resolveLegacyPanelRoute(
     case 'dashboard':
     case 'hoje':
       return { hub: 'hoje' };
+    case 'funil':
+      return { hub: 'funil' };
     case 'leads':
       return { hub: 'leads' };
     case 'agenda':

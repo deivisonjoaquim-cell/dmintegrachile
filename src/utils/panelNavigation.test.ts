@@ -35,19 +35,20 @@ const baseCase: Case = {
 };
 
 describe('panelNavigation — Simplified 6-Hub Panel Architecture & RBAC', () => {
-  it('exposes exactly 6 streamlined hubs for admin/consultor and 5 for assistente (hiding financeiro)', () => {
+  it('exposes streamlined hubs including Funil Kanban for admin/consultor and hides financeiro for assistente', () => {
     assert.deepEqual(
       getVisiblePanelHubs('admin').map((h) => h.id),
-      ['hoje', 'leads', 'processos', 'agenda', 'financeiro', 'config'],
+      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'financeiro', 'config'],
     );
     assert.deepEqual(
       getVisiblePanelHubs('consultor').map((h) => h.id),
-      ['hoje', 'leads', 'processos', 'agenda', 'financeiro', 'config'],
+      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'financeiro', 'config'],
     );
     assert.deepEqual(
       getVisiblePanelHubs('assistente').map((h) => h.id),
-      ['hoje', 'leads', 'processos', 'agenda', 'config'],
+      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'config'],
     );
+    assert.deepEqual(resolveLegacyPanelRoute('funil', 'assistente'), { hub: 'funil' });
   });
 
   it('enforces RBAC cleanly across Processos, Financeiro and Config sub-tabs', () => {
