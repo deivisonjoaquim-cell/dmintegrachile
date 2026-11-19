@@ -134,5 +134,26 @@ test('rules allow verified Google client self-linking only when matching admin-a
   assert.match(usersBlock, /canClientSelfLink\(incoming\(\)\.clientId, incoming\(\)\.status\)/);
 });
 
+test('all isValid* rule validators stay well under Firestore 1,000 evaluated-expression budget', () => {
+  const fnRegex = /function (isValid[A-Za-z0-9_]+)\([^)]*\)\s*\{([\s\S]*?)\n    \}/g;
+  let match: RegExpExecArray | null;
+  let checked = 0;
+  while ((match = fnRegex.exec(rulesText)) !== null) {
+    checked += 1;
+    const [, name, body] = match;
+    const optStringCalls = (body.match(/isOptString\(/g) || []).length;
+    const reqStringCalls = (body.match(/isReqString\(/g) || []).length;
+    const optNumCalls = (body.match(/isOptNum\(/g) || []).length;
+    const optBoolCalls = (body.match(/isOptBool\(/g) || []).length;
+    const estimatedExprs = optStringCalls * 26 + reqStringCalls * 22 + optNumCalls * 16 + optBoolCalls * 16 + 120;
+    assert.ok(
+      estimatedExprs < 800,
+      `${name} estimated worst-case CEL expressions (${estimatedExprs}) approaches Firestore 1,000-expression limit`,
+    );
+  }
+  assert.ok(checked >= 15, `expected to audit at least 15 validators, audited ${checked}`);
+});
+
+
 
 

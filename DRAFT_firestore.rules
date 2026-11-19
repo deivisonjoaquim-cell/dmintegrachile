@@ -149,54 +149,24 @@ service cloud.firestore {
 
     function isValidEmpresaConfig(data) {
       return data.keys().hasAll(['nome_empresa', 'foro_comarca', 'corPrimaria', 'corDestaque', 'corFundo', 'fontePrincipal'])
-        && isReqString(data, 'nome_empresa', 1, 200)
-        && isReqString(data, 'foro_comarca', 1, 300)
-        && isReqString(data, 'corPrimaria', 4, 20)
-        && isReqString(data, 'corDestaque', 4, 20)
-        && isReqString(data, 'corFundo', 4, 20)
+        && data.nome_empresa is string && data.nome_empresa.size() >= 1 && data.nome_empresa.size() <= 200
+        && data.foro_comarca is string && data.foro_comarca.size() >= 1 && data.foro_comarca.size() <= 300
+        && data.corPrimaria is string && data.corPrimaria.size() >= 4 && data.corPrimaria.size() <= 20
+        && data.corDestaque is string && data.corDestaque.size() >= 4 && data.corDestaque.size() <= 20
+        && data.corFundo is string && data.corFundo.size() >= 4 && data.corFundo.size() <= 20
         && data.fontePrincipal in ['Plus Jakarta Sans', 'DM Sans', 'Manrope', 'Public Sans', 'Montserrat', 'Merriweather', 'Inter']
         && (!('fonteDisplay' in data) || data.fonteDisplay == null || data.fonteDisplay == '' || data.fonteDisplay in ['Plus Jakarta Sans', 'Outfit', 'Manrope', 'Playfair Display', 'Montserrat', 'DM Sans', 'Public Sans', 'Merriweather', 'Inter'])
-        && isOptString(data, 'razao_social_cnpj_rut', 200)
-        && isOptString(data, 'responsavel_tecnico', 200)
-        && isOptString(data, 'endereco_cidade', 300)
         && isOptString(data, 'logoUrl', 500000)
         && isOptString(data, 'logoDarkUrl', 500000)
         && isOptString(data, 'faviconUrl', 500000)
-        && isOptString(data, 'corSuperficie', 20)
-        && isOptString(data, 'corTexto', 20)
-        && isOptString(data, 'corRodapeBg', 20)
         && isOptString(data, 'whatsapp', 40)
         && isOptString(data, 'email', 200)
-        && isOptString(data, 'siteInstagram', 300)
-        && isOptString(data, 'siteLinkedIn', 300)
-        && isOptString(data, 'linkCalendly', 500)
-        && isOptString(data, 'emailGoogleAgenda', 200)
-        && isOptString(data, 'chavePix', 200)
-        && isOptString(data, 'linkPagamentoCartao', 500)
         && isOptString(data, 'textoContratoPadrao', 20000)
         && isOptString(data, 'textoReciboPadrao', 5000)
         && isOptString(data, 'termoLgpd', 15000)
-        && isOptString(data, 'termoLgpdVersao', 30)
         && isOptString(data, 'avisoLegal', 1000)
         && isOptNum(data, 'bloqueioProtocoloMinimo')
         && isOptNum(data, 'diasAlertaRevisaoLegal')
-        && isOptNum(data, 'diasExpiracaoLinkDiagnostico')
-        && isOptNum(data, 'honorariosPadraoMinBrl')
-        && isOptNum(data, 'honorariosPadraoMaxBrl')
-        && isOptNum(data, 'taxaCambioBrlClp')
-        && isOptNum(data, 'taxaCambioUsdBrl')
-        && isOptNum(data, 'retencaoDadosDias')
-        && isOptString(data, 'seoTituloPadrao', 200)
-        && isOptString(data, 'seoDescricaoPadrao', 500)
-        && isOptString(data, 'ultimaRevisaoNormativa', 64)
-        && isOptString(data, 'textoContratoVersao', 30)
-        && isOptString(data, 'textoContratoVigencia', 64)
-        && isOptString(data, 'textoReciboVersao', 30)
-        && isOptString(data, 'textoReciboVigencia', 64)
-        && isOptString(data, 'termoLgpdVigencia', 64)
-        && isOptString(data, 'fcmVapidPublicKey', 300)
-        && isOptString(data, 'siteVersaoAtual', 40)
-        && isOptString(data, 'sitePublicadoEm', 64)
         && isOptString(data, 'updatedAt', 64);
     }
 
