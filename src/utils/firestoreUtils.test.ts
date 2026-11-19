@@ -68,7 +68,7 @@ describe('firestoreUtils — Sanitization & Config Collection Validation', () =>
 
     assertNoUndefinedDeep(result);
     assert.equal(result.nome_empresa, 'D&M Integra Chile');
-    assert.equal(result.corPrimaria, '#0F2537');
+    assert.equal(result.corPrimaria, '#0B1F33');
     assert.equal(result.corDestaque, '#C5A059');
     assert.equal(result.fontePrincipal, 'Plus Jakarta Sans');
     assert.equal(result.bloqueioProtocoloMinimo, 100);
@@ -101,7 +101,7 @@ describe('firestoreUtils — Sanitization & Config Collection Validation', () =>
     assertNoUndefinedDeep(empresaPayload);
     assert.equal(typeof empresaPayload.nome_empresa, 'string');
     assert.ok(String(empresaPayload.nome_empresa).length > 0);
-    assert.equal(empresaPayload.corPrimaria, '#0F2537');
+    assert.equal(empresaPayload.corPrimaria, '#0B1F33');
 
     const bancarioPayload = prepareFirestoreWritePayload('config', 'bancario', {
       dados_wise: '  wise-account  ',

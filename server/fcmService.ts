@@ -1,7 +1,9 @@
 import { getApp, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getMessaging, type Messaging } from 'firebase-admin/messaging';
-import firebaseConfig from '../firebase-applet-config.json' with { type: 'json' };
+import { loadFirebaseServerConfig } from './firebaseServerConfig.ts';
+
+const firebaseConfig = loadFirebaseServerConfig();
 
 export type ProcessNotificationType =
   | 'etapa_pipeline'

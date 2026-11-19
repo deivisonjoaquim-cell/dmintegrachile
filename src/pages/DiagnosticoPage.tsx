@@ -278,6 +278,19 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     return undefined;
   });
 
+  // Refs síncronos + fila de persistência para evitar corrida entre cliques rápidos de etapa e envio final
+  const sessionTokenRef = useRef<string>(sessionToken);
+  const savedLeadIdRef = useRef<string | null>(savedLeadId);
+  const leadCreatedAtRef = useRef<string | undefined>(leadCreatedAt);
+  const sessionCreatedAtRef = useRef<string | undefined>(sessionCreatedAt);
+  const persistQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  const enqueuePersist = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const next = persistQueueRef.current.then(task, task);
+    persistQueueRef.current = next.catch(() => {});
+    return next;
+  }, []);
+
   const [utm, setUtm] = useState<{ source?: string; medium?: string; campaign?: string }>({});
   const [honeypot, setHoneypot] = useState('');
   const [resumeBanner, setResumeBanner] = useState<string | null>(null);
@@ -350,9 +363,14 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           setResumeBanner('Link de retomada inválido ou expirado. Você pode preencher novamente ou reiniciar abaixo.');
           return;
         }
+        sessionTokenRef.current = sess.id;
+        sessionCreatedAtRef.current = sess.createdAt;
         setSessionToken(sess.id);
         setSessionCreatedAt(sess.createdAt);
-        if (sess.leadId) setSavedLeadId(sess.leadId);
+        if (sess.leadId) {
+          savedLeadIdRef.current = sess.leadId;
+          setSavedLeadId(sess.leadId);
+        }
         if (sess.utm) setUtm(sess.utm);
         const restoredAnswers = sanitizeDiagnosticAnswers(
           { ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' },
@@ -467,78 +485,97 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     [legalSources],
   );
 
-  const persistProgressSession = async (targetStep: number, showResumeLink = false): Promise<string | null> => {
-    const token = sessionToken.length >= 20 ? sessionToken : generateSecureSessionToken();
-    if (token !== sessionToken) setSessionToken(token);
-
-    let currentLeadId = savedLeadId;
-    let currentLeadCreatedAt = leadCreatedAt;
-
-    const hasValidContact =
-      answers.nome.trim().length >= 2 && answers.email.includes('@') && isValidWhatsApp(answers.whatsapp);
-
-    if (hasValidContact) {
-      try {
-        const up = await saveDiagnosticFirestore(
-          {
-            nome: answers.nome.trim(),
-            whatsapp: answers.whatsapp.trim(),
-            email: answers.email.trim().toLowerCase(),
-            cidadeUf: answers.cidadeUf.trim(),
-            origem: answers.origem,
-            interesse: answers.objetivo || 'Pré-análise em andamento',
-            respostasTriagem: answers,
-            prioridade: 'Média',
-            statusConclusao: 'Em andamento',
-            etapaAtual: targetStep,
-            sessionToken: token,
-            utmSource: utm.source,
-            utmMedium: utm.medium,
-            utmCampaign: utm.campaign,
-            lgpdAceito: Boolean(answers.lgpdAceito),
-            lgpdVersao: empresa.termoLgpdVersao || '1.0',
-            lgpdData: new Date().toISOString(),
-          },
-          currentLeadId ? { existingLeadId: currentLeadId, createdAt: currentLeadCreatedAt } : undefined,
-        );
-        currentLeadId = up.id;
-        if (up.createdAt) {
-          currentLeadCreatedAt = up.createdAt;
-          setLeadCreatedAt(up.createdAt);
-        }
-        setSavedLeadId(up.id);
-      } catch {
-        // non-blocking for offline preview
+  const persistProgressSession = (targetStep: number, showResumeLink = false): Promise<string | null> => {
+    const snapshotAnswers = { ...answers };
+    const snapshotUtm = { ...utm };
+    return enqueuePersist(async () => {
+      const token =
+        sessionTokenRef.current.length >= 20 ? sessionTokenRef.current : generateSecureSessionToken();
+      if (token !== sessionTokenRef.current) {
+        sessionTokenRef.current = token;
+        setSessionToken(token);
       }
-    }
 
-    const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
-    const expiraEmMs = Date.now() + expDays * 86400000;
-    try {
-      const savedSess = await saveDiagnosticSessionFirestore(
-        token,
-        {
-          etapaAtual: targetStep,
-          answers,
-          concluido: false,
-          leadId: currentLeadId || '',
-          expiraEmMs,
-          utm,
-          createdAt: sessionCreatedAt,
-        },
-        !sessionCreatedAt,
-      );
-      setSessionCreatedAt(savedSess.createdAt);
-    } catch {
-      // non-blocking
-    }
+      let currentLeadId = savedLeadIdRef.current;
+      let currentLeadCreatedAt = leadCreatedAtRef.current;
 
-    const url = `${window.location.origin}/diagnostico?retomar=${token}`;
-    if (showResumeLink) {
-      setResumeUrlSaved(url);
-      navigator.clipboard?.writeText(url).catch(() => {});
-    }
-    return url;
+      const hasValidContact =
+        snapshotAnswers.nome.trim().length >= 2 &&
+        snapshotAnswers.email.includes('@') &&
+        isValidWhatsApp(snapshotAnswers.whatsapp);
+
+      if (hasValidContact) {
+        try {
+          const up = await saveDiagnosticFirestore(
+            {
+              nome: snapshotAnswers.nome.trim(),
+              whatsapp: snapshotAnswers.whatsapp.trim(),
+              email: snapshotAnswers.email.trim().toLowerCase(),
+              cidadeUf: snapshotAnswers.cidadeUf.trim(),
+              origem: snapshotAnswers.origem,
+              interesse: snapshotAnswers.objetivo || 'Pré-análise em andamento',
+              respostasTriagem: snapshotAnswers,
+              prioridade: 'Média',
+              statusConclusao: 'Em andamento',
+              etapaAtual: targetStep,
+              sessionToken: token,
+              utmSource: snapshotUtm.source,
+              utmMedium: snapshotUtm.medium,
+              utmCampaign: snapshotUtm.campaign,
+              lgpdAceito: Boolean(snapshotAnswers.lgpdAceito),
+              lgpdVersao: empresa.termoLgpdVersao || '1.0',
+              lgpdData: new Date().toISOString(),
+            },
+            currentLeadId && currentLeadId !== 'local-preview'
+              ? { existingLeadId: currentLeadId, createdAt: currentLeadCreatedAt }
+              : undefined,
+          );
+          currentLeadId = up.id;
+          savedLeadIdRef.current = up.id;
+          if (up.createdAt) {
+            currentLeadCreatedAt = up.createdAt;
+            leadCreatedAtRef.current = up.createdAt;
+            setLeadCreatedAt(up.createdAt);
+          }
+          setSavedLeadId(up.id);
+        } catch {
+          // non-blocking for offline preview
+        }
+      }
+
+      const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
+      const expiraEmMs = Date.now() + expDays * 86400000;
+      const existingSessionCreatedAt = sessionCreatedAtRef.current;
+      try {
+        const savedSess = await saveDiagnosticSessionFirestore(
+          token,
+          {
+            etapaAtual: targetStep,
+            answers: snapshotAnswers,
+            concluido: false,
+            leadId: currentLeadId && currentLeadId !== 'local-preview' ? currentLeadId : '',
+            expiraEmMs,
+            utm: snapshotUtm,
+            createdAt: existingSessionCreatedAt,
+          },
+          !existingSessionCreatedAt,
+        );
+        const resolvedCreatedAt = existingSessionCreatedAt || savedSess.createdAt;
+        if (resolvedCreatedAt) {
+          sessionCreatedAtRef.current = resolvedCreatedAt;
+          setSessionCreatedAt(resolvedCreatedAt);
+        }
+      } catch {
+        // non-blocking
+      }
+
+      const url = `${window.location.origin}/diagnostico?retomar=${token}`;
+      if (showResumeLink) {
+        setResumeUrlSaved(url);
+        navigator.clipboard?.writeText(url).catch(() => {});
+      }
+      return url;
+    });
   };
 
   const handleSaveAndCopyLink = async () => {
@@ -622,68 +659,92 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         ? `${diag.recomendada.visa.codigo} - ${diag.recomendada.visa.nomePortugues}`
         : 'Análise complementar';
 
-      const token = sessionToken.length >= 20 ? sessionToken : generateSecureSessionToken();
-      if (token !== sessionToken) setSessionToken(token);
+      await enqueuePersist(async () => {
+        const token =
+          sessionTokenRef.current.length >= 20 ? sessionTokenRef.current : generateSecureSessionToken();
+        if (token !== sessionTokenRef.current) {
+          sessionTokenRef.current = token;
+          setSessionToken(token);
+        }
 
-      let finalLeadId = savedLeadId || 'local-preview';
-      try {
-        const saved = await saveDiagnosticFirestore(
-          {
-            nome: cleanAnswers.nome.trim(),
-            whatsapp: cleanAnswers.whatsapp.trim(),
-            email: cleanAnswers.email.trim().toLowerCase(),
-            cidadeUf: cleanAnswers.cidadeUf.trim(),
-            origem: cleanAnswers.origem,
-            interesse: diag.recomendada?.visa.nomePortugues || 'Análise migratória',
-            respostasTriagem: cleanAnswers,
-            subcategoriaSugerida: subLabel,
-            notaViabilidade: diag.viabilidade.total,
-            confianca: diag.confianca,
-            temperatura,
-            prioridade,
-            flagsRisco: [
-              ...diag.flagsRisco.map((f) => f.pergunta),
-              ...diag.flagsRevisaoConsultor.map((f) => f.label),
-            ],
-            versaoRegras: diag.versaoRegras.versao,
-            sessionToken: token,
-            statusConclusao: 'Concluído',
-            etapaAtual: 6,
-            utmSource: utm.source,
-            utmMedium: utm.medium,
-            utmCampaign: utm.campaign,
-            lgpdAceito: cleanAnswers.lgpdAceito,
-            lgpdVersao: empresa.termoLgpdVersao || '1.0',
-            lgpdData: new Date().toISOString(),
-          },
-          savedLeadId && savedLeadId !== 'local-preview'
-            ? { existingLeadId: savedLeadId, createdAt: leadCreatedAt }
-            : undefined,
-        );
-        finalLeadId = saved.id;
-        setSavedLeadId(saved.id);
-        if (saved.createdAt) setLeadCreatedAt(saved.createdAt);
-      } catch {
-        // fallback preview
-      }
+        let finalLeadId = savedLeadIdRef.current || 'local-preview';
+        const existingLeadId =
+          savedLeadIdRef.current && savedLeadIdRef.current !== 'local-preview'
+            ? savedLeadIdRef.current
+            : undefined;
+        try {
+          const saved = await saveDiagnosticFirestore(
+            {
+              nome: cleanAnswers.nome.trim(),
+              whatsapp: cleanAnswers.whatsapp.trim(),
+              email: cleanAnswers.email.trim().toLowerCase(),
+              cidadeUf: cleanAnswers.cidadeUf.trim(),
+              origem: cleanAnswers.origem,
+              interesse: diag.recomendada?.visa.nomePortugues || 'Análise migratória',
+              respostasTriagem: cleanAnswers,
+              subcategoriaSugerida: subLabel,
+              notaViabilidade: diag.viabilidade.total,
+              confianca: diag.confianca,
+              temperatura,
+              prioridade,
+              flagsRisco: [
+                ...diag.flagsRisco.map((f) => f.pergunta),
+                ...diag.flagsRevisaoConsultor.map((f) => f.label),
+              ],
+              versaoRegras: diag.versaoRegras.versao,
+              sessionToken: token,
+              statusConclusao: 'Concluído',
+              etapaAtual: 6,
+              utmSource: utm.source,
+              utmMedium: utm.medium,
+              utmCampaign: utm.campaign,
+              lgpdAceito: cleanAnswers.lgpdAceito,
+              lgpdVersao: empresa.termoLgpdVersao || '1.0',
+              lgpdData: new Date().toISOString(),
+            },
+            existingLeadId
+              ? { existingLeadId, createdAt: leadCreatedAtRef.current }
+              : undefined,
+          );
+          finalLeadId = saved.id;
+          savedLeadIdRef.current = saved.id;
+          setSavedLeadId(saved.id);
+          if (saved.createdAt) {
+            leadCreatedAtRef.current = saved.createdAt;
+            setLeadCreatedAt(saved.createdAt);
+          }
+        } catch {
+          // fallback preview
+        }
 
-      const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
-      await saveDiagnosticSessionFirestore(
-        token,
-        {
-          etapaAtual: 6,
-          answers: cleanAnswers,
-          concluido: true,
-          leadId: finalLeadId !== 'local-preview' ? finalLeadId : '',
-          expiraEmMs: Date.now() + expDays * 86400000,
-          utm,
-          createdAt: sessionCreatedAt,
-        },
-        !sessionCreatedAt,
-      ).catch(() => {});
+        const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
+        const existingSessionCreatedAt = sessionCreatedAtRef.current;
+        try {
+          const savedSess = await saveDiagnosticSessionFirestore(
+            token,
+            {
+              etapaAtual: 6,
+              answers: cleanAnswers,
+              concluido: true,
+              leadId: finalLeadId !== 'local-preview' ? finalLeadId : '',
+              expiraEmMs: Date.now() + expDays * 86400000,
+              utm,
+              createdAt: existingSessionCreatedAt,
+            },
+            !existingSessionCreatedAt,
+          );
+          const resolvedCreatedAt = existingSessionCreatedAt || savedSess.createdAt;
+          if (resolvedCreatedAt) {
+            sessionCreatedAtRef.current = resolvedCreatedAt;
+            setSessionCreatedAt(resolvedCreatedAt);
+          }
+        } catch {
+          // non-blocking
+        }
 
-      const finalUrl = `${window.location.origin}/diagnostico?retomar=${token}`;
-      setResumeUrlSaved(finalUrl);
+        const finalUrl = `${window.location.origin}/diagnostico?retomar=${token}`;
+        setResumeUrlSaved(finalUrl);
+      });
       setResult(diag);
       localStorage.removeItem(STORAGE_KEY);
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
@@ -740,10 +801,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     setAiDraft(null);
     setAiError(null);
     setAiProgress(null);
+    const freshToken = generateSecureSessionToken();
+    savedLeadIdRef.current = null;
+    leadCreatedAtRef.current = undefined;
+    sessionCreatedAtRef.current = undefined;
+    sessionTokenRef.current = freshToken;
     setSavedLeadId(null);
     setLeadCreatedAt(undefined);
     setSessionCreatedAt(undefined);
-    setSessionToken(generateSecureSessionToken());
+    setSessionToken(freshToken);
     setResumeUrlSaved(null);
     setResumeBanner(null);
     setStep(1);
@@ -983,20 +1049,21 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6"
           >
             {/* Anti-spam Honeypot */}
-            <div className="sr-only" aria-hidden="true">
+            <div className="hidden" aria-hidden="true">
               <label htmlFor="diag-website-hp">Não preencha este campo</label>
               <input
                 id="diag-website-hp"
+                name="hp_company_url_ignore"
                 type="text"
                 tabIndex={-1}
-                autoComplete="off"
+                autoComplete="new-password"
                 value={honeypot}
                 onChange={(e) => setHoneypot(e.target.value)}
               />
             </div>
 
             {stepError && (
-              <div role="alert" className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-[#C82333]">
+              <div role="alert" className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-[#A61C2B]">
                 {stepError}
               </div>
             )}
@@ -1057,7 +1124,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
                     />
                     {answers.nome && answers.nome.trim().length < 2 && (
-                      <p className="text-[11px] text-[#C82333] mt-1">Digite seu nome completo.</p>
+                      <p className="text-[11px] text-[#A61C2B] mt-1">Digite seu nome completo.</p>
                     )}
                   </div>
 
@@ -1078,7 +1145,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     />
                     {answers.whatsapp ? (
                       isValidWhatsApp(answers.whatsapp) ? (
-                        <p className="text-[11px] text-[#1E7E34] mt-1 flex items-center gap-1">
+                        <p className="text-[11px] text-[#146B43] mt-1 flex items-center gap-1">
                           <Check className="w-3 h-3" /> Número válido.
                         </p>
                       ) : (

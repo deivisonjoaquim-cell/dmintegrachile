@@ -2,9 +2,10 @@ import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import multer from 'multer';
-import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
+
 import {
   buildAnalisarDocumentoSpec,
   buildCustosSpec,
@@ -29,13 +30,23 @@ import {
   runBatchOfficialLegalCheck,
   type SermigSourceCheckInput,
 } from './server/sermigLegalService.ts';
+import { loadFirebaseServerConfig } from './server/firebaseServerConfig.ts';
 import type { CommunicationLog } from './src/types/domain.ts';
 
+const firebaseConfig = loadFirebaseServerConfig();
+
+const IS_VERCEL = Boolean(process.env.VERCEL);
 const PORT = Number(process.env.PORT || 3000);
 const PROJECT_ID = firebaseConfig.projectId;
 const DATABASE_ID = firebaseConfig.firestoreDatabaseId || '(default)';
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPLOAD_DIR = IS_VERCEL
+  ? path.join(os.tmpdir(), 'dm-integra-uploads')
+  : path.resolve(process.cwd(), 'uploads');
+try {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+} catch {
+  // Ignore mkdir failures on restricted read-only environments
+}
 
 // =============================================================================
 // Admin emails bootstrap list (from Secrets ADMIN_EMAILS + runtime owner fallback)
@@ -617,12 +628,23 @@ app.post(
   },
 );
 
+app.get('/api/legal/sermig-check/health', (_req, res) => {
+  res.json({ ok: true, mode: IS_VERCEL ? 'vercel-serverless' : 'node-server' });
+});
+
+// Garantir resposta JSON limpa para qualquer rota /api/* inexistente (evita HTML 404)
+app.all('/api/*', (_req, res) => {
+  res.status(404).json({ error: 'Rota de API não encontrada.' });
+});
+
 // =============================================================================
-// Vite Dev Middleware / Production Static Serving
+// Vite Dev Middleware / Production Static Serving (somente fora da Vercel)
+// Na Vercel, arquivos estáticos são servidos pelo CDN (dist/) e /api/* via api/index.ts
 // =============================================================================
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
+    const vitePkg = 'vite';
+    const { createServer: createViteServer } = await import(/* @vite-ignore */ vitePkg);
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -641,4 +663,9 @@ async function startServer() {
   });
 }
 
-void startServer();
+if (!IS_VERCEL) {
+  void startServer();
+}
+
+export { app };
+export default app;

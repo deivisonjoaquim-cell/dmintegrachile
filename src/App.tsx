@@ -61,6 +61,19 @@ const NotFoundView: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavi
   </div>
 );
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/': 'D&M Integra Chile – Relocation & Assessoria',
+  '/quem-somos': 'Quem Somos | D&M Integra Chile – Relocation & Assessoria',
+  '/parceiros': 'Rede de Parceiros | D&M Integra Chile – Relocation & Assessoria',
+  '/diagnostico': 'Diagnóstico Migratório Gratuito | D&M Integra Chile',
+  '/acompanhar': 'Acompanhar Meu Processo | D&M Integra Chile',
+  '/entrar-equipe': 'Área da Equipe | D&M Integra Chile',
+  '/portal': 'Portal do Cliente | D&M Integra Chile',
+  '/painel': 'Painel da Consultoria | D&M Integra Chile',
+  '/logos': 'Kit de Identidade & Logos | D&M Integra Chile',
+  '/kit-logos': 'Kit de Identidade & Logos | D&M Integra Chile',
+};
+
 function RouterView() {
   const [currentPath, setCurrentPath] = useState<string>(getInitialPath);
 
@@ -73,6 +86,11 @@ function RouterView() {
       window.removeEventListener('hashchange', sync);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.title = ROUTE_TITLES[currentPath] || 'D&M Integra Chile – Relocation & Assessoria';
+  }, [currentPath]);
 
   const navigate = useCallback(
     (target: string) => {
