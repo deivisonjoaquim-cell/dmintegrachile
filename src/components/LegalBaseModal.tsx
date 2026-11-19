@@ -2,6 +2,7 @@ import React from 'react';
 import { BookOpen, ExternalLink, FileText, X } from 'lucide-react';
 import type { LegalSource } from '../types/domain';
 import { formatDateBR } from '../utils/formatters';
+import { getJurisdictionLabel, getJurisdictionTextClass } from '../utils/legalJurisdiction';
 
 interface LegalBaseModalProps {
   open: boolean;
@@ -49,13 +50,19 @@ export const LegalBaseModal: React.FC<LegalBaseModalProps> = ({
           ) : (
             sources.map((src) => (
               <article key={src.id} className="pb-5 border-b border-slate-200 dark:border-slate-800 last:border-b-0 last:pb-0 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className={getJurisdictionTextClass(src.pais)}>{getJurisdictionLabel(src.pais)}</span>
+                    <span aria-hidden="true"> · </span>
+                    <span>{src.tipo}</span>
+                    {!clientFriendlyOnly && (
+                      <>
+                        <span aria-hidden="true"> · </span>
+                        <span>{src.statusVigencia}</span>
+                      </>
+                    )}
+                  </p>
                   <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{src.titulo}</h3>
-                  {!clientFriendlyOnly && (
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      {src.pais} · {src.tipo} · {src.statusVigencia}
-                    </span>
-                  )}
                 </div>
 
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -63,7 +70,7 @@ export const LegalBaseModal: React.FC<LegalBaseModalProps> = ({
                   {clientFriendlyOnly
                     ? src.ultimaVerificacao
                       ? `Última revisão normativa em ${formatDateBR(src.ultimaVerificacao)}`
-                      : 'Referência oficial SERMIG'
+                      : `Referência oficial (${getJurisdictionLabel(src.pais)})`
                     : `${src.orgaoEmissor}${src.artigos ? ` · ${src.artigos}` : ''}${
                         src.ultimaVerificacao ? ` · Revisado em ${formatDateBR(src.ultimaVerificacao)}` : ''
                       }`}

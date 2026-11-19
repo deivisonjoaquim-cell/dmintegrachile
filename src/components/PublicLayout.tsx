@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
+import { BrandLogo } from './BrandLogo';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -86,25 +87,21 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             }}
             className="flex items-center gap-3 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] rounded group"
           >
-            {empresa.logoUrl ? (
-              <img
-                src={empresa.logoUrl}
-                alt={empresa.nome_empresa}
-                referrerPolicy="no-referrer"
-                style={{ height: `${logoHeight}px` }}
-                className="w-auto max-w-[190px] object-contain"
-              />
-            ) : (
-              <span
-                className="w-9 h-9 btn-radius flex items-center justify-center text-xs font-extrabold tracking-tight text-white shrink-0 shadow-[0_2px_6px_rgba(11,31,51,0.2)] ring-1 ring-[#C9A227]/40"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                {brandShortName.slice(0, 3).toUpperCase()}
-              </span>
-            )}
+            <BrandLogo
+              src={empresa.logoUrl}
+              alt={empresa.nome_empresa}
+              variant="emblem"
+              style={{ height: `${Math.max(40, logoHeight)}px` }}
+              className="w-auto max-w-[190px] object-contain shrink-0 transition-transform duration-200 group-hover:scale-[1.03]"
+            />
             {showBrandText && (
-              <span className="text-base sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap">
-                {brandShortName}
+              <span className="flex flex-col leading-none">
+                <span className="text-[15.5px] sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap">
+                  {brandShortName}
+                </span>
+                <span className="text-[10.5px] font-medium tracking-wide text-slate-500 mt-0.5 hidden sm:block">
+                  Relocation &amp; Assessoria
+                </span>
               </span>
             )}
           </a>
@@ -204,15 +201,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-16">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-white/10">
             <div className="md:col-span-5 space-y-3">
-              {footerLogoSrc && (
-                <img
+              <div className="flex items-center gap-3.5">
+                <BrandLogo
                   src={footerLogoSrc}
                   alt={empresa.nome_empresa}
-                  referrerPolicy="no-referrer"
-                  className="h-9 w-auto max-w-[200px] object-contain"
+                  variant="emblem-dark"
+                  className="h-14 w-14 object-contain shrink-0"
                 />
-              )}
-              <p className="text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
+                <div>
+                  <p className="text-lg font-bold tracking-tight text-white leading-snug">{brandShortName}</p>
+                  <p className="text-xs font-medium text-[#E5C76B] tracking-wide">Relocation &amp; Assessoria</p>
+                </div>
+              </div>
               {lc.rodapeSubtitulo && (
                 <p className="text-sm text-slate-300 leading-relaxed max-w-md">{lc.rodapeSubtitulo}</p>
               )}
@@ -267,6 +267,16 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     LinkedIn
                   </a>
                 )}
+                <a
+                  href="#/logos"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate('/logos');
+                  }}
+                  className="inline-block text-xs text-[#E5C76B] hover:text-white underline underline-offset-4"
+                >
+                  Baixar Kit de Logos
+                </a>
               </div>
               {empresa.ultimaRevisaoNormativa && (
                 <p className="text-xs text-slate-400 mt-5 pt-4 border-t border-white/10 tabular-nums">

@@ -25,6 +25,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { auth } from '../../firebase';
+import { BrandLogo } from '../BrandLogo';
+import { BrandLogoDownloadKit } from '../BrandLogoDownloadKit';
 import { isPrimaryAdminEmail } from '../../services/adminSecurityService';
 import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidKey } from '../../services/notificationService';
@@ -827,6 +829,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       {/* IDENTIDADE, LOGOS & LAYOUT */}
       {tab === 'aparencia' && (
         <form onSubmit={handleSaveEmpresa} className="space-y-6">
+          {/* Kit Oficial de Download das Logos (SVG + PNG Transparente HD) */}
+          <BrandLogoDownloadKit compact />
+
           {/* Bloco 1: Importação de Logos & Favicon */}
           <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1685,14 +1690,13 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 {/* Mini Header fiel */}
                 <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2 min-w-0">
-                    {cfg.logoUrl && (
-                      <img
-                        src={cfg.logoUrl}
-                        alt={cfg.nome_empresa}
-                        style={{ height: `${Math.min(40, Math.max(22, layoutCfg.logoAlturaPx || 32))}px` }}
-                        className="w-auto object-contain"
-                      />
-                    )}
+                    <BrandLogo
+                      src={cfg.logoUrl}
+                      alt={cfg.nome_empresa}
+                      variant="emblem"
+                      style={{ height: `${Math.min(40, Math.max(26, layoutCfg.logoAlturaPx || 36))}px` }}
+                      className="w-auto object-contain shrink-0"
+                    />
                     {(layoutCfg.mostrarNomeComLogo !== false || !cfg.logoUrl) && (
                       <span className="text-xs font-bold truncate" style={{ color: cfg.corTexto || '#0F172A' }}>
                         {cfg.nome_empresa.split('–')[0].trim()}
@@ -1731,13 +1735,12 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     style={{ backgroundColor: cfg.corRodapeBg || '#0B1B29' }}
                   >
                     <div className="flex items-center gap-2.5">
-                      {(cfg.logoDarkUrl || cfg.logoUrl) && (
-                        <img
-                          src={cfg.logoDarkUrl || cfg.logoUrl}
-                          alt={cfg.nome_empresa}
-                          className="h-6 w-auto object-contain"
-                        />
-                      )}
+                      <BrandLogo
+                        src={cfg.logoDarkUrl || cfg.logoUrl}
+                        alt={cfg.nome_empresa}
+                        variant="emblem-dark"
+                        className="h-7 w-7 object-contain shrink-0"
+                      />
                       <span className="font-semibold text-white">{cfg.nome_empresa}</span>
                     </div>
                     <span className="text-[11px] text-slate-400">

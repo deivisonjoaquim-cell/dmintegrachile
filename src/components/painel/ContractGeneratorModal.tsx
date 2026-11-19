@@ -14,6 +14,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../BrandLogo';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
 import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
@@ -804,16 +805,12 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
               <div className="bg-white border border-slate-300 rounded-xl p-8 sm:p-10 max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
                   <div className="flex items-center gap-3">
-                    {empresa.logoUrl ? (
-                      <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain" />
-                    ) : (
-                      <span
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
-                        style={{ backgroundColor: 'var(--color-primary)' }}
-                      >
-                        D&amp;M
-                      </span>
-                    )}
+                    <BrandLogo
+                      src={empresa.logoUrl}
+                      alt={empresa.nome_empresa}
+                      variant="emblem"
+                      className="h-12 w-12 object-contain shrink-0"
+                    />
                     <div>
                       <p className="text-sm font-bold text-slate-900">{empresa.nome_empresa}</p>
                       <p className="text-[11px] text-slate-500">{empresa.razao_social_cnpj_rut}</p>

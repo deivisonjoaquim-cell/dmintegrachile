@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="D&amp;M Integra Chile — Emblema Modo Escuro">
+  <defs>
+    <linearGradient id="dmDarkGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF0B3" />
+      <stop offset="50%" stop-color="#E5C76B" />
+      <stop offset="100%" stop-color="#C49A2B" />
+    </linearGradient>
+    <linearGradient id="dmDarkSky" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#16324A" />
+      <stop offset="100%" stop-color="#0B1B29" />
+    </linearGradient>
+    <linearGradient id="dmDarkEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27A561" />
+      <stop offset="100%" stop-color="#146B43" />
+    </linearGradient>
+    <linearGradient id="dmDarkCrimson" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#B91C1C" />
+    </linearGradient>
+    <linearGradient id="dmDarkMountain" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27557B" />
+      <stop offset="100%" stop-color="#122B42" />
+    </linearGradient>
+    <clipPath id="dmDarkInnerCircle">
+      <circle cx="120" cy="124" r="88" />
+    </clipPath>
+  </defs>
+
+  <!-- Medalhão em azul profundo translúcido com aro luminoso -->
+  <circle cx="120" cy="124" r="96" fill="url(#dmDarkSky)" />
+
+  <!-- Arco externo Brasil -->
+  <path
+    d="M 103 25 A 100 100 0 0 0 38 182"
+    fill="none"
+    stroke="url(#dmDarkEmerald)"
+    stroke-width="6.5"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 103 33 A 92 92 0 0 0 44 176"
+    fill="none"
+    stroke="url(#dmDarkGold)"
+    stroke-width="2.2"
+    stroke-linecap="round"
+  />
+
+  <!-- Arco externo Chile -->
+  <path
+    d="M 137 25 A 100 100 0 0 1 202 182"
+    fill="none"
+    stroke="url(#dmDarkCrimson)"
+    stroke-width="6.5"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 137 33 A 92 92 0 0 1 196 176"
+    fill="none"
+    stroke="#93C5FD"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    opacity="0.75"
+  />
+
+  <!-- Fechamento inferior dourado -->
+  <path
+    d="M 52 197 A 99 99 0 0 0 188 197"
+    fill="none"
+    stroke="url(#dmDarkGold)"
+    stroke-width="2.4"
+    stroke-linecap="round"
+  />
+  <polygon points="120,217 125,223 120,229 115,223" fill="url(#dmDarkGold)" />
+
+  <g clip-path="url(#dmDarkInnerCircle)">
+    <!-- Raios dourados atrás dos Andes -->
+    <g stroke="url(#dmDarkGold)" stroke-width="1.6" stroke-linecap="round" opacity="0.58">
+      <line x1="120" y1="62" x2="120" y2="42" />
+      <line x1="104" y1="68" x2="94" y2="49" />
+      <line x1="136" y1="68" x2="146" y2="49" />
+      <line x1="90" y1="78" x2="74" y2="62" />
+      <line x1="150" y1="78" x2="166" y2="62" />
+      <line x1="78" y1="92" x2="60" y2="82" />
+      <line x1="162" y1="92" x2="180" y2="82" />
+    </g>
+
+    <!-- Pico esquerdo -->
+    <polygon points="34,154 78,86 116,154" fill="url(#dmDarkMountain)" />
+    <polygon points="78,86 92,110 83,107 78,113 72,107 65,112" fill="#F8FAFC" />
+
+    <!-- Pico direito -->
+    <polygon points="124,154 162,90 206,154" fill="url(#dmDarkEmerald)" />
+    <polygon points="162,90 175,112 167,108 162,114 156,108 149,113" fill="#F8FAFC" />
+
+    <!-- Pico central -->
+    <polygon points="62,158 120,62 178,158" fill="url(#dmDarkMountain)" />
+    <polygon points="120,62 178,158 128,158 118,108" fill="url(#dmDarkEmerald)" opacity="0.88" />
+    <polygon points="120,62 138,94 128,89 120,99 112,90 102,96" fill="#FFFFFF" />
+
+    <!-- Casa iluminada -->
+    <path d="M 120 112 L 138 125 L 138 148 L 102 148 L 102 125 Z" fill="#FFFFFF" />
+    <path d="M 120 109 L 141 124.5 L 138 128 L 120 114.5 L 102 128 L 99 124.5 Z" fill="url(#dmDarkGold)" />
+    <rect x="115" y="131" width="10" height="17" rx="1.5" fill="#0B1B29" />
+    <circle cx="122.5" cy="139.5" r="1.2" fill="#FDE68A" />
+
+    <!-- Base da ponte Brasil-Chile -->
+    <path d="M 28 156 Q 120 132 212 156 L 212 220 L 28 220 Z" fill="#0F2537" />
+
+    <!-- Fita Brasil -->
+    <path d="M 28 161 Q 78 143 116 154 Q 90 165 62 198 L 28 190 Z" fill="url(#dmDarkEmerald)" />
+    <path d="M 32 178 Q 76 156 112 158 Q 88 175 68 208 L 36 202 Z" fill="url(#dmDarkGold)" />
+    <path d="M 52 204 Q 82 171 116 157 Q 100 179 88 214 L 58 214 Z" fill="url(#dmDarkEmerald)" opacity="0.92" />
+
+    <!-- Fita Chile -->
+    <path d="M 212 156 Q 162 141 122 155 Q 156 154 212 169 Z" fill="#2563EB" opacity="0.88" />
+    <path d="M 212 169 Q 158 154 121 159 Q 154 166 206 186 Z" fill="#FFFFFF" />
+    <path d="M 206 184 Q 156 164 119 162 Q 146 178 178 214 L 212 204 Z" fill="url(#dmDarkCrimson)" />
+
+    <!-- Caminho central luminoso -->
+    <path d="M 96 216 Q 112 178 120 148 Q 128 178 144 216 Z" fill="#FFFFFF" opacity="0.96" />
+    <path d="M 105 216 Q 115 182 120 152 Q 125 182 135 216 Z" fill="url(#dmDarkGold)" opacity="0.34" />
+  </g>
+
+  <circle cx="120" cy="124" r="88.5" fill="none" stroke="url(#dmDarkGold)" stroke-width="1.5" opacity="0.75" />
+
+  <!-- Estrela Guia luminosa -->
+  <g transform="translate(120, 29)">
+    <circle cx="0" cy="0" r="14" fill="#0B1B29" opacity="0.92" />
+    <polygon
+      points="0,-11 3,-3 11,0 3,3 0,11 -3,3 -11,0 -3,-3"
+      fill="url(#dmDarkGold)"
+      transform="rotate(45)"
+      opacity="0.92"
+    />
+    <polygon
+      points="0,-19 4,-4 19,0 4,4 0,19 -4,4 -19,0 -4,-4"
+      fill="url(#dmDarkGold)"
+    />
+    <polygon points="0,-19 4,-4 0,0" fill="#FFFFFF" opacity="0.9" />
+  </g>
+</svg>

@@ -43,7 +43,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <LegalBaseModal
         open={lawModalOpen}
         onClose={() => setLawModalOpen(false)}
-        title="Entenda a Lei — Normas em linguagem clara"
+        title="Legislação Chilena, Brasileira e Mercosul — em linguagem clara"
         sources={legalSources}
         clientFriendlyOnly
       />

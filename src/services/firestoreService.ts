@@ -136,6 +136,9 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
   const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
+    logoUrl: data.logoUrl?.trim() ? data.logoUrl : DEFAULT_EMPRESA_CONFIG.logoUrl,
+    logoDarkUrl: data.logoDarkUrl?.trim() ? data.logoDarkUrl : DEFAULT_EMPRESA_CONFIG.logoDarkUrl,
+    faviconUrl: data.faviconUrl?.trim() ? data.faviconUrl : DEFAULT_EMPRESA_CONFIG.faviconUrl,
     avisoLegal:
       upgradeLegacyCopyString(data.avisoLegal) || DEFAULT_EMPRESA_CONFIG.avisoLegal,
     razao_social_cnpj_rut:

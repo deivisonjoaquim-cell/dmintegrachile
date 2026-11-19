@@ -399,6 +399,9 @@ export interface DiagnosticAnswers {
   localizacao: DiagnosticLocation;
   faixaEtaria?: 'maior_18' | 'menor_18_com_pais' | 'menor_18_desacompanhado';
   mesesResidenciaChile?: number;
+  residenteSubcategoriaAtual?: string;
+  residenteVenceEmDias?: 'mais_90' | 'entre_90_e_10' | 'menos_10' | 'vencida';
+  residenteMesesForaUltimoAno?: number;
   entradaRecenteChileTurista?: boolean | null;
   nacionalidadeBrasileira: boolean | null;
   possuiSegundaNacionalidade: boolean | null;
@@ -407,6 +410,7 @@ export interface DiagnosticAnswers {
   passaporteValidadeMeses: number; // >= 12 ideal
   // Etapa 3
   vinculoFamiliarChile: boolean | null;
+  familiarStatusChile?: 'chileno' | 'residente_definitivo' | 'residente_temporal';
   vinculoTipo?: 'Cônjuge/União Civil' | 'Filho(a) chileno(a)' | 'Pais/Dependente' | 'Outro';
   vinculoFormalizado: boolean | null;
   composicaoFamiliar?: 'individual' | 'casal' | 'familia_com_filhos';
@@ -414,11 +418,17 @@ export interface DiagnosticAnswers {
   // Etapa 4
   objetivo: DiagnosticObjective | '';
   possuiOfertaTrabalhoFormal: boolean | null;
+  contratoNotariadoEmpresaChilena?: boolean | null;
   possuiMatriculaReconhecida: boolean | null;
   possuiRendaPassiva: boolean | null;
   faixaRendaMensalUsd?: 'abaixo_1000' | '1000_2500' | 'acima_2500';
   possuiCapitalComprovadoOrigem: boolean | null;
+  investimentoAcima500kUsd?: boolean | null;
   titularTemResidenciaChile: boolean | null;
+  possuiCertificadoMedicoChile?: boolean | null;
+  possuiRespaldoEntidadeReligiosa?: boolean | null;
+  possuiContratoSazonal?: boolean | null;
+  motivoHumanitarioTipo?: 'protecao_vulnerabilidade' | 'vitima_trafico_violencia' | 'menor_desprotegido' | 'outro_humanitario';
   // Etapa 5 (Riscos independentes)
   overstay: boolean | null;
   ordenAbandono: boolean | null;

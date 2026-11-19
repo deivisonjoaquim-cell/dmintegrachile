@@ -26,6 +26,45 @@ export function isYes(val: boolean | null | undefined): boolean {
   return val === true;
 }
 
+const MERCOSUL_NATIONALITY_KEYWORDS = [
+  'brasil',
+  'brasileir',
+  'argentin',
+  'bolivian',
+  'bolivia',
+  'colombian',
+  'colombia',
+  'equatorian',
+  'equador',
+  'ecuador',
+  'paraguai',
+  'paraguay',
+  'peruan',
+  'peru',
+  'uruguai',
+  'uruguay',
+];
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Verifica elegibilidade ao Acordo de Residência Mercosul (Subcategoria 15 SERMIG):
+ * nacionalidade brasileira OU segunda nacionalidade de Estado Parte/Associado do Acordo.
+ */
+export function isMercosulEligibleNationality(answers: DiagnosticAnswers): boolean {
+  if (isYes(answers.nacionalidadeBrasileira)) return true;
+  if (!isYes(answers.possuiSegundaNacionalidade)) return false;
+  const second = normalizeText(answers.segundaNacionalidadeQual || '');
+  if (!second) return false;
+  return MERCOSUL_NATIONALITY_KEYWORDS.some((kw) => second.includes(kw));
+}
+
 export const VIABILITY_WEIGHTS = {
   ELEGIBILIDADE_LEGAL: 25,
   PRONTIDAO_DOCUMENTAL: 20,
@@ -71,6 +110,8 @@ export interface ContradictionItem {
   titulo: string;
   descricao: string;
   perguntaEsclarecimento: string;
+  fixLabel?: string;
+  fixPatch?: Partial<DiagnosticAnswers>;
 }
 
 export interface ActionPlanItem {
@@ -227,7 +268,10 @@ export function getAdaptiveWizardMeta(answers: DiagnosticAnswers): AdaptiveWizar
 
   const step2 = ['localizacao', 'faixaEtaria'];
   if (answers.localizacao === 'No Chile com residência') {
-    step2.push('mesesResidenciaChile');
+    step2.push('mesesResidenciaChile', 'residenteSubcategoriaAtual', 'residenteVenceEmDias');
+    if ((answers.mesesResidenciaChile ?? 0) >= 24) {
+      step2.push('residenteMesesForaUltimoAno');
+    }
   }
   if (answers.localizacao === 'No Brasil' || answers.localizacao === 'Em outro país') {
     step2.push('entradaRecenteChileTurista');
@@ -243,20 +287,34 @@ export function getAdaptiveWizardMeta(answers: DiagnosticAnswers): AdaptiveWizar
 
   const step3 = ['vinculoFamiliarChile'];
   if (isYes(answers.vinculoFamiliarChile)) {
-    step3.push('vinculoTipo', 'vinculoFormalizado');
+    step3.push('familiarStatusChile', 'vinculoTipo', 'vinculoFormalizado');
   }
 
   const step4 = ['objetivo'];
   if (answers.objetivo === 'trabalho_formal' || answers.objetivo === 'servicos_90d') {
     step4.push('possuiOfertaTrabalhoFormal');
+    if (isYes(answers.possuiOfertaTrabalhoFormal)) {
+      step4.push('contratoNotariadoEmpresaChilena');
+    }
   } else if (answers.objetivo === 'estudar') {
     step4.push('possuiMatriculaReconhecida');
   } else if (answers.objetivo === 'aposentado_renda') {
     step4.push('possuiRendaPassiva', 'faixaRendaMensalUsd');
   } else if (answers.objetivo === 'empreender_investir') {
     step4.push('possuiCapitalComprovadoOrigem');
+    if (isYes(answers.possuiCapitalComprovadoOrigem)) {
+      step4.push('investimentoAcima500kUsd');
+    }
   } else if (answers.objetivo === 'dependente_titular') {
     step4.push('titularTemResidenciaChile');
+  } else if (answers.objetivo === 'tratamento_medico') {
+    step4.push('possuiCertificadoMedicoChile');
+  } else if (answers.objetivo === 'religioso') {
+    step4.push('possuiRespaldoEntidadeReligiosa');
+  } else if (answers.objetivo === 'temporada') {
+    step4.push('possuiContratoSazonal');
+  } else if (answers.objetivo === 'humanitario') {
+    step4.push('motivoHumanitarioTipo');
   }
 
   const step5 = ['overstay', 'ordenAbandono', 'rejeicaoAnterior', 'antecedentesCriminais'];
@@ -328,10 +386,12 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
   if (answers.localizacao === 'No Brasil' && isYes(answers.entradaRecenteChileTurista)) {
     list.push({
       codigo: 'CONT-LOC-TUR',
-      titulo: 'Localização no Brasil e entrada recente como turista',
+      titulo: 'Localização no Brasil e pendência de saída recente como turista',
       descricao:
-        'Você informou estar no Brasil neste momento, mas também sinalizou entrada recente no Chile como turista sem registro de saída.',
-      perguntaEsclarecimento: 'Você já retornou fisicamente ao Brasil ou ainda se encontra em território chileno?',
+        'Você informou estar no Brasil neste momento, mas também sinalizou entrada recente no Chile como turista com saída ou pendência em aberto.',
+      perguntaEsclarecimento: 'Você já retornou fisicamente ao Brasil com saída registrada na PDI ou ainda está no Chile?',
+      fixLabel: 'Marcar que não há pendência de saída',
+      fixPatch: { entradaRecenteChileTurista: false },
     });
   }
 
@@ -343,8 +403,10 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
       codigo: 'CONT-IDADE-OBJ',
       titulo: 'Menor de idade com objetivo laboral ou aposentadoria',
       descricao:
-        'Perfis menores de 18 anos normalmente solicitam residência vinculada aos pais/responsáveis ou por estudos, não por aposentadoria.',
+        'Perfis menores de 18 anos normalmente solicitam residência vinculada aos pais/responsáveis ou por estudos, não por aposentadoria ou contrato formal.',
       perguntaEsclarecimento: 'O solicitante é o menor de idade acompanhando os pais ou você está preenchendo para um adulto?',
+      fixLabel: 'Ajustar faixa etária para maior de 18 anos',
+      fixPatch: { faixaEtaria: 'maior_18' },
     });
   }
 
@@ -354,6 +416,8 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
       titulo: 'Residente no Chile sem passaporte',
       descricao: 'Para tramitar prorrogação ou Residência Definitiva no SERMIG é indispensável documento de viagem vigente.',
       perguntaEsclarecimento: 'Seu passaporte venceu recentemente ou você ingressou apenas com RG e precisa emitir passaporte?',
+      fixLabel: 'Marcar passaporte como vencido',
+      fixPatch: { passaporteStatus: 'vencido', passaporteValidadeMeses: 0 },
     });
   }
 
@@ -363,6 +427,8 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
       titulo: 'Vínculo marcado como formalizado, porém sem vínculo familiar no Chile',
       descricao: 'Você assinalou vínculo formalizado, mas indicou não possuir familiar chileno ou residente definitivo.',
       perguntaEsclarecimento: 'O familiar com quem possui vínculo reside no Chile com Cédula ou Residência Definitiva?',
+      fixLabel: 'Limpar vínculo formalizado',
+      fixPatch: { vinculoFormalizado: false },
     });
   }
 
@@ -372,6 +438,19 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
       titulo: 'Passaporte vencido com validade informada igual ou superior a 12 meses',
       descricao: 'O status do passaporte está marcado como vencido, mas os meses de validade estão preenchidos acima de 12.',
       perguntaEsclarecimento: 'O passaporte já foi renovado ou encontra-se vencido no momento?',
+      fixLabel: 'Ajustar status para passaporte válido',
+      fixPatch: { passaporteStatus: 'valido' },
+    });
+  }
+
+  if (answers.passaporteStatus === 'valido' && (answers.passaporteValidadeMeses ?? 0) <= 0) {
+    list.push({
+      codigo: 'CONT-PAS-ZERO',
+      titulo: 'Passaporte marcado como válido, porém com 0 meses de validade',
+      descricao: 'Você indicou que o passaporte está válido, mas preencheu validade igual a 0 meses.',
+      perguntaEsclarecimento: 'Seu passaporte está vencido ou possui meses restantes de vigência?',
+      fixLabel: 'Marcar passaporte como vencido',
+      fixPatch: { passaporteStatus: 'vencido', passaporteValidadeMeses: 0 },
     });
   }
 
@@ -515,11 +594,14 @@ export function runDiagnosticEngine(
     };
   }
 
-  const isBrasileiro = isYes(answers.nacionalidadeBrasileira);
+  const isBrasileiro = isMercosulEligibleNationality(answers);
+  const isSegundaNacMercosul = !isYes(answers.nacionalidadeBrasileira) && isBrasileiro;
   const isTuristaChile = answers.localizacao === 'No Chile como turista';
   const isNoBrasil = answers.localizacao === 'No Brasil';
   const isResidenteChile = answers.localizacao === 'No Chile com residência';
-  const vinculoFormalizado = isYes(answers.vinculoFamiliarChile) && isYes(answers.vinculoFormalizado);
+  const familiarEhResidenteTemporal = answers.familiarStatusChile === 'residente_temporal';
+  const vinculoFormalizado =
+    isYes(answers.vinculoFamiliarChile) && isYes(answers.vinculoFormalizado) && !familiarEhResidenteTemporal;
   const isHumanitario = answers.objetivo === 'humanitario';
   const passaporteVencido =
     answers.passaporteStatus === 'vencido' ||
@@ -678,6 +760,39 @@ export function runDiagnosticEngine(
           'Como você já reside no Chile há menos de 2 anos, estruturamos sua Prorrogação dentro da janela legal.',
       );
     }
+
+    // Regras SERMIG adicionais para residentes no Chile (subcategoria atual, janela de 90 a 10 dias e ausências)
+    if (answers.residenteSubcategoriaAtual === '03' || answers.residenteSubcategoriaAtual === '04') {
+      const subAtualObj = findVisa(answers.residenteSubcategoriaAtual);
+      alertas.push(
+        `Atenção à subcategoria atual (${subAtualObj.codigo} – ${subAtualObj.nomePortugues}): segundo o Decreto 177/2022, essa subcategoria não concede transição direta automática para Residência Definitiva — avalie Mudança de Subcategoria (MUD) antes do vencimento.`,
+      );
+      regrasAcionadas.push(
+        `Residente atual na Subcategoria ${subAtualObj.codigo} (levaDefinitiva=false no SERMIG): sinalizada necessidade de Mudança de Subcategoria antes da Definitiva.`,
+      );
+    }
+
+    if (answers.residenteVenceEmDias === 'vencida') {
+      alertas.push(
+        'Residência atual vencida: exige regularização urgente junto ao SERMIG (verificar cálculo de multa ou pedido extemporâneo conforme Ley 21.325 / Decreto 296).',
+      );
+      regrasAcionadas.push('Residência vencida informada por residente no Chile: prioridade alta de regularização.');
+    } else if (answers.residenteVenceEmDias === 'menos_10') {
+      alertas.push(
+        'Vencimento em menos de 10 dias: a janela ordinária do SERMIG para Prorrogação ou Definitiva é entre 90 e 10 dias antes do vencimento — protocolo imediato recomendado.',
+      );
+      regrasAcionadas.push('Janela crítica (< 10 dias do vencimento): fora da margem preventiva de 90 a 10 dias (Decreto 296).');
+    } else if (answers.residenteVenceEmDias === 'entre_90_e_10') {
+      regrasAcionadas.push('Residente dentro da janela legal ideal do SERMIG (90 a 10 dias antes do vencimento — Decreto 296).');
+      explicacaoCliente.push('Você está exatamente dentro da janela legal do SERMIG (90 a 10 dias antes do vencimento) para protocolar sua renovação ou Definitiva.');
+    }
+
+    if (meses >= 24 && (answers.residenteMesesForaUltimoAno ?? 0) >= 6) {
+      alertas.push(
+        `Ausência prolongada informada (${answers.residenteMesesForaUltimoAno} meses fora do Chile no último ano): o SERMIG avalia a continuidade de residência para conceder a Residência Definitiva (Art. 79 Ley 21.325).`,
+      );
+      regrasAcionadas.push('Ausências elevadas no último ano: risco na continuidade exigida para Residência Definitiva.');
+    }
   }
 
   // Menor de idade acompanhado dos pais (Perfil 16)
@@ -748,7 +863,11 @@ export function runDiagnosticEngine(
       }
     }
 
-    if (isYes(answers.possuiSegundaNacionalidade)) {
+    if (isSegundaNacMercosul) {
+      regrasAcionadas.push(
+        `Segunda nacionalidade (${answers.segundaNacionalidadeQual}) reconhecida como Estado Parte/Associado do Acordo Mercosul (Subcategoria 15 SERMIG).`,
+      );
+    } else if (isYes(answers.possuiSegundaNacionalidade)) {
       regrasAcionadas.push('Brasileiro com segunda nacionalidade mantém elegibilidade integral ao Acordo Mercosul (cód. 15).');
     } else {
       regrasAcionadas.push(
@@ -756,8 +875,10 @@ export function runDiagnosticEngine(
       );
     }
     explicacaoCliente.push(
-      ruleMercosul?.explicacaoCliente ||
-        'Como brasileiro(a), você conta com o Acordo Mercosul, que permite morar e trabalhar no Chile sem contrato prévio.',
+      isSegundaNacMercosul
+        ? `Com sua nacionalidade (${answers.segundaNacionalidadeQual}), você tem acesso ao Acordo Mercosul, que permite morar e trabalhar no Chile sem contrato prévio.`
+        : ruleMercosul?.explicacaoCliente ||
+            'Como brasileiro(a), você conta com o Acordo Mercosul, que permite morar e trabalhar no Chile sem contrato prévio.',
     );
 
     const caminhoMercosul = isTuristaChile
@@ -821,8 +942,21 @@ export function runDiagnosticEngine(
       alertas: [],
     });
   } else {
-    const temVinculoNaoFormalizado = isYes(answers.vinculoFamiliarChile);
-    if (temVinculoNaoFormalizado) {
+    const temVinculoNaoFormalizado = isYes(answers.vinculoFamiliarChile) && !familiarEhResidenteTemporal;
+    if (isYes(answers.vinculoFamiliarChile) && familiarEhResidenteTemporal) {
+      alertas.push(
+        'Familiar com Residência Temporal no Chile: a Subcategoria 01 (Reunificação Familiar) exige vínculo com cidadão chileno ou Residente Definitivo (Decreto 177/2022). Para familiar de Residente Temporal, aplica-se o fluxo de Dependente de Titular (DEP) ou Mercosul próprio (Cód. 15).',
+      );
+      regrasAcionadas.push(
+        'Vínculo com Residente Temporal: Subcategoria 01 não ativada conforme Decreto 177/2022; direcionado para Dependente (DEP) ou Mercosul (15).',
+      );
+      explicacaoCliente.push(
+        'Como seu familiar ainda possui Residência Temporal (e não Definitiva ou cidadania chilena), avaliamos a via de Dependente de Titular ou Mercosul próprio.',
+      );
+      informacoesQueMudariamResultado.push(
+        'Quando o familiar obtiver a Residência Definitiva no Chile, a Reunificação Familiar (Cód. 01) torna-se elegível.',
+      );
+    } else if (temVinculoNaoFormalizado) {
       alertas.push(
         'Vínculo familiar informado ainda não formalizado: a Reunificação Familiar (Cód. 01) não foi ativada. Sugerimos formalizar o casamento ou Acuerdo de Unión Civil.',
       );
@@ -839,9 +973,12 @@ export function runDiagnosticEngine(
     discarded.push({
       codigo: '01',
       nomePortugues: reunificacaoVisa.nomePortugues,
-      motivo: temVinculoNaoFormalizado
-        ? 'Vínculo familiar ainda não formalizado juridicamente (formalizar casamento/união civil antes do protocolo).'
-        : 'Não possui vínculo familiar direto formalizado com chileno ou residente definitivo.',
+      motivo:
+        isYes(answers.vinculoFamiliarChile) && familiarEhResidenteTemporal
+          ? 'Reunificação Familiar (Cód. 01) exige vínculo com chileno ou Residente Definitivo; familiar com Residência Temporal segue via Dependente (DEP).'
+          : temVinculoNaoFormalizado
+            ? 'Vínculo familiar ainda não formalizado juridicamente (formalizar casamento/união civil antes do protocolo).'
+            : 'Não possui vínculo familiar direto formalizado com chileno ou residente definitivo.',
     });
   }
 
@@ -873,6 +1010,13 @@ export function runDiagnosticEngine(
     }
     if (!isYes(answers.possuiOfertaTrabalhoFormal)) {
       informacoesQueMudariamResultado.push('Assinar contrato de trabalho notariado no Chile fortalece a Subcategoria 02.');
+    } else if (answers.contratoNotariadoEmpresaChilena === false) {
+      nota02 -= 6;
+      ajustes02.push({ regraCodigo: 'REG-02-NOT', motivo: 'Contrato ainda não firmado em Notaría no Chile', delta: -6 });
+      alertas.push(
+        'Subcategoria 02 exige contrato de trabalho firmado ante Notario no Chile com empresa constituída (RUT vigente) e cláusulas migratórias obrigatórias.',
+      );
+      informacoesQueMudariamResultado.push('Firmar o contrato de trabalho em Notaría chilena com cláusulas do Código del Trabajo completa os requisitos da Cód. 02.');
     }
     regrasAcionadas.push(
       ruleTrab?.explicacaoTecnica || 'Objetivo profissional com contrato/serviços > 90 dias acionou Subcategoria 02 (Atividades Lícitas Remuneradas).',
@@ -905,7 +1049,10 @@ export function runDiagnosticEngine(
 
     let nota11 = base11;
     const ajustes11: DiagnosticCandidate['ajustesAplicados'] = [];
-    if (passaporteCurto && !isResidenteChile) {
+    if (passaporteVencido && !isResidenteChile) {
+      nota11 -= 18;
+      ajustes11.push({ regraCodigo: 'REG-PAS-0', motivo: 'Passaporte vencido/ausente', delta: -18 });
+    } else if (passaporteCurto && !isResidenteChile) {
       nota11 -= 10;
       ajustes11.push({ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12 meses', delta: -10 });
     }
@@ -944,7 +1091,10 @@ export function runDiagnosticEngine(
     const base03 = ruleEst?.notaBase ?? 88;
     let nota03 = base03 + (ruleEst?.ajusteNota ?? 0);
     const ajustes03: DiagnosticCandidate['ajustesAplicados'] = [];
-    if (passaporteCurto && !isResidenteChile) {
+    if (passaporteVencido && !isResidenteChile) {
+      nota03 -= 18;
+      ajustes03.push({ regraCodigo: 'REG-PAS-0', motivo: 'Passaporte vencido/ausente', delta: -18 });
+    } else if (passaporteCurto && !isResidenteChile) {
       nota03 -= 10;
       ajustes03.push({ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12 meses', delta: -10 });
     }
@@ -989,9 +1139,20 @@ export function runDiagnosticEngine(
     const base13 = ruleInv?.notaBase ?? 88;
     let nota13 = base13 + (ruleInv?.ajusteNota ?? 0);
     const ajustes13: DiagnosticCandidate['ajustesAplicados'] = [];
-    if (passaporteCurto && !isResidenteChile) {
+    if (passaporteVencido && !isResidenteChile) {
+      nota13 -= 18;
+      ajustes13.push({ regraCodigo: 'REG-PAS-0', motivo: 'Passaporte vencido/ausente', delta: -18 });
+    } else if (passaporteCurto && !isResidenteChile) {
       nota13 -= 10;
       ajustes13.push({ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12 meses', delta: -10 });
+    }
+    if (answers.investimentoAcima500kUsd === false) {
+      nota13 -= 10;
+      ajustes13.push({ regraCodigo: 'REG-13-500K', motivo: 'Projeto abaixo do patamar InvestChile (USD 500 mil)', delta: -10 });
+      alertas.push(
+        'Investimento abaixo de USD 500.000: a Subcategoria 13 (Decreto 177/2022) adota patamar de referência elevado com respaldo InvestChile; para empreendedores brasileiros, o Acordo Mercosul (Cód. 15) permite abrir empresa e trabalhar sem exigência de capital mínimo.',
+      );
+      informacoesQueMudariamResultado.push('Obter carta de respaldo InvestChile (projeto ≥ USD 500.000) consolida a elegibilidade direta na Subcategoria 13.');
     }
     if (flagsRisco.length > 0) {
       const delta = -Math.min(25, flagsRisco.length * 12);
@@ -1064,16 +1225,35 @@ export function runDiagnosticEngine(
   const ruleMed = findRule(rulesList, 'medico');
   if (answers.objetivo === 'tratamento_medico') {
     const base10 = ruleMed?.notaBase ?? 86;
-    const nota10 = flagsRisco.length > 0 ? Math.max(30, base10 - 15) : base10;
+    let nota10 = base10;
+    const ajustes10: DiagnosticCandidate['ajustesAplicados'] = [];
+    if (answers.possuiCertificadoMedicoChile === false) {
+      nota10 -= 14;
+      ajustes10.push({ regraCodigo: 'REG-10-CERT', motivo: 'Sem certificado médico de instituição acreditada no Chile', delta: -14 });
+      alertas.push(
+        'Tratamento Médico (Cód. 10) exige certificado emitido por instituição de saúde acreditada no Chile e comprovação de cobertura financeira dos custos médicos.',
+      );
+      informacoesQueMudariamResultado.push('Obter certificado da clínica/hospital chileno acreditado e comprovar custeio habilita integralmente a Subcategoria 10.');
+    }
+    if (flagsRisco.length > 0) {
+      nota10 -= 15;
+      ajustes10.push({ regraCodigo: 'REG-RISK', motivo: 'Risco explícito', delta: -15 });
+    }
     regrasAcionadas.push(ruleMed?.explicacaoTecnica || 'Tratamento médico selecionado: Subcategoria 10 acionada.');
     candidatos.push({
       visa: medicoVisa,
-      nota: nota10,
+      nota: Math.max(30, Math.min(100, nota10)),
       notaBase: base10,
-      ajustesAplicados: flagsRisco.length > 0 ? [{ regraCodigo: 'REG-RISK', motivo: 'Risco explícito', delta: -15 }] : [],
+      ajustesAplicados: ajustes10,
       motivo: 'Destinada a tratamento médico continuado com certificação hospitalar chilena e cobertura de custos.',
-      caminho: 'Protocolo com certificado clínico e comprovação de custeio.',
+      caminho: 'Protocolo com certificado clínico de instituição acreditada e comprovação de custeio.',
       alertas: [],
+    });
+  } else {
+    discarded.push({
+      codigo: '10',
+      nomePortugues: medicoVisa.nomePortugues,
+      motivo: 'Objetivo informado não envolve tratamento médico especializado no Chile.',
     });
   }
 
@@ -1081,16 +1261,38 @@ export function runDiagnosticEngine(
   const ruleRel = findRule(rulesList, 'religioso');
   if (answers.objetivo === 'religioso') {
     const base09 = ruleRel?.notaBase ?? 85;
-    const nota09 = passaporteCurto ? Math.max(30, base09 - 10) : base09;
+    let nota09 = base09;
+    const ajustes09: DiagnosticCandidate['ajustesAplicados'] = [];
+    if (answers.possuiRespaldoEntidadeReligiosa === false) {
+      nota09 -= 14;
+      ajustes09.push({ regraCodigo: 'REG-09-RESP', motivo: 'Sem carta de entidade religiosa reconhecida no Chile', delta: -14 });
+      alertas.push(
+        'Subcategoria 09 (Religiosos) requer carta de respaldo formal de entidade de culto oficialmente reconhecida pelo Estado chileno (Decreto 177/2022).',
+      );
+      informacoesQueMudariamResultado.push('Obter carta de respaldo da entidade religiosa reconhecida no Chile fortalece a Subcategoria 09.');
+    }
+    if (passaporteVencido && !isResidenteChile) {
+      nota09 -= 18;
+      ajustes09.push({ regraCodigo: 'REG-PAS-0', motivo: 'Passaporte vencido/ausente', delta: -18 });
+    } else if (passaporteCurto) {
+      nota09 -= 10;
+      ajustes09.push({ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12m', delta: -10 });
+    }
     regrasAcionadas.push(ruleRel?.explicacaoTecnica || 'Atividade religiosa selecionada: Subcategoria 09 acionada.');
     candidatos.push({
       visa: religiosoVisa,
-      nota: nota09,
+      nota: Math.max(30, Math.min(100, nota09)),
       notaBase: base09,
-      ajustesAplicados: passaporteCurto ? [{ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12m', delta: -10 }] : [],
+      ajustesAplicados: ajustes09,
       motivo: 'Para ministros e representantes vinculados a culto oficialmente reconhecido no Chile.',
       caminho: 'Protocolo do exterior com carta de respaldo da entidade religiosa.',
       alertas: exigeSaidaTurista ? [TURISTA_EXIT_ALERT] : [],
+    });
+  } else {
+    discarded.push({
+      codigo: '09',
+      nomePortugues: religiosoVisa.nomePortugues,
+      motivo: 'Objetivo informado não envolve atividade religiosa reconhecida no Chile.',
     });
   }
 
@@ -1098,25 +1300,55 @@ export function runDiagnosticEngine(
   const ruleTemp = findRule(rulesList, 'temporada');
   if (answers.objetivo === 'temporada') {
     const base04 = ruleTemp?.notaBase ?? 82;
-    const nota04 = passaporteCurto ? Math.max(30, base04 - 10) : base04;
+    let nota04 = base04;
+    const ajustes04: DiagnosticCandidate['ajustesAplicados'] = [];
+    if (answers.possuiContratoSazonal === false) {
+      nota04 -= 14;
+      ajustes04.push({ regraCodigo: 'REG-04-CONT', motivo: 'Sem contrato sazonal prévio com empregador chileno', delta: -14 });
+      alertas.push(
+        'Trabalhadores de Temporada (Cód. 04) exigem oferta/contrato sazonal formal prévio e não concedem transição direta para Residência Definitiva.',
+      );
+      informacoesQueMudariamResultado.push('Obter oferta sazonal formal (ou optar pelo Acordo Mercosul Cód. 15, que leva à Definitiva) melhora o enquadramento.');
+    }
+    if (passaporteVencido && !isResidenteChile) {
+      nota04 -= 18;
+      ajustes04.push({ regraCodigo: 'REG-PAS-0', motivo: 'Passaporte vencido/ausente', delta: -18 });
+    } else if (passaporteCurto) {
+      nota04 -= 10;
+      ajustes04.push({ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12m', delta: -10 });
+    }
     regrasAcionadas.push(ruleTemp?.explicacaoTecnica || 'Trabalho sazonal selecionado: Subcategoria 04 acionada.');
     candidatos.push({
       visa: temporadaVisa,
-      nota: nota04,
+      nota: Math.max(30, Math.min(100, nota04)),
       notaBase: base04,
-      ajustesAplicados: passaporteCurto ? [{ regraCodigo: 'REG-PAS-12', motivo: 'Passaporte < 12m', delta: -10 }] : [],
+      ajustesAplicados: ajustes04,
       motivo: 'Adequada para contratos sazonais de curta duração.',
       caminho: 'Protocolo do exterior antes do início das atividades.',
       alertas: exigeSaidaTurista ? [TURISTA_EXIT_ALERT] : [],
     });
+  } else {
+    discarded.push({
+      codigo: '04',
+      nomePortugues: temporadaVisa.nomePortugues,
+      motivo: 'Objetivo informado não corresponde a trabalho sazonal de temporada.',
+    });
   }
 
-  // 13. Dependente de Titular — SOMENTE se selecionado explicitamente
+  // 13. Dependente de Titular — selecionado explicitamente OU quando familiar no Chile é Residente Temporal
   const ruleDep = findRule(rulesList, 'dependente_titular');
-  if (answers.objetivo === 'dependente_titular') {
-    const baseDep = isYes(answers.titularTemResidenciaChile) ? (ruleDep?.notaBase ?? 89) : 76;
+  if (
+    answers.objetivo === 'dependente_titular' ||
+    (isYes(answers.vinculoFamiliarChile) && familiarEhResidenteTemporal)
+  ) {
+    const titularConfirmado = isYes(answers.titularTemResidenciaChile) || familiarEhResidenteTemporal;
+    const baseDep = titularConfirmado ? (ruleDep?.notaBase ?? 89) : 76;
     const notaDep = flagsRisco.length > 0 ? Math.max(30, baseDep - 15) : baseDep;
-    regrasAcionadas.push(ruleDep?.explicacaoTecnica || 'Dependente de titular selecionado explicitamente: fluxo DEP incluído.');
+    regrasAcionadas.push(
+      familiarEhResidenteTemporal
+        ? 'Familiar no Chile com Residência Temporal acionou fluxo Dependente de Titular (DEP).'
+        : ruleDep?.explicacaoTecnica || 'Dependente de titular selecionado explicitamente: fluxo DEP incluído.',
+    );
     candidatos.push({
       visa: dependenteVisa,
       nota: notaDep,
@@ -1357,13 +1589,21 @@ export function runDiagnosticEngine(
       return a.ordemPrioridadeEmissao - b.ordemPrioridadeEmissao;
     });
 
-  const jaPossuiStr = (answers.documentosJaPossui || []).join(' ').toLowerCase();
+  const jaPossuiList = answers.documentosJaPossui || [];
+  const jaPossuiSet = new Set(jaPossuiList.map((d) => d.trim().toLowerCase()));
+  const jaPossuiStr = jaPossuiList.join(' ').toLowerCase();
   const checklistItems: ChecklistReadinessItem[] = preChecklist.map((req) => {
     const nomeLower = req.nomeDocumento.toLowerCase();
+    const hasExactMatch = jaPossuiSet.has(req.id.toLowerCase()) || jaPossuiSet.has(nomeLower);
     const hasMatch =
+      hasExactMatch ||
       (nomeLower.includes('passaporte') && !passaporteVencido && jaPossuiStr.includes('passaporte')) ||
+      (nomeLower.includes('foto') && jaPossuiStr.includes('foto')) ||
+      (nomeLower.includes('antecedentes') && jaPossuiStr.includes('antecedentes')) ||
       (nomeLower.includes('certidão') && jaPossuiStr.includes('certid')) ||
       (nomeLower.includes('contrato') && jaPossuiStr.includes('contrato')) ||
+      (nomeLower.includes('solvência') && jaPossuiStr.includes('solv')) ||
+      (nomeLower.includes('investimento') && jaPossuiStr.includes('investimento')) ||
       (nomeLower.includes('renda') && jaPossuiStr.includes('renda')) ||
       (nomeLower.includes('matrícula') && jaPossuiStr.includes('matrícula'));
 
@@ -1710,11 +1950,30 @@ export function runDiagnosticEngine(
     }
   }
 
-  const perguntasComplementares: string[] = [
-    'Todos os familiares acompanhantes possuem passaporte válido por mais de 12 meses?',
-  ];
+  const perguntasComplementares: string[] = [];
   if (familiaSelecionada) {
+    perguntasComplementares.push('Todos os familiares acompanhantes possuem passaporte válido por mais de 12 meses?');
     perguntasComplementares.push('As certidões de casamento e nascimento dos dependentes estão em 2ª via recente para apostilamento?');
+  } else {
+    if (passaporteVencido || passaporteCurto) {
+      perguntasComplementares.push('Qual a previsão para emissão ou renovação do seu passaporte junto à Polícia Federal?');
+    } else {
+      perguntasComplementares.push('Você já definiu a data aproximada de viagem ou mudança para alinharmos o cronograma de 60 dias dos Antecedentes da PF?');
+    }
+  }
+  if (recomendada.visa.codigo === '02') {
+    perguntasComplementares.push('A empresa contratante no Chile já possui RUT vigente e minuta do contrato pronta para assinatura em Notaría?');
+  } else if (recomendada.visa.codigo === '03') {
+    perguntasComplementares.push('A instituição chilena já emitiu o certificado oficial de matrícula com duração do curso e reconhecimento do Ministerio de Educación?');
+  } else if (recomendada.visa.codigo === '11') {
+    perguntasComplementares.push('Seus comprovantes de aposentadoria ou renda passiva dos últimos 6 meses estão prontos para apostilamento e tradução juramentada?');
+  } else if (recomendada.visa.codigo === '13') {
+    perguntasComplementares.push('O plano de investimento e a declaração de IR para comprovação de origem lícita do capital já estão estruturados?');
+  } else if (recomendada.visa.codigo === '01') {
+    perguntasComplementares.push('A certidão comprobatória do vínculo familiar foi emitida no Chile ou precisa de 2ª via apostilada e traduzida no Brasil?');
+  }
+  if (isResidenteChile) {
+    perguntasComplementares.push('Qual a data exata de vencimento estampada na sua Residência Temporal / Cédula chilena atual?');
   }
   if (exigeSaidaTurista) {
     perguntasComplementares.push('Qual a data prevista para saída do Chile visando o protocolo eletrônico do exterior?');

@@ -20,6 +20,7 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
@@ -711,16 +712,15 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       >
         <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
           <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
-            {activeLogoUrl ? (
-              <img
-                src={activeLogoUrl}
-                alt={empresa.nome_empresa}
-                referrerPolicy="no-referrer"
-                className={sidebarCollapsed ? 'h-7 w-7 object-contain shrink-0' : 'h-7 max-w-[116px] object-contain shrink-0'}
-              />
-            ) : (
+            <BrandLogo
+              src={activeLogoUrl}
+              alt={empresa.nome_empresa}
+              variant={isDark ? 'emblem-dark' : 'emblem'}
+              className="h-9 w-9 object-contain shrink-0"
+            />
+            {!sidebarCollapsed && (
               <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
-                {sidebarCollapsed ? 'D&M' : empresa.nome_empresa.split('–')[0].trim()}
+                {empresa.nome_empresa.split('–')[0].trim()}
               </span>
             )}
           </button>

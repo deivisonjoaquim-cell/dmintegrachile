@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Case, LegalSource, VisaCategory, VisaRequirement } from '../../types/domain';
 import { formatDateBR } from '../../utils/formatters';
+import { getJurisdictionLabel, getJurisdictionTextClass } from '../../utils/legalJurisdiction';
 import {
   buildProceduralGuideSteps,
   filterLegalLibrarySources,
@@ -49,6 +50,7 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
   const [visaGroup, setVisaGroup] = useState<VisaLibraryGroupId>(activeCaseVisa ? 'meu_visto' : 'all');
   const [selectedVisaId, setSelectedVisaId] = useState<string>(activeCaseVisa?.id || 'all');
   const [docKind, setDocKind] = useState<LegalDocKindFilter>('all');
+  const [jurisdictionFilter, setJurisdictionFilter] = useState<'all' | LegalSource['pais']>('all');
   const [readingSource, setReadingSource] = useState<LegalSource | null>(null);
 
   const activeVisas = useMemo(
@@ -68,19 +70,19 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
     return activeCaseVisa;
   }, [selectedVisaId, visaGroup, activeVisas, activeCaseVisa]);
 
-  const filteredSources = useMemo(
-    () =>
-      filterLegalLibrarySources({
-        sources: legalSources,
-        visaCategories: activeVisas,
-        query,
-        visaGroup,
-        selectedVisaId,
-        docKind,
-        activeCaseVisaId: activeCaseVisa?.id,
-      }),
-    [legalSources, activeVisas, query, visaGroup, selectedVisaId, docKind, activeCaseVisa?.id],
-  );
+  const filteredSources = useMemo(() => {
+    const base = filterLegalLibrarySources({
+      sources: legalSources,
+      visaCategories: activeVisas,
+      query,
+      visaGroup,
+      selectedVisaId,
+      docKind,
+      activeCaseVisaId: activeCaseVisa?.id,
+    });
+    if (jurisdictionFilter === 'all') return base;
+    return base.filter((s) => s.pais === jurisdictionFilter);
+  }, [legalSources, activeVisas, query, visaGroup, selectedVisaId, docKind, jurisdictionFilter, activeCaseVisa?.id]);
 
   const proceduralSteps = useMemo(() => buildProceduralGuideSteps(selectedVisaObject), [selectedVisaObject]);
 
@@ -121,9 +123,12 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
     setVisaGroup('all');
     setSelectedVisaId('all');
     setDocKind('all');
+    setJurisdictionFilter('all');
   };
 
-  const hasActiveFilters = Boolean(query.trim() || visaGroup !== 'all' || selectedVisaId !== 'all' || docKind !== 'all');
+  const hasActiveFilters = Boolean(
+    query.trim() || visaGroup !== 'all' || selectedVisaId !== 'all' || docKind !== 'all' || jurisdictionFilter !== 'all',
+  );
 
   return (
     <div className="space-y-6">
@@ -263,7 +268,44 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
           </div>
 
           {libraryView === 'acervo' && (
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="space-y-2.5 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por jurisdição da lei">
+                  {(
+                    [
+                      { id: 'all', label: 'Todas as jurisdições' },
+                      { id: 'Chile', label: 'Legislação Chilena' },
+                      { id: 'Brasil', label: 'Legislação Brasileira' },
+                      { id: 'Mercosul', label: 'Acordo Internacional (Mercosul)' },
+                    ] as const
+                  ).map((jur) => (
+                    <button
+                      key={jur.id}
+                      type="button"
+                      onClick={() => setJurisdictionFilter(jur.id)}
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 transition-colors border ${
+                        jurisdictionFilter === jur.id
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {jur.label}
+                    </button>
+                  ))}
+                </div>
+
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+
               <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por tipo de documento legal">
                 {LEGAL_DOC_KIND_FILTERS.map((kind) => (
                   <button
@@ -272,7 +314,7 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                     onClick={() => setDocKind(kind.id)}
                     className={`px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
                       docKind === kind.id
-                        ? 'bg-slate-900 text-white'
+                        ? 'bg-slate-800 text-white'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200/70'
                     }`}
                   >
@@ -280,17 +322,6 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                   </button>
                 ))}
               </div>
-
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Limpar filtros
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -372,9 +403,9 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                   >
                     <div className="space-y-2.5">
                       <p className="text-xs text-slate-500 tabular-nums">
-                        {src.tipo}
+                        <span className={getJurisdictionTextClass(src.pais)}>{getJurisdictionLabel(src.pais)}</span>
                         <span aria-hidden="true"> · </span>
-                        {src.pais}
+                        {src.tipo}
                         {src.numeroAno ? (
                           <>
                             <span aria-hidden="true"> · </span>
@@ -474,23 +505,23 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-2 border-t border-slate-100">
               {[
                 {
-                  nome: 'SERMIG — Trámites Digitales',
-                  desc: 'Protocolos, Estampado Electrónico e Prorrogação',
+                  nome: 'SERMIG — Trámites Digitales (Chile)',
+                  desc: 'Protocolos, Estampado Electrónico e Prorrogação (órgão chileno)',
                   url: 'https://serviciomigraciones.cl',
                 },
                 {
-                  nome: 'BCN LeyChile',
-                  desc: 'Texto consolidado da Ley 21.325 e Decretos 177/296/181',
+                  nome: 'BCN LeyChile (Legislação Chilena)',
+                  desc: 'Texto consolidado da Ley chilena Nº 21.325 e Decretos 177/296/181',
                   url: 'https://www.bcn.cl/leychile',
                 },
                 {
-                  nome: 'CNJ — Apostila da Haia',
-                  desc: 'Cartórios credenciados e validação por QR Code',
+                  nome: 'CNJ — Apostila da Haia (Brasil)',
+                  desc: 'Resolução brasileira CNJ nº 228/2016, cartórios e validação por QR Code',
                   url: 'https://www.cnj.jus.br/poder-judiciario/relacoes-internacionais/apostila-da-haia/',
                 },
                 {
                   nome: 'Registro Civil Chile',
-                  desc: 'Cédula de Identidad para Extranjeros e ClaveÚnica',
+                  desc: 'Cédula de Identidad para Extranjeros e ClaveÚnica (órgão chileno)',
                   url: 'https://www.registrocivil.cl',
                 },
               ].map((portal) => (
@@ -526,7 +557,7 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                   Guia Procedimental SERMIG {selectedVisaObject ? `— ${selectedVisaObject.nomePortugues}` : '(Fluxo Geral)'}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Roteiro operacional baseado na Ley Nº 21.325, Decreto Nº 296/2022 e manuais do Servicio Nacional de Migraciones.
+                  Roteiro operacional fundamentado na legislação chilena (Ley Nº 21.325 e Decreto Supremo Nº 296/2022) e nos manuais do Servicio Nacional de Migraciones (SERMIG).
                 </p>
               </div>
               <button
@@ -628,7 +659,11 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
             <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <p className="text-xs text-slate-500 tabular-nums">
-                  {readingSource.tipo} · {readingSource.pais}
+                  <span className={getJurisdictionTextClass(readingSource.pais)}>
+                    {getJurisdictionLabel(readingSource.pais)}
+                  </span>
+                  {' · '}
+                  {readingSource.tipo}
                   {readingSource.numeroAno ? ` · ${readingSource.numeroAno}` : ''} · {readingSource.statusVigencia}
                 </p>
                 <h2 className="text-lg font-bold text-slate-900 leading-snug">{readingSource.titulo}</h2>

@@ -330,13 +330,13 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       const reqMatch = visaRequirements.some(
         (r) =>
           r.visaCategoryId === v.id &&
-          (r.nomeDocumento.toLowerCase().includes(q) || (r.observacoes || '').toLowerCase().includes(q)),
+          (r.nomeDocumento.toLowerCase().includes(q) || (r.descricao || '').toLowerCase().includes(q)),
       );
       return (
         v.codigo.toLowerCase().includes(q) ||
         v.nomePortugues.toLowerCase().includes(q) ||
         v.nomeEspanhol.toLowerCase().includes(q) ||
-        (v.resumoElegibilidade || '').toLowerCase().includes(q) ||
+        (v.descricao || '').toLowerCase().includes(q) ||
         reqMatch
       );
     });
@@ -1673,7 +1673,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                                     Elegibilidade & Regras SERMIG — Cód. {v.codigo}
                                   </p>
                                   <p className="text-slate-600 dark:text-slate-400">
-                                    {v.resumoElegibilidade || 'Consulte os requisitos documentais e normas vinculadas abaixo.'}
+                                    {v.descricao || 'Consulte os requisitos documentais e normas vinculadas abaixo.'}
                                     {v.levaDefinitiva ? ` · Elegível à Residência Definitiva (${v.mesesDefinitiva || 24} meses).` : ''}
                                   </p>
                                 </div>
@@ -1712,8 +1712,8 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                                         {r.exigeTraducao ? ' · Exige Tradução' : ''}
                                         {r.validadeDias ? ` · Validade ${r.validadeDias}d` : ''}
                                       </p>
-                                      {r.observacoes && (
-                                        <p className="text-[11px] text-slate-600 dark:text-slate-400">{r.observacoes}</p>
+                                      {r.descricao && (
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-400">{r.descricao}</p>
                                       )}
                                     </div>
                                   ))}

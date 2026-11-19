@@ -292,12 +292,14 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
     setNotifyingCardId(card.id);
     setNotice(null);
     try {
+      const stageLabel =
+        board.columns.find((c) => c.stage.id === card.stageId)?.stage.nome || card.stageId;
       const { pushResult } = await notifyClientProcessUpdate({
         clientId: card.caseRecord.clientId,
         caseId: card.caseRecord.id,
         tipo: 'status_sermig',
         titulo: `Atualização do seu processo (${card.caseRecord.statusSermig})`,
-        mensagem: `Etapa atual: ${card.stage.nome} · Status SERMIG: ${card.caseRecord.statusSermig} · Prontidão documental: ${card.docsPct ?? 0}%. Acesse o Portal do Cliente para acompanhar.`,
+        mensagem: `Etapa atual: ${stageLabel} · Status SERMIG: ${card.caseRecord.statusSermig} · Prontidão documental: ${card.docsPct ?? 0}%. Acesse o Portal do Cliente para acompanhar.`,
         etapaPipeline: card.caseRecord.etapaPipeline,
         statusSermig: card.caseRecord.statusSermig,
         linkDestino: '/portal',

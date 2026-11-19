@@ -29,6 +29,7 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
@@ -119,7 +120,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   const [notifications, setNotifications] = useState<ClientNotification[]>([]);
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
-  const [pushSupport, setPushSupport] = useState<BrowserPushSupport>({ supported: false, permission: 'unsupported' });
+  const [pushSupport, setPushSupport] = useState<BrowserPushSupport>({ supported: false, fcmSupported: false, permission: 'unsupported' });
   const [pushActive, setPushActive] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushToast, setPushToast] = useState<{ title: string; body: string } | null>(null);
@@ -597,21 +598,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            {empresa.logoUrl ? (
-              <img
-                src={empresa.logoUrl}
-                alt={empresa.nome_empresa}
-                referrerPolicy="no-referrer"
-                className="h-8 w-auto max-w-[130px] object-contain shrink-0"
-              />
-            ) : (
-              <span
-                className="w-8 h-8 btn-radius flex items-center justify-center text-xs font-bold text-white shrink-0"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                {empresa.nome_empresa.split('–')[0].trim().slice(0, 3).toUpperCase()}
-              </span>
-            )}
+            <BrandLogo
+              src={empresa.logoUrl}
+              alt={empresa.nome_empresa}
+              variant="emblem"
+              className="h-10 w-10 object-contain shrink-0"
+            />
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-900 truncate">Portal do Cliente</p>
               <p className="text-xs text-slate-500 truncate">{client?.nomeCompleto || userProfile.nome}</p>

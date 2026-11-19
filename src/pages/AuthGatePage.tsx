@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Clock, RefreshCw, ShieldAlert, ShieldCheck, UserCheck } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
 import { useApp } from '../contexts/AppContext';
 
 interface AuthGatePageProps {
@@ -108,21 +109,14 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     <div className="py-16 lg:py-24 bg-[var(--color-bg)]">
       <div className="max-w-lg mx-auto px-4 sm:px-6">
         <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-8 text-center space-y-5 shadow-[0_12px_32px_rgba(11,31,51,0.06)]">
-          {empresa.logoUrl ? (
-            <img
+          <div className="flex justify-center">
+            <BrandLogo
               src={empresa.logoUrl}
               alt={empresa.nome_empresa}
-              referrerPolicy="no-referrer"
-              className="h-11 w-auto max-w-[180px] object-contain mx-auto"
+              variant="full"
+              className="h-24 w-auto max-w-[300px] object-contain mx-auto"
             />
-          ) : (
-            <div
-              className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-          )}
+          </div>
 
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-[#9A7B1C]">

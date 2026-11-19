@@ -21,6 +21,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
+import { BrandLogo } from './BrandLogo';
 import { PdfPreviewModal } from './pdf/PdfPreviewModal';
 import type {
   DiagnosticAnswers,
@@ -39,6 +40,7 @@ import {
   formatCurrency,
   formatDateBR,
 } from '../utils/formatters';
+import { getJurisdictionLabel, getJurisdictionTextClass } from '../utils/legalJurisdiction';
 
 export interface AiDiagnosticDraft {
   rascunho?: boolean;
@@ -300,13 +302,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
       {/* Cabeçalho A4 para Impressão / PDF */}
       <div className="hidden print:flex items-center justify-between border-b-2 border-slate-900 pb-4 mb-4">
         <div className="flex items-center gap-3">
-          {empresa.logoUrl ? (
-            <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain" />
-          ) : (
-            <div className="w-10 h-10 rounded-lg bg-[#0F2537] text-white flex items-center justify-center font-bold text-sm">
-              D&amp;M
-            </div>
-          )}
+          <BrandLogo src={empresa.logoUrl} alt={empresa.nome_empresa} variant="emblem" className="h-12 w-12 shrink-0" />
           <div>
             <p className="text-base font-bold text-slate-900">{empresa.nome_empresa}</p>
             <p className="text-xs text-slate-600">{empresa.razao_social_cnpj_rut}</p>
@@ -495,7 +491,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 
           {result.flagsRevisaoConsultor.length > 0 && (
             <div className="p-3.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 space-y-1">
-              <p className="font-bold text-slate-900">Revisar com o consultor em atendimento reservado (LGPD):</p>
+              <p className="font-bold text-slate-900">
+                Revisar com o consultor em atendimento reservado (Legislação Brasileira — LGPD, Lei nº 13.709/2018):
+              </p>
               <ul className="space-y-1">
                 {result.flagsRevisaoConsultor.map((f) => (
                   <li key={f.campo}>• {f.label}</li>
@@ -1056,6 +1054,27 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {result.fontesLegais.length > 0 && (
+          <div className="pt-4 border-t border-slate-200 space-y-2">
+            <p className="text-xs font-semibold text-slate-600">
+              Fontes normativas consultadas (identificação por jurisdição)
+            </p>
+            <ul className="divide-y divide-slate-100 border border-slate-200 rounded-xl bg-slate-50/50 text-xs">
+              {result.fontesLegais.map((src) => (
+                <li key={src.id} className="px-3.5 py-2.5 flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-slate-800 font-medium">
+                    {src.titulo}
+                    {src.numeroAno ? ` (${src.numeroAno})` : ''}
+                  </span>
+                  <span className={getJurisdictionTextClass(src.pais)}>
+                    {getJurisdictionLabel(src.pais)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

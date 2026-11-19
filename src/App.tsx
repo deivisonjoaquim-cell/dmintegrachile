@@ -13,6 +13,7 @@ const DiagnosticoPage = lazy(() => import('./pages/DiagnosticoPage').then((m) =>
 const AuthGatePage = lazy(() => import('./pages/AuthGatePage').then((m) => ({ default: m.AuthGatePage })));
 const PortalClientePage = lazy(() => import('./pages/PortalClientePage').then((m) => ({ default: m.PortalClientePage })));
 const PainelPage = lazy(() => import('./pages/PainelPage').then((m) => ({ default: m.PainelPage })));
+const LogosPage = lazy(() => import('./pages/LogosPage').then((m) => ({ default: m.LogosPage })));
 
 function normalizePath(raw: string): string {
   const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;
@@ -118,6 +119,10 @@ function RouterView() {
       break;
     case '/entrar-equipe':
       pageNode = <AuthGatePage mode="equipe" onNavigate={navigate} />;
+      break;
+    case '/logos':
+    case '/kit-logos':
+      pageNode = <LogosPage onNavigate={navigate} />;
       break;
     case '/':
       pageNode = <HomePage onNavigate={navigate} />;
