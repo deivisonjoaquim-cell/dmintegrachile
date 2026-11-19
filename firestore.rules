@@ -25,8 +25,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email_verified == true;
     }
 
+    function isPrimaryAdminEmail(email) {
+      return email is string && email.lower() == 'deivisonjoaquim@gmail.com';
+    }
+
     function isBootstrappedAdmin() {
-      return isSignedIn() && request.auth.token.email == 'deivisonjoaquim@gmail.com';
+      return isSignedIn() && isPrimaryAdminEmail(request.auth.token.email);
     }
 
     function userPath() {
@@ -45,8 +49,12 @@ service cloud.firestore {
       return isSignedIn() && hasUserDoc() && userDoc().status == 'ativo';
     }
 
-    function isAdmin() {
+    function isValidatedAdmin() {
       return isBootstrappedAdmin() || (isActiveUser() && userDoc().role == 'admin');
+    }
+
+    function isAdmin() {
+      return isValidatedAdmin();
     }
 
     function isConsultor() {
@@ -82,11 +90,11 @@ service cloud.firestore {
     }
 
     function isOptBool(data, field) {
-      return !(field in data) || data[field] is bool;
+      return !(field in data) || data[field] == null || data[field] is bool;
     }
 
     function isOptNum(data, field) {
-      return !(field in data) || data[field] is number;
+      return !(field in data) || data[field] == null || data[field] is number;
     }
 
     // =========================================================================
@@ -106,7 +114,7 @@ service cloud.firestore {
         && isOptString(data, 'quemSomosExperiencia', 2000)
         && isOptString(data, 'quemSomosMissao', 2000)
         && isOptString(data, 'quemSomosCredenciais', 2000)
-        && isOptString(data, 'quemSomosFotoUrl', 250000)
+        && isOptString(data, 'quemSomosFotoUrl', 500000)
         && isOptString(data, 'createdAt', 64)
         && isOptString(data, 'updatedAt', 64);
     }
@@ -119,13 +127,13 @@ service cloud.firestore {
         && isReqString(data, 'corDestaque', 4, 20)
         && isReqString(data, 'corFundo', 4, 20)
         && data.fontePrincipal in ['Plus Jakarta Sans', 'DM Sans', 'Manrope', 'Public Sans', 'Montserrat', 'Merriweather', 'Inter']
-        && (!('fonteDisplay' in data) || data.fonteDisplay == null || data.fonteDisplay in ['Plus Jakarta Sans', 'Outfit', 'Manrope', 'Playfair Display', 'Montserrat'])
+        && (!('fonteDisplay' in data) || data.fonteDisplay == null || data.fonteDisplay == '' || data.fonteDisplay in ['Plus Jakarta Sans', 'Outfit', 'Manrope', 'Playfair Display', 'Montserrat', 'DM Sans', 'Public Sans', 'Merriweather', 'Inter'])
         && isOptString(data, 'razao_social_cnpj_rut', 200)
         && isOptString(data, 'responsavel_tecnico', 200)
         && isOptString(data, 'endereco_cidade', 300)
-        && isOptString(data, 'logoUrl', 250000)
-        && isOptString(data, 'logoDarkUrl', 250000)
-        && isOptString(data, 'faviconUrl', 250000)
+        && isOptString(data, 'logoUrl', 500000)
+        && isOptString(data, 'logoDarkUrl', 500000)
+        && isOptString(data, 'faviconUrl', 500000)
         && isOptString(data, 'corSuperficie', 20)
         && isOptString(data, 'corTexto', 20)
         && isOptString(data, 'corRodapeBg', 20)
@@ -149,13 +157,26 @@ service cloud.firestore {
         && isOptNum(data, 'honorariosPadraoMaxBrl')
         && isOptNum(data, 'taxaCambioBrlClp')
         && isOptNum(data, 'taxaCambioUsdBrl')
-        && isOptString(data, 'fcmVapidPublicKey', 300);
+        && isOptNum(data, 'retencaoDadosDias')
+        && isOptString(data, 'seoTituloPadrao', 200)
+        && isOptString(data, 'seoDescricaoPadrao', 500)
+        && isOptString(data, 'ultimaRevisaoNormativa', 64)
+        && isOptString(data, 'textoContratoVersao', 30)
+        && isOptString(data, 'textoContratoVigencia', 64)
+        && isOptString(data, 'textoReciboVersao', 30)
+        && isOptString(data, 'textoReciboVigencia', 64)
+        && isOptString(data, 'termoLgpdVigencia', 64)
+        && isOptString(data, 'fcmVapidPublicKey', 300)
+        && isOptString(data, 'siteVersaoAtual', 40)
+        && isOptString(data, 'sitePublicadoEm', 64)
+        && isOptString(data, 'updatedAt', 64);
     }
 
     function isValidBancarioConfig(data) {
       return isOptString(data, 'dados_bancarios_br', 2000)
         && isOptString(data, 'dados_bancarios_cl', 2000)
-        && isOptString(data, 'dados_wise', 2000);
+        && isOptString(data, 'dados_wise', 2000)
+        && isOptString(data, 'updatedAt', 64);
     }
 
     function isValidSiteContent(data) {
@@ -166,7 +187,8 @@ service cloud.firestore {
         && data.ativo is bool
         && isOptString(data, 'subtitulo', 600)
         && isOptString(data, 'conteudoHtml', 20000)
-        && isOptString(data, 'imagemUrl', 250000);
+        && isOptString(data, 'imagemUrl', 500000)
+        && isOptString(data, 'updatedAt', 64);
     }
 
     function isValidMediaAsset(data) {
@@ -499,43 +521,46 @@ service cloud.firestore {
     // Collections
     // =========================================================================
     match /users/{uid} {
-      allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isAdmin() || isConsultor());
-      allow list: if isAdmin() || isConsultor();
+      allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isValidatedAdmin() || isConsultor());
+      allow list: if isValidatedAdmin() || isConsultor();
       allow create: if isSignedIn() && isValidId(uid) && request.auth.uid == uid && isValidUser(incoming()) && (
-        (isBootstrappedAdmin() && incoming().role == 'admin' && incoming().status == 'ativo') ||
-        (incoming().role == 'cliente' && incoming().status == 'pendente' && incoming().uid == request.auth.uid && incoming().email == request.auth.token.email)
+        (isBootstrappedAdmin() && incoming().role == 'admin' && incoming().status == 'ativo' && isPrimaryAdminEmail(incoming().email)) ||
+        (incoming().role == 'cliente' && incoming().status == 'pendente' && incoming().uid == request.auth.uid && request.auth.token.email is string && incoming().email.lower() == request.auth.token.email.lower())
       );
       allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
-        isAdmin() ||
+        // Protect primary bootstrapped admin document from accidental downgrade or deactivation
+        (!isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == existing().uid))
+      ) && (
+        isValidatedAdmin() ||
         (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(uid);
+      allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && !isPrimaryAdminEmail(existing().email);
     }
 
     match /config/{docId} {
       allow get: if isValidId(docId) && (
         (docId == 'empresa') ||
-        (docId == 'bancario' && isAdmin())
+        (docId == 'bancario' && isValidatedAdmin())
       );
-      allow list: if isAdmin();
-      allow create, update: if isAdmin() && isValidId(docId) && (
+      allow list: if isValidatedAdmin();
+      allow create, update: if isSignedIn() && isValidId(docId) && (
         (docId == 'empresa' && isValidEmpresaConfig(incoming())) ||
         (docId == 'bancario' && isValidBancarioConfig(incoming()))
-      );
+      ) && isValidatedAdmin();
       allow delete: if false;
     }
 
     match /siteContent/{sectionId} {
       allow get: if isValidId(sectionId) && (existing().ativo == true || isStaff());
       allow list: if existing().ativo == true || isStaff();
-      allow create, update: if isAdmin() && isValidId(sectionId) && isValidSiteContent(incoming());
-      allow delete: if isAdmin() && isValidId(sectionId);
+      allow create, update: if isSignedIn() && isValidId(sectionId) && isValidSiteContent(incoming()) && isValidatedAdmin();
+      allow delete: if isSignedIn() && isValidId(sectionId) && isValidatedAdmin();
     }
 
     match /mediaAssets/{assetId} {
       allow get, list: if isStaff();
-      allow create, update: if isAdmin() && isValidId(assetId) && isValidMediaAsset(incoming());
-      allow delete: if isAdmin() && isValidId(assetId);
+      allow create, update: if isSignedIn() && isValidId(assetId) && isValidMediaAsset(incoming()) && isValidatedAdmin();
+      allow delete: if isSignedIn() && isValidId(assetId) && isValidatedAdmin();
     }
 
     match /auditLogs/{logId} {
@@ -587,8 +612,8 @@ service cloud.firestore {
     }
 
     match /leads/{leadId} {
-      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && existing().email == request.auth.token.email));
-      allow list: if isStaff() || (isSignedIn() && existing().email == request.auth.token.email);
+      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower()));
+      allow list: if isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower());
       allow create: if isValidId(leadId) && isValidLead(incoming()) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
       allow update: if isValidId(leadId) && isValidLead(incoming()) && (
         isStaff() ||
@@ -608,13 +633,13 @@ service cloud.firestore {
     match /diagnosticRuleVersions/{versionId} {
       allow get: if isValidId(versionId) && (existing().ativa == true || isStaff());
       allow list: if existing().ativa == true || isStaff();
-      allow create, update: if isAdmin() && isValidId(versionId) && isValidDiagnosticRuleVersion(incoming());
-      allow delete: if isAdmin() && isValidId(versionId);
+      allow create, update: if isSignedIn() && isValidId(versionId) && isValidDiagnosticRuleVersion(incoming()) && isValidatedAdmin();
+      allow delete: if isSignedIn() && isValidId(versionId) && isValidatedAdmin();
     }
 
     match /clients/{clientId} {
-      allow get: if isValidId(clientId) && (isStaff() || (isCliente() && (existing().userId == request.auth.uid || existing().email == request.auth.token.email)));
-      allow list: if isStaff() || (isCliente() && (existing().userId == request.auth.uid || existing().email == request.auth.token.email));
+      allow get: if isValidId(clientId) && (isStaff() || (isCliente() && (existing().userId == request.auth.uid || (request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower()))));
+      allow list: if isStaff() || (isCliente() && (existing().userId == request.auth.uid || (request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower())));
       allow create: if isAdminOrConsultor() && isValidId(clientId) && isValidClient(incoming());
       allow update: if isValidId(clientId) && isValidClient(incoming()) && (
         isAdminOrConsultor() ||

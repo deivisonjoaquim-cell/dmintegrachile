@@ -2,6 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
+import {
+  clearAdminVerificationCache,
+  isPrimaryAdminEmail,
+  verifyAndEnsureAdminAccess,
+} from '../services/adminSecurityService';
 import { reportAppError } from '../services/errorService';
 import { sanitizeFirestoreData } from '../utils/firestoreUtils';
 import {
@@ -150,19 +155,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [refreshPublicData]);
 
   const syncUserDocument = useCallback(async (fbUser: User): Promise<UserProfile> => {
-    const token = await fbUser.getIdToken();
-    let isAdminEmail = false;
-    try {
-      const resp = await fetch('/api/auth/check-admin', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (resp.ok) {
-        const json = (await resp.json()) as { isAdminEmail?: boolean };
-        isAdminEmail = Boolean(json.isAdminEmail);
+    const normalizedEmail = (fbUser.email || '').trim().toLowerCase();
+    let isAdminEmail = isPrimaryAdminEmail(normalizedEmail);
+
+    if (isAdminEmail) {
+      const adminCheck = await verifyAndEnsureAdminAccess(fbUser, { force: true });
+      if (adminCheck.authorized && adminCheck.profile) {
+        await runIdempotentSeedsIfAdmin('admin');
+        await refreshPublicData();
+        return adminCheck.profile;
       }
-    } catch {
-      // ignore if offline
+    }
+
+    if (!isAdminEmail) {
+      try {
+        const token = await fbUser.getIdToken();
+        const resp = await fetch('/api/auth/check-admin', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const contentType = resp.headers.get('content-type') || '';
+        if (resp.ok && contentType.includes('application/json')) {
+          const json = (await resp.json()) as { isAdminEmail?: boolean };
+          isAdminEmail = Boolean(json.isAdminEmail);
+        }
+      } catch {
+        // ignore if offline or static hosting without /api proxy
+      }
     }
 
     const userRef = doc(db, 'users', fbUser.uid);
@@ -173,9 +192,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!snap.exists()) {
       profile = {
         uid: fbUser.uid,
-        nome: fbUser.displayName || fbUser.email?.split('@')[0] || 'Usuário',
-        email: (fbUser.email || '').toLowerCase(),
-        fotoUrl: fbUser.photoURL || '',
+        nome: (fbUser.displayName || normalizedEmail.split('@')[0] || 'Usuário').slice(0, 200),
+        email: normalizedEmail,
+        fotoUrl: (fbUser.photoURL || '').slice(0, 1000),
         role: isAdminEmail ? 'admin' : 'cliente',
         status: isAdminEmail ? 'ativo' : 'pendente',
         createdAt: now,
@@ -183,9 +202,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       await setDoc(userRef, sanitizeFirestoreData(profile));
     } else {
-      profile = snap.data() as UserProfile;
-      if (isAdminEmail && (profile.role !== 'admin' || profile.status !== 'ativo')) {
-        profile = { ...profile, role: 'admin', status: 'ativo', updatedAt: now };
+      const existingData = snap.data() as Partial<UserProfile>;
+      profile = {
+        uid: existingData.uid || fbUser.uid,
+        nome: existingData.nome || fbUser.displayName || normalizedEmail.split('@')[0] || 'Usuário',
+        email: (existingData.email || normalizedEmail).toLowerCase(),
+        fotoUrl: existingData.fotoUrl ?? fbUser.photoURL ?? '',
+        role: existingData.role || (isAdminEmail ? 'admin' : 'cliente'),
+        status: existingData.status || (isAdminEmail ? 'ativo' : 'pendente'),
+        createdAt: existingData.createdAt || now,
+        updatedAt: existingData.updatedAt || now,
+        ...existingData,
+      } as UserProfile;
+
+      if (isAdminEmail && (profile.role !== 'admin' || profile.status !== 'ativo' || !existingData.uid)) {
+        profile = {
+          ...profile,
+          uid: fbUser.uid,
+          nome: (profile.nome || fbUser.displayName || 'Administrador').slice(0, 200),
+          email: normalizedEmail || profile.email,
+          role: 'admin',
+          status: 'ativo',
+          updatedAt: now,
+        };
         await setDoc(userRef, sanitizeFirestoreData(profile), { merge: true });
       }
     }
@@ -256,6 +295,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       reportAppError(err, { source: 'auth-logout' });
     } finally {
+      clearAdminVerificationCache();
       setUserProfile(null);
       setFirebaseUser(null);
     }

@@ -22,6 +22,7 @@ import type {
   Lead,
   LegalSource,
   Task,
+  UserProfile,
   UserRole,
   VisaRequirement,
 } from '../../types/domain';
@@ -52,6 +53,7 @@ interface PainelDashboardProps {
   communicationLogs?: CommunicationLog[];
   legalSources?: LegalSource[];
   visaRequirements?: VisaRequirement[];
+  staffUsers?: UserProfile[];
   diasAlertaRevisaoLegal?: number;
   brandName?: string;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
@@ -81,6 +83,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   communicationLogs = [],
   legalSources = [],
   visaRequirements = [],
+  staffUsers = [],
   diasAlertaRevisaoLegal = 90,
   brandName,
   onLogWhatsApp,
@@ -309,15 +312,15 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         </div>
       )}
 
-      {/* 4 Indicadores Principais (Superfície plana, 1px hairline, tabular-nums) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 4 Indicadores Principais (Superfície executiva, 1px hairline, tabular-nums) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <button
           type="button"
           onClick={() => onNavigateSection?.('casos')}
-          className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+          className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Processos ativos</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+          <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
             {activeCases.length}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
@@ -331,11 +334,11 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             setWorkTab('hoje');
             setUrgencyFilter('todas');
           }}
-          className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+          className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Urgências</p>
           <p
-            className="text-2xl font-bold mt-1 tabular-nums"
+            className="text-2xl font-bold tracking-tight mt-1.5 tabular-nums"
             style={{ color: urgencias.length > 0 ? '#C82333' : '#1E7E34' }}
           >
             {urgencias.length}
@@ -348,10 +351,10 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         <button
           type="button"
           onClick={() => setWorkTab('documentos')}
-          className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+          className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Docs para conferir</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+          <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
             {pendingDocsReview.length}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
@@ -363,13 +366,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigateSection?.('financeiro')}
-            className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+            className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
           >
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Recebido (BRL)</p>
-            <p className="text-xl font-bold text-[#1E7E34] mt-1 tabular-nums">
+            <p className="text-xl font-bold tracking-tight text-[#1E7E34] dark:text-emerald-400 mt-1.5 tabular-nums">
               {formatCurrency(receitaTotalBrl, 'BRL')}
             </p>
-            <p className="text-xs text-[#C82333] mt-1 tabular-nums">
+            <p className="text-xs text-[#C82333] dark:text-red-400 mt-1 tabular-nums">
               Em atraso: {formatCurrency(inadimplenciaBrl, 'BRL')}
             </p>
           </button>
@@ -377,10 +380,10 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigateSection?.('agenda')}
-            className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+            className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
           >
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Agenda de hoje</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
               {appointmentsToday.length}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
@@ -394,6 +397,9 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       <PainelFunnelPerformanceSummary
         leads={filteredLeads}
         cases={activeCases}
+        empresa={empresa}
+        clients={clients}
+        staffUsers={staffUsers}
         period={perfPeriod}
         onChangePeriod={setPerfPeriod}
         onSelectStage={(stageId) => {
@@ -407,7 +413,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       />
 
       {/* Funil Interativo em 5 Marcos: clique em qualquer marco para ir direto aos registros */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+      <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 space-y-4 shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
@@ -496,7 +502,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       </section>
 
       {/* Fila de Trabalho Unificada em 4 Abas Práticas */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         <div
           role="tablist"
           aria-label="Fila de trabalho diária"

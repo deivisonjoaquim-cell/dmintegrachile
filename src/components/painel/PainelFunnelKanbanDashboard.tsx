@@ -309,6 +309,9 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
       <PainelFunnelPerformanceSummary
         leads={leads}
         cases={cases}
+        empresa={empresa}
+        clients={clients}
+        staffUsers={staffUsers}
         period={datePreset}
         fromDate={createdFrom}
         toDate={createdTo}
@@ -320,7 +323,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
       />
 
       {/* Barra de Pesquisa, Filtros (Data, Urgência, Responsável) e Ordenação */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-3">
+      <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 space-y-3 shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         {/* Linha 1: Pesquisa + Tipo de Registro */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="relative flex-1 min-w-[220px] max-w-md">
@@ -331,7 +334,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Pesquisar cliente, visto, nº SERMIG ou consultor..."
               aria-label="Pesquisar clientes no funil Kanban"
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-slate-400"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 transition-colors"
             />
           </div>
 
@@ -521,14 +524,14 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                 }
               }}
               onDrop={(e) => handleDropOnColumn(col.stage.id, e)}
-              className={`rounded-xl border bg-slate-50/70 dark:bg-slate-900/60 transition-colors flex flex-col min-h-[340px] ${
+              className={`rounded-xl border bg-slate-50/80 dark:bg-[#0D1424] transition-all duration-150 flex flex-col min-h-[340px] ${
                 isDropTarget || isFocused
                   ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20'
-                  : 'border-slate-200 dark:border-slate-800'
+                  : 'border-slate-200/90 dark:border-slate-800'
               }`}
             >
               {/* Cabeçalho da Coluna */}
-              <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="p-3.5 border-b border-slate-200/80 dark:border-slate-800 space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
@@ -589,8 +592,10 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                           setDraggingCardId(null);
                           setDragOverStageId(null);
                         }}
-                        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 space-y-2 transition-opacity ${
-                          isDragging || isMoving ? 'opacity-50' : 'hover:border-slate-300 dark:hover:border-slate-700'
+                        className={`bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-3.5 space-y-2 transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)] ${
+                          isDragging || isMoving
+                            ? 'opacity-50'
+                            : 'hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_12px_rgba(11,31,51,0.06)]'
                         }`}
                       >
                         {/* Linha Superior: Nome do Cliente + Progresso */}

@@ -71,8 +71,8 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       sectionClass: 'text-white',
       headingClass: 'text-white',
       subClass: 'text-slate-200',
-      eyebrowClass: 'text-slate-300',
-      cardClass: 'bg-white/10 border border-white/15 text-white',
+      eyebrowClass: 'text-[#E5C76B]',
+      cardClass: 'bg-white/[0.06] border border-white/15 text-white hover:bg-white/[0.09] transition-all duration-200',
     };
   }
   if (active === 'suave') {
@@ -82,8 +82,9 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       sectionClass: 'text-[var(--color-text)]',
       headingClass: 'text-[var(--color-text)]',
       subClass: 'text-slate-600',
-      eyebrowClass: 'text-slate-500',
-      cardClass: 'bg-[var(--color-surface)] border border-slate-200',
+      eyebrowClass: 'text-[#8F6F16]',
+      cardClass:
+        'bg-[var(--color-surface)] border border-slate-200/90 shadow-[0_1px_2px_rgba(11,31,51,0.03)] hover:border-slate-300 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
     };
   }
   return {
@@ -92,8 +93,9 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
     sectionClass: 'border-y border-slate-200/80 text-[var(--color-text)]',
     headingClass: 'text-[var(--color-text)]',
     subClass: 'text-slate-600',
-    eyebrowClass: 'text-slate-500',
-    cardClass: 'bg-[var(--color-surface)] border border-slate-200',
+    eyebrowClass: 'text-[#8F6F16]',
+    cardClass:
+      'bg-[var(--color-surface)] border border-slate-200/90 shadow-[0_1px_2px_rgba(11,31,51,0.03)] hover:border-slate-300 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
   };
 }
 
@@ -388,15 +390,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
       const imageFirst = variante === 'split-esquerda';
       return (
-        <section key={sec.id} className="bg-[var(--color-surface)] border-b border-slate-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 lg:py-20">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
+        <section key={sec.id} className="bg-[var(--color-surface)] border-b border-slate-200/80 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-22">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-stretch">
               <div className={`lg:col-span-7 flex flex-col justify-center ${imageFirst ? 'lg:order-2' : 'lg:order-1'}`}>
-                <p className="text-xs font-semibold tracking-wide text-slate-600 mb-3">{eyebrow}</p>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[var(--color-text)] leading-[1.12] text-balance mb-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="h-[2px] w-7 shrink-0" style={{ backgroundColor: 'var(--color-accent)' }} aria-hidden="true" />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8F6F16]">
+                    {eyebrow}
+                  </p>
+                </div>
+                <h1 className="text-[clamp(2.15rem,3.6vw,3.35rem)] font-bold tracking-[-0.03em] text-[var(--color-text)] leading-[1.09] text-balance mb-5">
                   {sec.titulo}
                 </h1>
-                <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mb-4">
+                <p className="text-base sm:text-[17px] text-slate-600 leading-[1.65] max-w-2xl mb-4">
                   {sec.subtitulo}
                 </p>
                 {sec.conteudoHtml && (
@@ -405,11 +412,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
                   />
                 )}
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3.5 pt-1">
                   <button
                     type="button"
                     onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                    className="inline-flex items-center gap-2 px-6 py-3 btn-radius text-sm font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_6px_18px_rgba(11,31,51,0.18)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     {ctaPrimario}
@@ -419,7 +426,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={whatsappHeroUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-sm font-semibold text-slate-800 border border-slate-300 bg-white hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-slate-800 border border-slate-300/90 bg-white hover:bg-slate-50 hover:border-slate-400 transition-all duration-150 whitespace-nowrap shrink-0"
                   >
                     <MessageCircle className="w-4 h-4 text-[#1E7E34]" />
                     {ctaSecundario}
@@ -428,7 +435,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
 
               <div className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}>
-                <div className="relative h-72 sm:h-96 lg:h-full min-h-[340px] card-radius overflow-hidden border border-slate-200 bg-slate-900">
+                <div className="relative h-72 sm:h-96 lg:h-full min-h-[380px] card-radius overflow-hidden border border-slate-200/90 bg-[#0B1F33] shadow-[0_18px_42px_rgba(11,31,51,0.14)]">
                   {sec.imagemUrl ? (
                     <img
                       src={sec.imagemUrl}
@@ -441,21 +448,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       Santiago do Chile · Assessoria Internacional
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/20 to-transparent" />
-                  <div className="absolute bottom-5 left-5 right-5 text-white">
-                    <p className="text-xs font-medium text-slate-200">{badgeTitulo}</p>
-                    <p className="text-base font-semibold mt-0.5">{badgeSubtitulo}</p>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/88 via-[#071422]/25 to-transparent" />
+                  <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-[2px] w-5" style={{ backgroundColor: 'var(--color-accent)' }} aria-hidden="true" />
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#E5C76B]">
+                        {badgeTitulo}
+                      </p>
+                    </div>
+                    <p className="text-base font-semibold leading-snug">{badgeSubtitulo}</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {heroDestaques.length > 0 && (
-              <div className="mt-12 pt-8 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="mt-14 pt-8 border-t border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-6">
                 {heroDestaques.map((item, idx) => (
                   <div key={idx} className="flex items-start gap-3">
                     <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                    <p className="text-sm font-medium text-slate-800">{item}</p>
+                    <p className="text-sm font-medium text-slate-800 leading-snug">{item}</p>
                   </div>
                 ))}
               </div>
@@ -482,11 +494,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-12">
             <div>
               <div className="max-w-3xl mb-10">
-                <p className={`text-xs font-semibold tracking-wide mb-2 ${theme.eyebrowClass}`}>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5 ${theme.eyebrowClass}`}>
                   {(meta.eyebrow as string) || 'Serviços especializados'}
                 </p>
-                <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>{sec.titulo}</h2>
-                <p className={`text-base ${theme.subClass}`}>{sec.subtitulo}</p>
+                <h2 className={`text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
+                  {sec.titulo}
+                </h2>
+                <p className={`text-base leading-relaxed ${theme.subClass}`}>{sec.subtitulo}</p>
               </div>
 
               <div className={gridClass}>
@@ -495,20 +509,24 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     key={item.numero}
                     className={`${theme.cardClass} card-radius p-6 sm:p-7 flex ${
                       variante === 'lista-editorial' ? 'flex-col md:flex-row md:items-center' : 'flex-col'
-                    } justify-between gap-4`}
+                    } justify-between gap-5`}
                   >
                     <div className="flex-1">
-                      <p className={`text-xs font-semibold mb-2 tabular-nums ${theme.isDark ? 'text-slate-300' : 'text-slate-500'}`}>
-                        {item.numero}. Solução migratória
+                      <p
+                        className={`text-[11px] font-bold uppercase tracking-[0.12em] mb-2.5 tabular-nums ${
+                          theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16]'
+                        }`}
+                      >
+                        {item.numero} · Solução migratória
                       </p>
-                      <h3 className={`text-lg font-semibold mb-2 ${theme.headingClass}`}>{item.titulo}</h3>
+                      <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>{item.titulo}</h3>
                       <p className={`text-sm leading-relaxed ${theme.subClass}`}>{item.descricao}</p>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 pt-2 border-t border-slate-100/80">
                       <button
                         type="button"
                         onClick={() => !previewMode && setServiceDrawer(item)}
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline ${
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
                           theme.isDark ? 'text-white' : ''
                         }`}
                         style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
@@ -523,23 +541,30 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             </div>
 
             {showComparator && (
-              <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6 sm:p-8 text-slate-900">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                  <div className="lg:col-span-7 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Compass className="w-5 h-5 text-[var(--color-primary)]" />
-                      <h3 className="text-lg font-bold text-slate-900">Qual caminho serve para mim?</h3>
+              <div className="bg-[var(--color-surface)] border border-slate-200/90 card-radius overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.06)] text-slate-900">
+                <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
+                  <div className="lg:col-span-7 p-6 sm:p-8 space-y-5 flex flex-col justify-center">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Compass className="w-4 h-4 text-[#8F6F16]" />
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8F6F16]">
+                          Simulador Orientativo
+                        </p>
+                      </div>
+                      <h3 className="text-xl font-bold tracking-tight text-slate-900">
+                        Qual caminho serve para mim?
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                        Simule em 3 seleções rápidas qual rota migratória costuma se aplicar ao seu momento antes de iniciar o diagnóstico completo.
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-600">
-                      Simule em 3 seleções rápidas qual rota migratória costuma se aplicar ao seu momento antes de iniciar o diagnóstico completo.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Onde você está?</label>
+                        <label className="block font-semibold text-slate-700 mb-1.5">Onde você está?</label>
                         <select
                           value={compLocal}
                           onChange={(e) => setCompLocal(e.target.value as typeof compLocal)}
-                          className="w-full px-3 py-2 btn-radius border border-slate-300 bg-white"
+                          className="w-full px-3 py-2.5 btn-radius border border-slate-300 bg-white text-slate-900 focus:border-[var(--color-primary)] focus:outline-none transition-colors"
                         >
                           <option value="brasil">No Brasil / Exterior</option>
                           <option value="turista_chile">No Chile como turista</option>
@@ -547,11 +572,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Principal objetivo</label>
+                        <label className="block font-semibold text-slate-700 mb-1.5">Principal objetivo</label>
                         <select
                           value={compObj}
                           onChange={(e) => setCompObj(e.target.value as typeof compObj)}
-                          className="w-full px-3 py-2 btn-radius border border-slate-300 bg-white"
+                          className="w-full px-3 py-2.5 btn-radius border border-slate-300 bg-white text-slate-900 focus:border-[var(--color-primary)] focus:outline-none transition-colors"
                         >
                           <option value="morar_trabalhar">Morar / Empreender (BR)</option>
                           <option value="trabalho_oferta">Contrato formal no Chile</option>
@@ -561,11 +586,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Vínculo formal no Chile?</label>
+                        <label className="block font-semibold text-slate-700 mb-1.5">Vínculo formal no Chile?</label>
                         <select
                           value={compVinculo}
                           onChange={(e) => setCompVinculo(e.target.value as typeof compVinculo)}
-                          className="w-full px-3 py-2 btn-radius border border-slate-300 bg-white"
+                          className="w-full px-3 py-2.5 btn-radius border border-slate-300 bg-white text-slate-900 focus:border-[var(--color-primary)] focus:outline-none transition-colors"
                         >
                           <option value="nao">Não possuo</option>
                           <option value="sim">Sim (cônjuge / filho chileno)</option>
@@ -574,20 +599,31 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="lg:col-span-5 p-5 card-radius bg-slate-50 border border-slate-200 space-y-2.5">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Rota indicativa inicial</p>
-                    <p className="text-base font-bold text-slate-900">{comparatorRecommendation.titulo}</p>
-                    <p className="text-xs text-slate-600 leading-relaxed">{comparatorRecommendation.resumo}</p>
-                    {comparatorRecommendation.alerta && (
-                      <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
-                        {comparatorRecommendation.alerta}
+                  <div
+                    className="lg:col-span-5 p-6 sm:p-8 text-white flex flex-col justify-between space-y-4"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                        Rota indicativa inicial
                       </p>
-                    )}
+                      <p className="text-lg font-bold tracking-tight text-white leading-snug">
+                        {comparatorRecommendation.titulo}
+                      </p>
+                      <p className="text-xs sm:text-[13px] text-slate-200 leading-relaxed">
+                        {comparatorRecommendation.resumo}
+                      </p>
+                      {comparatorRecommendation.alerta && (
+                        <p className="text-[11px] font-medium text-amber-100 bg-amber-500/15 border border-amber-400/35 rounded-lg p-2.5 leading-relaxed">
+                          {comparatorRecommendation.alerta}
+                        </p>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => navigateAction('/diagnostico')}
-                      className="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 btn-radius text-xs font-semibold text-white"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-all duration-150 hover:opacity-95"
+                      style={{ backgroundColor: 'var(--color-accent)' }}
                     >
                       Validar meu caso no Diagnóstico Completo
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -663,18 +699,29 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-2xl mb-12">
-              {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
-              <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>{sec.titulo}</h2>
-              <p className={`text-base ${theme.subClass}`}>{sec.subtitulo}</p>
+              {Boolean(meta.eyebrow) && (
+                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5 ${theme.eyebrowClass}`}>
+                  {String(meta.eyebrow)}
+                </p>
+              )}
+              <h2 className={`text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
+                {sec.titulo}
+              </h2>
+              <p className={`text-base leading-relaxed ${theme.subClass}`}>{sec.subtitulo}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {passos.map((p) => (
-                <div key={p.passo} className={`${theme.cardClass} card-radius p-6`}>
-                  <p className="text-xl font-bold tabular-nums mb-3" style={{ color: 'var(--color-accent)' }}>
-                    {p.passo}
-                  </p>
-                  <h3 className={`text-base font-semibold mb-2 ${theme.headingClass}`}>{p.titulo}</h3>
-                  <p className={`text-sm leading-relaxed ${theme.subClass}`}>{p.descricao}</p>
+                <div key={p.passo} className={`${theme.cardClass} card-radius p-6 sm:p-7 flex flex-col justify-between`}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
+                      <p className="text-2xl font-bold tracking-tight tabular-nums" style={{ color: 'var(--color-accent)' }}>
+                        {p.passo}
+                      </p>
+                      <span className="h-[2px] w-6 bg-slate-200" aria-hidden="true" />
+                    </div>
+                    <h3 className={`text-base font-bold tracking-tight mb-2 ${theme.headingClass}`}>{p.titulo}</h3>
+                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{p.descricao}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -814,27 +861,39 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     if (key === 'contato') {
       const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'escuro-primario');
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6">
-            <div>
-              <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>{sec.titulo}</h2>
-              <p className={`text-base max-w-2xl mx-auto ${theme.subClass}`}>{sec.subtitulo}</p>
+        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} relative overflow-hidden`} style={theme.sectionStyle}>
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-7">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-3 justify-center">
+                <span className="h-[1px] w-8 bg-[#C9A227]/70" aria-hidden="true" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#E5C76B]">
+                  Próximo Passo
+                </p>
+                <span className="h-[1px] w-8 bg-[#C9A227]/70" aria-hidden="true" />
+              </div>
+              <h2 className={`text-2xl sm:text-4xl font-bold tracking-tight text-balance ${theme.headingClass}`}>
+                {sec.titulo}
+              </h2>
+              <p className={`text-base sm:text-lg max-w-2xl mx-auto leading-relaxed ${theme.subClass}`}>
+                {sec.subtitulo}
+              </p>
               {sec.conteudoHtml && <p className="text-xs opacity-80 mt-2">{sec.conteudoHtml}</p>}
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3.5 pt-1">
               <button
                 type="button"
                 onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                className="px-6 py-3 btn-radius text-sm font-semibold text-slate-950 transition-opacity hover:opacity-95"
+                className="inline-flex items-center gap-2 px-6.5 py-3.5 btn-radius text-sm font-bold text-[#0B1523] shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5"
                 style={{ backgroundColor: 'var(--color-accent)' }}
               >
                 {sec.ctaTexto || 'Iniciar Diagnóstico Agora'}
+                <ArrowRight className="w-4 h-4" />
               </button>
               <a
                 href={whatsappHeroUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center gap-2 px-6 py-3 btn-radius text-sm font-semibold border transition-colors ${
+                className={`inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-semibold border transition-all duration-150 ${
                   theme.isDark ? 'text-white border-white/30 hover:bg-white/10' : 'text-slate-900 border-slate-300 hover:bg-slate-50'
                 }`}
               >
@@ -845,7 +904,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <button
                   type="button"
                   onClick={onOpenCalendly}
-                  className={`inline-flex items-center gap-2 px-5 py-3 btn-radius text-sm font-semibold border transition-colors ${
+                  className={`inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold border transition-all duration-150 ${
                     theme.isDark ? 'text-white border-white/30 hover:bg-white/10' : 'text-slate-900 border-slate-300 hover:bg-slate-50'
                   }`}
                 >

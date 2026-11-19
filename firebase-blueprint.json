@@ -17,7 +17,7 @@
         "quemSomosExperiencia": { "type": "string", "maxLength": 2000 },
         "quemSomosMissao": { "type": "string", "maxLength": 2000 },
         "quemSomosCredenciais": { "type": "string", "maxLength": 2000 },
-        "quemSomosFotoUrl": { "type": "string", "maxLength": 250000 },
+        "quemSomosFotoUrl": { "type": "string", "maxLength": 500000 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -33,9 +33,9 @@
         "responsavel_tecnico": { "type": "string", "maxLength": 200 },
         "endereco_cidade": { "type": "string", "maxLength": 300 },
         "foro_comarca": { "type": "string", "maxLength": 300 },
-        "logoUrl": { "type": "string", "maxLength": 250000 },
-        "logoDarkUrl": { "type": "string", "maxLength": 250000 },
-        "faviconUrl": { "type": "string", "maxLength": 250000 },
+        "logoUrl": { "type": "string", "maxLength": 500000 },
+        "logoDarkUrl": { "type": "string", "maxLength": 500000 },
+        "faviconUrl": { "type": "string", "maxLength": 500000 },
         "corPrimaria": { "type": "string", "maxLength": 20 },
         "corDestaque": { "type": "string", "maxLength": 20 },
         "corFundo": { "type": "string", "maxLength": 20 },
@@ -43,7 +43,7 @@
         "corTexto": { "type": "string", "maxLength": 20 },
         "corRodapeBg": { "type": "string", "maxLength": 20 },
         "fontePrincipal": { "type": "string", "enum": ["Plus Jakarta Sans", "DM Sans", "Manrope", "Public Sans", "Montserrat", "Merriweather", "Inter"] },
-        "fonteDisplay": { "type": "string", "enum": ["Plus Jakarta Sans", "Outfit", "Manrope", "Playfair Display", "Montserrat"] },
+        "fonteDisplay": { "type": "string", "enum": ["Plus Jakarta Sans", "Outfit", "Manrope", "Playfair Display", "Montserrat", "DM Sans", "Public Sans", "Merriweather", "Inter"] },
         "whatsapp": { "type": "string", "maxLength": 40 },
         "email": { "type": "string", "maxLength": 200 },
         "siteInstagram": { "type": "string", "maxLength": 300 },
@@ -64,9 +64,19 @@
         "honorariosPadraoMaxBrl": { "type": "number" },
         "taxaCambioBrlClp": { "type": "number" },
         "taxaCambioUsdBrl": { "type": "number" },
+        "retencaoDadosDias": { "type": "number" },
+        "seoTituloPadrao": { "type": "string", "maxLength": 200 },
+        "seoDescricaoPadrao": { "type": "string", "maxLength": 500 },
+        "ultimaRevisaoNormativa": { "type": "string", "maxLength": 64 },
+        "textoContratoVersao": { "type": "string", "maxLength": 30 },
+        "textoContratoVigencia": { "type": "string", "maxLength": 64 },
+        "textoReciboVersao": { "type": "string", "maxLength": 30 },
+        "textoReciboVigencia": { "type": "string", "maxLength": 64 },
+        "termoLgpdVigencia": { "type": "string", "maxLength": 64 },
         "sitePublicadoEm": { "type": "string", "format": "date-time" },
         "siteVersaoAtual": { "type": "string", "maxLength": 40 },
-        "fcmVapidPublicKey": { "type": "string", "maxLength": 300 }
+        "fcmVapidPublicKey": { "type": "string", "maxLength": 300 },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["nome_empresa", "foro_comarca", "corPrimaria", "corDestaque", "corFundo", "fontePrincipal"]
     },
@@ -77,7 +87,8 @@
       "properties": {
         "dados_bancarios_br": { "type": "string", "maxLength": 2000 },
         "dados_bancarios_cl": { "type": "string", "maxLength": 2000 },
-        "dados_wise": { "type": "string", "maxLength": 2000 }
+        "dados_wise": { "type": "string", "maxLength": 2000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
     "SiteContent": {
@@ -90,7 +101,7 @@
         "titulo": { "type": "string", "maxLength": 300 },
         "subtitulo": { "type": "string", "maxLength": 600 },
         "conteudoHtml": { "type": "string", "maxLength": 20000 },
-        "imagemUrl": { "type": "string", "maxLength": 250000 },
+        "imagemUrl": { "type": "string", "maxLength": 500000 },
         "ordem": { "type": "number" },
         "ativo": { "type": "boolean" }
       },

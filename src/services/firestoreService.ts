@@ -11,6 +11,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { executeValidatedAdminWrite } from './adminSecurityService';
 import { sanitizeClientAiError } from '../utils/aiClient';
 import {
   DEFAULT_CONTRATO_TEMPLATE,
@@ -331,29 +332,31 @@ export async function publishDiagnosticRuleVersion(
 ): Promise<void> {
   if (role !== 'admin') throw new Error('Somente administradores podem publicar versões de regras.');
   const now = new Date().toISOString();
-  const existingVersions = await fetchAllDiagnosticRuleVersions().catch(() => []);
-  await Promise.all(
-    existingVersions
-      .filter((v) => v.ativa && v.id !== nextVersion.id)
-      .map((v) =>
-        setDoc(doc(db, 'diagnosticRuleVersions', v.id), sanitizeFirestoreData({ ...v, ativa: false }), { merge: true }),
-      ),
-  );
-  const payload: DiagnosticRuleVersion = sanitizeFirestoreData({
-    ...nextVersion,
-    ativa: true,
-    createdAt: nextVersion.createdAt || now,
+  await executeValidatedAdminWrite(`diagnosticRuleVersions/${nextVersion.id}`, OperationType.WRITE, async () => {
+    const existingVersions = await fetchAllDiagnosticRuleVersions().catch(() => []);
+    await Promise.all(
+      existingVersions
+        .filter((v) => v.ativa && v.id !== nextVersion.id)
+        .map((v) =>
+          setDoc(doc(db, 'diagnosticRuleVersions', v.id), sanitizeFirestoreData({ ...v, ativa: false }), { merge: true }),
+        ),
+    );
+    const payload: DiagnosticRuleVersion = sanitizeFirestoreData({
+      ...nextVersion,
+      ativa: true,
+      createdAt: nextVersion.createdAt || now,
+    });
+    await setDoc(doc(db, 'diagnosticRuleVersions', nextVersion.id), payload);
+    await registrarAuditoria(
+      'Publicar Versão Regras',
+      'diagnosticRuleVersions',
+      nextVersion.id,
+      'versao_regras',
+      previousActiveVersion ? { versao: previousActiveVersion.versao, regrasCount: previousActiveVersion.regras.length } : null,
+      { versao: payload.versao, resumoMudanca: payload.resumoMudanca, publicadoPor: payload.publicadoPor },
+      role,
+    );
   });
-  await setDoc(doc(db, 'diagnosticRuleVersions', nextVersion.id), payload);
-  await registrarAuditoria(
-    'Publicar Versão Regras',
-    'diagnosticRuleVersions',
-    nextVersion.id,
-    'versao_regras',
-    previousActiveVersion ? { versao: previousActiveVersion.versao, regrasCount: previousActiveVersion.regras.length } : null,
-    { versao: payload.versao, resumoMudanca: payload.resumoMudanca, publicadoPor: payload.publicadoPor },
-    role,
-  );
 }
 
 // =============================================================================
@@ -1300,23 +1303,19 @@ export async function fetchBancarioConfigAdmin(): Promise<BancarioConfig> {
 }
 
 export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: BancarioConfig): Promise<void> {
-  try {
-    const validated = validateBancarioConfigPayload(data);
+  const validated = validateBancarioConfigPayload(data);
+  await executeValidatedAdminWrite('config/bancario', OperationType.WRITE, async () => {
     await setDoc(doc(db, 'config', 'bancario'), validated, { merge: true });
     await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, validated, 'admin');
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, 'config/bancario');
-  }
+  });
 }
 
 export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
-  try {
-    const validated = validateEmpresaConfigPayload(data);
+  const validated = validateEmpresaConfigPayload(data);
+  await executeValidatedAdminWrite('config/empresa', OperationType.WRITE, async () => {
     await setDoc(doc(db, 'config', 'empresa'), validated, { merge: true });
     await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, 'config/empresa');
-  }
+  });
 }
 
 export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {

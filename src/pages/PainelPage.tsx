@@ -637,29 +637,49 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     return (
       <div className={`min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)] ${panelThemeClass}`}>
         <div
-          className="border border-slate-200 dark:border-slate-800 p-8 max-w-md w-full text-center space-y-4"
-          style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
+          className="border border-slate-200/90 dark:border-slate-800 max-w-md w-full overflow-hidden shadow-[0_12px_36px_rgba(11,31,51,0.08)]"
+          style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-card, 16px)' }}
         >
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Painel Interno da Equipe</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Acesso restrito a colaboradores ativos da consultoria D&amp;M Integra Chile.
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigate('/entrar-equipe')}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
+          <div className="flex h-1.5 w-full" aria-hidden="true">
+            <div className="flex-[3] bg-[var(--color-primary)]" />
+            <div className="flex-1 bg-[var(--color-accent)]" />
+          </div>
+          <div className="p-8 sm:p-10 text-center space-y-5">
+            <div
+              className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white tracking-tight shadow-xs"
               style={{ backgroundColor: 'var(--color-primary)' }}
+              aria-hidden="true"
             >
-              Entrar como Equipe
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('/')}
-              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Voltar ao Site
-            </button>
+              D&amp;M
+            </div>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9A7B1C] dark:text-amber-400">
+                Consultoria Migratória · Área Restrita
+              </p>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                Painel Interno da Equipe
+              </h1>
+              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Acesso exclusivo para consultores e administradores ativos da {empresa.nome_empresa}.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => onNavigate('/entrar-equipe')}
+                className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 shadow-[0_2px_6px_rgba(11,31,51,0.18)]"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                Entrar como Equipe
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('/')}
+                className="px-5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                Voltar ao Site
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -685,7 +705,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     <div className={`min-h-screen flex bg-[var(--color-bg)] text-slate-900 dark:text-slate-100 transition-colors ${panelThemeClass}`}>
       {/* Sidebar Desktop Enxuta (6 hubs práticos em vez de 15 itens espalhados) */}
       <aside
-        className={`hidden lg:flex lg:flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0 no-print transition-all ${
+        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0F1629] border-r border-slate-200/90 dark:border-slate-800 shrink-0 no-print transition-all ${
           sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
         }`}
       >
@@ -816,7 +836,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
-        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
+        <header className="bg-white/90 dark:bg-[#0F1629]/90 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
@@ -1130,6 +1150,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   communicationLogs={effectiveWorkspace.communicationLogs}
                   legalSources={legalSources}
                   visaRequirements={visaRequirements}
+                  staffUsers={effectiveWorkspace.staffUsers}
                   diasAlertaRevisaoLegal={empresa.diasAlertaRevisaoLegal || 90}
                   brandName={empresa.nome_empresa}
                   onLogWhatsApp={handleLogWhatsApp}

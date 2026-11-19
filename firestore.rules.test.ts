@@ -38,9 +38,10 @@ test('rules isolate financial collections from assistente role', () => {
   assert.match(caseFinBlock, /isAdminOrConsultor\(\)/);
 });
 
-test('rules isolate bancario config strictly to admin', () => {
+test('rules isolate bancario config strictly to validated admin and enforce Pillar 4.10 order', () => {
   const cfgBlock = rulesText.slice(rulesText.indexOf('match /config/{docId}'), rulesText.indexOf('match /siteContent/{sectionId}'));
-  assert.match(cfgBlock, /docId == 'bancario' && isAdmin\(\)/);
+  assert.match(cfgBlock, /docId == 'bancario' && isValidatedAdmin\(\)/);
+  assert.match(cfgBlock, /allow create, update:\s*if isSignedIn\(\) && isValidId\(docId\) && \(\s*\(docId == 'empresa' && isValidEmpresaConfig\(incoming\(\)\)\) \|\|\s*\(docId == 'bancario' && isValidBancarioConfig\(incoming\(\)\)\)\s*\) && isValidatedAdmin\(\);/);
 });
 
 test('rules enforce immutable auditLogs (no update or delete)', () => {
@@ -61,9 +62,9 @@ test('rules isolate diagnosticSessions list to staff and enforce token length + 
   assert.match(dsBlock, /expiraEmMs > request\.time\.toMillis\(\)/);
 });
 
-test('rules restrict diagnosticRuleVersions writes strictly to admin', () => {
+test('rules restrict diagnosticRuleVersions writes strictly to validated admin', () => {
   const rvBlock = rulesText.slice(rulesText.indexOf('match /diagnosticRuleVersions/{versionId}'), rulesText.indexOf('match /clients/{clientId}'));
-  assert.match(rvBlock, /allow create, update:\s*if isAdmin\(\)/);
+  assert.match(rvBlock, /allow create, update:\s*if isSignedIn\(\) && isValidId\(versionId\) && isValidDiagnosticRuleVersion\(incoming\(\)\) && isValidatedAdmin\(\);/);
   assert.match(rvBlock, /existing\(\)\.ativa == true \|\| isStaff\(\)/);
 });
 
@@ -82,13 +83,22 @@ test('rules restrict generatedDocuments client confirmation/signature updates an
   assert.match(genBlock, /existing\(\)\.liberadoAoCliente == true/);
 });
 
-test('rules restrict mediaAssets reads to staff and writes strictly to admin', () => {
+test('rules restrict mediaAssets reads to staff and writes strictly to validated admin', () => {
   const mediaBlock = rulesText.slice(rulesText.indexOf('match /mediaAssets/{assetId}'), rulesText.indexOf('match /auditLogs/{logId}'));
   assert.match(mediaBlock, /allow get, list:\s*if isStaff\(\);/);
-  assert.match(mediaBlock, /allow create, update:\s*if isAdmin\(\)/);
-  assert.match(mediaBlock, /allow delete:\s*if isAdmin\(\)/);
-  assert.match(rulesText, /isOptString\(data, 'logoUrl', 250000\)/);
+  assert.match(mediaBlock, /allow create, update:\s*if isSignedIn\(\) && isValidId\(assetId\) && isValidMediaAsset\(incoming\(\)\) && isValidatedAdmin\(\);/);
+  assert.match(mediaBlock, /allow delete:\s*if isSignedIn\(\) && isValidId\(assetId\) && isValidatedAdmin\(\);/);
+  assert.match(rulesText, /isOptString\(data, 'logoUrl', 500000\)/);
   assert.match(rulesText, /'DM Sans'/);
+});
+
+test('rules recognize primary admin deivisonjoaquim@gmail.com case-insensitively and block downgrade or deletion', () => {
+  assert.match(rulesText, /function isPrimaryAdminEmail\(email\) \{\s*return email is string && email\.lower\(\) == 'deivisonjoaquim@gmail\.com';/);
+  assert.match(rulesText, /function isValidatedAdmin\(\) \{\s*return isBootstrappedAdmin\(\) \|\| \(isActiveUser\(\) && userDoc\(\)\.role == 'admin'\);/);
+  assert.match(rulesText, /!isPrimaryAdminEmail\(existing\(\)\.email\) \|\| \(incoming\(\)\.role == 'admin' && incoming\(\)\.status == 'ativo' && incoming\(\)\.uid == existing\(\)\.uid\)/);
+  assert.match(rulesText, /allow delete:\s*if isSignedIn\(\) && isValidId\(uid\) && isValidatedAdmin\(\) && !isPrimaryAdminEmail\(existing\(\)\.email\);/);
+  assert.match(rulesText, /function isOptBool\(data, field\) \{\s*return !\(field in data\) \|\| data\[field\] == null \|\| data\[field\] is bool;/);
+  assert.match(rulesText, /function isOptNum\(data, field\) \{\s*return !\(field in data\) \|\| data\[field\] == null \|\| data\[field\] is number;/);
 });
 
 test('rules enforce strict owner isolation on fcmTokens and client read-only content on clientNotifications', () => {

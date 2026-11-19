@@ -59,18 +59,24 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white border-b border-slate-100 no-print'
+      ? 'bg-white border-b border-slate-200/80 no-print'
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-slate-200 shadow-xs no-print'
-        : 'sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 no-print';
+        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-slate-200/90 shadow-[0_1px_3px_rgba(11,31,51,0.05)] no-print'
+        : 'sticky top-0 z-40 bg-white/88 backdrop-blur-xl border-b border-slate-200/75 shadow-[0_1px_2px_rgba(11,31,51,0.03)] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const brandShortName = empresa.nome_empresa.split('–')[0].trim();
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
+      {/* Filete arquitetônico de identidade institucional */}
+      <div className="flex h-[2px] w-full no-print" aria-hidden="true">
+        <div className="flex-[4] bg-[var(--color-primary)]" />
+        <div className="flex-1 bg-[var(--color-accent)]" />
+      </div>
+
       <header className={headerClass}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[72px] flex items-center justify-between gap-6">
           {/* Zona 1: Marca em linha única */}
           <a
             href="#/"
@@ -78,7 +84,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               e.preventDefault();
               onNavigate('/');
             }}
-            className="flex items-center gap-2.5 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] rounded"
+            className="flex items-center gap-3 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] rounded group"
           >
             {empresa.logoUrl ? (
               <img
@@ -90,21 +96,21 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               />
             ) : (
               <span
-                className="w-9 h-9 btn-radius flex items-center justify-center text-xs font-bold text-white shrink-0"
+                className="w-9 h-9 btn-radius flex items-center justify-center text-xs font-extrabold tracking-tight text-white shrink-0 shadow-[0_2px_6px_rgba(11,31,51,0.2)] ring-1 ring-[#C9A227]/40"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 {brandShortName.slice(0, 3).toUpperCase()}
               </span>
             )}
             {showBrandText && (
-              <span className="text-base sm:text-lg font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap">
+              <span className="text-base sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap">
                 {brandShortName}
               </span>
             )}
           </a>
 
           {/* Zona 2: Links de navegação em linha única */}
-          <nav className="hidden lg:flex items-center gap-6" aria-label="Navegação principal">
+          <nav className="hidden lg:flex items-center gap-7" aria-label="Navegação principal">
             {navItems.map((item) => {
               const active = currentPath === item.path;
               return (
@@ -115,9 +121,9 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     e.preventDefault();
                     onNavigate(item.path);
                   }}
-                  className={`text-sm font-medium whitespace-nowrap shrink-0 py-1 border-b-2 transition-colors ${
+                  className={`text-[13.5px] font-medium whitespace-nowrap shrink-0 py-1.5 border-b-2 transition-colors ${
                     active
-                      ? 'text-[var(--color-text)] border-[var(--color-accent)]'
+                      ? 'text-[var(--color-text)] font-semibold border-[var(--color-accent)]'
                       : 'text-slate-600 border-transparent hover:text-[var(--color-text)] hover:border-slate-300'
                   }`}
                 >
@@ -132,7 +138,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             <button
               type="button"
               onClick={handleHeaderCtaClick}
-              className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-white btn-radius whitespace-nowrap shrink-0 transition-opacity hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+              className="hidden sm:inline-flex items-center justify-center px-4.5 py-2.5 text-xs font-semibold text-white btn-radius whitespace-nowrap shrink-0 shadow-[0_2px_6px_rgba(11,31,51,0.16)] transition-all duration-150 hover:opacity-95 hover:-translate-y-[0.5px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               {headerCtaLabel}
@@ -141,7 +147,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="lg:hidden p-2 btn-radius text-slate-700 hover:bg-slate-100 min-h-[40px] min-w-[40px] flex items-center justify-center"
+              className="lg:hidden p-2 btn-radius text-slate-700 hover:bg-slate-100 min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -149,7 +155,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-3 space-y-1">
+          <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-3 space-y-1 shadow-lg">
             {navItems.map((item) => (
               <a
                 key={item.path}
@@ -160,7 +166,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   onNavigate(item.path);
                 }}
                 className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
-                  currentPath === item.path ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
+                  currentPath === item.path ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 {item.label}
@@ -181,12 +187,16 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       <main className={`flex-1 ${showMobileCtaBar ? 'pb-16 md:pb-0' : ''}`}>{children}</main>
 
       <footer
-        className="text-slate-300 border-t border-white/10 no-print"
+        className="text-slate-300 border-t border-white/10 no-print relative"
         style={{ backgroundColor: 'var(--color-footer-bg)' }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-8 border-b border-white/10">
-            <div className="space-y-2.5">
+        <div className="h-[2px] w-full flex" aria-hidden="true">
+          <div className="flex-[3] bg-white/10" />
+          <div className="flex-1 bg-[var(--color-accent)]/70" />
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-16">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-white/10">
+            <div className="md:col-span-5 space-y-3">
               {footerLogoSrc && (
                 <img
                   src={footerLogoSrc}
@@ -195,16 +205,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   className="h-9 w-auto max-w-[200px] object-contain"
                 />
               )}
-              <p className="text-base font-bold text-white">{empresa.nome_empresa}</p>
+              <p className="text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
               {lc.rodapeSubtitulo && (
-                <p className="text-xs text-slate-300 leading-relaxed">{lc.rodapeSubtitulo}</p>
+                <p className="text-sm text-slate-300 leading-relaxed max-w-md">{lc.rodapeSubtitulo}</p>
               )}
               <p className="text-sm text-slate-400 leading-relaxed">{empresa.endereco_cidade}</p>
-              <p className="text-xs text-slate-400">{empresa.razao_social_cnpj_rut}</p>
+              <p className="text-xs text-slate-500">{empresa.razao_social_cnpj_rut}</p>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-white mb-3">Acesso rápido</p>
-              <ul className="space-y-2 text-sm">
+            <div className="md:col-span-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#E5C76B] mb-4">
+                Acesso rápido
+              </p>
+              <ul className="space-y-2.5 text-sm">
                 {navItems.map((item) => (
                   <li key={item.path}>
                     <a
@@ -213,7 +225,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                         e.preventDefault();
                         onNavigate(item.path);
                       }}
-                      className="hover:text-white transition-colors"
+                      className="text-slate-300 hover:text-white transition-colors"
                     >
                       {item.label}
                     </a>
@@ -221,17 +233,19 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 ))}
               </ul>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-white mb-3">Atendimento</p>
-              <p className="text-sm text-slate-300">{empresa.email}</p>
+            <div className="md:col-span-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#E5C76B] mb-4">
+                Atendimento &amp; Conformidade
+              </p>
+              <p className="text-sm text-slate-200 font-medium">{empresa.email}</p>
               <p className="text-sm text-slate-300 mt-1 tabular-nums">{empresa.whatsapp}</p>
-              <div className="flex flex-wrap gap-4 mt-2.5">
+              <div className="flex flex-wrap gap-4 mt-3">
                 {empresa.siteInstagram && (
                   <a
                     href={empresa.siteInstagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block text-xs text-slate-300 hover:text-white underline"
+                    className="inline-block text-xs text-slate-300 hover:text-white underline underline-offset-4"
                   >
                     Instagram oficial
                   </a>
@@ -241,14 +255,14 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     href={empresa.siteLinkedIn}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block text-xs text-slate-300 hover:text-white underline"
+                    className="inline-block text-xs text-slate-300 hover:text-white underline underline-offset-4"
                   >
                     LinkedIn
                   </a>
                 )}
               </div>
               {empresa.ultimaRevisaoNormativa && (
-                <p className="text-xs text-slate-400 mt-4">
+                <p className="text-xs text-slate-400 mt-5 pt-4 border-t border-white/10 tabular-nums">
                   Última revisão normativa registrada: {formatDateBR(empresa.ultimaRevisaoNormativa)}
                 </p>
               )}
@@ -257,7 +271,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
           <div className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs text-slate-400">
             <p className="leading-relaxed max-w-4xl">{empresa.avisoLegal}</p>
-            <p className="whitespace-nowrap shrink-0">
+            <p className="whitespace-nowrap shrink-0 text-slate-500">
               © {new Date().getFullYear()} {brandShortName} · {lc.rodapeCopyright || 'Todos os direitos reservados.'}
             </p>
           </div>
@@ -271,7 +285,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Falar com ${brandShortName} no WhatsApp`}
-          className="hidden md:inline-flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4 py-3 rounded-full bg-[#1E7E34] text-white text-xs font-semibold shadow-lg hover:opacity-95 no-print"
+          className="hidden md:inline-flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4.5 py-3 rounded-full bg-[#1E7E34] text-white text-xs font-semibold shadow-[0_8px_24px_rgba(11,31,51,0.22)] hover:shadow-[0_10px_28px_rgba(11,31,51,0.28)] hover:-translate-y-0.5 transition-all duration-150 no-print"
         >
           <MessageCircle className="w-4 h-4" />
           WhatsApp

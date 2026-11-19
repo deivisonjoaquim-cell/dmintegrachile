@@ -1,5 +1,5 @@
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db } from '../firebase';
 import type { UserRole } from '../types/domain';
 
 export async function registrarAuditoria(
@@ -26,23 +26,19 @@ export async function registrarAuditoria(
   try {
     await setDoc(doc(db, 'auditLogs', id), {
       id,
-      actorUid: currentUser.uid,
-      actorEmail: currentUser.email || '',
-      actorRole: actorRole || 'usuario',
-      acao,
-      entidade,
-      entidadeId: String(entidadeId || 'geral').slice(0, 128),
-      campo: String(campo || 'geral').slice(0, 120),
+      actorUid: String(currentUser.uid).slice(0, 128),
+      actorEmail: String(currentUser.email || '').slice(0, 200),
+      actorRole: String(actorRole || 'usuario').slice(0, 40),
+      acao: (String(acao || 'Atualizar').trim() || 'Atualizar').slice(0, 100),
+      entidade: (String(entidade || 'sistema').trim() || 'sistema').slice(0, 100),
+      entidadeId: (String(entidadeId || 'geral').trim() || 'geral').slice(0, 128),
+      campo: (String(campo || 'geral').trim() || 'geral').slice(0, 120),
       antes: serialize(antes),
       depois: serialize(depois),
       createdAt: new Date().toISOString(),
     });
   } catch (err) {
-    // Audit logging should not crash user flow if offline, but still surfaces permission issues via structured logger
-    try {
-      handleFirestoreError(err, OperationType.CREATE, `auditLogs/${id}`);
-    } catch {
-      // Logged in handleFirestoreError
-    }
+    // Audit logging is secondary telemetry and must never block or falsely alarm a completed save
+    console.warn('Falha ao gravar registro de auditoria:', err instanceof Error ? err.message : String(err));
   }
 }

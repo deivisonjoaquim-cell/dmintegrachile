@@ -25,6 +25,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { auth } from '../../firebase';
+import { isPrimaryAdminEmail } from '../../services/adminSecurityService';
+import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidKey } from '../../services/notificationService';
 import {
   fetchAllDiagnosticRuleVersions,
@@ -440,16 +442,22 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
     setRulesLoaded(true);
   };
 
+  const formatActionError = (err: unknown, fallback: string) => {
+    const friendly = translateAppError(err);
+    return friendly.actionHint ? `${friendly.title}: ${friendly.message} ${friendly.actionHint}` : friendly.message || fallback;
+  };
+
   const handleSaveEmpresa = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setFeedback(null);
     setSavingEmpresa(true);
     try {
       await saveEmpresaConfigAdmin(cfg, empresa);
       setFeedback('Identidade visual, logos, layout e configurações salvos e aplicados ao site!');
       await onRefreshPublic();
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Erro ao salvar configurações.');
+      setErrorMsg(formatActionError(err, 'Erro ao salvar configurações.'));
     } finally {
       setSavingEmpresa(false);
     }
@@ -458,9 +466,15 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const handleSaveBancario = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bancario) return;
-    await saveBancarioConfigAdmin(bancario, bancarioOrig || bancario);
-    setBancarioOrig(bancario);
-    setFeedback('Dados bancários internos salvos com sigilo (somente Admin).');
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      await saveBancarioConfigAdmin(bancario, bancarioOrig || bancario);
+      setBancarioOrig(bancario);
+      setFeedback('Dados bancários internos salvos com sigilo (somente Admin).');
+    } catch (err) {
+      setErrorMsg(formatActionError(err, 'Erro ao salvar dados bancários.'));
+    }
   };
 
   const handleSaveCmsDraftItem = (e: React.FormEvent) => {
@@ -539,79 +553,96 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   };
 
   const handleSaveDraftToServer = async () => {
-    const nextCfg: EmpresaConfig = {
-      ...cfg,
-      siteDraft,
-    };
-    await saveEmpresaConfigAdmin(nextCfg, empresa);
-    setCfg(nextCfg);
-    setFeedback('Rascunho do site salvo com segurança (o site público permanece inalterado até publicar).');
-    await onRefreshPublic();
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const nextCfg: EmpresaConfig = {
+        ...cfg,
+        siteDraft,
+      };
+      await saveEmpresaConfigAdmin(nextCfg, empresa);
+      setCfg(nextCfg);
+      setFeedback('Rascunho do site salvo com segurança (o site público permanece inalterado até publicar).');
+      await onRefreshPublic();
+    } catch (err) {
+      setErrorMsg(formatActionError(err, 'Erro ao salvar rascunho do site.'));
+    }
   };
 
   const handlePublishSite = async () => {
     setErrorMsg(null);
-    const now = new Date().toISOString();
-    const curVerNum = Number.parseInt((cfg.siteVersaoAtual || 'v1').replace(/\D/g, '') || '1', 10);
-    const nextVersao = `v${curVerNum + 1}`;
-    const prevSnapshot = {
-      versao: cfg.siteVersaoAtual || 'v1',
-      publicadoEm: cfg.sitePublicadoEm || now,
-      publicadoPor: userProfile.email,
-      secoes: siteContent,
-    };
-    const nextHistorico = [prevSnapshot, ...(cfg.siteHistorico || [])].slice(0, 10);
+    setFeedback(null);
+    try {
+      const now = new Date().toISOString();
+      const curVerNum = Number.parseInt((cfg.siteVersaoAtual || 'v1').replace(/\D/g, '') || '1', 10);
+      const nextVersao = `v${curVerNum + 1}`;
+      const prevSnapshot = {
+        versao: cfg.siteVersaoAtual || 'v1',
+        publicadoEm: cfg.sitePublicadoEm || now,
+        publicadoPor: userProfile.email,
+        secoes: siteContent,
+      };
+      const nextHistorico = [prevSnapshot, ...(cfg.siteHistorico || [])].slice(0, 10);
 
-    await Promise.all(
-      siteDraft.map((sec) =>
-        saveDocumentAudited(
-          'siteContent',
-          sec.id,
-          sec as unknown as Record<string, unknown>,
-          false,
-          role,
-          `publicar_cms_${sec.secao}`,
+      await Promise.all(
+        siteDraft.map((sec) =>
+          saveDocumentAudited(
+            'siteContent',
+            sec.id,
+            sec as unknown as Record<string, unknown>,
+            false,
+            role,
+            `publicar_cms_${sec.secao}`,
+          ),
         ),
-      ),
-    );
+      );
 
-    const nextCfg: EmpresaConfig = {
-      ...cfg,
-      siteDraft,
-      sitePublicadoEm: now,
-      siteVersaoAtual: nextVersao,
-      siteHistorico: nextHistorico,
-    };
-    await saveEmpresaConfigAdmin(nextCfg, empresa);
-    setCfg(nextCfg);
-    setFeedback(`Site público publicado (${nextVersao}) com todas as seções, layout, logos e mídias!`);
-    await Promise.all([onRefresh(), onRefreshPublic()]);
+      const nextCfg: EmpresaConfig = {
+        ...cfg,
+        siteDraft,
+        sitePublicadoEm: now,
+        siteVersaoAtual: nextVersao,
+        siteHistorico: nextHistorico,
+      };
+      await saveEmpresaConfigAdmin(nextCfg, empresa);
+      setCfg(nextCfg);
+      setFeedback(`Site público publicado (${nextVersao}) com todas as seções, layout, logos e mídias!`);
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(formatActionError(err, 'Erro ao publicar alterações no site.'));
+    }
   };
 
   const handleRestoreSiteVersion = async (histItem: NonNullable<EmpresaConfig['siteHistorico']>[number]) => {
-    setSiteDraft([...histItem.secoes].sort((a, b) => a.ordem - b.ordem));
-    await Promise.all(
-      histItem.secoes.map((sec) =>
-        saveDocumentAudited(
-          'siteContent',
-          sec.id,
-          sec as unknown as Record<string, unknown>,
-          false,
-          role,
-          `restaurar_cms_${histItem.versao}`,
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      setSiteDraft([...histItem.secoes].sort((a, b) => a.ordem - b.ordem));
+      await Promise.all(
+        histItem.secoes.map((sec) =>
+          saveDocumentAudited(
+            'siteContent',
+            sec.id,
+            sec as unknown as Record<string, unknown>,
+            false,
+            role,
+            `restaurar_cms_${histItem.versao}`,
+          ),
         ),
-      ),
-    );
-    const nextCfg: EmpresaConfig = {
-      ...cfg,
-      siteDraft: histItem.secoes,
-      sitePublicadoEm: new Date().toISOString(),
-      siteVersaoAtual: `${histItem.versao}-restaurada`,
-    };
-    await saveEmpresaConfigAdmin(nextCfg, empresa);
-    setCfg(nextCfg);
-    setFeedback(`Versão ${histItem.versao} restaurada e publicada no site!`);
-    await Promise.all([onRefresh(), onRefreshPublic()]);
+      );
+      const nextCfg: EmpresaConfig = {
+        ...cfg,
+        siteDraft: histItem.secoes,
+        sitePublicadoEm: new Date().toISOString(),
+        siteVersaoAtual: `${histItem.versao}-restaurada`,
+      };
+      await saveEmpresaConfigAdmin(nextCfg, empresa);
+      setCfg(nextCfg);
+      setFeedback(`Versão ${histItem.versao} restaurada e publicada no site!`);
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(formatActionError(err, 'Erro ao restaurar versão do site.'));
+    }
   };
 
   const updateDraftRuleItem = (id: string, patch: Partial<DiagnosticRuleItem>) => {
@@ -665,7 +696,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       await onRefresh();
       await loadRuleVersions();
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Erro ao publicar versão das regras.');
+      setErrorMsg(formatActionError(err, 'Erro ao publicar versão das regras.'));
     } finally {
       setPublishingRules(false);
     }
@@ -2091,20 +2122,39 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-xs">
-                {usersList.map((u) => (
+                {usersList.map((u) => {
+                  const isProtectedPrimaryAdmin = isPrimaryAdminEmail(u.email);
+                  return (
                   <tr key={u.uid}>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{u.nome}</td>
+                    <td className="py-3 px-4 font-semibold text-slate-900">
+                      <div className="flex items-center gap-2">
+                        <span>{u.nome}</span>
+                        {isProtectedPrimaryAdmin && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] font-semibold text-amber-800">
+                            Admin principal
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-slate-600">{u.email}</td>
                     <td className="py-3 px-4">
                       <select
                         value={u.role}
+                        disabled={isProtectedPrimaryAdmin}
+                        title={isProtectedPrimaryAdmin ? 'O administrador principal permanece sempre como admin' : undefined}
                         onChange={async (e) => {
+                          if (isProtectedPrimaryAdmin) return;
                           const nextRole = e.target.value as UserRole;
-                          await saveDocumentAudited('users', u.uid, { ...u, role: nextRole }, false, role, 'alterar_papel_usuario');
-                          await loadUsers();
-                          setFeedback(`Papel de ${u.email} alterado para ${nextRole}.`);
+                          setErrorMsg(null);
+                          try {
+                            await saveDocumentAudited('users', u.uid, { ...u, role: nextRole }, false, role, 'alterar_papel_usuario');
+                            await loadUsers();
+                            setFeedback(`Papel de ${u.email} alterado para ${nextRole}.`);
+                          } catch (err) {
+                            setErrorMsg(formatActionError(err, 'Erro ao alterar papel do usuário.'));
+                          }
                         }}
-                        className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-semibold"
+                        className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                       >
                         <option value="admin">admin</option>
                         <option value="consultor">consultor</option>
@@ -2115,12 +2165,21 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     <td className="py-3 px-4">
                       <select
                         value={u.status}
+                        disabled={isProtectedPrimaryAdmin}
+                        title={isProtectedPrimaryAdmin ? 'O administrador principal permanece sempre ativo' : undefined}
                         onChange={async (e) => {
+                          if (isProtectedPrimaryAdmin) return;
                           const nextStatus = e.target.value as UserProfile['status'];
-                          await saveDocumentAudited('users', u.uid, { ...u, status: nextStatus }, false, role, 'alterar_status_usuario');
-                          await loadUsers();
+                          setErrorMsg(null);
+                          try {
+                            await saveDocumentAudited('users', u.uid, { ...u, status: nextStatus }, false, role, 'alterar_status_usuario');
+                            await loadUsers();
+                            setFeedback(`Status de ${u.email} atualizado para ${nextStatus}.`);
+                          } catch (err) {
+                            setErrorMsg(formatActionError(err, 'Erro ao alterar status do usuário.'));
+                          }
                         }}
-                        className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white"
+                        className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                       >
                         <option value="ativo">ativo</option>
                         <option value="pendente">pendente</option>
@@ -2139,7 +2198,8 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -3067,17 +3127,22 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              await saveDocumentAudited(
-                'users',
-                editingMember.uid,
-                editingMember as unknown as Record<string, unknown>,
-                false,
-                role,
-                'quem_somos_membro',
-              );
-              setEditingMember(null);
-              setFeedback('Perfil institucional atualizado!');
-              await loadUsers();
+              setErrorMsg(null);
+              try {
+                await saveDocumentAudited(
+                  'users',
+                  editingMember.uid,
+                  editingMember as unknown as Record<string, unknown>,
+                  false,
+                  role,
+                  'quem_somos_membro',
+                );
+                setEditingMember(null);
+                setFeedback('Perfil institucional atualizado!');
+                await loadUsers();
+              } catch (err) {
+                setErrorMsg(formatActionError(err, 'Erro ao atualizar perfil institucional.'));
+              }
             }}
             className="bg-white rounded-xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4"
           >
