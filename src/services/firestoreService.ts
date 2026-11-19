@@ -68,6 +68,7 @@ import {
   validateEmpresaConfigPayload,
 } from '../utils/firestoreUtils';
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
+import { upgradeLegacyCopyString, upgradeLegacySiteContentCopy } from '../utils/homeCopyNormalizer';
 import { reportAppError } from './errorService';
 
 export function makeId(prefix: string): string {
@@ -119,9 +120,24 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
       ? data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE)
       : data.termoLgpd || DEFAULT_EMPRESA_CONFIG.termoLgpd;
 
+  const mergedLayout = {
+    ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
+    ...(data.layoutConfig || {}),
+  };
+  if (mergedLayout.textoCtaCabecalho) {
+    mergedLayout.textoCtaCabecalho =
+      upgradeLegacyCopyString(mergedLayout.textoCtaCabecalho) || mergedLayout.textoCtaCabecalho;
+  }
+  if (mergedLayout.rodapeSubtitulo) {
+    mergedLayout.rodapeSubtitulo =
+      upgradeLegacyCopyString(mergedLayout.rodapeSubtitulo) || mergedLayout.rodapeSubtitulo;
+  }
+
   const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
+    avisoLegal:
+      upgradeLegacyCopyString(data.avisoLegal) || DEFAULT_EMPRESA_CONFIG.avisoLegal,
     razao_social_cnpj_rut:
       !data.razao_social_cnpj_rut || data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL
         ? DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut
@@ -136,10 +152,7 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
         : data.endereco_cidade,
     textoContratoPadrao,
     termoLgpd,
-    layoutConfig: {
-      ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
-      ...(data.layoutConfig || {}),
-    },
+    layoutConfig: mergedLayout,
   };
   if (data.siteDraft) {
     normalized.siteDraft = normalizeSiteContentAssets(data.siteDraft);
@@ -209,7 +222,7 @@ function normalizeSiteContentAssets(rows: SiteContent[]): SiteContent[] {
         next = { ...next, metadados: meta };
       }
     }
-    return next;
+    return upgradeLegacySiteContentCopy(next);
   });
 }
 

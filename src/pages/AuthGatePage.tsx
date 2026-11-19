@@ -125,11 +125,11 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
           )}
 
           <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9A7B1C]">
-              {mode === 'equipe' ? 'Painel Administrativo & Consultoria' : 'Portal Seguro do Cliente'}
+            <p className="text-xs font-semibold text-[#9A7B1C]">
+              {mode === 'equipe' ? 'Painel Administrativo e Consultoria' : 'Portal Seguro do Cliente'}
             </p>
             <h1 className="text-2xl font-bold text-slate-900">
-              {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Acompanhar Meu Processo'}
+              {mode === 'equipe' ? 'Área da Equipe' : 'Acompanhar Meu Processo'}
             </h1>
           </div>
 
@@ -159,7 +159,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
 
               <div className="pt-2 border-t border-slate-100 space-y-2">
                 <p className="text-xs text-slate-500">
-                  Acesso protegido via Firebase Authentication (Google Sign-In com e-mail verificado).
+                  Acesso protegido via autenticação Google com e-mail verificado.
                 </p>
                 <button
                   type="button"
@@ -224,9 +224,9 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-sm flex items-start gap-2.5 text-left">
                 <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">Acesso em análise / pendente de liberação</p>
+                  <p className="font-semibold">Acesso aguardando liberação</p>
                   <p className="text-xs mt-1 leading-relaxed">
-                    Olá, <strong>{userProfile.nome}</strong> ({userProfile.email}). Sua conta Google foi autenticada com sucesso, mas o acesso completo ao Portal do Cliente aguarda liberação pelo consultor após o diagnóstico ou contratação.
+                    Olá, <strong>{userProfile.nome}</strong> ({userProfile.email}). Sua conta Google foi autenticada com sucesso; o acesso completo ao Portal do Cliente é liberado pela equipe após o diagnóstico ou a contratação da assessoria.
                   </p>
                 </div>
               </div>

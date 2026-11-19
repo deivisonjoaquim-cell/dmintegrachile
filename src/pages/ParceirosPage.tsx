@@ -104,10 +104,10 @@ export const ParceirosPage: React.FC = () => {
           <div className="max-w-3xl mb-8">
             <p className="text-xs font-semibold text-slate-500 mb-2">Rede homologada</p>
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 text-balance mb-3">
-              Parceiros recomendados pela D&amp;M Integra Chile
+              Rede de parceiros homologados pela D&amp;M Integra Chile
             </h1>
-            <p className="text-base text-slate-600">
-              Profissionais e empresas avaliados por nossa equipe técnica no Brasil e no Chile para apoiar sua jornada migratória.
+            <p className="text-base text-slate-600 leading-relaxed">
+              Profissionais e empresas avaliados por nossa equipe técnica no Brasil e no Chile para apoiar cada etapa da sua jornada migratória e de relocation.
             </p>
           </div>
 
@@ -207,8 +207,8 @@ export const ParceirosPage: React.FC = () => {
               <Handshake className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
               <h2 className="text-2xl font-bold text-slate-900">Seja um Parceiro</h2>
             </div>
-            <p className="text-sm text-slate-600">
-              Oferece serviços jurídicos, cartoriais, tradução juramentada, locação, contabilidade ou relocation no Brasil ou Chile? Envie sua proposta para análise da nossa diretoria.
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Oferece serviços jurídicos, cartoriais, de tradução juramentada, locação, contabilidade ou relocation no Brasil ou no Chile? Envie sua proposta para avaliação da nossa diretoria.
             </p>
           </div>
 
@@ -217,7 +217,7 @@ export const ParceirosPage: React.FC = () => {
               <CheckCircle2 className="w-5 h-5 text-[#1E7E34] shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-semibold">Proposta recebida com sucesso!</p>
-                <p className="mt-0.5">Protocolo interno: {submittedId}. Nossa equipe analisará os termos e entrará em contato.</p>
+                <p className="mt-0.5">Protocolo de registro: {submittedId}. Nossa equipe analisará as informações enviadas e retornará o contato.</p>
               </div>
             </div>
           )}
@@ -353,9 +353,9 @@ export const ParceirosPage: React.FC = () => {
                 onChange={(e) => setMoeda(e.target.value as CurrencyCode)}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
               >
-                <option value="BRL">BRL (Real R$)</option>
-                <option value="CLP">CLP (Peso Chileno)</option>
-                <option value="USD">USD (Dólar)</option>
+                <option value="BRL">BRL (Real brasileiro)</option>
+                <option value="CLP">CLP (Peso chileno)</option>
+                <option value="USD">USD (Dólar americano)</option>
               </select>
             </div>
 
@@ -374,7 +374,7 @@ export const ParceirosPage: React.FC = () => {
 
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="p-msg">
-                Mensagem complementar / diferenciais
+                Apresentação institucional e diferenciais
               </label>
               <textarea
                 id="p-msg"

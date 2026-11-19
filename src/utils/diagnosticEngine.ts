@@ -328,7 +328,7 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
   if (answers.localizacao === 'No Brasil' && isYes(answers.entradaRecenteChileTurista)) {
     list.push({
       codigo: 'CONT-LOC-TUR',
-      titulo: 'Localização no Brasil vs. entrada recente como turista',
+      titulo: 'Localização no Brasil e entrada recente como turista',
       descricao:
         'Você informou estar no Brasil neste momento, mas também sinalizou entrada recente no Chile como turista sem registro de saída.',
       perguntaEsclarecimento: 'Você já retornou fisicamente ao Brasil ou ainda se encontra em território chileno?',
@@ -369,7 +369,7 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
   if (answers.passaporteStatus === 'vencido' && (answers.passaporteValidadeMeses ?? 0) >= 12) {
     list.push({
       codigo: 'CONT-PAS-VAL',
-      titulo: 'Passaporte vencido vs. validade informada >= 12 meses',
+      titulo: 'Passaporte vencido com validade informada igual ou superior a 12 meses',
       descricao: 'O status do passaporte está marcado como vencido, mas os meses de validade estão preenchidos acima de 12.',
       perguntaEsclarecimento: 'O passaporte já foi renovado ou encontra-se vencido no momento?',
     });
@@ -832,7 +832,7 @@ export function runDiagnosticEngine(
       );
       explicacaoCliente.push(
         ruleNaoForm?.explicacaoCliente ||
-          'Como a união ainda não está formalizada no papel, recomendamos formalizá-la para destravar a Reunificação Familiar.',
+          'Como a união ainda não está formalizada juridicamente, recomendamos formalizá-la para habilitar a Reunificação Familiar.',
       );
       informacoesQueMudariamResultado.push('Formalizar casamento ou Acuerdo de Unión Civil ativa a Reunificação Familiar (Cód. 01) e evita saída do Chile.');
     }

@@ -4,6 +4,8 @@ import {
   Bookmark,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   ExternalLink,
   Eye,
   FileText,
@@ -15,12 +17,19 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  ShieldCheck,
   Sparkles,
   Star,
   Upload,
+  Wifi,
   X,
 } from 'lucide-react';
 import { LegalBaseModal } from '../LegalBaseModal';
+import {
+  checkSermigOfficialLinksLive,
+  type SermigBatchCheckResponse,
+  type SermigSourceCheckResult,
+} from '../../services/sermigLegalClient';
 import {
   callAiEndpoint,
   makeId,
@@ -124,7 +133,20 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const [onlyFav, setOnlyFav] = useState(false);
   const [onlyOutdated, setOnlyOutdated] = useState(false);
   const [syncingOfficial, setSyncingOfficial] = useState(false);
+  const [checkingLiveLinks, setCheckingLiveLinks] = useState(false);
+  const [batchVerifying, setBatchVerifying] = useState(false);
+  const [liveCheckMap, setLiveCheckMap] = useState<Record<string, SermigSourceCheckResult>>({});
+  const [liveCheckSummary, setLiveCheckSummary] = useState<SermigBatchCheckResponse['summary'] | null>(null);
+  const [liveCheckedAt, setLiveCheckedAt] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'verificacao_asc' | 'verificacao_desc' | 'titulo'>('verificacao_asc');
+
+  // Filtros dinâmicos da aba Vistos & Requisitos SERMIG
+  const [visaSearch, setVisaSearch] = useState('');
+  const [visaInsideFilter, setVisaInsideFilter] = useState<'Todos' | 'Sim' | 'Condicional' | 'Não'>('Todos');
+  const [visaVerifyFilter, setVisaVerifyFilter] = useState<'Todos' | 'Verificado' | 'A verificar'>('Todos');
+  const [expandedVisaId, setExpandedVisaId] = useState<string | null>(null);
+  const [savingVisaId, setSavingVisaId] = useState<string | null>(null);
+
   const [presets, setPresets] = useState<LegalFilterPreset[]>(() => {
     try {
       const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
@@ -299,20 +321,46 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     setSearchLegal(p.q);
   };
 
+  const filteredVisas = useMemo(() => {
+    const q = visaSearch.trim().toLowerCase();
+    return visaCategories.filter((v) => {
+      if (visaInsideFilter !== 'Todos' && v.permiteDentroChile !== visaInsideFilter) return false;
+      if (visaVerifyFilter !== 'Todos' && v.statusVerificacao !== visaVerifyFilter) return false;
+      if (!q) return true;
+      const reqMatch = visaRequirements.some(
+        (r) =>
+          r.visaCategoryId === v.id &&
+          (r.nomeDocumento.toLowerCase().includes(q) || (r.observacoes || '').toLowerCase().includes(q)),
+      );
+      return (
+        v.codigo.toLowerCase().includes(q) ||
+        v.nomePortugues.toLowerCase().includes(q) ||
+        v.nomeEspanhol.toLowerCase().includes(q) ||
+        (v.resumoElegibilidade || '').toLowerCase().includes(q) ||
+        reqMatch
+      );
+    });
+  }, [visaCategories, visaRequirements, visaSearch, visaInsideFilter, visaVerifyFilter]);
+
   const handleToggleFavorite = async (s: LegalSource) => {
-    const cur = s.favoritoPorUids || [];
-    const next = cur.includes(userProfile.uid)
-      ? cur.filter((id) => id !== userProfile.uid)
-      : [...cur, userProfile.uid];
-    await saveDocumentAudited(
-      'legalSources',
-      s.id,
-      { ...s, favoritoPorUids: next },
-      false,
-      role,
-      'favorito_norma',
-    );
-    await onRefreshPublic();
+    setErrorMsg(null);
+    try {
+      const cur = s.favoritoPorUids || [];
+      const next = cur.includes(userProfile.uid)
+        ? cur.filter((id) => id !== userProfile.uid)
+        : [...cur, userProfile.uid];
+      await saveDocumentAudited(
+        'legalSources',
+        s.id,
+        { ...s, favoritoPorUids: next },
+        false,
+        role,
+        'favorito_norma',
+      );
+      await onRefreshPublic();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível atualizar favorito da norma.');
+    }
   };
 
   // ===========================================================================
@@ -460,21 +508,119 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   };
 
   const handleVerifySource = async (s: LegalSource) => {
-    await saveDocumentAudited(
-      'legalSources',
-      s.id,
-      {
-        ...s,
-        statusVigencia: 'Vigente',
-        ultimaVerificacao: toIsoDate(new Date()),
-        responsavelVerificacao: userProfile.nome || userProfile.email,
-      },
-      false,
-      role,
-      'verificar_norma',
+    setErrorMsg(null);
+    try {
+      await saveDocumentAudited(
+        'legalSources',
+        s.id,
+        {
+          ...s,
+          statusVigencia: 'Vigente',
+          ultimaVerificacao: toIsoDate(new Date()),
+          responsavelVerificacao: userProfile.nome || userProfile.email,
+        },
+        false,
+        role,
+        'verificar_norma',
+      );
+      setFeedback(`Norma "${s.titulo}" marcada como verificada e vigente.`);
+      await onRefreshPublic();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível marcar a norma como verificada.');
+    }
+  };
+
+  const handleCheckLiveSermigLinks = async (targetSources?: LegalSource[]) => {
+    if (checkingLiveLinks) return;
+    const list = (targetSources && targetSources.length > 0 ? targetSources : legalSources).filter(
+      (s) => s.statusVigencia !== 'Revogada',
     );
-    setFeedback(`Norma "${s.titulo}" marcada como verificada e vigente.`);
-    await onRefreshPublic();
+    if (list.length === 0) {
+      setFeedback('Nenhuma norma ativa encontrada para verificação de conectividade SERMIG/BCN.');
+      return;
+    }
+    setCheckingLiveLinks(true);
+    setErrorMsg(null);
+    try {
+      const report = await checkSermigOfficialLinksLive(
+        list.map((s) => ({
+          id: s.id,
+          titulo: s.titulo,
+          url: s.linkOficial || '',
+        })),
+      );
+      setLiveCheckMap((prev) => {
+        const next = { ...prev };
+        for (const item of report.results) {
+          next[item.id] = item;
+        }
+        return next;
+      });
+      if (!targetSources) {
+        setLiveCheckSummary(report.summary);
+        setLiveCheckedAt(report.checkedAt);
+      }
+      const reachable = report.summary.online + report.summary.redirect;
+      setFeedback(
+        `Monitoramento SERMIG/BCN concluído: ${reachable} de ${report.summary.total} fonte(s) oficial(is) respondendo online` +
+          (report.summary.degraded > 0 ? `, ${report.summary.degraded} protegida(s) por WAF/timeout` : '') +
+          (report.summary.unreachable + report.summary.invalidUrl > 0
+            ? `, ${report.summary.unreachable + report.summary.invalidUrl} com link a revisar.`
+            : '.'),
+      );
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Não foi possível verificar os portais oficiais SERMIG/BCN.',
+      );
+    } finally {
+      setCheckingLiveLinks(false);
+    }
+  };
+
+  const handleBatchVerifyPendingNorms = async () => {
+    if (batchVerifying) return;
+    const pending = legalSources.filter(
+      (s) => s.statusVigencia !== 'Revogada' && (s.statusVigencia === 'A verificar' || isSourceOutdated(s)),
+    );
+    if (pending.length === 0) {
+      setFeedback('Todas as normas ativas já estão verificadas e dentro do prazo de revisão.');
+      return;
+    }
+    setBatchVerifying(true);
+    setErrorMsg(null);
+    try {
+      const todayIso = toIsoDate(new Date());
+      const verifier = userProfile.nome || userProfile.email;
+      for (const src of pending) {
+        const live = liveCheckMap[src.id];
+        const nextLink =
+          live?.status === 'redirect' && live.resolvedUrl && live.resolvedUrl.startsWith('https://')
+            ? live.resolvedUrl
+            : src.linkOficial;
+        await saveDocumentAudited(
+          'legalSources',
+          src.id,
+          {
+            ...src,
+            linkOficial: nextLink,
+            statusVigencia: 'Vigente',
+            ultimaVerificacao: todayIso,
+            responsavelVerificacao: verifier,
+          },
+          false,
+          role,
+          'verificacao_lote_sermig',
+        );
+      }
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+      setFeedback(`${pending.length} norma(s) oficial(is) confirmada(s) como Vigente(s) e atualizada(s).`);
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Falha ao confirmar normas pendentes em lote.',
+      );
+    } finally {
+      setBatchVerifying(false);
+    }
   };
 
   const handleSelectNormaFile = (file: File) => {
@@ -595,111 +741,125 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const handlePublishNormaUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSource) return;
-    const prevSource = legalSources.find((x) => x.id === editingSource.id);
-    const nextVerNum = isNewSource
-      ? editingSource.versao || '1.0'
-      : (Number.parseFloat(editingSource.versao || '1.0') + 0.1).toFixed(1);
-    const hist = editingSource.historicoVersoes || [];
-    const nextHist = isNewSource
-      ? hist
-      : [
-          ...hist,
-          {
-            versao: prevSource?.versao || editingSource.versao || '1.0',
-            data: toIsoDate(new Date()),
-            resumo: prevSource?.resumoPortugues || editingSource.resumoPortugues,
-            textoSnapshot: prevSource?.textoIntegral || editingSource.textoIntegral,
-          },
-        ];
+    setErrorMsg(null);
+    try {
+      const prevSource = legalSources.find((x) => x.id === editingSource.id);
+      const nextVerNum = isNewSource
+        ? editingSource.versao || '1.0'
+        : (Number.parseFloat(editingSource.versao || '1.0') + 0.1).toFixed(1);
+      const hist = editingSource.historicoVersoes || [];
+      const nextHist = isNewSource
+        ? hist
+        : [
+            ...hist,
+            {
+              versao: prevSource?.versao || editingSource.versao || '1.0',
+              data: toIsoDate(new Date()),
+              resumo: prevSource?.resumoPortugues || editingSource.resumoPortugues,
+              textoSnapshot: prevSource?.textoIntegral || editingSource.textoIntegral,
+            },
+          ];
 
-    const updated: LegalSource = {
-      ...editingSource,
-      artigos: normaAiDraft?.artigosExtraidos || editingSource.artigos,
-      resumoPortugues: normaAiDraft?.resumoExecutivo || editingSource.resumoPortugues,
-      explicacaoCliente: normaAiDraft?.explicacaoCliente || editingSource.explicacaoCliente,
-      textoIntegral: normaNewText.trim() || editingSource.textoIntegral,
-      versao: nextVerNum,
-      ultimaVerificacao: toIsoDate(new Date()),
-      responsavelVerificacao: userProfile.nome || userProfile.email,
-      historicoVersoes: nextHist,
-    };
-    await saveDocumentAudited(
-      'legalSources',
-      updated.id,
-      updated as unknown as Record<string, unknown>,
-      isNewSource,
-      role,
-      isNewSource ? 'criar_norma' : 'atualizar_norma',
-      prevSource || null,
-    );
+      const updated: LegalSource = {
+        ...editingSource,
+        titulo: editingSource.titulo.trim(),
+        linkOficial: (editingSource.linkOficial || '').trim(),
+        artigos: normaAiDraft?.artigosExtraidos || editingSource.artigos,
+        resumoPortugues: normaAiDraft?.resumoExecutivo || editingSource.resumoPortugues,
+        explicacaoCliente: normaAiDraft?.explicacaoCliente || editingSource.explicacaoCliente,
+        textoIntegral: normaNewText.trim() || editingSource.textoIntegral,
+        versao: nextVerNum,
+        ultimaVerificacao: toIsoDate(new Date()),
+        responsavelVerificacao: userProfile.nome || userProfile.email,
+        historicoVersoes: nextHist,
+      };
+      await saveDocumentAudited(
+        'legalSources',
+        updated.id,
+        updated as unknown as Record<string, unknown>,
+        isNewSource,
+        role,
+        isNewSource ? 'criar_norma' : 'atualizar_norma',
+        prevSource || null,
+      );
 
-    // Gerar tasks automáticas de revisão para casos ativos afetados se norma mudou
-    let tasksCreated = 0;
-    if (!isNewSource) {
-      const usages = computeUsagesForSource(updated);
-      for (const cs of usages.activeCasesAffected.slice(0, 15)) {
-        const tId = makeId('task');
-        const t: Task = {
-          id: tId,
-          titulo: `[Revisão Normativa] Verificar impacto de ${updated.numeroAno || updated.titulo}`,
-          descricao: `Norma atualizada para v${nextVerNum} (${updated.statusVigencia}). Conferir requisitos e parecer do caso "${cs.titulo}".`,
-          caseId: cs.id,
-          clientId: cs.clientId,
-          prazo: toIsoDate(new Date(Date.now() + 3 * 86400000)),
-          prioridade: 'Alta',
-          status: 'Pendente',
-          createdAt: new Date().toISOString(),
-        };
-        await saveDocumentAudited('tasks', tId, t as unknown as Record<string, unknown>, true, role, 'revisao_norma_caso');
-        tasksCreated++;
+      // Gerar tasks automáticas de revisão para casos ativos afetados se norma mudou
+      let tasksCreated = 0;
+      if (!isNewSource) {
+        const usages = computeUsagesForSource(updated);
+        for (const cs of usages.activeCasesAffected.slice(0, 15)) {
+          const tId = makeId('task');
+          const t: Task = {
+            id: tId,
+            titulo: `[Revisão Normativa] Verificar impacto de ${updated.numeroAno || updated.titulo}`,
+            descricao: `Norma atualizada para v${nextVerNum} (${updated.statusVigencia}). Conferir requisitos e parecer do caso "${cs.titulo}".`,
+            caseId: cs.id,
+            clientId: cs.clientId,
+            prazo: toIsoDate(new Date(Date.now() + 3 * 86400000)),
+            prioridade: 'Alta',
+            status: 'Pendente',
+            createdAt: new Date().toISOString(),
+          };
+          await saveDocumentAudited('tasks', tId, t as unknown as Record<string, unknown>, true, role, 'revisao_norma_caso');
+          tasksCreated++;
+        }
       }
-    }
 
-    clearAiDraftCache(`norma_${editingSource.id}`);
-    setEditingSource(null);
-    setNormaAiDraft(null);
-    setNormaNewText('');
-    setNormaAttachment(null);
-    setIsNewSource(false);
-    setFeedback(
-      isNewSource
-        ? `Norma "${updated.titulo}" cadastrada com sucesso.`
-        : `Norma "${updated.titulo}" publicada na versão ${nextVerNum}.${
-            tasksCreated > 0 ? ` ${tasksCreated} tarefa(s) de revisão criada(s) para casos afetados.` : ''
-          }`,
-    );
-    await Promise.all([onRefresh(), onRefreshPublic()]);
+      clearAiDraftCache(`norma_${editingSource.id}`);
+      setEditingSource(null);
+      setNormaAiDraft(null);
+      setNormaNewText('');
+      setNormaAttachment(null);
+      setIsNewSource(false);
+      setFeedback(
+        isNewSource
+          ? `Norma "${updated.titulo}" cadastrada com sucesso.`
+          : `Norma "${updated.titulo}" publicada na versão ${nextVerNum}.${
+              tasksCreated > 0 ? ` ${tasksCreated} tarefa(s) de revisão criada(s) para casos afetados.` : ''
+            }`,
+      );
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Não foi possível salvar a norma na Base Legal.',
+      );
+    }
   };
 
   const handleRestoreNormaVersion = async (src: LegalSource, histEntry: NonNullable<LegalSource['historicoVersoes']>[number]) => {
-    const nextVer = (Number.parseFloat(src.versao || '1.0') + 0.1).toFixed(1);
-    const restored: LegalSource = {
-      ...src,
-      resumoPortugues: histEntry.resumo,
-      textoIntegral: histEntry.textoSnapshot ?? src.textoIntegral,
-      versao: nextVer,
-      historicoVersoes: [
-        ...(src.historicoVersoes || []),
-        {
-          versao: src.versao,
-          data: toIsoDate(new Date()),
-          resumo: src.resumoPortugues,
-          textoSnapshot: src.textoIntegral,
-        },
-      ],
-    };
-    await saveDocumentAudited(
-      'legalSources',
-      src.id,
-      restored as unknown as Record<string, unknown>,
-      false,
-      role,
-      `restaurar_norma_${histEntry.versao}`,
-      src,
-    );
-    setHistorySource(null);
-    setFeedback(`Versão ${histEntry.versao} restaurada como v${nextVer}.`);
-    await onRefreshPublic();
+    setErrorMsg(null);
+    try {
+      const nextVer = (Number.parseFloat(src.versao || '1.0') + 0.1).toFixed(1);
+      const restored: LegalSource = {
+        ...src,
+        resumoPortugues: histEntry.resumo,
+        textoIntegral: histEntry.textoSnapshot ?? src.textoIntegral,
+        versao: nextVer,
+        historicoVersoes: [
+          ...(src.historicoVersoes || []),
+          {
+            versao: src.versao,
+            data: toIsoDate(new Date()),
+            resumo: src.resumoPortugues,
+            textoSnapshot: src.textoIntegral,
+          },
+        ],
+      };
+      await saveDocumentAudited(
+        'legalSources',
+        src.id,
+        restored as unknown as Record<string, unknown>,
+        false,
+        role,
+        `restaurar_norma_${histEntry.versao}`,
+        src,
+      );
+      setHistorySource(null);
+      setFeedback(`Versão ${histEntry.versao} restaurada como v${nextVer}.`);
+      await onRefreshPublic();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível restaurar a versão anterior da norma.');
+    }
   };
 
   if (role === 'assistente') {
@@ -734,20 +894,42 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         </div>
         {(tab === 'legal' || tab === 'vistos') && (
           <div className="flex flex-wrap items-center gap-2">
+            {tab === 'legal' && (
+              <button
+                type="button"
+                disabled={checkingLiveLinks}
+                onClick={() => void handleCheckLiveSermigLinks()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <Wifi className={`w-3.5 h-3.5 ${checkingLiveLinks ? 'animate-pulse text-[var(--color-primary)]' : 'text-emerald-600'}`} />
+                {checkingLiveLinks ? 'Testando Portais SERMIG/BCN...' : 'Verificar Links SERMIG (Ao Vivo)'}
+              </button>
+            )}
+            {tab === 'legal' && (healthStats.aVerificar > 0 || healthStats.outdated > 0) && (
+              <button
+                type="button"
+                disabled={batchVerifying}
+                onClick={() => void handleBatchVerifyPendingNorms()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-xs font-semibold text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100/70 disabled:opacity-50"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                {batchVerifying ? 'Confirmando...' : 'Confirmar Pendentes'}
+              </button>
+            )}
             <button
               type="button"
               disabled={syncingOfficial}
               onClick={() => void handleSyncOfficialBase()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncingOfficial ? 'animate-spin' : ''}`} />
-              {syncingOfficial ? 'Sincronizando...' : 'Sincronizar Base Oficial SERMIG/BCN'}
+              {syncingOfficial ? 'Sincronizando...' : 'Sincronizar Base SERMIG/BCN'}
             </button>
             {tab === 'legal' && (
               <button
                 type="button"
                 onClick={openNewNormModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -757,6 +939,40 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
           </div>
         )}
       </div>
+
+      {tab === 'legal' && liveCheckSummary && (
+        <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0F1629] px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs tabular-nums">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700 dark:text-slate-300">
+            <span className="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-1.5">
+              <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+              Status ao vivo SERMIG / BCN
+            </span>
+            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+              {liveCheckSummary.online} online
+            </span>
+            {liveCheckSummary.redirect > 0 && (
+              <span className="text-sky-700 dark:text-sky-400 font-semibold">
+                {liveCheckSummary.redirect} redirecionada(s)
+              </span>
+            )}
+            {liveCheckSummary.degraded > 0 && (
+              <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                {liveCheckSummary.degraded} protegida(s) por WAF
+              </span>
+            )}
+            {liveCheckSummary.unreachable + liveCheckSummary.invalidUrl > 0 && (
+              <span className="text-[#C82333] dark:text-red-400 font-semibold">
+                {liveCheckSummary.unreachable + liveCheckSummary.invalidUrl} com link a revisar
+              </span>
+            )}
+          </div>
+          {liveCheckedAt && (
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              Checado em {new Date(liveCheckedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
         {[
@@ -1182,27 +1398,94 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       <strong>Nota interna do consultor:</strong> {s.notasInternasConsultor}
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-3 text-xs pt-0.5">
-                    {s.linkOficial && (
-                      <a
-                        href={s.linkOficial}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[var(--color-primary)] font-semibold hover:underline"
-                      >
-                        Fonte oficial <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                    {s.arquivoPdfUrl && (
-                      <a
-                        href={s.arquivoPdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-slate-700 font-semibold hover:underline"
-                      >
-                        PDF anexado <FileText className="w-3 h-3" />
-                      </a>
-                    )}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      {s.linkOficial && (
+                        <a
+                          href={s.linkOficial}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[var(--color-primary)] dark:text-sky-400 font-semibold hover:underline"
+                        >
+                          Fonte oficial <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {s.arquivoPdfUrl && (
+                        <a
+                          href={s.arquivoPdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300 font-semibold hover:underline"
+                        >
+                          PDF anexado <FileText className="w-3 h-3" />
+                        </a>
+                      )}
+                      {s.linkOficial && (
+                        <button
+                          type="button"
+                          disabled={checkingLiveLinks}
+                          onClick={() => void handleCheckLiveSermigLinks([s])}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 disabled:opacity-50"
+                        >
+                          <Wifi className="w-3 h-3" />
+                          Testar link
+                        </button>
+                      )}
+                    </div>
+
+                    {liveCheckMap[s.id] && (() => {
+                      const live = liveCheckMap[s.id];
+                      const tone =
+                        live.status === 'online'
+                          ? 'text-emerald-700 dark:text-emerald-400'
+                          : live.status === 'redirect'
+                            ? 'text-sky-700 dark:text-sky-400'
+                            : live.status === 'degraded'
+                              ? 'text-amber-700 dark:text-amber-400'
+                              : 'text-[#C82333] dark:text-red-400';
+                      const label =
+                        live.status === 'online'
+                          ? `Online (${live.latencyMs}ms)`
+                          : live.status === 'redirect'
+                            ? `Redirecionado (${live.latencyMs}ms)`
+                            : live.status === 'degraded'
+                              ? `WAF/Lento (HTTP ${live.httpStatus ?? 'timeout'})`
+                              : live.status === 'invalid_url'
+                                ? 'Link inválido'
+                                : `Indisponível (HTTP ${live.httpStatus ?? 'erro'})`;
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] tabular-nums">
+                          <span className={`font-semibold ${tone}`} title={live.detail}>
+                            {label}
+                            {live.pageTitle ? ` · ${live.pageTitle}` : ''}
+                          </span>
+                          {live.status === 'redirect' && live.resolvedUrl && live.resolvedUrl !== s.linkOficial && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await saveDocumentAudited(
+                                    'legalSources',
+                                    s.id,
+                                    { ...s, linkOficial: live.resolvedUrl, ultimaVerificacao: toIsoDate(new Date()) },
+                                    false,
+                                    role,
+                                    'atualizar_link_canonico_sermig',
+                                  );
+                                  setFeedback(`Link canônico atualizado para "${s.titulo}".`);
+                                  await onRefreshPublic();
+                                } catch (err) {
+                                  setErrorMsg(err instanceof Error ? err.message : 'Falha ao atualizar URL canônica.');
+                                }
+                              }}
+                              className="font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline"
+                            >
+                              Usar link atualizado
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
@@ -1211,86 +1494,241 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         </div>
       )}
 
-      {/* VISTOS & REQUISITOS */}
+      {/* VISTOS & REQUISITOS SERMIG (Explorador Dinâmico) */}
       {tab === 'vistos' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-xs text-slate-500 bg-slate-50">
-                <th className="py-3 px-4 font-semibold">Código</th>
-                <th className="py-3 px-4 font-semibold">Subcategoria</th>
-                <th className="py-3 px-4 font-semibold">Dentro do Chile</th>
-                <th className="py-3 px-4 font-semibold">Requisitos</th>
-                <th className="py-3 px-4 font-semibold">Base Legal</th>
-                <th className="py-3 px-4 font-semibold">Verificação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-xs">
-              {visaCategories.map((v) => {
-                const countReqs = visaRequirements.filter((r) => r.visaCategoryId === v.id).length;
-                const linkedNorms = legalSources.filter(
-                  (ls) =>
-                    (v.legalSourceIds || []).includes(ls.id) ||
-                    (v.codigo === '15' && ls.id.includes('mercosul')) ||
-                    ls.id === 'leg_ley_21325' ||
-                    ls.id === 'leg_dec_177_2022',
-                );
-                return (
-                  <tr key={v.id}>
-                    <td className="py-3 px-4 font-bold tabular-nums">{v.codigo}</td>
-                    <td className="py-3 px-4">
-                      <p className="font-semibold text-slate-900">{v.nomePortugues}</p>
-                      <p className="text-slate-500">{v.nomeEspanhol}</p>
-                    </td>
-                    <td className="py-3 px-4">{v.permiteDentroChile}</td>
-                    <td className="py-3 px-4 tabular-nums">{countReqs} item(ns)</td>
-                    <td className="py-3 px-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setLegalDrawerData({
-                            title: `Base Legal — Cód. ${v.codigo} (${v.nomePortugues})`,
-                            sources: linkedNorms,
-                          })
-                        }
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        <BookOpen className="w-3.5 h-3.5" />
-                        Ver Base Legal ({linkedNorms.length})
-                      </button>
-                    </td>
-                    <td className="py-3 px-4">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await saveDocumentAudited(
-                            'visaCategories',
-                            v.id,
-                            {
-                              ...v,
-                              statusVerificacao: v.statusVerificacao === 'Verificado' ? 'A verificar' : 'Verificado',
-                              ultimaVerificacao: toIsoDate(new Date()),
-                            },
-                            false,
-                            role,
-                            'verificacao_visto',
-                          );
-                          await onRefreshPublic();
-                        }}
-                        className={`px-2.5 py-1 rounded border text-xs font-semibold ${
-                          v.statusVerificacao === 'Verificado'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                            : 'bg-amber-50 border-amber-200 text-amber-900'
-                        }`}
-                      >
-                        {v.statusVerificacao}
-                      </button>
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={visaSearch}
+                onChange={(e) => setVisaSearch(e.target.value)}
+                placeholder="Buscar subcategoria SERMIG, código ou documento exigido..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-xs text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <select
+                value={visaInsideFilter}
+                onChange={(e) => setVisaInsideFilter(e.target.value as typeof visaInsideFilter)}
+                aria-label="Filtrar por solicitação dentro do Chile"
+                className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+              >
+                <option value="Todos">Dentro do Chile: Todos</option>
+                <option value="Sim">Permite dentro do Chile</option>
+                <option value="Condicional">Condicional</option>
+                <option value="Não">Somente do exterior</option>
+              </select>
+
+              <select
+                value={visaVerifyFilter}
+                onChange={(e) => setVisaVerifyFilter(e.target.value as typeof visaVerifyFilter)}
+                aria-label="Filtrar por status de verificação SERMIG"
+                className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+              >
+                <option value="Todos">Verificação: Todas</option>
+                <option value="Verificado">Verificado</option>
+                <option value="A verificar">A verificar</option>
+              </select>
+
+              <span className="text-slate-500 dark:text-slate-400 tabular-nums px-1">
+                {filteredVisas.length} de {visaCategories.length} subcategoria(s)
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60">
+                  <th className="py-3 px-4 font-semibold w-10" />
+                  <th className="py-3 px-4 font-semibold">Código</th>
+                  <th className="py-3 px-4 font-semibold">Subcategoria SERMIG</th>
+                  <th className="py-3 px-4 font-semibold">Dentro do Chile</th>
+                  <th className="py-3 px-4 font-semibold">Requisitos</th>
+                  <th className="py-3 px-4 font-semibold">Base Legal</th>
+                  <th className="py-3 px-4 font-semibold">Verificação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                {filteredVisas.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 px-4 text-center text-slate-500 dark:text-slate-400">
+                      Nenhuma subcategoria SERMIG encontrada para os filtros aplicados.
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ) : (
+                  filteredVisas.map((v) => {
+                    const reqs = visaRequirements.filter((r) => r.visaCategoryId === v.id);
+                    const isExpanded = expandedVisaId === v.id;
+                    const linkedNorms = legalSources.filter(
+                      (ls) =>
+                        (v.legalSourceIds || []).includes(ls.id) ||
+                        (v.codigo === '15' && ls.id.includes('mercosul')) ||
+                        ls.id === 'leg_ley_21325' ||
+                        ls.id === 'leg_dec_177_2022',
+                    );
+                    return (
+                      <React.Fragment key={v.id}>
+                        <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedVisaId(isExpanded ? null : v.id)}
+                              aria-label={isExpanded ? 'Recolher requisitos' : 'Expandir requisitos'}
+                              className="p-1 rounded hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500"
+                            >
+                              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            </button>
+                          </td>
+                          <td className="py-3 px-4 font-bold tabular-nums text-slate-900 dark:text-slate-100">{v.codigo}</td>
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedVisaId(isExpanded ? null : v.id)}
+                              className="text-left group"
+                            >
+                              <p className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-[var(--color-primary)]">
+                                {v.nomePortugues}
+                              </p>
+                              <p className="text-slate-500 dark:text-slate-400">{v.nomeEspanhol}</p>
+                            </button>
+                          </td>
+                          <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
+                            {v.permiteDentroChile}
+                          </td>
+                          <td className="py-3 px-4 tabular-nums">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedVisaId(isExpanded ? null : v.id)}
+                              className="font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline"
+                            >
+                              {reqs.length} item(ns)
+                            </button>
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLegalDrawerData({
+                                  title: `Base Legal — Cód. ${v.codigo} (${v.nomePortugues})`,
+                                  sources: linkedNorms,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              Base Legal ({linkedNorms.length})
+                            </button>
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              disabled={savingVisaId === v.id}
+                              onClick={async () => {
+                                setSavingVisaId(v.id);
+                                setErrorMsg(null);
+                                try {
+                                  const nextStatus = v.statusVerificacao === 'Verificado' ? 'A verificar' : 'Verificado';
+                                  await saveDocumentAudited(
+                                    'visaCategories',
+                                    v.id,
+                                    {
+                                      ...v,
+                                      statusVerificacao: nextStatus,
+                                      ultimaVerificacao: toIsoDate(new Date()),
+                                    },
+                                    false,
+                                    role,
+                                    'verificacao_visto',
+                                  );
+                                  setFeedback(`Subcategoria "${v.nomePortugues}" marcada como ${nextStatus}.`);
+                                  await onRefreshPublic();
+                                } catch (err) {
+                                  setErrorMsg(
+                                    err instanceof Error ? err.message : 'Falha ao atualizar verificação da subcategoria SERMIG.',
+                                  );
+                                } finally {
+                                  setSavingVisaId(null);
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded border text-xs font-semibold disabled:opacity-50 ${
+                                v.statusVerificacao === 'Verificado'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
+                                  : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300'
+                              }`}
+                            >
+                              {savingVisaId === v.id ? 'Salvando...' : v.statusVerificacao}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-slate-50/70 dark:bg-slate-900/40">
+                            <td colSpan={7} className="px-6 py-4 space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div className="space-y-0.5">
+                                  <p className="font-semibold text-slate-900 dark:text-slate-100">
+                                    Elegibilidade & Regras SERMIG — Cód. {v.codigo}
+                                  </p>
+                                  <p className="text-slate-600 dark:text-slate-400">
+                                    {v.resumoElegibilidade || 'Consulte os requisitos documentais e normas vinculadas abaixo.'}
+                                    {v.levaDefinitiva ? ` · Elegível à Residência Definitiva (${v.mesesDefinitiva || 24} meses).` : ''}
+                                  </p>
+                                </div>
+                                {v.fonteUrl && (
+                                  <a
+                                    href={v.fonteUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
+                                  >
+                                    Abrir página SERMIG <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
+
+                              {reqs.length === 0 ? (
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  Nenhum requisito específico cadastrado para esta subcategoria.
+                                </p>
+                              ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {reqs.map((r) => (
+                                    <div
+                                      key={r.id}
+                                      className="rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0F1629] p-3 space-y-1"
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="font-semibold text-slate-900 dark:text-slate-100">{r.nomeDocumento}</p>
+                                        <span className="text-[11px] font-semibold tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
+                                          {r.obrigatorio ? 'Obrigatório' : 'Opcional'} · Peso {r.peso}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        {r.categoriaDoc}
+                                        {r.exigeApostila ? ' · Exige Apostila CNJ' : ''}
+                                        {r.exigeTraducao ? ' · Exige Tradução' : ''}
+                                        {r.validadeDias ? ` · Validade ${r.validadeDias}d` : ''}
+                                      </p>
+                                      {r.observacoes && (
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-400">{r.observacoes}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1523,8 +1961,14 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     onChange={async (e) => {
                       const f = e.target.files?.[0];
                       if (!f) return;
-                      const up = await uploadFileToServer(f);
-                      setEditingSource({ ...editingSource, arquivoPdfUrl: up.url });
+                      setErrorMsg(null);
+                      try {
+                        const up = await uploadFileToServer(f);
+                        setEditingSource({ ...editingSource, arquivoPdfUrl: up.url });
+                        setFeedback(`PDF "${f.name}" anexado à norma com sucesso.`);
+                      } catch (err) {
+                        setErrorMsg(err instanceof Error ? err.message : 'Não foi possível enviar o PDF da norma.');
+                      }
                     }}
                   />
                 </label>

@@ -774,17 +774,17 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         <div className="mb-8">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
             <p className="text-xs font-semibold text-slate-600">
-              Etapa {step} de 6 · Faltam {adaptiveMeta.faltamPerguntas} pergunta(s) · ~{adaptiveMeta.tempoEstimadoMinutos} min restante(s)
+              Etapa {step} de 6 · {adaptiveMeta.faltamPerguntas === 1 ? 'Falta 1 pergunta' : `Faltam ${adaptiveMeta.faltamPerguntas} perguntas`} · cerca de {adaptiveMeta.tempoEstimadoMinutos} {adaptiveMeta.tempoEstimadoMinutos === 1 ? 'minuto restante' : 'minutos restantes'}
             </p>
             <span className="text-xs font-bold text-[var(--color-primary)] tabular-nums">
               {adaptiveMeta.percentualProgresso}% concluído
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
-            Diagnóstico Inteligente de Elegibilidade Migratória
+            Diagnóstico de Elegibilidade Migratória
           </h1>
-          <p className="text-sm text-slate-600">
-            Questionário adaptativo: respondemos às normas chilenas exibindo apenas as perguntas relevantes para o seu perfil.
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Questionário adaptativo alinhado à legislação chilena: exibimos apenas as perguntas relevantes para o seu perfil.
           </p>
           <div className="mt-4 h-2 rounded-full bg-slate-200 overflow-hidden" role="progressbar" aria-valuenow={adaptiveMeta.percentualProgresso} aria-valuemin={0} aria-valuemax={100}>
             <div
@@ -856,7 +856,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold text-slate-900">1. Identificação e contato</h2>
-                <span className="text-[11px] text-slate-500">LGPD: não solicitamos CPF nem nº de passaporte aqui.</span>
+                <span className="text-[11px] text-slate-500">Privacidade (LGPD): não solicitamos CPF nem número de passaporte nesta etapa.</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -898,12 +898,12 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       </p>
                     ) : (
                       <p className="text-[11px] text-amber-800 mt-1">
-                        Complete o DDD + número. Para exterior/Chile comece com &quot;+&quot; (ex.: +56 9 ...).
+                        Informe o DDD e o número completo. Para números do Chile ou do exterior, inicie com &quot;+&quot; (ex.: +56 9 8888 5566).
                       </p>
                     )
                   ) : (
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Para número do Chile ou exterior, comece digitando com &quot;+&quot; (ex.: +56 9 ...).
+                      Para números do Chile ou do exterior, inicie com &quot;+&quot; (ex.: +56 9 8888 5566).
                     </p>
                   )}
                 </div>
@@ -1014,7 +1014,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   value={answers.entradaRecenteChileTurista ?? false}
                   onChange={(val) => setAnswers({ ...answers, entradaRecenteChileTurista: val })}
                   helpTitle="Como isso afeta?"
-                  helpText="Se houve permanência irregular recente ou saída não registrada na PDI, verificamos antes do novo protocolo."
+                  helpText="Caso tenha havido permanência irregular recente ou saída sem registro na PDI, avaliamos essa situação antes de realizar um novo protocolo."
                 />
               )}
 
@@ -1071,7 +1071,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   </label>
                   <ContextualHelp
                     title="Por que perguntamos a validade?"
-                    text="Solicitações de residência do exterior recomendam passaporte com validade mínima de 12 meses para evitar vencimento antes da emissão do Estampado Electrónico."
+                    text="Para solicitações de residência a partir do exterior, recomenda-se passaporte com validade mínima de 12 meses, evitando o vencimento antes da emissão do Estampado Electrónico."
                   />
                 </div>
                 <select
@@ -1108,7 +1108,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     />
                     {answers.passaporteValidadeMeses > 0 && answers.passaporteValidadeMeses < 12 && (
                       <p className="text-[11px] text-amber-800 mt-1">
-                        Atenção: validade menor que 12 meses reduz a pontuação de prontidão documental e recomenda renovação prévia.
+                        Atenção: validade inferior a 12 meses reduz o índice de prontidão documental; recomenda-se a renovação prévia.
                       </p>
                     )}
                   </div>
@@ -1126,7 +1126,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 value={answers.vinculoFamiliarChile}
                 onChange={(val) => setAnswers({ ...answers, vinculoFamiliarChile: val })}
                 helpTitle="Por que perguntamos isso?"
-                helpText="A Subcategoria 01 (Reunificação Familiar) é uma das únicas exceções que permitem solicitar residência mesmo estando no Chile como turista, desde que o vínculo esteja formalizado no papel."
+                helpText="A Subcategoria 01 (Reunificação Familiar) é uma das poucas exceções que permitem solicitar residência mesmo estando no Chile como turista, desde que o vínculo esteja formalmente registrado."
                 sourceLabel={legalSourceText('leg_dec_177_2022')}
               />
 
@@ -1170,7 +1170,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <label className="block text-xs font-semibold text-slate-700" htmlFor="diag-obj">
-                    Qual seu objetivo principal?
+                    Qual é o seu objetivo principal?
                   </label>
                   <ContextualHelp
                     title="Como usamos o objetivo?"
@@ -1276,7 +1276,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 <div>
                   <p className="font-bold text-slate-900">Aviso de Confidencialidade e Sigilo (Art. 11, LGPD)</p>
                   <p className="mt-1">
-                    Estes dados sensíveis têm acesso restrito à consultoria para avaliar eventuais pendências técnicas. Caso prefira não detalhar agora, escolha &quot;Prefiro falar com o consultor&quot; — isso NÃO conta como risco positivo nem impede seu diagnóstico.
+                    Estes dados sensíveis têm acesso restrito à consultoria para avaliar eventuais pendências técnicas. Caso prefira não detalhar agora, escolha &quot;Prefiro falar com o consultor&quot; — essa opção não gera penalização nem impede a emissão do seu diagnóstico.
                   </p>
                 </div>
               </div>
@@ -1293,13 +1293,13 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     key: 'ordenAbandono' as RiskFieldKey,
                     label: 'Já recebeu alguma Orden de Abandono ou notificação de expulsão?',
                     helpTitle: 'O que é Orden de Abandono?',
-                    helpText: 'É uma resolução administrativa do SERMIG determinando a saída do território chileno em prazo fixado; exige análise jurídica individual antes de novo pedido.',
+                    helpText: 'Trata-se de uma resolução administrativa do SERMIG que determina a saída do território chileno em prazo definido, exigindo análise jurídica individual antes de um novo pedido.',
                   },
                   {
                     key: 'rejeicaoAnterior' as RiskFieldKey,
                     label: 'Teve algum pedido de visto ou residência rejeitado anteriormente pelo SERMIG?',
                     helpTitle: 'Por que perguntamos?',
-                    helpText: 'Permite checar o motivo da negativa anterior (erro documental, falta de apostila ou requisito legal) e avaliar eventual recurso ou correção.',
+                    helpText: 'Permite verificar o motivo da negativa anterior (como erro documental, ausência de apostila ou requisito legal) e avaliar eventual recurso ou correção.',
                   },
                   {
                     key: 'antecedentesCriminais' as RiskFieldKey,
@@ -1583,7 +1583,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                {submitting ? 'Calculando diagnóstico...' : 'Gerar Diagnóstico Inteligente'}
+                {submitting ? 'Calculando diagnóstico...' : 'Gerar Diagnóstico Gratuito'}
               </button>
             )}
           </div>

@@ -27,7 +27,114 @@ import { makeId } from './firestoreService';
 
 export interface BrowserPushSupport {
   supported: boolean;
+  fcmSupported: boolean;
   permission: NotificationPermission | 'unsupported';
+}
+
+export type PushActivationMode = 'fcm' | 'browser_realtime';
+
+export interface EnableClientPushResult {
+  mode: PushActivationMode;
+  token?: string;
+  docId?: string;
+  note?: string;
+}
+
+const shownBrowserNotificationIds = new Set<string>();
+
+function getRealtimePushStorageKey(uid: string): string {
+  return `dm_browser_push_optin_${uid}`;
+}
+
+export function isBrowserRealtimePushOptedIn(uid: string): boolean {
+  if (!uid || typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(getRealtimePushStorageKey(uid)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setBrowserRealtimePushOptedIn(uid: string, enabled: boolean): void {
+  if (!uid || typeof window === 'undefined') return;
+  try {
+    if (enabled) {
+      window.localStorage.setItem(getRealtimePushStorageKey(uid), '1');
+    } else {
+      window.localStorage.removeItem(getRealtimePushStorageKey(uid));
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export async function showBrowserProcessNotification(params: {
+  id?: string;
+  title: string;
+  body: string;
+  url?: string;
+}): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
+
+  const dedupeKey = params.id?.trim();
+  if (dedupeKey) {
+    if (shownBrowserNotificationIds.has(dedupeKey)) {
+      return false;
+    }
+    shownBrowserNotificationIds.add(dedupeKey);
+    if (shownBrowserNotificationIds.size > 200) {
+      const oldest = shownBrowserNotificationIds.values().next().value;
+      if (oldest) shownBrowserNotificationIds.delete(oldest);
+    }
+  }
+
+  const targetUrl = params.url || '/portal';
+  const options: NotificationOptions = {
+    body: params.body,
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: dedupeKey || `sermig-${Date.now()}`,
+    data: { url: targetUrl },
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      if (registration && typeof registration.showNotification === 'function') {
+        await registration.showNotification(params.title, options);
+        return true;
+      }
+    }
+  } catch {
+    // Fall back to direct Notification API below
+  }
+
+  try {
+    const notif = new Notification(params.title, options);
+    notif.onclick = () => {
+      try {
+        window.focus();
+        if (targetUrl && window.location.pathname !== targetUrl) {
+          window.history.pushState({}, '', targetUrl);
+        }
+      } catch {
+        // ignore focus errors
+      }
+      notif.close();
+    };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function sendTestBrowserNotification(empresaNome?: string): Promise<boolean> {
+  return showBrowserProcessNotification({
+    title: `${empresaNome || 'Portal do Cliente'} · Alertas ativos`,
+    body: 'As notificações de atualização do seu processo de imigração estão funcionando neste navegador.',
+    url: '/portal',
+  });
 }
 
 export interface ProcessUpdateNotificationInput {
@@ -84,19 +191,14 @@ export function getEffectiveVapidKey(empresa?: Pick<EmpresaConfig, 'fcmVapidPubl
 }
 
 export async function getBrowserPushSupport(): Promise<BrowserPushSupport> {
-  if (
-    typeof window === 'undefined' ||
-    !('Notification' in window) ||
-    !('serviceWorker' in navigator)
-  ) {
-    return { supported: false, permission: 'unsupported' };
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return { supported: false, fcmSupported: false, permission: 'unsupported' };
   }
-  const fcmSupported = await isSupported().catch(() => false);
-  if (!fcmSupported) {
-    return { supported: false, permission: 'unsupported' };
-  }
+  const hasSw = 'serviceWorker' in navigator;
+  const fcmSupported = hasSw ? await isSupported().catch(() => false) : false;
   return {
     supported: true,
+    fcmSupported,
     permission: Notification.permission,
   };
 }
@@ -130,9 +232,9 @@ export async function registerClientPushToken(params: {
   }
 
   const support = await getBrowserPushSupport();
-  if (!support.supported) {
+  if (!support.fcmSupported) {
     throw new Error(
-      'Este navegador não suporta notificações push via Firebase Cloud Messaging.',
+      'Este navegador não suporta notificações push em segundo plano via Firebase Cloud Messaging.',
     );
   }
 
@@ -189,8 +291,71 @@ export async function registerClientPushToken(params: {
   return { token: fcmToken, docId };
 }
 
+/**
+ * Ativa notificações push no navegador do cliente:
+ * 1) Quando a chave VAPID e o Firebase Cloud Messaging estão disponíveis, registra o token FCM completo (inclusive segundo plano).
+ * 2) Caso contrário, solicita permissão nativa do navegador e ativa alertas instantâneos em tempo real via Firestore.
+ */
+export async function enableClientBrowserNotifications(params: {
+  uid: string;
+  clientId: string;
+  vapidKey?: string;
+}): Promise<EnableClientPushResult> {
+  const { uid, clientId, vapidKey = '' } = params;
+  const support = await getBrowserPushSupport();
+  if (!support.supported) {
+    throw new Error('Este navegador não suporta a API de notificações do sistema.');
+  }
+
+  const permission =
+    Notification.permission === 'granted'
+      ? 'granted'
+      : await Notification.requestPermission();
+
+  if (permission !== 'granted') {
+    throw new Error(
+      permission === 'denied'
+        ? 'As notificações estão bloqueadas nas permissões do navegador. Libere o acesso no ícone de cadeado da barra de endereço.'
+        : 'Permissão de notificações não concedida.',
+    );
+  }
+
+  const cleanVapid = vapidKey.trim();
+  if (cleanVapid && support.fcmSupported) {
+    try {
+      const { token, docId } = await registerClientPushToken({
+        uid,
+        clientId,
+        vapidKey: cleanVapid,
+      });
+      setBrowserRealtimePushOptedIn(uid, true);
+      return {
+        mode: 'fcm',
+        token,
+        docId,
+      };
+    } catch (fcmErr) {
+      setBrowserRealtimePushOptedIn(uid, true);
+      return {
+        mode: 'browser_realtime',
+        note:
+          fcmErr instanceof Error
+            ? `Alertas em tempo real ativados no navegador (FCM em segundo plano indisponível: ${fcmErr.message}).`
+            : 'Alertas em tempo real ativados no navegador.',
+      };
+    }
+  }
+
+  setBrowserRealtimePushOptedIn(uid, true);
+  return {
+    mode: 'browser_realtime',
+    note: 'Alertas instantâneos do navegador ativados! Você receberá avisos nativos sempre que seu processo for atualizado.',
+  };
+}
+
 export async function deactivateUserPushTokens(uid: string): Promise<number> {
   if (!uid) return 0;
+  setBrowserRealtimePushOptedIn(uid, false);
   try {
     const q = query(
       collection(db, 'fcmTokens'),
@@ -220,7 +385,7 @@ export function subscribeForegroundFcm(
   let unsubscribeFn: (() => void) | null = null;
 
   void getBrowserPushSupport().then((support) => {
-    if (!active || !support.supported || Notification.permission !== 'granted') return;
+    if (!active || !support.fcmSupported || Notification.permission !== 'granted') return;
     try {
       const messaging = getMessaging(app);
       unsubscribeFn = onMessage(messaging, (payload) => {

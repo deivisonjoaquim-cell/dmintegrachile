@@ -683,7 +683,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <div className="flex items-start gap-3">
               <BellRing className="w-5 h-5 text-[var(--color-accent)] shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-300">Nova atualização do processo</p>
+                <p className="text-xs font-semibold text-slate-300">Nova atualização do processo</p>
                 <p className="text-sm font-semibold mt-0.5">{pushToast.title}</p>
                 <p className="text-xs text-slate-200 mt-0.5">{pushToast.body}</p>
               </div>
@@ -738,10 +738,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           : pushSupport.permission === 'denied'
                             ? 'As notificações push estão bloqueadas nas permissões do navegador; libere no ícone de cadeado da barra de endereço.'
                             : !effectiveVapidKey
-                              ? 'Alertas em tempo real ativos no Portal. Para push em segundo plano, aguarde a configuração da chave Web Push pelo administrador.'
+                              ? 'Alertas em tempo real ativos na Central de Notificações do Portal.'
                               : pushActive
-                                ? 'Você receberá alertas automáticos neste dispositivo quando houver mudança de etapa, status SERMIG ou documento analisado.'
-                                : 'Ative os alertas push para ser avisado imediatamente sobre atualizações de etapa, SERMIG e análise de documentos.'}
+                                ? 'Você receberá alertas automáticos neste dispositivo sempre que houver mudança de etapa, status SERMIG ou documento analisado.'
+                                : 'Ative os alertas no navegador para ser avisado imediatamente sobre atualizações de etapa, SERMIG e análise de documentos.'}
                       </p>
                     </div>
                   </div>
@@ -834,8 +834,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <div className="flex justify-between text-xs font-semibold text-slate-700 mb-2">
                       <span>
                         {thermo.faltantesObrigatorios === 0
-                          ? 'Todos os documentos obrigatórios foram aprovados!'
-                          : `Faltam ${thermo.faltantesObrigatorios} documento(s). Seu processo está ${thermo.notaGeral}% pronto.`}
+                          ? 'Todos os documentos obrigatórios foram aprovados.'
+                          : thermo.faltantesObrigatorios === 1
+                            ? `Falta 1 documento obrigatório. Seu processo está ${thermo.notaGeral}% pronto.`
+                            : `Faltam ${thermo.faltantesObrigatorios} documentos obrigatórios. Seu processo está ${thermo.notaGeral}% pronto.`}
                       </span>
                       <span className="tabular-nums">{thermo.notaGeral}%</span>
                     </div>
@@ -1081,7 +1083,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
                     >
                       <BookOpen className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                      Entenda a Lei
+                      Entenda a legislação
                     </button>
                   </div>
                 </div>
@@ -1117,7 +1119,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" aria-hidden="true" />
                             <div className="text-xs space-y-0.5">
                               <p className="font-bold text-slate-900">
-                                Lembretes de Vencimento: {expiringClientDocs.length} documento(s) expira(m) em menos de 30 dias
+                                Lembretes de Vencimento:{' '}
+                                {expiringClientDocs.length === 1
+                                  ? '1 documento expira em menos de 30 dias'
+                                  : `${expiringClientDocs.length} documentos expiram em menos de 30 dias`}
                               </p>
                               <p className="text-slate-700">
                                 {expiringClientDocs
@@ -1345,7 +1350,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
                       <Calendar className="w-4 h-4" />
-                      Agendar no Calendly
+                      Agendar consulta
                     </button>
                     <a
                       href={buildWhatsAppUrl(empresa.whatsapp, `Olá! Sou ${client?.nomeCompleto} e gostaria de falar sobre meu processo.`)}
@@ -1370,7 +1375,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800"
                     >
                       <BookOpen className="w-4 h-4" />
-                      Entenda a Lei
+                      Entenda a legislação
                     </button>
                   </div>
                 </div>
@@ -1726,7 +1731,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       />
 
       <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} clientId={client?.id} caseId={activeCase?.id} onConfirmed={loadPortal} />
-      <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a Lei" sources={legalSources} clientFriendlyOnly />
+      <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a legislação" sources={legalSources} clientFriendlyOnly />
 
       {/* Central de Notificações do Processo */}
       {notifDrawerOpen && (
@@ -1780,7 +1785,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-primary)]">
+                          <span className="text-[11px] font-semibold text-[var(--color-primary)]">
                             {notif.tipo === 'etapa_pipeline'
                               ? 'Etapa do Processo'
                               : notif.tipo === 'status_sermig'
@@ -1797,7 +1802,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             {formatDateTimeBR(notif.createdAt)}
                           </span>
                           {!notif.lida && (
-                            <span className="text-[10px] font-bold text-[#C82333] uppercase">Nova</span>
+                            <span className="text-[11px] font-semibold text-[#C82333]">Nova</span>
                           )}
                         </div>
                         <p className="text-sm font-bold text-slate-900">{notif.titulo}</p>

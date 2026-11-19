@@ -25,6 +25,10 @@ import {
   getSmtpConfigFromEnv,
   type EmailReminderItemPayload,
 } from './server/emailReminderService.ts';
+import {
+  runBatchOfficialLegalCheck,
+  type SermigSourceCheckInput,
+} from './server/sermigLegalService.ts';
 import type { CommunicationLog } from './src/types/domain.ts';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -572,6 +576,44 @@ app.post(
     }
     const wantsStream = req.headers['x-ai-progress'] === '1';
     await runAiRouteExecution(req.authUser, wantsStream, res, buildNormaVerificarSpec(body), aiRouteDeps);
+  },
+);
+
+// -----------------------------------------------------------------------------
+// 8. /api/legal/sermig-check — Verificação HTTP ao vivo dos portais oficiais SERMIG / BCN / Gov
+// -----------------------------------------------------------------------------
+app.post(
+  '/api/legal/sermig-check',
+  requireAuth,
+  requireRole(['admin', 'consultor']),
+  async (req: AuthedRequest, res: Response) => {
+    const body = (req.body || {}) as { sources?: unknown };
+    if (!Array.isArray(body.sources) || body.sources.length === 0) {
+      res.status(400).json({ error: 'Informe ao menos uma norma oficial para verificação.' });
+      return;
+    }
+    const cleanSources: SermigSourceCheckInput[] = body.sources
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+      .map((item) => ({
+        id: typeof item.id === 'string' ? item.id.slice(0, 128) : '',
+        titulo: typeof item.titulo === 'string' ? item.titulo.slice(0, 240) : 'Norma oficial',
+        url: typeof item.url === 'string' ? item.url.slice(0, 600) : '',
+      }))
+      .filter((item) => Boolean(item.id));
+
+    if (cleanSources.length === 0) {
+      res.status(400).json({ error: 'Nenhuma norma válida encontrada na solicitação.' });
+      return;
+    }
+
+    try {
+      const report = await runBatchOfficialLegalCheck(cleanSources);
+      res.json(report);
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Erro ao verificar disponibilidade das fontes SERMIG/BCN.',
+      });
+    }
   },
 );
 

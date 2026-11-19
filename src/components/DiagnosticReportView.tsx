@@ -314,7 +314,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         </div>
         <div className="text-right text-xs text-slate-700">
           <p className="font-bold">Relatório de Pré-Análise Migratória</p>
-          <p>Emitido em {formatDateBR(new Date())} (America/Sao_Paulo)</p>
+          <p>Emitido em {formatDateBR(new Date())} (horário de Brasília)</p>
           <p>
             Regras {result.versaoRegras.versao} · {formatDateBR(result.versaoRegras.dataPublicacao)}
           </p>
@@ -573,7 +573,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   <Calendar className="w-4 h-4" />
-                  Agendar no Calendly
+                  Agendar consulta
                 </button>
               )}
               {empresa.linkCalendly && (
@@ -583,7 +583,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
                 >
-                  Calendly (nova aba)
+                  Abrir agenda em nova aba
                 </a>
               )}
               <button
@@ -665,8 +665,8 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         {!hideCosts && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
             <div>
-              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Taxas Oficiais &amp; Terceiros</p>
-              <h2 className="text-lg font-bold text-slate-900">Estimativa de Taxas (BRL ↔ CLP)</h2>
+              <p className="text-xs font-semibold text-amber-800">Taxas Oficiais e Terceiros</p>
+              <h2 className="text-lg font-bold text-slate-900">Estimativa de Taxas (BRL e CLP)</h2>
               <p className="text-xs text-slate-500">{result.custosEstimados.avisoEstimativa}</p>
               <p className="text-[11px] font-medium text-slate-600 mt-1 tabular-nums">
                 Câmbio de referência: 1 BRL ≈ {result.custosEstimados.taxaCambioBrlClp.toLocaleString('pt-BR')} CLP · 1 USD ≈ R${' '}
@@ -702,7 +702,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <span className="text-[11px] font-semibold text-amber-800">Proposta sob medida</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Cada processo tem um escopo diferente. Envie seu resultado para receber uma proposta fechada (em BRL ou CLP) considerando:
+                Cada processo possui um escopo específico. Envie seu resultado para receber uma proposta personalizada (em BRL ou CLP) considerando:
               </p>
               <ul className="text-[11px] text-slate-600 space-y-0.5">
                 {result.custosEstimados.honorariosMotivosVariacao.map((m, i) => (
@@ -715,9 +715,10 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   onClick={() => {
                     const numPessoas =
                       answers.familiaAcompanhante === true ? 1 + Math.max(1, answers.quantidadeDependentes || 1) : 1;
+                    const pessoasTexto = numPessoas === 1 ? '1 pessoa' : `${numPessoas} pessoas`;
                     const msgProposta = `Olá! Concluí meu diagnóstico na ${empresa.nome_empresa}${
                       savedLeadId && savedLeadId !== 'local-preview' ? ` (Protocolo ${savedLeadId})` : ''
-                    }.\nPerfil: ${answers.nome || 'Visitante'} · ${numPessoas} pessoa(s) · Subcategoria sugerida: ${recommendedTitle} (Viabilidade ${result.viabilidade.total}/100).\nGostaria de consultar os honorários e receber a proposta personalizada para minha assessoria.`;
+                    }.\nPerfil: ${answers.nome || 'Visitante'} · ${pessoasTexto} · Subcategoria sugerida: ${recommendedTitle} (Viabilidade ${result.viabilidade.total}/100).\nGostaria de consultar os honorários e receber a proposta personalizada para minha assessoria.`;
                     const targetPhone = mode === 'consultant' ? answers.whatsapp || empresa.whatsapp : empresa.whatsapp;
                     window.open(buildWhatsAppUrl(targetPhone, msgProposta), '_blank', 'noopener,noreferrer');
                     if (onLogWhatsApp) {
@@ -736,7 +737,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-semibold hover:bg-slate-100"
                   >
                     <Calendar className="w-3.5 h-3.5" />
-                    Agendar conversa gratuita
+                    Agendar consulta gratuita
                   </button>
                 )}
               </div>
@@ -1157,7 +1158,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               <FileCheck2 className="w-5 h-5 text-[var(--color-primary)]" />
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Termômetro e Checklist Documental</h2>
-                <p className="text-xs text-slate-500">Documentos já disponíveis vs. pendentes antes do protocolo</p>
+                <p className="text-xs text-slate-500">Documentos disponíveis e pendentes antes do protocolo</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

@@ -267,21 +267,35 @@ export function extractAndValidateJson<T>(
     .replace(/\s*```$/i, '')
     .trim();
 
-  try {
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { ok: false };
+  const tryParseObject = (candidate: string): Record<string, unknown> | null => {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      return parsed as Record<string, unknown>;
+    } catch {
+      return null;
     }
-    const obj = parsed as Record<string, unknown>;
-    if (validateJson) {
-      const validated = validateJson(obj);
-      if (!validated) return { ok: false };
-      return { ok: true, data: validated };
+  };
+
+  let obj = tryParseObject(cleaned);
+  if (!obj) {
+    // When tools like googleSearch are active, the model may prepend/append brief prose around JSON
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      obj = tryParseObject(cleaned.slice(firstBrace, lastBrace + 1));
     }
-    return { ok: true, data: obj as T };
-  } catch {
+  }
+
+  if (!obj) {
     return { ok: false };
   }
+  if (validateJson) {
+    const validated = validateJson(obj);
+    if (!validated) return { ok: false };
+    return { ok: true, data: validated };
+  }
+  return { ok: true, data: obj as T };
 }
 
 // =============================================================================
@@ -434,14 +448,18 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       });
 
       try {
-        const requestConfig: Record<string, unknown> = {
-          systemInstruction: params.systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: params.responseSchema,
-        };
-        if (params.tools && params.tools.length > 0) {
-          requestConfig.tools = params.tools;
-        }
+        const hasTools = Boolean(params.tools && params.tools.length > 0);
+        const requestConfig: Record<string, unknown> = hasTools
+          ? {
+              // When search grounding tools are active, omit responseMimeType/responseSchema to prevent 400 INVALID_ARGUMENT
+              systemInstruction: `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido (sem markdown ou texto fora do JSON) seguindo exatamente o esquema solicitado.`,
+              tools: params.tools,
+            }
+          : {
+              systemInstruction: params.systemInstruction,
+              responseMimeType: 'application/json',
+              responseSchema: params.responseSchema,
+            };
 
         const resp = await runSingleAttemptWithTimeout(
           generateFn!,

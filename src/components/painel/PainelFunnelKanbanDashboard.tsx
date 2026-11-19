@@ -3,11 +3,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BellRing,
   ExternalLink,
   X,
 } from 'lucide-react';
 import { reportAppError } from '../../services/errorService';
 import { saveDocumentAudited } from '../../services/firestoreService';
+import { notifyClientProcessUpdate } from '../../services/notificationService';
 import type {
   Case,
   CaseDocument,
@@ -77,6 +79,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
   const [focusedStageId, setFocusedStageId] = useState<MacroFunnelStageId | null>(null);
 
   const [movingCardId, setMovingCardId] = useState<string | null>(null);
+  const [notifyingCardId, setNotifyingCardId] = useState<string | null>(null);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<MacroFunnelStageId | null>(null);
   const [notice, setNotice] = useState<{
@@ -228,6 +231,10 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
           message: `"${card.clientName}" atualizado para ${evaluation.nextStatusFunil}.`,
         });
       } else if (evaluation.entity === 'case' && card.caseRecord) {
+        const nextStatusSermig = evaluation.nextStatusSermig || card.caseRecord.statusSermig;
+        const targetStageName =
+          board.columns.find((c) => c.stage.id === targetStageId)?.stage.nome ||
+          `Etapa ${evaluation.targetPipelineStep}`;
         const nextCasePayload: Record<string, unknown> = {
           ...card.caseRecord,
           etapaPipeline: evaluation.targetPipelineStep,
@@ -242,9 +249,34 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
           'mover_funil_kanban_caso',
           card.caseRecord,
         );
+
+        let pushSummary = '';
+        if (card.caseRecord.clientId) {
+          try {
+            const { pushResult } = await notifyClientProcessUpdate({
+              clientId: card.caseRecord.clientId,
+              caseId: evaluation.caseId,
+              tipo: evaluation.nextStatusSermig ? 'status_sermig' : 'etapa_pipeline',
+              titulo: `Processo atualizado: ${targetStageName}`,
+              mensagem: `Seu processo "${card.caseRecord.titulo}" avançou para a etapa ${targetStageName} (Status SERMIG: ${nextStatusSermig}). Acesse o Portal do Cliente para ver os detalhes.`,
+              etapaPipeline: evaluation.targetPipelineStep,
+              statusSermig: nextStatusSermig,
+              linkDestino: '/portal',
+              criadoPorUid: currentUser?.uid,
+              criadoPorNome: currentUser?.nome,
+            });
+            pushSummary =
+              pushResult.sentCount > 0
+                ? ` · Push FCM entregue em ${pushResult.sentCount} dispositivo(s).`
+                : ' · Alerta registrado no Portal do Cliente.';
+          } catch {
+            pushSummary = ' · Alerta push pendente de entrega.';
+          }
+        }
+
         setNotice({
           tone: 'success',
-          message: `"${card.clientName}" avançado no funil com sucesso.`,
+          message: `"${card.clientName}" atualizado para ${targetStageName}${pushSummary}`,
         });
       }
       await onRefresh();
@@ -252,6 +284,37 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
       reportAppError(err, { source: 'funnel-kanban-move' });
     } finally {
       setMovingCardId(null);
+    }
+  };
+
+  const handleQuickNotifyCase = async (card: FunnelKanbanCard) => {
+    if (!card.caseRecord || !card.caseRecord.clientId || notifyingCardId) return;
+    setNotifyingCardId(card.id);
+    setNotice(null);
+    try {
+      const { pushResult } = await notifyClientProcessUpdate({
+        clientId: card.caseRecord.clientId,
+        caseId: card.caseRecord.id,
+        tipo: 'status_sermig',
+        titulo: `Atualização do seu processo (${card.caseRecord.statusSermig})`,
+        mensagem: `Etapa atual: ${card.stage.nome} · Status SERMIG: ${card.caseRecord.statusSermig} · Prontidão documental: ${card.docsPct ?? 0}%. Acesse o Portal do Cliente para acompanhar.`,
+        etapaPipeline: card.caseRecord.etapaPipeline,
+        statusSermig: card.caseRecord.statusSermig,
+        linkDestino: '/portal',
+        criadoPorUid: currentUser?.uid,
+        criadoPorNome: currentUser?.nome,
+      });
+      setNotice({
+        tone: 'success',
+        message:
+          pushResult.sentCount > 0
+            ? `Notificação push enviada para "${card.clientName}" (${pushResult.sentCount} dispositivo(s) via FCM).`
+            : `Alerta de status enviado para a Central de Notificações de "${card.clientName}" no Portal.`,
+      });
+    } catch (err) {
+      reportAppError(err, { source: 'funnel-kanban-quick-push' });
+    } finally {
+      setNotifyingCardId(null);
     }
   };
 
@@ -566,6 +629,18 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                           </button>
 
                           <div className="flex items-center gap-1 shrink-0">
+                            {card.kind === 'case' && card.caseRecord && (
+                              <button
+                                type="button"
+                                disabled={isMoving || notifyingCardId === card.id}
+                                onClick={() => void handleQuickNotifyCase(card)}
+                                title={`Enviar notificação push de status para ${card.clientName}`}
+                                aria-label={`Enviar notificação push para ${card.clientName}`}
+                                className="p-1 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[var(--color-primary)] dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+                              >
+                                <BellRing className="w-3 h-3" />
+                              </button>
+                            )}
                             {card.prevStage && (
                               <button
                                 type="button"

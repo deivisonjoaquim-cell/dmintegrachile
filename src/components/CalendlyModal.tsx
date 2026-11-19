@@ -36,7 +36,7 @@ export const CalendlyModal: React.FC<CalendlyModalProps> = ({
   const handleConfirmBooking = async () => {
     setErrorMsg(null);
     if (!userProfile) {
-      setErrorMsg('Para registrar o agendamento diretamente no seu processo, faça login com Google em "Acompanhar processo".');
+      setErrorMsg('Para vincular o agendamento diretamente ao seu processo, acesse sua conta Google em "Portal do Cliente".');
       return;
     }
     setSaving(true);
@@ -117,16 +117,16 @@ export const CalendlyModal: React.FC<CalendlyModalProps> = ({
             </div>
           ) : (
             <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
-              O link do Calendly ainda não foi configurado em Configurações &gt; Empresa. Você pode registrar a confirmação de horário abaixo ou falar via WhatsApp.
+              O agendamento automático online está temporariamente indisponível. Você pode registrar sua preferência de horário abaixo ou falar diretamente conosco pelo WhatsApp.
             </div>
           )}
 
           <div className="pt-4 border-t border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 mb-3">Confirmar meu agendamento no sistema</h3>
+            <h3 className="text-sm font-semibold text-slate-900 mb-3">Confirmar meu agendamento</h3>
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="calendly-confirm-dt">
-                  Data e horário escolhidos (America/Sao_Paulo)
+                  Data e horário escolhidos (horário de Brasília)
                 </label>
                 <input
                   id="calendly-confirm-dt"

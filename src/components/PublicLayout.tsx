@@ -28,7 +28,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   const logoHeight = Math.min(64, Math.max(24, Number(lc.logoAlturaPx || 36)));
   const showBrandText = lc.mostrarNomeComLogo !== false || !empresa.logoUrl;
   const headerStyle = lc.estiloCabecalho || 'sticky_vidro';
-  const headerCtaLabel = lc.textoCtaCabecalho || 'Área da equipe';
+  const headerCtaLabel = lc.textoCtaCabecalho || 'Área da Equipe';
   const headerCtaDest = lc.destinoCtaCabecalho || '/entrar-equipe';
 
   const handleHeaderCtaClick = () => {
@@ -220,8 +220,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               <p className="text-xs text-slate-500">{empresa.razao_social_cnpj_rut}</p>
             </div>
             <div className="md:col-span-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#E5C76B] mb-4">
-                Acesso rápido
+              <p className="text-xs font-semibold tracking-wide text-[#E5C76B] mb-4">
+                Navegação
               </p>
               <ul className="space-y-2.5 text-sm">
                 {navItems.map((item) => (
@@ -241,8 +241,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               </ul>
             </div>
             <div className="md:col-span-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#E5C76B] mb-4">
-                Atendimento &amp; Conformidade
+              <p className="text-xs font-semibold tracking-wide text-[#E5C76B] mb-4">
+                Atendimento e Conformidade
               </p>
               <p className="text-sm text-slate-200 font-medium">{empresa.email}</p>
               <p className="text-sm text-slate-300 mt-1 tabular-nums">{empresa.whatsapp}</p>
@@ -254,7 +254,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     rel="noopener noreferrer"
                     className="inline-block text-xs text-slate-300 hover:text-white underline underline-offset-4"
                   >
-                    Instagram oficial
+                    Instagram
                   </a>
                 )}
                 {empresa.siteLinkedIn && (

@@ -70,7 +70,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                 className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                Iniciar Diagnóstico
+                Iniciar Diagnóstico Gratuito
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button
@@ -79,7 +79,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                 className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50"
               >
                 <BookOpen className="w-4 h-4" />
-                Entenda a Lei
+                Entenda a legislação
               </button>
             </div>
           </div>
@@ -131,20 +131,20 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
           <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <Shield className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-              <h2 className="text-base font-semibold text-slate-900">Missão e ética</h2>
+              <h2 className="text-base font-semibold text-slate-900">Missão e Ética</h2>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">
-              {meta.missao || 'Conduzir cada processo com transparência documental, cumprimento rigoroso de prazos e respeito à LGPD.'}
+              {meta.missao || 'Conduzir cada processo com transparência documental, cumprimento rigoroso de prazos e respeito integral à LGPD.'}
             </p>
           </div>
 
           <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
               <Award className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-              <h2 className="text-base font-semibold text-slate-900">Credenciais e conformidade</h2>
+              <h2 className="text-base font-semibold text-slate-900">Credenciais e Conformidade</h2>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">
-              {meta.credenciais || 'Atuação conforme Ley Nº 21.325 · Decreto Nº 177/2022 · Acordo Mercosul · LGPD Lei 13.709/2018.'}
+              {meta.credenciais || 'Atuação alinhada à Ley Nº 21.325, ao Decreto Nº 177/2022, ao Acordo Mercosul e à LGPD (Lei nº 13.709/2018).'}
             </p>
           </div>
         </div>
@@ -173,7 +173,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
       <LegalBaseModal
         open={lawModalOpen}
         onClose={() => setLawModalOpen(false)}
-        title="Entenda a Lei — Base Normativa em Linguagem Acessível"
+        title="Entenda a Legislação — Normas em Linguagem Clara"
         sources={legalSources}
         clientFriendlyOnly
       />

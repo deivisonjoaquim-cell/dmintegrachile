@@ -653,8 +653,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               D&amp;M
             </div>
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9A7B1C] dark:text-amber-400">
-                Consultoria Migratória · Área Restrita
+              <p className="text-xs font-semibold text-[#9A7B1C] dark:text-amber-400">
+                Consultoria Migratória · Área da Equipe
               </p>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                 Painel Interno da Equipe

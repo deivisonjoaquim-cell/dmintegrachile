@@ -5,6 +5,8 @@ import {
   BookOpen,
   Calendar,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
   Copy,
   Download,
   Eye,
@@ -16,6 +18,7 @@ import {
   Printer,
   RotateCcw,
   Send,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   Upload,
@@ -107,6 +110,13 @@ import {
 } from '../../utils/funnelModel';
 import { reportAppError } from '../../services/errorService';
 import { buildZipBlob, type ZipEntryInput } from '../../utils/zipBuilder';
+import {
+  getCaseContextConfig,
+  getDocumentRowVisibility,
+  serviceNeedsCurrentResidencyExpiry,
+  serviceRequiresVisaCategory,
+  type DynamicCaseTabId,
+} from '../../utils/caseContextConfig';
 
 interface PainelClientesCasosProps {
   role: UserRole;
@@ -142,7 +152,7 @@ interface PainelClientesCasosProps {
   mode?: 'casos' | 'clientes' | 'ambos';
 }
 
-type CaseTab = 'resumo' | 'dependentes' | 'documentos' | 'financeiro' | 'agenda' | 'comunicacao' | 'relocation' | 'historico';
+type CaseTab = DynamicCaseTabId;
 
 const DOCUMENT_STEPS: DocumentStep[] = [
   '1 Aguardando Envio',
@@ -264,7 +274,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     visaCategoryId: 'visa_15_mercosul',
     prioridade: 'Alta' as Case['prioridade'],
     etapaInicial: 2,
+    dataVencimentoResidencia: '',
   });
+  const [showAllCaseFields, setShowAllCaseFields] = useState(false);
+  const [forcedOptionalTabs, setForcedOptionalTabs] = useState<Partial<Record<'dependentes' | 'relocation', boolean>>>({});
+  const [parecerExpanded, setParecerExpanded] = useState(true);
+  const [commSubView, setCommSubView] = useState<'atendimento' | 'auditoria'>('atendimento');
 
   useEffect(() => {
     if (!requestedMacroStageFilter) return;
@@ -354,6 +369,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     setDocStatusFilter('Todos');
     setChatReplyMsg('');
     setChatReplyDocId('');
+    setShowAllCaseFields(false);
+    setForcedOptionalTabs({});
+    setCommSubView('atendimento');
   }, [selectedCaseId]);
 
   const updateParecerDraft = (
@@ -721,15 +739,21 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     }
     const tpl = CASE_TEMPLATES.find((t) => t.id === newCaseTemplateId);
     const id = makeId('case');
+    const requiresVisa = serviceRequiresVisaCategory(newCaseForm.tipoServico);
+    const needsResidencyExpiry = serviceNeedsCurrentResidencyExpiry(newCaseForm.tipoServico);
     const payload: Case = {
       id,
       titulo: newCaseForm.titulo.trim(),
       clientId: newCaseForm.clientId,
       consultorId: userProfile.uid,
       tipoServico: newCaseForm.tipoServico,
-      visaCategoryId: newCaseForm.visaCategoryId,
+      visaCategoryId: requiresVisa ? newCaseForm.visaCategoryId : undefined,
       etapaPipeline: newCaseForm.etapaInicial || tpl?.etapaInicial || 2,
       statusSermig: 'Não protocolado',
+      dataVencimentoResidencia:
+        needsResidencyExpiry && newCaseForm.dataVencimentoResidencia
+          ? newCaseForm.dataVencimentoResidencia
+          : undefined,
       portalLiberado: clientMap.get(newCaseForm.clientId)?.portalLiberado || false,
       relatorioViabilidadeLiberado: false,
       prioridade: newCaseForm.prioridade,
@@ -739,7 +763,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
 
     // Criar checklist documental padrão + tarefas iniciais + prazo sugerido do template
     if (tpl) {
-      await createChecklistForCase(id, payload.clientId, payload.visaCategoryId || 'visa_15_mercosul');
+      if (requiresVisa && payload.visaCategoryId) {
+        await createChecklistForCase(id, payload.clientId, payload.visaCategoryId);
+      }
       for (const tTitle of tpl.tarefasIniciais) {
         const tId = makeId('task');
         await saveDocumentAudited(
@@ -789,8 +815,13 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       visaCategoryId: 'visa_15_mercosul',
       prioridade: 'Alta',
       etapaInicial: 2,
+      dataVencimentoResidencia: '',
     });
-    setFeedback('Caso criado com checklist, tarefas iniciais e prazo sugerido!');
+    setFeedback(
+      requiresVisa
+        ? 'Caso criado com checklist, tarefas iniciais e prazo sugerido!'
+        : 'Caso de Relocation criado com trilha inicial!',
+    );
     await onRefresh();
     onSelectCase(id);
   };
@@ -936,6 +967,55 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     () => calcularTermometroDocumentos(caseDocs, empresa.bloqueioProtocoloMinimo || 100),
     [caseDocs, empresa.bloqueioProtocoloMinimo],
   );
+
+  const caseCtx = useMemo(() => {
+    if (!activeCase) return null;
+    const pendingDocsCount = caseDocs.filter((d) => d.status !== 'Aprovado').length;
+    const hasRelocationTasks = caseTasks.some((t) => t.titulo.startsWith('[Relocation]'));
+    return getCaseContextConfig({
+      caseObj: activeCase,
+      role,
+      dependentsCount: caseDependents.length,
+      docsCount: caseDocs.length,
+      pendingDocsCount,
+      docReadinessPct: thermo.notaGeral,
+      minProtocolReadinessPct: empresa.bloqueioProtocoloMinimo || 100,
+      unreadChatCount: caseUnreadChatCount,
+      hasRelocationTasks,
+      forceTabs: forcedOptionalTabs,
+      showAllFields: showAllCaseFields,
+    });
+  }, [
+    activeCase,
+    role,
+    caseDependents.length,
+    caseDocs,
+    caseTasks,
+    thermo.notaGeral,
+    empresa.bloqueioProtocoloMinimo,
+    caseUnreadChatCount,
+    forcedOptionalTabs,
+    showAllCaseFields,
+  ]);
+
+  useEffect(() => {
+    if (!caseCtx) return;
+    if (!caseCtx.visibleTabs.some((t) => t.id === caseTab)) {
+      setCaseTab('resumo');
+    }
+  }, [caseCtx, caseTab]);
+
+  useEffect(() => {
+    if (!caseCtx) return;
+    setParecerExpanded(caseCtx.fields.parecerExpandedByDefault || Boolean(parecerDraft));
+  }, [activeCase?.id, caseCtx?.fields.parecerExpandedByDefault]);
+
+  useEffect(() => {
+    if (!caseCtx) return;
+    if (!caseCtx.relevantDeadlineTypes.includes(newDeadlineTipo)) {
+      setNewDeadlineTipo(caseCtx.relevantDeadlineTypes[0] || 'Validade Documento');
+    }
+  }, [caseCtx, newDeadlineTipo]);
 
   const activeVisaCategory = useMemo(
     () => visaCategories.find((v) => v.id === activeCase?.visaCategoryId) || null,
@@ -1780,86 +1860,92 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   };
 
   // ===========================================================================
-  // Renderização: Ficha do Caso (8 Abas)
+  // Renderização: Ficha Dinâmica do Caso
   // ===========================================================================
-  if (activeCase) {
-    const allTabs: { id: CaseTab; label: string; hidden?: boolean }[] = [
-      { id: 'resumo', label: '1. Resumo & Viabilidade' },
-      { id: 'dependentes', label: `2. Dependentes (${caseDependents.length})` },
-      { id: 'documentos', label: `3. Documentos (${caseDocs.length})` },
-      { id: 'financeiro', label: '4. Orçamento & Financeiro', hidden: isAssistente },
-      { id: 'agenda', label: '5. Agenda & Prazos' },
-      {
-        id: 'comunicacao',
-        label: caseUnreadChatCount > 0 ? `6. Comunicação (${caseUnreadChatCount})` : '6. Comunicação & Histórico',
-      },
-      { id: 'relocation', label: '7. Relocation' },
-      { id: 'historico', label: '8. Histórico' },
-    ];
-
-    const visibleTabs = allTabs.filter((t) => !t.hidden);
+  if (activeCase && caseCtx) {
     const filteredCaseDocs = caseDocs
       .filter((d) => (docPersonFilter === 'Todos' ? true : d.pessoa === docPersonFilter))
       .filter((d) => (docStatusFilter === 'Todos' ? true : d.status === docStatusFilter))
       .sort((a, b) => a.ordemEmissao - b.ordemEmissao);
     const allDocPessoas = Array.from(new Set(['Titular', ...caseDependents.map((d) => d.nomeCompleto), ...caseDocs.map((d) => d.pessoa)]));
+    const nextActionToneClasses =
+      caseCtx.nextAction.tone === 'warning'
+        ? 'bg-amber-50 border-amber-200 text-amber-950'
+        : caseCtx.nextAction.tone === 'success'
+          ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+          : 'bg-slate-50 border-slate-200 text-slate-900';
 
     return (
-      <div className="space-y-6">
-        {/* Sticky Case Header com atalhos e Base Legal */}
-        <div className="sticky top-14 z-20 bg-white/95 backdrop-blur-xs border border-slate-200 rounded-xl px-4 py-3 shadow-xs space-y-2 no-print">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+      <div className="space-y-5">
+        {/* Cabeçalho Unificado e Dinâmico do Caso */}
+        <div className="sticky top-14 z-20 bg-white/95 backdrop-blur-xs border border-slate-200 rounded-xl px-4 py-3.5 shadow-xs space-y-3 no-print">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
               <button
                 type="button"
                 onClick={() => onSelectCase(null)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0 mt-0.5"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Voltar
               </button>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate">{activeCase.titulo}</p>
-                {activeClient && (
-                  <button
-                    type="button"
-                    onClick={() => setDossierClientId(activeClient.id)}
-                    className="text-[11px] text-[var(--color-primary)] hover:underline truncate text-left"
-                  >
-                    Dossiê do Cliente: {activeClient.nomeCompleto}
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <h1 className="text-base sm:text-lg font-bold text-slate-900 truncate">{activeCase.titulo}</h1>
+                  <span className="text-xs font-medium text-slate-500">· {activeCase.tipoServico}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-slate-500 mt-0.5">
+                  {activeClient && (
+                    <button
+                      type="button"
+                      onClick={() => setDossierClientId(activeClient.id)}
+                      className="font-medium text-[var(--color-primary)] hover:underline text-left"
+                    >
+                      {activeClient.nomeCompleto}
+                    </button>
+                  )}
+                  {activeClient?.email && <span>· {activeClient.email}</span>}
+                  {activeClient?.whatsapp && <span>· {activeClient.whatsapp}</span>}
+                  {activeCase.encerradoEm && (
+                    <span className="text-slate-700 font-semibold">
+                      · Encerrado em {formatDateTimeBR(activeCase.encerradoEm)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums" style={{ color: thermo.corHex }}>
-                Docs {thermo.notaGeral}% · {thermo.faixa}
-              </span>
-              <select
-                value={activeCase.etapaPipeline}
-                onChange={(e) => void handleStageChange(Number(e.target.value))}
-                aria-label="Sub-etapa operacional"
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
+              {caseDocs.length > 0 && (
+                <span className="text-xs font-semibold tabular-nums px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200" style={{ color: thermo.corHex }}>
+                  Docs {thermo.notaGeral}%
+                </span>
+              )}
+              {caseCtx.usesSermig && (
+                <select
+                  value={activeCase.statusSermig}
+                  onChange={(e) => void handleSermigStatusChange(e.target.value as Case['statusSermig'])}
+                  aria-label="Status SERMIG"
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800"
+                >
+                  {SERMIG_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      SERMIG: {s}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleSaveCaseField({ portalLiberado: !activeCase.portalLiberado }, 'portalLiberado')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  activeCase.portalLiberado
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                {PIPELINE_STAGES.map((st) => (
-                  <option key={st.numero} value={st.numero}>
-                    Sub-etapa {st.numero}: {st.nome}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={activeCase.statusSermig}
-                onChange={(e) => void handleSermigStatusChange(e.target.value as Case['statusSermig'])}
-                aria-label="Status SERMIG"
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
-              >
-                {SERMIG_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    SERMIG: {s}
-                  </option>
-                ))}
-              </select>
+                {activeCase.portalLiberado ? 'Portal Liberado' : 'Liberar Portal'}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1869,104 +1955,109 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
               >
                 <FileSignature className="w-3.5 h-3.5" />
-                Contrato / PDF
+                Contrato
               </button>
-              <button
-                type="button"
-                onClick={() => setLegalModalOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)] hover:bg-slate-50 whitespace-nowrap"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                Base Legal
-              </button>
+              {caseCtx.usesSermig && (
+                <button
+                  type="button"
+                  onClick={() => setLegalModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)] hover:bg-slate-50 whitespace-nowrap"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Base Legal
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Barra Interativa dos 5 Marcos do Processo */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-2 border-t border-slate-100">
-            {MACRO_FUNNEL_STAGES.map((stage) => {
-              const currentMacro = getMacroStageForCase(activeCase);
-              const isCurrent = currentMacro.id === stage.id;
-              const isDone = stage.ordem < currentMacro.ordem;
-              return (
-                <button
-                  key={stage.id}
-                  type="button"
-                  onClick={() => {
-                    const targetStep = resolveTargetPipelineStep(stage.id, activeCase.etapaPipeline);
-                    if (targetStep !== activeCase.etapaPipeline) {
-                      void handleStageChange(targetStep);
-                    }
-                  }}
-                  title={stage.marcoConversao}
-                  className={`px-2.5 py-1.5 rounded-lg text-left transition-colors border text-xs ${
-                    isCurrent
-                      ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
-                      : isDone
-                        ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/70'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <span className="block truncate whitespace-nowrap">
-                    {stage.ordem}. {stage.nome}
-                  </span>
-                </button>
-              );
-            })}
+          {/* Barra Interativa dos 5 Marcos + Sub-etapa compacta */}
+          <div className="flex flex-col lg:flex-row lg:items-center gap-2 pt-2 border-t border-slate-100">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 flex-1">
+              {MACRO_FUNNEL_STAGES.map((stage) => {
+                const isCurrent = caseCtx.currentMacroStage.id === stage.id;
+                const isDone = stage.ordem < caseCtx.currentMacroStage.ordem;
+                return (
+                  <button
+                    key={stage.id}
+                    type="button"
+                    onClick={() => {
+                      const targetStep = resolveTargetPipelineStep(stage.id, activeCase.etapaPipeline);
+                      if (targetStep !== activeCase.etapaPipeline) {
+                        void handleStageChange(targetStep);
+                      }
+                    }}
+                    title={stage.marcoConversao}
+                    className={`px-2.5 py-1.5 rounded-lg text-left transition-colors border text-xs ${
+                      isCurrent
+                        ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
+                        : isDone
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/70'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="block truncate whitespace-nowrap">
+                      {stage.ordem}. {stage.nome}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <select
+              value={activeCase.etapaPipeline}
+              onChange={(e) => void handleStageChange(Number(e.target.value))}
+              aria-label="Sub-etapa operacional"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 lg:max-w-[230px]"
+            >
+              {PIPELINE_STAGES.map((st) => (
+                <option key={st.numero} value={st.numero}>
+                  Etapa {st.numero}: {st.nome}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium text-slate-500">
-                Cliente: {activeClient?.nomeCompleto || '—'} · {activeClient?.email} · {activeClient?.whatsapp}
-              </p>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">{activeCase.titulo}</h1>
-              {activeCase.encerradoEm && (
-                <p className="text-xs text-slate-600 mt-1">
-                  Caso encerrado em {formatDateTimeBR(activeCase.encerradoEm)} · Motivo: {activeCase.motivoEncerramento}
-                </p>
-              )}
+        <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-5">
+          {/* Abas Dinâmicas conforme o tipo e momento do caso */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 no-print">
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {caseCtx.visibleTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setCaseTab(t.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-colors ${
+                    caseTab === t.id
+                      ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <span>{t.label}</span>
+                  {typeof t.badgeCount === 'number' && t.badgeCount > 0 && (
+                    <span className="text-[11px] font-semibold text-slate-500 tabular-nums">({t.badgeCount})</span>
+                  )}
+                </button>
+              ))}
             </div>
-            <div className="flex flex-wrap gap-2 no-print">
-              <button
-                type="button"
-                onClick={() => void handleSaveCaseField({ portalLiberado: !activeCase.portalLiberado }, 'portalLiberado')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                  activeCase.portalLiberado ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-300 text-slate-700'
-                }`}
-              >
-                {activeCase.portalLiberado ? 'Portal Liberado ao Cliente' : 'Liberar Caso no Portal'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSaveCaseField({ relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado }, 'relatorioViabilidadeLiberado')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                  activeCase.relatorioViabilidadeLiberado ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-300 text-slate-700'
-                }`}
-              >
-                {activeCase.relatorioViabilidadeLiberado ? 'Parecer Visível ao Cliente' : 'Liberar Parecer ao Cliente'}
-              </button>
-            </div>
-          </div>
 
-          {/* 8 Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 pt-2 no-print">
-            {visibleTabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setCaseTab(t.id)}
-                className={`px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-colors ${
-                  caseTab === t.id
-                    ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {caseCtx.hiddenOptionalTabs.length > 0 && (
+              <div className="flex items-center gap-1.5 pb-1.5">
+                {caseCtx.hiddenOptionalTabs.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setForcedOptionalTabs((prev) => ({ ...prev, [opt.id]: true }));
+                      setCaseTab(opt.id);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-slate-300 text-[11px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900 bg-white"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {feedback && (
@@ -1980,24 +2071,469 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             </div>
           )}
 
-          {/* ABA 1: RESUMO & VIABILIDADE */}
+          {/* ABA RESUMO DINÂMICO */}
           {caseTab === 'resumo' && (
-            <div className="space-y-6 pt-2">
-              {/* Ações operacionais rápidas do caso */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200 no-print">
+            <div className="space-y-5 pt-1">
+              {/* Orientação contextual do próximo passo */}
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border ${nextActionToneClasses} no-print`}>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold">{caseCtx.nextAction.titulo}</p>
+                  <p className="text-xs opacity-85">{caseCtx.nextAction.descricao}</p>
+                </div>
+                {caseCtx.nextAction.targetTab !== 'resumo' && (
+                  <button
+                    type="button"
+                    onClick={() => setCaseTab(caseCtx.nextAction.targetTab)}
+                    className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-900 hover:bg-slate-50 shrink-0"
+                  >
+                    {caseCtx.nextAction.ctaLabel}
+                  </button>
+                )}
+              </div>
+
+              {/* Campos dinâmicos do caso (somente os relevantes ao caso aberto) */}
+              <div className="border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">Dados Essenciais do Caso</h2>
+                    <p className="text-xs text-slate-500">
+                      {showAllCaseFields
+                        ? 'Exibindo todos os campos disponíveis do processo.'
+                        : 'Exibindo apenas os campos pertinentes ao serviço e etapa atual deste caso.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCaseFields((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100 no-print"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    {showAllCaseFields ? 'Mostrar apenas campos do caso' : 'Exibir todos os campos'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Serviço</label>
+                    <select
+                      value={activeCase.tipoServico}
+                      onChange={(e) => void handleSaveCaseField({ tipoServico: e.target.value as Case['tipoServico'] }, 'tipoServico')}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    >
+                      <option value="Residência Temporal">Residência Temporal</option>
+                      <option value="Residência Definitiva">Residência Definitiva</option>
+                      <option value="Prorrogação">Prorrogação</option>
+                      <option value="Mudança de Subcategoria">Mudança de Subcategoria</option>
+                      <option value="Ratificação">Ratificação</option>
+                      <option value="Relocation Completo">Relocation Completo</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Prioridade</label>
+                    <select
+                      value={activeCase.prioridade}
+                      onChange={(e) => void handleSaveCaseField({ prioridade: e.target.value as Case['prioridade'] }, 'prioridade')}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    >
+                      <option value="Baixa">Baixa</option>
+                      <option value="Média">Média</option>
+                      <option value="Alta">Alta</option>
+                      <option value="Urgente">Urgente</option>
+                    </select>
+                  </div>
+
+                  {caseCtx.fields.subcategoriaSermig && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
+                      <select
+                        value={activeCase.visaCategoryId || 'visa_15_mercosul'}
+                        onChange={(e) => void handleSaveCaseField({ visaCategoryId: e.target.value }, 'visaCategoryId')}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                      >
+                        {visaCategories.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            Cód. {v.codigo} — {v.nomePortugues}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {caseCtx.fields.numeroPedidoSermig && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Número do Pedido SERMIG</label>
+                      <input
+                        key={`pedido-${activeCase.id}-${activeCase.numeroPedidoSermig || ''}`}
+                        defaultValue={activeCase.numeroPedidoSermig || ''}
+                        onBlur={(e) => {
+                          if (e.target.value !== (activeCase.numeroPedidoSermig || '')) {
+                            void handleSaveCaseField({ numeroPedidoSermig: e.target.value }, 'numeroPedidoSermig');
+                          }
+                        }}
+                        placeholder="Ex.: SOL-2026-000123"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {caseCtx.fields.dataProtocolo && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Data do Protocolo</label>
+                      <input
+                        key={`proto-${activeCase.id}-${activeCase.dataProtocolo || ''}`}
+                        type="date"
+                        defaultValue={activeCase.dataProtocolo || ''}
+                        onBlur={(e) => {
+                          if (e.target.value !== (activeCase.dataProtocolo || '')) {
+                            void handleSaveCaseField({ dataProtocolo: e.target.value }, 'dataProtocolo');
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {caseCtx.fields.dataLimiteEntrada && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Data Limite de Entrada (90d)</label>
+                      <input
+                        key={`entrada-${activeCase.id}-${activeCase.dataLimiteEntrada || ''}`}
+                        type="date"
+                        defaultValue={activeCase.dataLimiteEntrada || ''}
+                        onBlur={(e) => {
+                          if (e.target.value !== (activeCase.dataLimiteEntrada || '')) {
+                            void handleSaveCaseField({ dataLimiteEntrada: e.target.value }, 'dataLimiteEntrada');
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {caseCtx.fields.dataVencimentoResidencia && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento da Residência</label>
+                      <input
+                        key={`venc-${activeCase.id}-${activeCase.dataVencimentoResidencia || ''}`}
+                        type="date"
+                        defaultValue={activeCase.dataVencimentoResidencia || ''}
+                        onBlur={(e) => {
+                          if (e.target.value !== (activeCase.dataVencimentoResidencia || '')) {
+                            void handleSaveCaseField({ dataVencimentoResidencia: e.target.value }, 'dataVencimentoResidencia');
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {caseCtx.fields.prazoRequerimento && (
+                    <div>
+                      <label className="block text-xs font-semibold text-amber-900 mb-1">Prazo Requerimento / Descargos</label>
+                      <input
+                        key={`req-${activeCase.id}-${activeCase.prazoRequerimento || ''}`}
+                        type="date"
+                        defaultValue={activeCase.prazoRequerimento || ''}
+                        onBlur={(e) => {
+                          if (e.target.value !== (activeCase.prazoRequerimento || '')) {
+                            void handleSaveCaseField({ prazoRequerimento: e.target.value }, 'prazoRequerimento');
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-amber-50/40 text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Comprovante e Notas SERMIG — exibidos apenas quando há protocolo/histórico SERMIG */}
+              {(caseCtx.fields.comprovanteProtocolo || caseCtx.fields.notasSermig) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 no-print">
+                  {caseCtx.fields.comprovanteProtocolo && (
+                    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
+                      <p className="text-xs font-bold text-slate-900">Comprovante Oficial de Protocolo SERMIG</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {activeCase.comprovanteProtocoloUrl && (
+                          <a
+                            href={activeCase.comprovanteProtocoloUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver Comprovante
+                          </a>
+                        )}
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-100">
+                          <Upload className="w-3.5 h-3.5" />
+                          {uploadingProtocolo ? 'Enviando...' : activeCase.comprovanteProtocoloUrl ? 'Substituir comprovante' : 'Anexar comprovante'}
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            className="hidden"
+                            disabled={uploadingProtocolo}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setUploadingProtocolo(true);
+                              try {
+                                const up = await uploadFileToServer(file);
+                                await handleSaveCaseField({ comprovanteProtocoloUrl: up.url }, 'comprovanteProtocoloUrl');
+                              } finally {
+                                setUploadingProtocolo(false);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {caseCtx.fields.notasSermig && (
+                    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
+                      <p className="text-xs font-bold text-slate-900">Notas e Despachos SERMIG</p>
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          value={sermigStatusNote}
+                          onChange={(e) => setSermigStatusNote(e.target.value)}
+                          placeholder="Registrar despacho, notificação ou protocolo..."
+                          className="flex-1 min-w-[180px] px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                        />
+                        <UiButton
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          onClick={() => void handleSermigStatusChange(activeCase.statusSermig, sermigStatusNote)}
+                        >
+                          Salvar Nota
+                        </UiButton>
+                      </div>
+                      {(activeCase.historicoStatusSermig || []).length > 0 && (
+                        <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-slate-100 text-[11px] text-slate-600">
+                          {[...(activeCase.historicoStatusSermig || [])].reverse().map((h, idx) => (
+                            <p key={idx}>
+                              <strong>{h.status}</strong> ({formatDateTimeBR(h.data)} · {h.autor}){h.nota ? ` — ${h.nota}` : ''}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeCase.overrideProtocoloMinimo && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                  <p className="font-semibold">Exceção de Protocolo Mínimo Registrada</p>
+                  <p>
+                    Autorizada por {activeCase.overrideProtocoloMinimo.autorizadoPor} em{' '}
+                    {formatDateTimeBR(activeCase.overrideProtocoloMinimo.data)}: {activeCase.overrideProtocoloMinimo.justificativa}
+                  </p>
+                </div>
+              )}
+
+              {/* Parecer Técnico (apenas em casos migratórios e recolhível após protocolo) */}
+              {caseCtx.fields.parecerTecnico && (
+                <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setParecerExpanded((prev) => !prev)}
+                      className="flex items-center gap-2 text-left"
+                    >
+                      {parecerExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
+                      )}
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">
+                          Parecer Técnico e Viabilidade
+                          {caseAssessments.length > 0 && (
+                            <span className="ml-2 text-xs font-medium text-slate-500">
+                              ({caseAssessments.length} {caseAssessments.length === 1 ? 'versão' : 'versões'})
+                            </span>
+                          )}
+                        </h3>
+                        {parecerExpanded && (
+                          <p className="text-xs text-slate-500">
+                            Gere um rascunho fundamentado na Base Legal, edite e aprove antes de liberar ao cliente.
+                          </p>
+                        )}
+                      </div>
+                    </button>
+
+                    <div className="flex flex-wrap items-center gap-2 no-print">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleSaveCaseField(
+                            { relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado },
+                            'relatorioViabilidadeLiberado',
+                          )
+                        }
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${
+                          activeCase.relatorioViabilidadeLiberado
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {activeCase.relatorioViabilidadeLiberado ? 'Visível no Portal' : 'Liberar ao Cliente'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={aiParecerLoading}
+                        onClick={() => {
+                          setParecerExpanded(true);
+                          void handleGenerateAiParecer();
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                        style={{ backgroundColor: 'var(--color-primary)' }}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {aiParecerLoading ? aiParecerProgress || 'Gerando...' : 'Gerar Rascunho'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {parecerExpanded && (
+                    <>
+                      {aiParecerLoading && aiParecerProgress && (
+                        <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
+                          {aiParecerProgress}
+                        </p>
+                      )}
+
+                      {parecerDraft && (
+                        <form onSubmit={handleSaveParecerDraft} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="space-y-1">
+                              {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
+                                <>
+                                  <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
+                                    {parecerDraft.origemLabel || 'Rascunho gerado por regras — serviço indisponível no momento'}
+                                  </p>
+                                  {parecerDraft.mensagemUsuario && (
+                                    <p className="text-xs text-amber-900">{parecerDraft.mensagemUsuario}</p>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                                  {parecerDraft.origemLabel || 'Rascunho editável'} — revise e ajuste antes de aprovar.
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={aiParecerLoading}
+                              onClick={() => void handleGenerateAiParecer()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              {aiParecerLoading ? aiParecerProgress || 'Tentando novamente...' : 'Gerar novamente'}
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1">Enquadramento Legal</label>
+                              <textarea
+                                rows={4}
+                                value={parecerDraft.enquadramentoLegal}
+                                onChange={(e) => updateParecerDraft({ ...parecerDraft, enquadramentoLegal: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1">Elegibilidade e Riscos</label>
+                              <textarea
+                                rows={4}
+                                value={parecerDraft.elegibilidadeRiscos}
+                                onChange={(e) => updateParecerDraft({ ...parecerDraft, elegibilidadeRiscos: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1">Fundamentação Normativa</label>
+                              <textarea
+                                rows={3}
+                                value={parecerDraft.fundamentacaoNormativa}
+                                onChange={(e) => updateParecerDraft({ ...parecerDraft, fundamentacaoNormativa: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1">Recomendações ao Cliente</label>
+                              <textarea
+                                rows={3}
+                                value={parecerDraft.recomendacoes}
+                                onChange={(e) => updateParecerDraft({ ...parecerDraft, recomendacoes: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={parecerDraft.liberadoAoCliente}
+                                onChange={(e) => updateParecerDraft({ ...parecerDraft, liberadoAoCliente: e.target.checked })}
+                              />
+                              Liberar versão aprovada no Portal do Cliente
+                            </label>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => updateParecerDraft(null)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium"
+                              >
+                                Descartar
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                              >
+                                Aprovar e Salvar Versão
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                      )}
+
+                      {caseAssessments.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-700">Versões Salvas</p>
+                          {caseAssessments.map((va) => (
+                            <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900">
+                                  Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
+                                </span>
+                                <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
+                                  {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
+                                </span>
+                              </div>
+                              <p className="text-slate-700 whitespace-pre-wrap">{va.enquadramentoLegal}</p>
+                              <p className="text-slate-600 whitespace-pre-wrap">{va.recomendacoes}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Ações operacionais do caso */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200 no-print">
                 <div className="flex flex-wrap gap-2">
-                  <UiButton type="button" size="sm" variant="outline" onClick={() => void handleGenerateAutomaticDeadlines()}>
-                    <Calendar className="w-3.5 h-3.5" />
-                    Gerar Prazos Automáticos
-                  </UiButton>
-                  <UiButton type="button" size="sm" variant="outline" onClick={() => void handleDuplicateCaseStructure()}>
-                    <Copy className="w-3.5 h-3.5" />
-                    Duplicar Estrutura do Caso
-                  </UiButton>
-                  <UiButton type="button" size="sm" variant="outline" onClick={() => setPrintMode('dossie_caso')}>
-                    <Printer className="w-3.5 h-3.5" />
-                    Imprimir Dossiê A4
-                  </UiButton>
+                  {caseCtx.usesSermig && (
+                    <UiButton type="button" size="sm" variant="outline" onClick={() => void handleGenerateAutomaticDeadlines()}>
+                      <Calendar className="w-3.5 h-3.5" />
+                      Gerar Prazos
+                    </UiButton>
+                  )}
                   <UiButton
                     type="button"
                     size="sm"
@@ -2008,7 +2544,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       setCasePdfBusy(true);
                       try {
                         const { exportDossieCasoPdf } = await import('../pdf/ClientPortalPdfDocuments');
-                        const thermo = calcularTermometroDocumentos(caseDocs, empresa.bloqueioProtocoloMinimo || 100);
+                        const currentThermo = calcularTermometroDocumentos(caseDocs, empresa.bloqueioProtocoloMinimo || 100);
                         const fn = await exportDossieCasoPdf({
                           empresa,
                           client: activeClient,
@@ -2016,7 +2552,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           dependents: caseDependents,
                           docs: caseDocs,
                           deadlines: caseDeadlines,
-                          thermo,
+                          thermo: currentThermo,
                           assessments: caseAssessments,
                         });
                         setFeedback(`Dossiê PDF gerado (${fn}).`);
@@ -2030,6 +2566,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <Download className="w-3.5 h-3.5" />
                     {casePdfBusy ? 'Gerando PDF...' : 'Baixar Dossiê (PDF)'}
                   </UiButton>
+                  <UiButton type="button" size="sm" variant="outline" onClick={() => setPrintMode('dossie_caso')}>
+                    <Printer className="w-3.5 h-3.5" />
+                    Imprimir A4
+                  </UiButton>
+                  <UiButton type="button" size="sm" variant="outline" onClick={() => void handleDuplicateCaseStructure()}>
+                    <Copy className="w-3.5 h-3.5" />
+                    Duplicar Caso
+                  </UiButton>
                 </div>
                 {!activeCase.encerradoEm && (
                   <UiButton type="button" size="sm" variant="danger" onClick={() => setCloseCaseModalOpen(true)}>
@@ -2037,312 +2581,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   </UiButton>
                 )}
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
-                  <select
-                    value={activeCase.visaCategoryId || 'visa_15_mercosul'}
-                    onChange={(e) => void handleSaveCaseField({ visaCategoryId: e.target.value }, 'visaCategoryId')}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                  >
-                    {visaCategories.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        Cód. {v.codigo} — {v.nomePortugues}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Número do Pedido SERMIG</label>
-                  <input
-                    defaultValue={activeCase.numeroPedidoSermig || ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (activeCase.numeroPedidoSermig || '')) {
-                        void handleSaveCaseField({ numeroPedidoSermig: e.target.value }, 'numeroPedidoSermig');
-                      }
-                    }}
-                    placeholder="Ex.: SOL-2026-000123"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Data do Protocolo</label>
-                  <input
-                    type="date"
-                    defaultValue={activeCase.dataProtocolo || ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (activeCase.dataProtocolo || '')) {
-                        void handleSaveCaseField({ dataProtocolo: e.target.value }, 'dataProtocolo');
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Data Limite Entrada (90d Estampado)</label>
-                  <input
-                    type="date"
-                    defaultValue={activeCase.dataLimiteEntrada || ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (activeCase.dataLimiteEntrada || '')) {
-                        void handleSaveCaseField({ dataLimiteEntrada: e.target.value }, 'dataLimiteEntrada');
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento da Residência (Janela Prorrogação)</label>
-                  <input
-                    type="date"
-                    defaultValue={activeCase.dataVencimentoResidencia || ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (activeCase.dataVencimentoResidencia || '')) {
-                        void handleSaveCaseField({ dataVencimentoResidencia: e.target.value }, 'dataVencimentoResidencia');
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Prazo Requerimento / Descargos</label>
-                  <input
-                    type="date"
-                    defaultValue={activeCase.prazoRequerimento || ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (activeCase.prazoRequerimento || '')) {
-                        void handleSaveCaseField({ prazoRequerimento: e.target.value }, 'prazoRequerimento');
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Comprovante de protocolo SERMIG & Histórico de mudanças de status */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 no-print">
-                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
-                  <p className="text-xs font-bold text-slate-900">Comprovante Oficial de Protocolo SERMIG</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {activeCase.comprovanteProtocoloUrl && (
-                      <a
-                        href={activeCase.comprovanteProtocoloUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Ver Comprovante
-                      </a>
-                    )}
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-100">
-                      <Upload className="w-3.5 h-3.5" />
-                      {uploadingProtocolo ? 'Enviando...' : activeCase.comprovanteProtocoloUrl ? 'Substituir PDF/Comprovante' : 'Anexar Comprovante SERMIG'}
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        className="hidden"
-                        disabled={uploadingProtocolo}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setUploadingProtocolo(true);
-                          try {
-                            const up = await uploadFileToServer(file);
-                            await handleSaveCaseField({ comprovanteProtocoloUrl: up.url }, 'comprovanteProtocoloUrl');
-                          } finally {
-                            setUploadingProtocolo(false);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
-                  <p className="text-xs font-bold text-slate-900">Registrar Mudança / Nota SERMIG</p>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      value={sermigStatusNote}
-                      onChange={(e) => setSermigStatusNote(e.target.value)}
-                      placeholder="Nota sobre despacho, notificação ou protocolo..."
-                      className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
-                    />
-                    <UiButton
-                      type="button"
-                      size="sm"
-                      variant="primary"
-                      onClick={() => void handleSermigStatusChange(activeCase.statusSermig, sermigStatusNote)}
-                    >
-                      Registrar Nota SERMIG
-                    </UiButton>
-                  </div>
-                  {(activeCase.historicoStatusSermig || []).length > 0 && (
-                    <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-slate-100 text-[11px] text-slate-600">
-                      {[...(activeCase.historicoStatusSermig || [])].reverse().map((h, idx) => (
-                        <p key={idx}>
-                          <strong>{h.status}</strong> ({formatDateTimeBR(h.data)} · {h.autor}){h.nota ? ` — ${h.nota}` : ''}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {activeCase.overrideProtocoloMinimo && (
-                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                  <p className="font-semibold">Override de Protocolo Mínimo Registrado</p>
-                  <p>
-                    Autorizado por {activeCase.overrideProtocoloMinimo.autorizadoPor} em{' '}
-                    {formatDateTimeBR(activeCase.overrideProtocoloMinimo.data)}: {activeCase.overrideProtocoloMinimo.justificativa}
-                  </p>
-                </div>
-              )}
-
-              {!isAssistente && (
-                <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900">Parecer Técnico &amp; Viabilidade (Confrontado com Base Legal)</h3>
-                      <p className="text-xs text-slate-500">
-                        A IA gera um rascunho citando exclusivamente a Base Legal cadastrada. Edite e aprove antes de liberar ao cliente.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={aiParecerLoading}
-                      onClick={handleGenerateAiParecer}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {aiParecerLoading ? aiParecerProgress || 'Gerando rascunho...' : 'Gerar Rascunho de Parecer com IA'}
-                    </button>
-                  </div>
-
-                  {aiParecerLoading && aiParecerProgress && (
-                    <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
-                      {aiParecerProgress}
-                    </p>
-                  )}
-
-                  {parecerDraft && (
-                    <form onSubmit={handleSaveParecerDraft} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="space-y-1">
-                          {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
-                            <>
-                              <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
-                                {parecerDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
-                              </p>
-                              {parecerDraft.mensagemUsuario && (
-                                <p className="text-xs text-amber-900">{parecerDraft.mensagemUsuario}</p>
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-                              {parecerDraft.origemLabel || 'Rascunho editável gerado pela IA'} — revise e ajuste antes de aprovar.
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          disabled={aiParecerLoading}
-                          onClick={() => void handleGenerateAiParecer()}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          {aiParecerLoading ? aiParecerProgress || 'Tentando novamente...' : 'Tentar novamente com IA'}
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Enquadramento Legal</label>
-                          <textarea
-                            rows={4}
-                            value={parecerDraft.enquadramentoLegal}
-                            onChange={(e) => updateParecerDraft({ ...parecerDraft, enquadramentoLegal: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Elegibilidade &amp; Riscos</label>
-                          <textarea
-                            rows={4}
-                            value={parecerDraft.elegibilidadeRiscos}
-                            onChange={(e) => updateParecerDraft({ ...parecerDraft, elegibilidadeRiscos: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Fundamentação Normativa</label>
-                          <textarea
-                            rows={3}
-                            value={parecerDraft.fundamentacaoNormativa}
-                            onChange={(e) => updateParecerDraft({ ...parecerDraft, fundamentacaoNormativa: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Recomendações ao Cliente</label>
-                          <textarea
-                            rows={3}
-                            value={parecerDraft.recomendacoes}
-                            onChange={(e) => updateParecerDraft({ ...parecerDraft, recomendacoes: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={parecerDraft.liberadoAoCliente}
-                            onChange={(e) => updateParecerDraft({ ...parecerDraft, liberadoAoCliente: e.target.checked })}
-                          />
-                          Liberar versão aprovada no Portal do Cliente
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => updateParecerDraft(null)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium"
-                          >
-                            Descartar
-                          </button>
-                          <button
-                            type="submit"
-                            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
-                          >
-                            Aprovar e Salvar Versão
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  )}
-
-                  {caseAssessments.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-slate-700">Versões Salvas:</p>
-                      {caseAssessments.map((va) => (
-                        <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900">
-                              Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
-                            </span>
-                            <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
-                              {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 whitespace-pre-wrap">{va.enquadramentoLegal}</p>
-                          <p className="text-slate-600 whitespace-pre-wrap">{va.recomendacoes}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -2534,7 +2772,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       {zipBusy ? 'Gerando...' : 'Baixar ZIP'}
                     </button>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className={caseCtx.usesSermig ? 'grid grid-cols-3 gap-1.5' : 'grid grid-cols-1 gap-1.5'}>
                     <button
                       type="button"
                       onClick={() => setPrintMode('relacao')}
@@ -2542,82 +2780,90 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     >
                       Relação A4
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrintMode('apostila')}
-                      className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Checklist Haia
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrintMode('pacote')}
-                      className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Pacote SERMIG
-                    </button>
+                    {caseCtx.usesSermig && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setPrintMode('apostila')}
+                          className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          Checklist Haia
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrintMode('pacote')}
+                          className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          Pacote SERMIG
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Cronograma Reverso de Emissões */}
-              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 no-print">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">Cronograma Inteligente de Emissão Reversa</h3>
-                    <p className="text-xs text-slate-500">
-                      Calcula datas sugeridas a partir da data-alvo do protocolo para evitar vencimento de certidões (ex.: Antecedentes PF 60d).
-                    </p>
+              {/* Cronograma Reverso de Emissões (somente antes do protocolo em casos SERMIG) */}
+              {caseCtx.usesSermig && !caseCtx.hasProtocolStarted && (
+                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 no-print">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Cronograma de Emissão Reversa</h3>
+                      <p className="text-xs text-slate-500">
+                        Calcula datas sugeridas a partir da data-alvo do protocolo para evitar vencimento de certidões.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={dataAlvoProtocolo}
+                        onChange={(e) => setDataAlvoProtocolo(e.target.value)}
+                        aria-label="Data alvo do protocolo"
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCronogramaDatas}
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                      >
+                        Aplicar datas
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="date"
-                      value={dataAlvoProtocolo}
-                      onChange={(e) => setDataAlvoProtocolo(e.target.value)}
-                      aria-label="Data alvo do protocolo"
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyCronogramaDatas}
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-                    >
-                      Aplicar datas ao checklist
-                    </button>
-                  </div>
+                  {schedulePreview.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {schedulePreview.map((item) => (
+                        <div key={item.requirement.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                          <p className="font-semibold text-slate-900">
+                            #{item.ordem} {item.requirement.nomeDocumento}
+                          </p>
+                          <p className="text-slate-600 mt-0.5">
+                            Emitir até <strong className="tabular-nums">{item.dataSugeridaBR}</strong> · {item.janelaObservacao}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {schedulePreview.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {schedulePreview.map((item) => (
-                      <div key={item.requirement.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-                        <p className="font-semibold text-slate-900">
-                          #{item.ordem} {item.requirement.nomeDocumento}
-                        </p>
-                        <p className="text-slate-600 mt-0.5">
-                          Emitir até <strong className="tabular-nums">{item.dataSugeridaBR}</strong> · {item.janelaObservacao}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
 
-              {/* Filtros por Pessoa/Status + Modal Documento Completo + Adição rápida */}
+              {/* Filtros por Pessoa/Status + Modal Documento Completo */}
               <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200 no-print">
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={docPersonFilter}
-                    onChange={(e) => setDocPersonFilter(e.target.value)}
-                    aria-label="Filtrar documentos por pessoa"
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
-                  >
-                    <option value="Todos">Pessoa: Todos ({caseDocs.length})</option>
-                    {allDocPessoas.map((p) => (
-                      <option key={p} value={p}>
-                        {p} ({caseDocs.filter((d) => d.pessoa === p).length})
-                      </option>
-                    ))}
-                  </select>
+                  {allDocPessoas.length > 1 && (
+                    <select
+                      value={docPersonFilter}
+                      onChange={(e) => setDocPersonFilter(e.target.value)}
+                      aria-label="Filtrar documentos por pessoa"
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
+                    >
+                      <option value="Todos">Pessoa: Todos ({caseDocs.length})</option>
+                      {allDocPessoas.map((p) => (
+                        <option key={p} value={p}>
+                          {p} ({caseDocs.filter((d) => d.pessoa === p).length})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <select
                     value={docStatusFilter}
                     onChange={(e) => setDocStatusFilter(e.target.value)}
@@ -2632,14 +2878,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <option value="Reprovado">Reprovado</option>
                     <option value="Vencido">Vencido</option>
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => setLegalModalOpen(true)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)]"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Ver Base Legal
-                  </button>
+                  {caseCtx.usesSermig && (
+                    <button
+                      type="button"
+                      onClick={() => setLegalModalOpen(true)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)]"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Ver Base Legal
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -2674,7 +2922,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-900 text-white text-xs no-print">
                   <span className="font-semibold inline-flex items-center gap-1.5">
                     <CheckSquare className="w-4 h-4" />
-                    {selectedDocIds.length} documento(s) selecionado(s)
+                    {selectedDocIds.length === 1
+                      ? '1 documento selecionado'
+                      : `${selectedDocIds.length} documentos selecionados`}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     <button
@@ -2684,20 +2934,24 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     >
                       Aprovar em lote
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleBatchDocAction('apostilado')}
-                      className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
-                    >
-                      Marcar Apostilado
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleBatchDocAction('traduzido')}
-                      className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
-                    >
-                      Marcar Traduzido
-                    </button>
+                    {caseCtx.usesSermig && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleBatchDocAction('apostilado')}
+                          className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
+                        >
+                          Marcar Apostilado
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleBatchDocAction('traduzido')}
+                          className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
+                        >
+                          Marcar Traduzido
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => void handleBatchDocAction('complementacao')}
@@ -2721,26 +2975,28 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <input
                   value={newDocName}
                   onChange={(e) => setNewDocName(e.target.value)}
-                  placeholder="Adicionar documento extra rápido ao checklist..."
+                  placeholder="Adicionar documento extra ao checklist..."
                   className="flex-1 min-w-[220px] px-3 py-2 rounded-lg border border-slate-300 text-xs"
                 />
-                <select
-                  value={newDocPessoa}
-                  onChange={(e) => setNewDocPessoa(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                >
-                  <option value="Titular">Titular</option>
-                  {caseDependents.map((d) => (
-                    <option key={d.id} value={d.nomeCompleto}>
-                      {d.nomeCompleto}
-                    </option>
-                  ))}
-                </select>
+                {caseDependents.length > 0 && (
+                  <select
+                    value={newDocPessoa}
+                    onChange={(e) => setNewDocPessoa(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                  >
+                    <option value="Titular">Titular</option>
+                    {caseDependents.map((d) => (
+                      <option key={d.id} value={d.nomeCompleto}>
+                        {d.nomeCompleto}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button
                   type="submit"
                   className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
                 >
-                  + Incluir rápido
+                  + Incluir documento
                 </button>
               </form>
 
@@ -2907,66 +3163,78 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs pt-2 border-t border-slate-100 no-print">
-                          <select
-                            value={d.status}
-                            onChange={(e) => {
-                              const nextSt = e.target.value as CaseDocument['status'];
-                              if (nextSt === 'Reprovado' && !d.motivoReprovacao) {
-                                void handleUpdateDoc(d, {
-                                  status: 'Reprovado',
-                                  motivoReprovacao: 'Documento pendente de ajuste — informe o detalhe específico abaixo.',
-                                });
-                              } else {
-                                void handleUpdateDoc(d, { status: nextSt });
-                              }
-                            }}
-                            aria-label="Status do documento"
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
-                          >
-                            <option value="Pendente">Pendente</option>
-                            <option value="Enviado">Enviado</option>
-                            <option value="Em análise">Em análise</option>
-                            <option value="Aprovado">Aprovado</option>
-                            <option value="Reprovado">Reprovado</option>
-                            <option value="Vencido">Vencido</option>
-                          </select>
-                          <select
-                            value={d.etapaEsteira}
-                            onChange={(e) => void handleUpdateDoc(d, { etapaEsteira: e.target.value as DocumentStep })}
-                            aria-label="Etapa da esteira"
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
-                          >
-                            {DOCUMENT_STEPS.map((st) => (
-                              <option key={st} value={st}>
-                                {st}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="date"
-                            value={d.dataEmissao || ''}
-                            onChange={(e) => void handleUpdateDoc(d, { dataEmissao: e.target.value })}
-                            title="Data de emissão"
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
-                          />
-                          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
-                            <input
-                              type="checkbox"
-                              checked={d.apostilado}
-                              onChange={(e) => void handleUpdateDoc(d, { apostilado: e.target.checked })}
-                            />
-                            Apostilado{d.exigeApostila && !d.apostilado ? ' (obrig.)' : ''}
-                          </label>
-                          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
-                            <input
-                              type="checkbox"
-                              checked={d.traduzido}
-                              onChange={(e) => void handleUpdateDoc(d, { traduzido: e.target.checked })}
-                            />
-                            Traduzido{d.exigeTraducao && !d.traduzido ? ' (obrig.)' : ''}
-                          </label>
-                        </div>
+                        {(() => {
+                          const rowVis = getDocumentRowVisibility(d);
+                          return (
+                            <div className="flex flex-wrap items-center gap-2 text-xs pt-2 border-t border-slate-100 no-print">
+                              <select
+                                value={d.status}
+                                onChange={(e) => {
+                                  const nextSt = e.target.value as CaseDocument['status'];
+                                  if (nextSt === 'Reprovado' && !d.motivoReprovacao) {
+                                    void handleUpdateDoc(d, {
+                                      status: 'Reprovado',
+                                      motivoReprovacao: 'Documento pendente de ajuste — informe o detalhe específico abaixo.',
+                                    });
+                                  } else {
+                                    void handleUpdateDoc(d, { status: nextSt });
+                                  }
+                                }}
+                                aria-label="Status do documento"
+                                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
+                              >
+                                <option value="Pendente">Pendente</option>
+                                <option value="Enviado">Enviado</option>
+                                <option value="Em análise">Em análise</option>
+                                <option value="Aprovado">Aprovado</option>
+                                <option value="Reprovado">Reprovado</option>
+                                <option value="Vencido">Vencido</option>
+                              </select>
+                              <select
+                                value={d.etapaEsteira}
+                                onChange={(e) => void handleUpdateDoc(d, { etapaEsteira: e.target.value as DocumentStep })}
+                                aria-label="Etapa da esteira"
+                                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                              >
+                                {DOCUMENT_STEPS.map((st) => (
+                                  <option key={st} value={st}>
+                                    {st}
+                                  </option>
+                                ))}
+                              </select>
+                              {rowVis.showEmissionDate && (
+                                <input
+                                  type="date"
+                                  value={d.dataEmissao || ''}
+                                  onChange={(e) => void handleUpdateDoc(d, { dataEmissao: e.target.value })}
+                                  title="Data de emissão"
+                                  aria-label="Data de emissão"
+                                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                                />
+                              )}
+                              {rowVis.showApostilleToggle && (
+                                <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={d.apostilado}
+                                    onChange={(e) => void handleUpdateDoc(d, { apostilado: e.target.checked })}
+                                  />
+                                  Apostilado{d.exigeApostila && !d.apostilado ? ' (obrig.)' : ''}
+                                </label>
+                              )}
+                              {rowVis.showTranslationToggle && (
+                                <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={d.traduzido}
+                                    onChange={(e) => void handleUpdateDoc(d, { traduzido: e.target.checked })}
+                                  />
+                                  Traduzido{d.exigeTraducao && !d.traduzido ? ' (obrig.)' : ''}
+                                </label>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {d.status === 'Reprovado' && (
                           <div className="space-y-1">
@@ -3267,12 +3535,11 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     onChange={(e) => setNewDeadlineTipo(e.target.value as Deadline['tipo'])}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
                   >
-                    <option value="Validade Documento">Validade Documento</option>
-                    <option value="Entrada no Chile 90d">Entrada no Chile 90d</option>
-                    <option value="Janela Prorrogação">Janela Prorrogação</option>
-                    <option value="Prazo Legal 6 Meses SERMIG">Prazo Legal 6 Meses SERMIG</option>
-                    <option value="Resposta Requerimento/Recurso">Resposta Requerimento/Recurso</option>
-                    <option value="Vencimento Cédula">Vencimento Cédula</option>
+                    {caseCtx.relevantDeadlineTypes.map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
                   </select>
                   <div className="flex gap-2">
                     <input
@@ -3378,9 +3645,53 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             </div>
           )}
 
-          {/* ABA 6: COMUNICAÇÃO */}
+          {/* ABA COMUNICAÇÃO E AUDITORIA */}
           {caseTab === 'comunicacao' && (
             <div className="space-y-5 pt-2">
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-3 no-print">
+                <button
+                  type="button"
+                  onClick={() => setCommSubView('atendimento')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    commSubView === 'atendimento'
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Atendimento e Chat ({caseComms.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCommSubView('auditoria')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    commSubView === 'auditoria'
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Auditoria do Caso ({caseLogs.length})
+                </button>
+              </div>
+
+              {commSubView === 'auditoria' ? (
+                <div className="space-y-2">
+                  {caseLogs.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-3">Nenhuma alteração auditada vinculada diretamente a este caso ainda.</p>
+                  ) : (
+                    caseLogs.map((log) => (
+                      <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs">
+                        <div className="flex flex-wrap justify-between gap-2 text-slate-500">
+                          <span className="font-semibold text-slate-800">
+                            {log.acao} · {log.entidade} ({log.campo || 'registro'})
+                          </span>
+                          <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.actorEmail}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <>
               {/* Chat de Dúvidas sobre Documentos (Portal do Cliente) */}
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3390,11 +3701,11 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       Chat de Dúvidas sobre Documentos (Portal do Cliente)
                     </h3>
                     <p className="text-xs text-slate-500">
-                      As dúvidas enviadas pelo cliente no widget do Portal aparecem aqui em tempo real e ficam salvas no histórico do processo.
+                      As dúvidas enviadas pelo cliente no Portal aparecem aqui em tempo real e ficam salvas no histórico do processo.
                     </p>
                   </div>
                   <span className="text-xs font-semibold text-slate-600 tabular-nums">
-                    {caseChatLogs.length} mensagem(ns)
+                    {caseChatLogs.length === 1 ? '1 mensagem' : `${caseChatLogs.length} mensagens`}
                   </span>
                 </div>
 
@@ -3667,6 +3978,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   </div>
                 ))}
               </div>
+                </>
+              )}
             </div>
           )}
 
@@ -3726,26 +4039,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* ABA 8: HISTÓRICO */}
-          {caseTab === 'historico' && (
-            <div className="space-y-2 pt-2">
-              {caseLogs.length === 0 ? (
-                <p className="text-xs text-slate-500">Nenhuma alteração auditada vinculada diretamente ainda.</p>
-              ) : (
-                caseLogs.map((log) => (
-                  <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs">
-                    <div className="flex justify-between text-slate-500">
-                      <span className="font-semibold text-slate-800">
-                        {log.acao} · {log.entidade} ({log.campo || 'registro'})
-                      </span>
-                      <span>{formatDateTimeBR(log.createdAt)} · {log.actorEmail}</span>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           )}
         </div>
@@ -4803,19 +5096,45 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Prioridade</label>
                 <select
-                  value={newCaseForm.visaCategoryId}
-                  onChange={(e) => setNewCaseForm({ ...newCaseForm, visaCategoryId: e.target.value })}
+                  value={newCaseForm.prioridade}
+                  onChange={(e) => setNewCaseForm({ ...newCaseForm, prioridade: e.target.value as Case['prioridade'] })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
                 >
-                  {visaCategories.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.codigo} — {v.nomePortugues}
-                    </option>
-                  ))}
+                  <option value="Baixa">Baixa</option>
+                  <option value="Média">Média</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Urgente">Urgente</option>
                 </select>
               </div>
+              {serviceRequiresVisaCategory(newCaseForm.tipoServico) && (
+                <div className={serviceNeedsCurrentResidencyExpiry(newCaseForm.tipoServico) ? '' : 'sm:col-span-2'}>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
+                  <select
+                    value={newCaseForm.visaCategoryId}
+                    onChange={(e) => setNewCaseForm({ ...newCaseForm, visaCategoryId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                  >
+                    {visaCategories.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.codigo} — {v.nomePortugues}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {serviceNeedsCurrentResidencyExpiry(newCaseForm.tipoServico) && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento da Residência Atual</label>
+                  <input
+                    type="date"
+                    value={newCaseForm.dataVencimentoResidencia}
+                    onChange={(e) => setNewCaseForm({ ...newCaseForm, dataVencimentoResidencia: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                  />
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <button
@@ -4830,7 +5149,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                Criar Caso com Checklist
+                {serviceRequiresVisaCategory(newCaseForm.tipoServico) ? 'Criar Caso com Checklist' : 'Criar Caso de Relocation'}
               </button>
             </div>
           </form>

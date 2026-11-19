@@ -35,10 +35,10 @@ const PageLoader: React.FC = () => (
 
 const NotFoundView: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
   <div className="py-20 px-4 text-center max-w-lg mx-auto space-y-4">
-    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Página não encontrada</p>
-    <h1 className="text-3xl font-bold text-slate-900">Ops, este endereço não existe.</h1>
+    <p className="text-xs font-semibold tracking-wide text-slate-500">Página não encontrada</p>
+    <h1 className="text-3xl font-bold text-slate-900">Este endereço não está disponível.</h1>
     <p className="text-sm text-slate-600">
-      O caminho acessado não está disponível ou foi movido. Retorne à página inicial ou faça seu diagnóstico gratuito.
+      O caminho acessado foi movido ou não existe mais. Retorne à página inicial ou inicie o diagnóstico gratuito.
     </p>
     <div className="flex flex-wrap justify-center gap-3 pt-2">
       <button

@@ -12,7 +12,7 @@ import type {
 } from '../types/domain';
 
 export const DEFAULT_AVISO_LEGAL =
-  'Este sistema auxilia a gestão do processo migratório e não substitui a análise individual do consultor; regras e prazos estão sujeitos a alterações pelo SERMIG.';
+  'As informações e ferramentas desta plataforma auxiliam o acompanhamento do processo migratório e não substituem a análise individualizada de cada caso. Normas e prazos estão sujeitos a atualizações pelo SERMIG.';
 
 export const DEFAULT_TERMO_LGPD = `TERMO DE CIÊNCIA E CONSENTIMENTO PARA TRATAMENTO DE DADOS PESSOAIS (LGPD – LEI Nº 13.709/2018)
 
@@ -78,11 +78,11 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     raioBordas: 'editorial',
     densidadeSecoes: 'equilibrada',
     estiloCabecalho: 'sticky_vidro',
-    textoCtaCabecalho: 'Área da equipe',
+    textoCtaCabecalho: 'Área da Equipe',
     destinoCtaCabecalho: '/entrar-equipe',
     mostrarBotaoWhatsappFlutuante: true,
     mostrarBarraCtaMobile: true,
-    rodapeSubtitulo: 'Consultoria especializada em imigração e relocation Brasil – Chile.',
+    rodapeSubtitulo: 'Consultoria especializada em imigração e relocation Brasil–Chile.',
     rodapeCopyright: 'Todos os direitos reservados.',
     linksNavegacao: [
       { path: '/', label: 'Início', visivel: true },
@@ -150,7 +150,7 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     {
       ano: '2026',
       titulo: 'Plataforma digital transparente com Portal do Cliente',
-      descricao: 'Acompanhamento de 15 etapas, Base Legal auditada e esteira documental com conferência por peso.',
+      descricao: 'Acompanhamento de 15 etapas, Base Legal auditada e esteira documental com validação técnica por critérios.',
     },
   ],
 };
@@ -159,11 +159,11 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'hero',
     secao: 'hero',
-    titulo: 'Assessoria migratória e relocation para brasileiros no Chile com segurança jurídica e previsibilidade',
+    titulo: 'Imigração e relocation para o Chile com segurança jurídica e previsibilidade',
     subtitulo:
-      'Da análise de elegibilidade pelo Acordo Mercosul e Ley 21.325 até a obtenção da sua Cédula de Identidade chilena e adaptação completa em Santiago.',
+      'Da análise de elegibilidade pelo Acordo Mercosul e pela Ley 21.325 até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.',
     conteudoHtml:
-      'Conduzimos cada etapa com conferência documental rigorosa, cronograma inteligente de validades e acompanhamento transparente no Portal do Cliente.',
+      'Conduzimos cada fase com conferência documental criteriosa, controle rigoroso de prazos e acompanhamento transparente pelo Portal do Cliente.',
     imagemUrl: '/src/assets/images/hero_santiago_andes_1794944011226.jpg',
     ordem: 1,
     ativo: true,
@@ -171,8 +171,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       ctaPrimario: 'Fazer Diagnóstico Gratuito',
       ctaSecundario: 'Falar no WhatsApp',
       destaques: [
-        'Atendimento 100% em português do Brasil',
-        'Base normativa alinhada à Ley 21.325 e SERMIG',
+        'Atendimento integral em português do Brasil',
+        'Base normativa alinhada à Ley 21.325 e ao SERMIG',
         'Acompanhamento transparente em 15 etapas',
       ],
     },
@@ -180,8 +180,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'servicos',
     secao: 'servicos',
-    titulo: 'Soluções completas de imigração e estabelecimento no Chile',
-    subtitulo: 'Serviços desenhados para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.',
+    titulo: 'Soluções completas para imigração e estabelecimento no Chile',
+    subtitulo: 'Assessoria estruturada para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/service_relocation_chile_1794997277886.jpg',
     ordem: 2,
@@ -190,27 +190,27 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       itens: [
         {
           numero: '01',
-          titulo: 'Residência Temporal (Acordo Mercosul e Subcategorias)',
+          titulo: 'Residência Temporal — Acordo Mercosul e Subcategorias',
           descricao:
-            'Enquadramento preciso sob o Art. 70 nº 13 da Ley 21.325 (Reciprocidade Mercosul), trabalho com oferta formal, rentistas, investidores, estudantes e reunificação familiar.',
+            'Enquadramento técnico conforme a Ley 21.325 (incluindo o Acordo Mercosul, Art. 70, nº 13), abrangendo trabalho com oferta formal, rentistas, investidores, estudantes e reunificação familiar.',
         },
         {
           numero: '02',
           titulo: 'Prorrogação, Mudança de Subcategoria e Residência Definitiva',
           descricao:
-            'Monitoramento automático da janela legal (90 a 10 dias antes do vencimento), ratificação e transição estruturada para a Residência Definitiva.',
+            'Monitoramento preventivo da janela legal (de 90 a 10 dias antes do vencimento), ratificação de dados e transição segura para a Residência Definitiva.',
         },
         {
           numero: '03',
           titulo: 'Preparação Documental, Apostila de Haia e Traduções',
           descricao:
-            'Cronograma reverso que protege a validade de 60 dias dos Antecedentes da Polícia Federal e coordena cartórios e tradutores homologados.',
+            'Cronograma reverso que preserva o prazo de 60 dias dos Antecedentes da Polícia Federal, coordenando cartórios, Apostila de Haia e tradutores juramentados.',
         },
         {
           numero: '04',
-          titulo: 'Relocation Completo Pós-Chegada',
+          titulo: 'Relocation e Integração Pós-Chegada',
           descricao:
-            'Acompanhamento de Estampado Electrónico, registro PDI, Cédula de Identidade no Registro Civil, ClaveÚnica, abertura de conta bancária, RUT e locação.',
+            'Suporte completo no Estampado Electrónico, registro na PDI, Cédula de Identidade no Registro Civil, ClaveÚnica, RUT, abertura de conta bancária e busca de moradia.',
         },
       ],
     },
@@ -218,8 +218,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'diferenciais',
     secao: 'diferenciais',
-    titulo: 'Por que confiar sua mudança à D&M Integra Chile',
-    subtitulo: 'Rigor técnico para evitar exigências do SERMIG, vencimento de certidões e indeferimentos.',
+    titulo: 'Por que conduzir sua mudança com a D&M Integra Chile',
+    subtitulo:
+      'Rigor técnico e planejamento preventivo para evitar exigências do SERMIG, perda de validade de certidões e indeferimentos.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/about_consultoria_office_1794997278170.jpg',
     ordem: 3,
@@ -229,17 +230,17 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         {
           titulo: 'Diagnóstico fundamentado na legislação vigente',
           descricao:
-            'Verificamos se o protocolo deve ocorrer do exterior ou se há hipótese legal dentro do Chile, prevenindo alertas migratórios e Orden de Abandono.',
+            'Avaliamos se o pedido deve ser protocolado a partir do exterior ou se há hipótese legal de solicitação no Chile, prevenindo exigências administrativas e notificações de saída.',
         },
         {
           titulo: 'Termômetro de Prontidão Documental',
           descricao:
-            'Cada documento possui peso e conferência por etapas, bloqueando protocolos incompletos que atrasariam sua aprovação.',
+            'Cada certidão é verificada por critérios técnicos e pesos de obrigatoriedade, impedindo protocolos incompletos que comprometeriam o prazo de aprovação.',
         },
         {
           titulo: 'Portal do Cliente e Rede Homologada',
           descricao:
-            'Envio seguro de arquivos, cronograma de emissões, aprovação transparente de orçamentos e conexão com parceiros recomendados no Brasil e no Chile.',
+            'Envio seguro de documentos, cronograma personalizado de emissões, aprovação transparente de orçamentos e acesso direto a parceiros homologados no Brasil e no Chile.',
         },
       ],
     },
@@ -248,7 +249,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     id: 'como_funciona',
     secao: 'como_funciona',
     titulo: 'Como funciona a jornada até sua residência no Chile',
-    subtitulo: 'Um fluxo previsível em quatro momentos principais.',
+    subtitulo: 'Um processo estruturado em quatro etapas claras, do enquadramento inicial à emissão da Cédula.',
     conteudoHtml: '',
     imagemUrl: '',
     ordem: 4,
@@ -257,23 +258,27 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       passos: [
         {
           passo: '01',
-          titulo: 'Diagnóstico Inteligente',
-          descricao: 'Você responde ao questionário em 6 etapas e recebe uma pré-análise orientativa com subcategorias elegíveis e pré-checklist.',
+          titulo: 'Diagnóstico Orientativo',
+          descricao:
+            'Você preenche o questionário em 6 etapas e recebe uma pré-análise estruturada com as subcategorias elegíveis e o pré-checklist documental.',
         },
         {
           passo: '02',
           titulo: 'Reunião e Enquadramento Técnico',
-          descricao: 'Nossa equipe valida vínculos, prazos e riscos individuais, formaliza o plano e libera o seu acesso ao Portal do Cliente.',
+          descricao:
+            'Nossa equipe valida vínculos, prazos e particularidades do seu perfil, formaliza o plano de atuação e libera seu acesso ao Portal do Cliente.',
         },
         {
           passo: '03',
           titulo: 'Esteira Documental e Apostilamento',
-          descricao: 'Organizamos a emissão na ordem exata de prazos, conferimos cada certidão e coordenamos apostilas e traduções.',
+          descricao:
+            'Definimos a ordem exata de emissão das certidões, conferimos cada arquivo e coordenamos apostilamentos e traduções juramentadas.',
         },
         {
           passo: '04',
           titulo: 'Protocolo SERMIG, Estampado e Cédula',
-          descricao: 'Acompanhamos o trâmite até o Estampado Electrónico, entrada no Chile dentro da janela de 90 dias e emissão da Cédula.',
+          descricao:
+            'Acompanhamos toda a tramitação até o Estampado Electrónico, orientamos o ingresso no Chile dentro do prazo de 90 dias e apoiamos a emissão da Cédula.',
         },
       ],
     },
@@ -281,8 +286,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'quem_somos',
     secao: 'quem_somos',
-    titulo: 'Especialistas dedicados à ponte Brasil – Chile',
-    subtitulo: 'Consultoria boutique focada em segurança operacional, clareza jurídica e atendimento humanizado.',
+    titulo: 'Especialistas dedicados à jornada Brasil–Chile',
+    subtitulo: 'Assessoria personalizada com foco em segurança operacional, clareza jurídica e atendimento próximo.',
     conteudoHtml:
       'A D&M Integra Chile nasceu para eliminar a insegurança de brasileiros que desejam trabalhar, empreender, estudar ou viver no Chile. Atuamos com metodologia própria de análise normativa, controle de prazos do SERMIG e rede de parceiros verificados nos dois países.',
     imagemUrl: '/src/assets/images/quem_somos_founder_1794993847940.jpg',
@@ -297,18 +302,18 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       experiencia:
         'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.',
       missao: 'Transformar uma mudança internacional complexa em um processo organizado, ético e transparente.',
-      credenciais: 'Atuação conforme Ley Nº 21.325 · Decreto Nº 177/2022 · Acordo de Residência Mercosul · Conformidade LGPD.',
+      credenciais: 'Atuação alinhada à Ley Nº 21.325, ao Decreto Nº 177/2022, ao Acordo de Residência Mercosul e à LGPD.',
     },
   },
   {
     id: 'parceiros',
     secao: 'parceiros',
-    titulo: 'Rede de Parceiros Homologados Brasil – Chile',
-    subtitulo: 'Profissionais e empresas verificadas pela consultoria para apoiar cada etapa da sua mudança.',
+    titulo: 'Rede de Parceiros Homologados Brasil–Chile',
+    subtitulo: 'Profissionais e empresas verificados pela consultoria para apoiar cada etapa da sua mudança.',
     conteudoHtml:
       'Cartórios, tradutores juramentados, seguradoras, contabilidades e assessoria imobiliária avaliados por qualidade técnica e atendimento em português.',
     imagemUrl: '',
-    ctaTexto: 'Ver parceiros ou ser parceiro',
+    ctaTexto: 'Explorar rede de parceiros',
     ctaDestino: '/parceiros',
     ordem: 6,
     ativo: true,
@@ -330,24 +335,24 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     metadados: {
       perguntas: [
         {
-          pergunta: 'Brasileiros podem solicitar o Visto Mercosul já estando como turistas no Chile?',
+          pergunta: 'Brasileiros podem solicitar a Residência Mercosul estando como turistas no Chile?',
           resposta:
-            'Pela regra geral da Ley 21.325 e do Decreto 177/2022, a primeira Residência Temporal por Reciprocidade Internacional/Mercosul deve ser solicitada a partir do exterior. Quem está como turista sem vínculo familiar formalizado ou razão humanitária precisa sair do Chile para protocolar.',
+            'Pela regra geral da Ley 21.325 e do Decreto 177/2022, a primeira Residência Temporal por Reciprocidade Internacional (Acordo Mercosul) deve ser solicitada a partir do exterior. Quem se encontra no Chile como turista, sem vínculo familiar formalizado ou hipótese humanitária prevista em lei, precisa sair do território chileno para protocolar o pedido.',
         },
         {
-          pergunta: 'O Visto Mercosul exige contrato de trabalho prévio ou comprovação de renda alta?',
+          pergunta: 'A Residência Mercosul exige contrato de trabalho prévio ou comprovação de renda?',
           resposta:
-            'Não. A subcategoria de Reciprocidade Internacional/Mercosul permite trabalhar licitamente no Chile após a concessão e não exige oferta formal de emprego nem comprovação de renda passiva como requisito de elegibilidade.',
+            'Não. A subcategoria de Reciprocidade Internacional (Mercosul) autoriza o exercício de atividade laboral regular no Chile após a concessão e não exige oferta prévia de emprego nem comprovação de renda passiva como requisito de elegibilidade.',
         },
         {
           pergunta: 'Qual é a validade dos Antecedentes Criminais da Polícia Federal?',
           resposta:
-            'Para fins migratórios no Chile, o Certificado de Antecedentes Criminais emitido pela Polícia Federal e apostilado deve ter sido emitido há no máximo 60 dias na data do protocolo no SERMIG. Por isso geramos um cronograma reverso de emissão.',
+            'Para fins migratórios no Chile, o Certificado de Antecedentes Criminais da Polícia Federal — devidamente apostilado — deve ter sido emitido há no máximo 60 dias na data do protocolo no SERMIG. Por isso, estruturamos um cronograma reverso para cada emissão.',
         },
         {
           pergunta: 'Em quanto tempo posso solicitar a Residência Definitiva?',
           resposta:
-            'Como regra geral da Subcategoria Mercosul e da maioria das residências temporais, após 24 meses de residência regular (observando prazos de ausência do país e janela de prorrogação/definitiva entre 90 e 10 dias antes do vencimento), torna-se elegível à Residência Definitiva.',
+            'Como regra geral para o Acordo Mercosul e a maioria das residências temporais, após 24 meses de residência regular no Chile — respeitados os limites de ausência do país e a janela legal de 90 a 10 dias antes do vencimento — o titular torna-se elegível à Residência Definitiva.',
         },
       ],
     },
@@ -365,8 +370,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'contato',
     secao: 'contato',
-    titulo: 'Pronto para estruturar sua mudança para o Chile?',
-    subtitulo: 'Inicie pelo diagnóstico gratuito ou fale diretamente com nossa equipe técnica.',
+    titulo: 'Pronto para planejar sua mudança para o Chile com segurança?',
+    subtitulo: 'Comece pelo diagnóstico gratuito ou converse diretamente com nossa consultoria especializada.',
     conteudoHtml:
       'Atendemos clientes em todo o Brasil e em Santiago, Valparaíso, Viña del Mar e demais regiões do Chile.',
     imagemUrl: '',
@@ -377,7 +382,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     id: 'rodape',
     secao: 'rodape',
     titulo: 'D&M Integra Chile – Relocation & Assessoria',
-    subtitulo: 'Consultoria especializada em processos migratórios Brasil – Chile.',
+    subtitulo: 'Consultoria especializada em processos migratórios Brasil–Chile.',
     conteudoHtml: DEFAULT_AVISO_LEGAL,
     imagemUrl: '',
     ordem: 10,
