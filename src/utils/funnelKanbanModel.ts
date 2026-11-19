@@ -87,6 +87,7 @@ export interface FunnelKanbanBoardModel {
   attentionCardsCount: number;
   assigneeOptions: FunnelKanbanAssigneeOption[];
   unassignedCount: number;
+  priorityCounts: Record<'Urgente' | 'Alta' | 'Média' | 'Baixa', number>;
 }
 
 export interface FunnelKanbanFilters {
@@ -389,7 +390,14 @@ export function buildFunnelKanbanBoard(input: {
   // Constrói opções dinâmicas de responsáveis pela consultoria (equipe + atribuídos nos cartões)
   const assigneeCounts = new Map<string, number>();
   let unassignedCount = 0;
+  const priorityCounts: Record<'Urgente' | 'Alta' | 'Média' | 'Baixa', number> = {
+    Urgente: 0,
+    Alta: 0,
+    Média: 0,
+    Baixa: 0,
+  };
   for (const card of allCards) {
+    priorityCounts[card.priority] = (priorityCounts[card.priority] || 0) + 1;
     if (card.assigneeId) {
       assigneeCounts.set(card.assigneeId, (assigneeCounts.get(card.assigneeId) || 0) + 1);
     } else {
@@ -487,6 +495,7 @@ export function buildFunnelKanbanBoard(input: {
     attentionCardsCount: allCards.filter((c) => c.hasAttention).length,
     assigneeOptions,
     unassignedCount,
+    priorityCounts,
   };
 }
 

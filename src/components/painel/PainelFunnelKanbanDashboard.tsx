@@ -3,11 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  ArrowUpDown,
-  Calendar,
   ExternalLink,
-  Search,
-  User,
   X,
 } from 'lucide-react';
 import { reportAppError } from '../../services/errorService';
@@ -33,13 +29,16 @@ import {
   type FunnelKanbanSortBy,
 } from '../../utils/funnelKanbanModel';
 import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
+import { PainelFunnelConversionChart } from './PainelFunnelConversionChart';
 import { PainelFunnelPerformanceSummary } from './PainelFunnelPerformanceSummary';
+import { PainelKanbanFilterBar } from './PainelKanbanFilterBar';
 
 interface PainelFunnelKanbanDashboardProps {
   role: UserRole;
   currentUser: UserProfile | null;
   staffUsers: UserProfile[];
   empresa: EmpresaConfig;
+  isDark?: boolean;
   leads: Lead[];
   clients: Client[];
   cases: Case[];
@@ -51,19 +50,12 @@ interface PainelFunnelKanbanDashboardProps {
   onRefresh: () => Promise<void>;
 }
 
-const SORT_LABELS: { id: FunnelKanbanSortBy; label: string }[] = [
-  { id: 'urgency_date', label: 'Ordenar: Urgência e alertas' },
-  { id: 'created_desc', label: 'Ordenar: Mais recentes' },
-  { id: 'created_asc', label: 'Ordenar: Mais antigos' },
-  { id: 'progress_desc', label: 'Ordenar: Maior progresso' },
-  { id: 'name_asc', label: 'Ordenar: Nome (A–Z)' },
-];
-
 export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardProps> = ({
   role,
   currentUser,
   staffUsers,
   empresa,
+  isDark = false,
   leads,
   clients,
   cases,
@@ -322,152 +314,50 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
         }
       />
 
-      {/* Barra de Pesquisa, Filtros (Data, Urgência, Responsável) e Ordenação */}
-      <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 space-y-3 shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
-        {/* Linha 1: Pesquisa + Tipo de Registro */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="relative flex-1 min-w-[220px] max-w-md">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Pesquisar cliente, visto, nº SERMIG ou consultor..."
-              aria-label="Pesquisar clientes no funil Kanban"
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 transition-colors"
-            />
-          </div>
+      {/* Gráfico Interativo de Conversão & Ocupação por Etapa (Recharts) */}
+      <PainelFunnelConversionChart
+        leads={leads}
+        cases={cases}
+        period={datePreset}
+        fromDate={createdFrom}
+        toDate={createdTo}
+        isDark={isDark}
+        highlightedStageId={focusedStageId}
+        onSelectStage={(stageId) =>
+          setFocusedStageId((prev) => (prev === stageId ? null : stageId))
+        }
+      />
 
-          <div
-            role="group"
-            aria-label="Filtrar tipo de registro no funil"
-            className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-medium overflow-x-auto max-w-full"
-          >
-            {(
-              [
-                { id: 'all', label: `Todos (${board.totalAllCards})` },
-                { id: 'cases', label: 'Processos' },
-                { id: 'leads', label: 'Leads' },
-                { id: 'attention', label: `Atenção (${board.attentionCardsCount})` },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setKindFilter(opt.id)}
-                className={`px-2.5 py-1 rounded-md whitespace-nowrap tabular-nums transition-colors ${
-                  kindFilter === opt.id
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Linha 2: Data de Criação + Urgência + Responsável + Ordenação */}
-        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
-            <select
-              value={datePreset}
-              onChange={(e) => handleChangePeriod(e.target.value as FunnelPerformancePeriod)}
-              aria-label="Filtrar por data de criação"
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200"
-            >
-              <option value="all">Criação: Qualquer data</option>
-              <option value="7d">Últimos 7 dias</option>
-              <option value="30d">Últimos 30 dias</option>
-              <option value="90d">Últimos 90 dias</option>
-              <option value="custom">Período personalizado</option>
-            </select>
-          </div>
-
-          {datePreset === 'custom' && (
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-              <label className="inline-flex items-center gap-1">
-                <span>De</span>
-                <input
-                  type="date"
-                  value={createdFrom}
-                  onChange={(e) => setCreatedFrom(e.target.value)}
-                  aria-label="Data inicial de criação"
-                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 tabular-nums"
-                />
-              </label>
-              <label className="inline-flex items-center gap-1">
-                <span>Até</span>
-                <input
-                  type="date"
-                  value={createdTo}
-                  onChange={(e) => setCreatedTo(e.target.value)}
-                  aria-label="Data final de criação"
-                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 tabular-nums"
-                />
-              </label>
-            </div>
-          )}
-
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as typeof priorityFilter)}
-            aria-label="Filtrar por urgência ou prioridade"
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200"
-          >
-            <option value="all">Urgência: Todas</option>
-            <option value="Urgente">Urgente</option>
-            <option value="Alta">Alta</option>
-            <option value="Média">Média</option>
-            <option value="Baixa">Baixa</option>
-          </select>
-
-          <div className="inline-flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
-            <select
-              value={assigneeFilter}
-              onChange={(e) => setAssigneeFilter(e.target.value)}
-              aria-label="Filtrar por responsável pela consultoria"
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 max-w-[210px]"
-            >
-              <option value="all">Responsável: Todos</option>
-              <option value="unassigned">Sem responsável ({board.unassignedCount})</option>
-              {board.assigneeOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label} ({opt.count})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="inline-flex items-center gap-1.5 md:ml-auto">
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as FunnelKanbanSortBy)}
-              aria-label="Ordenar cartões nas colunas do Kanban"
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200"
-            >
-              {SORT_LABELS.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Barra de Filtros Avançada do Kanban (Nome, Data de Criação, Urgência, Responsável e Ordenação) */}
+      <PainelKanbanFilterBar
+        query={query}
+        onChangeQuery={setQuery}
+        kindFilter={kindFilter}
+        onChangeKindFilter={setKindFilter}
+        priorityFilter={priorityFilter}
+        onChangePriorityFilter={setPriorityFilter}
+        priorityCounts={board.priorityCounts}
+        assigneeFilter={assigneeFilter}
+        onChangeAssigneeFilter={setAssigneeFilter}
+        assigneeOptions={board.assigneeOptions}
+        unassignedCount={board.unassignedCount}
+        currentUser={currentUser}
+        datePreset={datePreset}
+        onChangeDatePreset={handleChangePeriod}
+        createdFrom={createdFrom}
+        onChangeCreatedFrom={setCreatedFrom}
+        createdTo={createdTo}
+        onChangeCreatedTo={setCreatedTo}
+        sortBy={sortBy}
+        onChangeSortBy={setSortBy}
+        focusedStageId={focusedStageId}
+        onClearFocusedStage={() => setFocusedStageId(null)}
+        totalVisibleCards={board.totalVisibleCards}
+        totalAllCards={board.totalAllCards}
+        attentionCardsCount={board.attentionCardsCount}
+        hasActiveFilters={hasActiveFilters}
+        onClearAll={handleClearFilters}
+      />
 
       {/* Feedback Operacional / Trava Documental / Conversão de Lead */}
       {notice && (

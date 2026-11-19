@@ -1170,6 +1170,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   currentUser={userProfile}
                   staffUsers={effectiveWorkspace.staffUsers}
                   empresa={empresa}
+                  isDark={isDark}
                   leads={effectiveWorkspace.leads}
                   clients={effectiveWorkspace.clients}
                   cases={effectiveWorkspace.cases}

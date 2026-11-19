@@ -33,6 +33,7 @@ import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../util
 import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
 import { computeDailyPrioritySummary, type LegacyPanelSection } from '../../utils/panelNavigation';
+import { PainelFunnelConversionChart } from './PainelFunnelConversionChart';
 import { PainelFunnelPerformanceSummary } from './PainelFunnelPerformanceSummary';
 import { PainelLembretesVencimento } from './PainelLembretesVencimento';
 import { PainelProgressoTarefasChart } from './PainelProgressoTarefasChart';
@@ -410,6 +411,21 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           }
         }}
         onOpenKanban={onNavigateSection ? () => onNavigateSection('funil') : undefined}
+      />
+
+      {/* Gráfico Recharts: Funil de Conversão & Taxa de Ocupação por Etapa */}
+      <PainelFunnelConversionChart
+        leads={filteredLeads}
+        cases={activeCases}
+        period={perfPeriod}
+        isDark={isDark}
+        onSelectStage={(stageId) => {
+          if (onOpenFunnelStage) {
+            onOpenFunnelStage(stageId);
+          } else {
+            onNavigateSection?.('funil');
+          }
+        }}
       />
 
       {/* Funil Interativo em 5 Marcos: clique em qualquer marco para ir direto aos registros */}
