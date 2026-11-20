@@ -1,4 +1,5 @@
 import { auth } from '../firebase';
+import { isDevE2eActive } from '../utils/devE2eBridge';
 
 export type SermigLinkHealthStatus = 'online' | 'redirect' | 'degraded' | 'unreachable' | 'invalid_url';
 
@@ -170,6 +171,9 @@ async function runBrowserFallbackCheck(
 export async function checkSermigOfficialLinksLive(
   sources: Array<{ id: string; titulo: string; url: string }>,
 ): Promise<SermigBatchCheckResponse> {
+  if (import.meta.env.DEV && isDevE2eActive() && !auth.currentUser) {
+    return runBrowserFallbackCheck(sources);
+  }
   const user = auth.currentUser;
   if (!user) {
     throw new Error('Sessão expirada. Faça login novamente para verificar os portais SERMIG/BCN.');

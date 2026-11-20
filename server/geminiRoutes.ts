@@ -14,6 +14,7 @@ import {
 import {
   acquireUserAiLock,
   chamarGemini,
+  getGeminiRuntimeConfig,
   MSG_AI_CONCURRENT_REQUEST,
   MSG_AI_OTHER_ERROR,
   releaseUserAiLock,
@@ -22,6 +23,40 @@ import {
   type GeminiRuntimeConfig,
   type ModelTier,
 } from './geminiWrapper.ts';
+
+export interface AiEngineHealthStatus {
+  ok: true;
+  geminiConfigured: boolean;
+  mode: 'gemini_plus_rules' | 'rules_live_hybrid';
+  primaryModel: string;
+  fallbackModel: string;
+  activeEngine: string;
+  features: string[];
+}
+
+export function getAiEngineHealthStatus(): AiEngineHealthStatus {
+  const cfg = getGeminiRuntimeConfig();
+  const geminiConfigured = Boolean(cfg.apiKey && cfg.apiKey !== 'MY_GEMINI_API_KEY');
+  return {
+    ok: true,
+    geminiConfigured,
+    mode: geminiConfigured ? 'gemini_plus_rules' : 'rules_live_hybrid',
+    primaryModel: cfg.primaryModel,
+    fallbackModel: cfg.fallbackModel,
+    activeEngine: geminiConfigured
+      ? `IA Gemini (${cfg.primaryModel} + reserva ${cfg.fallbackModel}) com fallback local`
+      : 'Motor Local Inteligente + Consulta HTTP SERMIG/BCN ao vivo',
+    features: [
+      'diagnostico',
+      'parecer',
+      'analisar-documento',
+      'custos',
+      'proposta',
+      'norma',
+      'norma-verificar',
+    ],
+  };
+}
 
 export interface RouteAuthUser {
   uid: string;
@@ -221,7 +256,7 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
     }
     return null;
   } finally {
-    releaseUserAiLock(uid);
+    releaseUserAiLock(uid, params.route);
   }
 }
 

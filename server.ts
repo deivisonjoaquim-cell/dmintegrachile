@@ -14,6 +14,7 @@ import {
   buildNormaVerificarSpec,
   buildParecerSpec,
   buildPropostaSpec,
+  getAiEngineHealthStatus,
   runAiRouteExecution,
   type AiRouteDependencies,
 } from './server/geminiRoutes.ts';
@@ -296,6 +297,15 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
+
+app.get(
+  '/api/ai/health',
+  requireAuth,
+  requireRole(['admin', 'consultor', 'assistente']),
+  (_req: AuthedRequest, res: Response) => {
+    res.json(getAiEngineHealthStatus());
+  },
+);
 
 app.get(
   '/api/notifications/health',
@@ -696,7 +706,7 @@ async function startServer() {
   });
 }
 
-if (!IS_VERCEL) {
+if (!IS_VERCEL && process.env.NODE_ENV !== 'test' && process.env.DM_SKIP_LISTEN !== '1') {
   void startServer();
 }
 

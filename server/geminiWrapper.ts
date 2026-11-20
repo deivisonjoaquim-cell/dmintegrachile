@@ -84,23 +84,37 @@ export function getGeminiRuntimeConfig(): GeminiRuntimeConfig {
 }
 
 // =============================================================================
-// Concurrency Guard per User (prevents double-click / simultaneous calls)
+// Concurrency Guard per User + Route (prevents double-click without blocking other tabs)
 // =============================================================================
-const activeUserCalls = new Map<string, { route: string; startedAt: number }>();
+const activeUserCalls = new Map<string, { uid: string; route: string; startedAt: number }>();
 const STALE_LOCK_MS = 5 * 60 * 1000;
+
+function lockKey(uid: string, route: string): string {
+  return `${uid}::${route}`;
+}
 
 export function acquireUserAiLock(uid: string, route: string): boolean {
   const now = Date.now();
-  const existing = activeUserCalls.get(uid);
+  const key = lockKey(uid, route);
+  const existing = activeUserCalls.get(key);
   if (existing && now - existing.startedAt < STALE_LOCK_MS) {
     return false;
   }
-  activeUserCalls.set(uid, { route, startedAt: now });
+  activeUserCalls.set(key, { uid, route, startedAt: now });
   return true;
 }
 
-export function releaseUserAiLock(uid: string): void {
-  activeUserCalls.delete(uid);
+export function releaseUserAiLock(uid: string, route?: string): void {
+  if (route) {
+    activeUserCalls.delete(lockKey(uid, route));
+    return;
+  }
+  const prefix = `${uid}::`;
+  for (const key of activeUserCalls.keys()) {
+    if (key.startsWith(prefix)) {
+      activeUserCalls.delete(key);
+    }
+  }
 }
 
 // =============================================================================
@@ -350,6 +364,13 @@ export interface GeminiGenerateArgs {
   config: Record<string, unknown>;
 }
 
+export function describeResponseSchemaHint(responseSchema: Record<string, unknown>): string {
+  const props = responseSchema?.properties as Record<string, { type?: string }> | undefined;
+  if (!props || typeof props !== 'object') return '';
+  const entries = Object.entries(props).map(([k, v]) => `"${k}" (${String(v?.type || 'STRING').toLowerCase()})`);
+  return entries.length > 0 ? ` Campos JSON obrigatórios: ${entries.join(', ')}.` : '';
+}
+
 export interface ChamarGeminiParams<T extends Record<string, unknown>> {
   route: string;
   contents: unknown;
@@ -357,7 +378,7 @@ export interface ChamarGeminiParams<T extends Record<string, unknown>> {
   responseSchema: Record<string, unknown>;
   tools?: unknown[];
   validateJson: (parsed: Record<string, unknown>) => T | null;
-  buildFallback: () => T;
+  buildFallback: () => T | Promise<T>;
   onProgress?: (event: { attempt: number; maxAttempts: number; modelTier: ModelTier; message: string }) => void;
   // Dependency injection overrides for testing (keeps runtime decoupled and cleanly testable)
   configOverride?: Partial<GeminiRuntimeConfig>;
@@ -436,7 +457,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   let generateFn = params.generateFn;
   if (!generateFn) {
     if (!runtime.apiKey || runtime.apiKey === 'MY_GEMINI_API_KEY') {
-      const fb = params.buildFallback();
+      const fb = await params.buildFallback();
       return {
         ok: true,
         statusCode: 200,
@@ -509,10 +530,11 @@ export async function chamarGemini<T extends Record<string, unknown>>(
 
       try {
         const hasTools = Boolean(params.tools && params.tools.length > 0);
+        const schemaHint = hasTools ? describeResponseSchemaHint(params.responseSchema) : '';
         const requestConfig: Record<string, unknown> = hasTools
           ? {
               // When search grounding tools are active, omit responseMimeType/responseSchema to prevent 400 INVALID_ARGUMENT
-              systemInstruction: `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido (sem markdown ou texto fora do JSON) seguindo exatamente o esquema solicitado.`,
+              systemInstruction: `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido (sem markdown ou texto fora do JSON) seguindo exatamente o esquema solicitado.${schemaHint}`,
               tools: params.tools,
             }
           : {
@@ -564,7 +586,8 @@ export async function chamarGemini<T extends Record<string, unknown>>(
 
         // JSON came back malformed -> retry ONCE without consuming extra full error loop
         sawMalformedJson = true;
-        if (malformedRetriesLeft > 0) {
+        const retryRemainingMs = runtime.maxWallClockMs - (Date.now() - startedAtMs);
+        if (malformedRetriesLeft > 0 && (runtime.timeoutMs <= 200 || retryRemainingMs >= 1500)) {
           malformedRetriesLeft -= 1;
           totalAttempts += 1;
           params.onProgress?.({
@@ -573,6 +596,10 @@ export async function chamarGemini<T extends Record<string, unknown>>(
             modelTier: tier,
             message: 'Resposta JSON incompleta — repetindo uma vez…',
           });
+          const retryTimeoutMs =
+            runtime.timeoutMs <= 200
+              ? runtime.timeoutMs
+              : Math.max(20, Math.min(runtime.timeoutMs, Math.max(20, retryRemainingMs - 1000)));
           const retryResp = await runSingleAttemptWithTimeout(
             generateFn!,
             {
@@ -580,7 +607,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
               contents: params.contents,
               config: requestConfig,
             },
-            runtime.timeoutMs,
+            retryTimeoutMs,
           );
           const second = extractAndValidateJson<T>(retryResp, params.validateJson);
           if (second.ok) {
@@ -737,8 +764,8 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     }
   }
 
-  // Phase 3: Deterministic rule-based fallback (never leave user without result on temp errors/malformed JSON)
-  const fallbackDraft = params.buildFallback();
+  // Phase 3: Deterministic rule-based + live-check fallback (never leave user without result on temp errors/malformed JSON)
+  const fallbackDraft = await params.buildFallback();
   const finalErr = lastError as ClassifiedGeminiError | null;
   const isHighDemand = Boolean(finalErr?.isHighDemand);
   const mensagemUsuario = isHighDemand ? MSG_AI_HIGH_DEMAND : MSG_AI_OTHER_ERROR;

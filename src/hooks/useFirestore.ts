@@ -15,6 +15,13 @@ import { useApp } from '../contexts/AppContext';
 import { db, handleFirestoreError, OperationType, testConnection } from '../firebase';
 import { translateAppError } from '../services/errorService';
 import { makeId } from '../services/firestoreService';
+import {
+  devE2eDeleteDocument,
+  devE2eSaveDocument,
+  getDevE2eDataset,
+  isDevE2eActive,
+  subscribeDevE2eChanges,
+} from '../utils/devE2eBridge';
 import type {
   Client,
   DiagnosticSession,
@@ -152,11 +159,27 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
   }, []);
 
   useEffect(() => {
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      setConnected(true);
+      return;
+    }
     void checkConnection();
   }, [checkConnection]);
 
   // Listeners reativos apenas quando Auth terminou e o usuário está autorizado
   useEffect(() => {
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      const syncFromDevStore = () => {
+        const ds = getDevE2eDataset();
+        setClients(sortByNewest(ds.clients));
+        setDiagnostics(sortByNewest(ds.leads));
+        setLoadingClients(false);
+        setLoadingDiagnostics(false);
+      };
+      syncFromDevStore();
+      return subscribeDevE2eChanges(syncFromDevStore);
+    }
+
     if (!realtime || authLoading || (!isActiveStaff && !isActiveClient) || !userProfile) {
       setLoadingClients(false);
       setLoadingDiagnostics(false);
@@ -206,6 +229,14 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
   }, [realtime, authLoading, isActiveStaff, isActiveClient, userProfile]);
 
   const refresh = useCallback(async () => {
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      const ds = getDevE2eDataset();
+      setClients(sortByNewest(ds.clients));
+      setDiagnostics(sortByNewest(ds.leads));
+      setLoadingClients(false);
+      setLoadingDiagnostics(false);
+      return;
+    }
     if (authLoading || (!isActiveStaff && !isActiveClient) || !userProfile) return;
     setLoadingClients(true);
     setLoadingDiagnostics(true);
@@ -292,6 +323,10 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
       if (role !== 'admin') {
         throw new Error('Somente administradores podem excluir um cliente.');
       }
+      if (import.meta.env.DEV && isDevE2eActive()) {
+        devE2eDeleteDocument('clients', client.id);
+        return;
+      }
       const pathStr = `clients/${client.id}`;
       try {
         await deleteDoc(doc(db, 'clients', client.id));
@@ -341,6 +376,11 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
           { isNew, forcePublicCreate },
         );
 
+        if (import.meta.env.DEV && isDevE2eActive()) {
+          devE2eSaveDocument('leads', id, sanitized as unknown as Record<string, unknown>, isNew);
+          return sanitized;
+        }
+
         const writeDoc: Record<string, unknown> = { ...sanitized };
         if (!isNew && !isActiveStaff) {
           // Protege invariantes das regras públicas do Firestore em atualizações parciais
@@ -375,6 +415,10 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
         const base = previous || diagnostics.find((l) => l.id === leadId);
         const merged = { ...(base || {}), ...patch, id: leadId } as Partial<Lead> & { id: string };
         const sanitized = sanitizeDiagnosticLeadPayload(merged, { isNew: false });
+        if (import.meta.env.DEV && isDevE2eActive()) {
+          devE2eSaveDocument('leads', leadId, sanitized as unknown as Record<string, unknown>, false);
+          return sanitized;
+        }
         await setDoc(doc(db, 'leads', leadId), sanitized, { merge: true });
         if (role) {
           await registrarAuditoria('Atualizar', 'leads', leadId, 'diagnostico_lead', base ?? null, sanitized, role);
@@ -391,6 +435,10 @@ export function useFirestore(options: UseFirestoreOptions = {}): UseFirestoreRes
     async (leadId: string, previous?: Lead): Promise<void> => {
       if (role !== 'admin') {
         throw new Error('Somente administradores podem excluir registros de diagnóstico.');
+      }
+      if (import.meta.env.DEV && isDevE2eActive()) {
+        devE2eDeleteDocument('leads', leadId);
+        return;
       }
       const pathStr = `leads/${leadId}`;
       try {

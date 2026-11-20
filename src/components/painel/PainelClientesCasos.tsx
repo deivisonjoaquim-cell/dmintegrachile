@@ -35,6 +35,7 @@ import {
   compactClientForAi,
   compactLegalSourcesForAi,
   loadAiDraftCache,
+  prepareAiAttachment,
   sanitizeClientAiError,
   saveAiDraftCache,
   type AiResponseMeta,
@@ -1701,21 +1702,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
           const fileResp = await fetch(docItem.arquivoUrl);
           if (fileResp.ok) {
             const blob = await fileResp.blob();
-            if (blob.size > 0 && blob.size <= 3.5 * 1024 * 1024) {
-              const dataUri = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-                reader.onerror = () => reject(new Error('Falha ao ler anexo'));
-                reader.readAsDataURL(blob);
-              });
-              const parsed = /^data:([^;,]+);base64,(.+)$/i.exec(dataUri);
-              if (parsed) {
-                mimeType = blob.type || parsed[1];
-                fileBase64 = parsed[2];
-              }
+            if (blob.size > 0) {
+              const prepared = await prepareAiAttachment(blob);
+              fileBase64 = prepared.fileBase64;
+              mimeType = prepared.mimeType;
             }
           }
-        } catch {
+        } catch (prepErr) {
+          if (prepErr instanceof Error && prepErr.message.includes('excede o limite')) {
+            throw prepErr;
+          }
           // Segue com arquivoUrl / observação quando o fetch direto não estiver disponível
         }
       }

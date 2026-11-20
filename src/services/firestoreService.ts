@@ -12,7 +12,21 @@ import {
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { executeValidatedAdminWrite } from './adminSecurityService';
-import { sanitizeClientAiError } from '../utils/aiClient';
+import { type AiEngineHealthInfo, sanitizeClientAiError } from '../utils/aiClient';
+import {
+  createDevE2eFirebaseUser,
+  devE2eBuildAiHealth,
+  devE2eDeleteClientCascade,
+  devE2eDeleteDocument,
+  devE2eDeletePartnerCascade,
+  devE2eExecuteAiResponse,
+  devE2eGetCatalog,
+  getDevE2eDataset,
+  devE2eGetWorkspace,
+  devE2eSaveDocument,
+  devE2eSyncPartnerAndPublic,
+  isDevE2eActive,
+} from '../utils/devE2eBridge';
 import {
   DEFAULT_CONTRATO_TEMPLATE,
   DEFAULT_DIAGNOSTIC_RULE_VERSION,
@@ -244,6 +258,9 @@ function normalizeSiteContentAssets(rows: SiteContent[]): SiteContent[] {
 }
 
 export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return getDevE2eDataset().empresa;
+  }
   try {
     const snap = await getDoc(doc(db, 'config', 'empresa'));
     if (snap.exists()) {
@@ -256,6 +273,9 @@ export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
 }
 
 export async function fetchSiteContentPublic(): Promise<SiteContent[]> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return getDevE2eDataset().siteContent;
+  }
   try {
     const q = query(collection(db, 'siteContent'), where('ativo', '==', true));
     const snap = await getDocs(q);
@@ -270,6 +290,9 @@ export async function fetchSiteContentPublic(): Promise<SiteContent[]> {
 }
 
 export async function fetchAllSiteContentStaff(): Promise<SiteContent[]> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return getDevE2eDataset().siteContent;
+  }
   try {
     const snap = await getDocs(collection(db, 'siteContent'));
     if (snap.empty) return SEED_SITE_CONTENT;
@@ -283,6 +306,9 @@ export async function fetchAllSiteContentStaff(): Promise<SiteContent[]> {
 }
 
 export async function fetchPartnersPublic(): Promise<PartnerPublic[]> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return getDevE2eDataset().partnersPublic;
+  }
   try {
     const q = query(
       collection(db, 'partnersPublic'),
@@ -302,6 +328,9 @@ export async function fetchVisaCatalogPublic(): Promise<{
   requirements: VisaRequirement[];
   legalSources: LegalSource[];
 }> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return devE2eGetCatalog();
+  }
   try {
     const [catSnap, reqSnap, legSnap] = await Promise.all([
       getDocs(query(collection(db, 'visaCategories'), where('ativo', '==', true))),
@@ -1035,6 +1064,10 @@ export async function saveDocumentAudited<T extends Record<string, unknown>>(
   campoLabel = 'registro',
   antes?: unknown,
 ): Promise<void> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    devE2eSaveDocument(collectionName, id, stripUndefined(data), isNew);
+    return;
+  }
   const pathStr = `${collectionName}/${id}`;
   try {
     const cleanData = stripUndefined({ ...data, id, updatedAt: new Date().toISOString() });
@@ -1059,6 +1092,10 @@ export async function deleteDocumentAudited(
   actorRole?: UserRole,
   antes?: unknown,
 ): Promise<void> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    devE2eDeleteDocument(collectionName, id);
+    return;
+  }
   const pathStr = `${collectionName}/${id}`;
   try {
     await deleteDoc(doc(db, collectionName, id));
@@ -1261,6 +1298,10 @@ export async function deleteCaseDocumentAudited(docItem: CaseDocument, role: Use
   if (role !== 'admin' && role !== 'consultor') {
     throw new Error('Sem permissão para excluir documentos.');
   }
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    devE2eDeleteDocument('caseDocuments', docItem.id);
+    return;
+  }
   await deleteDocumentAudited('caseDocuments', docItem.id, role, {
     caseId: docItem.caseId,
     clientId: docItem.clientId,
@@ -1280,6 +1321,10 @@ export async function deleteCaseDocumentAudited(docItem: CaseDocument, role: Use
 export async function deleteLeadAndSessionAudited(lead: Lead, role: UserRole): Promise<void> {
   if (role !== 'admin') {
     throw new Error('Apenas administradores podem excluir leads.');
+  }
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    devE2eDeleteDocument('leads', lead.id);
+    return;
   }
   await deleteDocumentAudited('leads', lead.id, role, {
     nome: lead.nome,
@@ -1430,6 +1475,9 @@ export async function deleteClientCascadeAudited(params: {
   if (role !== 'admin') {
     throw new Error('Apenas administradores podem excluir definitivamente um cliente.');
   }
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return devE2eDeleteClientCascade(client.id);
+  }
   const caseIds = new Set(cases.filter((c) => c.clientId === client.id).map((c) => c.id));
   let deleted = 0;
 
@@ -1554,6 +1602,10 @@ export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: Banca
 
 export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
   const validated = validateEmpresaConfigPayload(data);
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    getDevE2eDataset().empresa = validated;
+    return;
+  }
   await executeValidatedAdminWrite('config/empresa', OperationType.WRITE, async () => {
     await setDoc(doc(db, 'config', 'empresa'), validated, { merge: true });
     await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
@@ -1572,6 +1624,10 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
     observacoes: String(partner.observacoes || '').slice(0, 3000),
     descricaoPublica: partner.descricaoPublica ? String(partner.descricaoPublica).slice(0, 1000) : '',
   };
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    devE2eSyncPartnerAndPublic(sanitizedPartner, isNew);
+    return;
+  }
   await saveDocumentAudited('partners', sanitizedPartner.id, sanitizedPartner as unknown as Record<string, unknown>, isNew, role);
   const pubRef = doc(db, 'partnersPublic', sanitizedPartner.id);
   if (sanitizedPartner.recomendadoAosClientes && sanitizedPartner.statusHomologacao === 'Ativo/Indicado') {
@@ -1612,6 +1668,10 @@ export async function deletePartnerAndPublicAudited(
 ): Promise<void> {
   if (role !== 'admin') {
     throw new Error('Apenas administradores podem excluir parceiros.');
+  }
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    devE2eDeletePartnerCascade(partner.id);
+    return;
   }
   const pubRef = doc(db, 'partnersPublic', partner.id);
   try {
@@ -1693,6 +1753,9 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
   auditLogs: AuditLog[];
   staffUsers: UserProfile[];
 }> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return devE2eGetWorkspace(role);
+  }
   const canSeeFinance = role === 'admin' || role === 'consultor';
 
   const safeList = async <T,>(col: string, qOverride?: ReturnType<typeof query>): Promise<T[]> => {
@@ -1939,113 +2002,172 @@ export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): 
 
 export interface CallAiOptions {
   onProgress?: (message: string, attempt?: number, maxAttempts?: number) => void;
+  timeoutMs?: number;
+}
+
+async function resolveCurrentAuthUser() {
+  if (auth.currentUser) return auth.currentUser;
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return createDevE2eFirebaseUser();
+  }
+  return null;
+}
+
+export async function fetchAiHealthStatus(): Promise<AiEngineHealthInfo | null> {
+  if (import.meta.env.DEV && isDevE2eActive() && !auth.currentUser) {
+    return devE2eBuildAiHealth();
+  }
+  const user = await resolveCurrentAuthUser();
+  if (!user) return null;
+  try {
+    const token = await user.getIdToken();
+    const resp = await fetch('/api/ai/health', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return null;
+    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) return null;
+    return (await resp.json()) as AiEngineHealthInfo;
+  } catch {
+    return null;
+  }
 }
 
 export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
-  const user = auth.currentUser;
+  if (import.meta.env.DEV && isDevE2eActive() && !auth.currentUser) {
+    options?.onProgress?.('Processando no motor local inteligente...', 1, 1);
+    return devE2eExecuteAiResponse(endpoint, body) as T;
+  }
+  const user = await resolveCurrentAuthUser();
   if (!user) {
     throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
   }
-  const token = await user.getIdToken();
-  let resp: Response;
-  try {
-    resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(options?.onProgress ? { 'x-ai-progress': '1' } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (networkErr) {
-    throw new Error(sanitizeClientAiError(networkErr));
-  }
 
-  const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-  if (contentType.includes('application/x-ndjson') && resp.body) {
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: T | null = null;
-    let streamError: string | null = null;
+  const executeFetch = async (forceTokenRefresh: boolean, useProgressStream: boolean): Promise<T> => {
+    const token = await user.getIdToken(forceTokenRefresh);
+    const controller = new AbortController();
+    const timeoutMs = options?.timeoutMs ?? 65_000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const ev = JSON.parse(trimmed) as {
-            type?: string;
-            message?: string;
-            attempt?: number;
-            maxAttempts?: number;
-            data?: T;
-            error?: string;
-          };
-          if (ev.type === 'progress' && ev.message) {
-            options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
-          } else if (ev.type === 'result' && ev.data) {
-            finalResult = ev.data;
-          } else if (ev.type === 'error') {
-            streamError = sanitizeClientAiError(ev.error || '');
+    let resp: Response;
+    try {
+      resp = await fetch(endpoint, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(useProgressStream && options?.onProgress ? { 'x-ai-progress': '1' } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (networkErr) {
+      clearTimeout(timer);
+      if (networkErr instanceof Error && (networkErr.name === 'AbortError' || networkErr.message.includes('abort'))) {
+        throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
+      }
+      throw new Error(sanitizeClientAiError(networkErr));
+    }
+
+    try {
+      if (resp.status === 401 && !forceTokenRefresh) {
+        return await executeFetch(true, useProgressStream);
+      }
+
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+      if (contentType.includes('application/x-ndjson') && resp.body) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult: T | null = null;
+        let streamError: string | null = null;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const ev = JSON.parse(trimmed) as {
+                type?: string;
+                message?: string;
+                attempt?: number;
+                maxAttempts?: number;
+                data?: T;
+                error?: string;
+              };
+              if (ev.type === 'progress' && ev.message) {
+                options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
+              } else if (ev.type === 'result' && ev.data) {
+                finalResult = ev.data;
+              } else if (ev.type === 'error') {
+                streamError = sanitizeClientAiError(ev.error || '');
+              }
+            } catch {
+              // ignore partial line
+            }
           }
+        }
+        if (buffer.trim()) {
+          try {
+            const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
+            if (ev.type === 'result' && ev.data) finalResult = ev.data;
+            else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
+          } catch {
+            // ignore
+          }
+        }
+
+        if (streamError) throw new Error(streamError);
+        if (finalResult) return finalResult;
+        // Fallback once to standard JSON request if stream terminated without final result
+        if (useProgressStream) {
+          return await executeFetch(false, false);
+        }
+        throw new Error(sanitizeClientAiError(''));
+      }
+
+      let rawText = '';
+      try {
+        rawText = await resp.text();
+      } catch {
+        rawText = '';
+      }
+
+      let data: (T & { error?: unknown }) | null = null;
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText) as T & { error?: unknown };
         } catch {
-          // ignore partial line
+          data = null;
         }
       }
-    }
-    if (buffer.trim()) {
-      try {
-        const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
-        if (ev.type === 'result' && ev.data) finalResult = ev.data;
-        else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
-      } catch {
-        // ignore
+
+      if (!resp.ok) {
+        if (resp.status === 413) {
+          throw new Error('Os dados ou arquivo enviados excedem o limite permitido pelo servidor.');
+        }
+        if (resp.status === 504 || resp.status === 502) {
+          throw new Error('Tempo limite excedido ao consultar o serviço de IA. Tente novamente em instantes.');
+        }
+        throw new Error(sanitizeClientAiError(data?.error || rawText || String(resp.status)));
       }
+
+      if (!data) {
+        throw new Error(sanitizeClientAiError(rawText || 'invalid_response'));
+      }
+
+      return data;
+    } finally {
+      clearTimeout(timer);
     }
+  };
 
-    if (streamError) throw new Error(streamError);
-    if (finalResult) return finalResult;
-    throw new Error(sanitizeClientAiError(''));
-  }
-
-  let rawText = '';
-  try {
-    rawText = await resp.text();
-  } catch {
-    rawText = '';
-  }
-
-  let data: (T & { error?: unknown }) | null = null;
-  if (rawText) {
-    try {
-      data = JSON.parse(rawText) as T & { error?: unknown };
-    } catch {
-      data = null;
-    }
-  }
-
-  if (!resp.ok) {
-    if (resp.status === 413) {
-      throw new Error('Os dados ou arquivo enviados excedem o limite permitido pelo servidor.');
-    }
-    if (resp.status === 504 || resp.status === 502) {
-      throw new Error('Tempo limite excedido ao consultar o serviço de IA. Tente novamente em instantes.');
-    }
-    throw new Error(sanitizeClientAiError(data?.error || rawText || String(resp.status)));
-  }
-
-  if (!data) {
-    throw new Error(sanitizeClientAiError(rawText || 'invalid_response'));
-  }
-
-  return data;
+  return executeFetch(false, Boolean(options?.onProgress));
 }
 
 export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {

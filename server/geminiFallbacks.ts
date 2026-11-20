@@ -1,11 +1,13 @@
+import { checkOfficialLegalSourceUrl, type FetchLike } from './sermigLegalService.ts';
+
 /**
- * Deterministic rule-based fallbacks for all /api/ai/* routes.
- * Used automatically whenever Gemini primary & backup models are unavailable
- * or return invalid output after retry. Never cites invented laws: uses ONLY
- * provided legalSources or literally writes "fonte a cadastrar".
+ * Deterministic rule-based + live-check hybrid fallbacks for all /api/ai/* routes.
+ * Used automatically whenever Gemini primary & backup models are unavailable,
+ * unkeyed, or return invalid output after retry. Never cites invented laws: uses ONLY
+ * provided legalSources, verified official HTTP probes, or literally writes "fonte a cadastrar".
  */
 
-export const AI_FALLBACK_LABEL = 'Rascunho gerado por regras — IA indisponível no momento';
+export const AI_FALLBACK_LABEL = 'Motor local inteligente + regras — IA em nuvem indisponível no momento';
 
 export interface LegalSourceInput {
   id?: string;
@@ -50,6 +52,147 @@ function formatDatePtBr(date = new Date()): string {
     month: '2-digit',
     year: 'numeric',
   }).format(date);
+}
+
+// =============================================================================
+// Pure Node.js Binary Inspector for Uploaded Documents (PDF / PNG / JPG / WEBP)
+// =============================================================================
+export interface InspectedBinarySummary {
+  validHeader: boolean;
+  kind: 'pdf' | 'png' | 'jpeg' | 'webp' | 'unknown';
+  sizeKb: number;
+  width?: number;
+  height?: number;
+  pdfVersion?: string;
+  estimatedPages?: number;
+  encrypted?: boolean;
+  detectedKeywords: string[];
+  detectedDate?: string;
+}
+
+export function inspectUploadedDocumentBinary(
+  fileBase64: unknown,
+  mimeType: unknown,
+): InspectedBinarySummary | null {
+  if (typeof fileBase64 !== 'string' || !fileBase64.trim()) return null;
+  const cleanB64 = fileBase64.replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+  if (!cleanB64) return null;
+
+  const buf = Buffer.from(cleanB64, 'base64');
+  if (buf.length === 0) return null;
+  const sizeKb = Math.max(1, Math.round(buf.length / 1024));
+  const declaredMime = typeof mimeType === 'string' ? mimeType.toLowerCase() : '';
+
+  // 1. PDF inspection
+  if (buf.subarray(0, 5).toString('ascii') === '%PDF-' || declaredMime === 'application/pdf') {
+    const header = buf.subarray(0, 16).toString('ascii');
+    const verMatch = /%PDF-(\d\.\d)/.exec(header);
+    const textSlice = buf.subarray(0, Math.min(buf.length, 512 * 1024)).toString('latin1');
+    const pageMatches = textSlice.match(/\/Type\s*\/Page\b/g);
+    const encrypted = /\/Encrypt\b/.test(textSlice);
+    const lowerText = textSlice.toLowerCase();
+
+    const keywords: string[] = [];
+    if (lowerText.includes('apostil') || lowerText.includes('haia') || lowerText.includes('haya')) {
+      keywords.push('Apostila/Haia');
+    }
+    if (lowerText.includes('policia federal') || lowerText.includes('polícia federal') || lowerText.includes('sinic')) {
+      keywords.push('Polícia Federal');
+    }
+    if (lowerText.includes('antecedentes')) keywords.push('Antecedentes');
+    if (lowerText.includes('registro civil') || lowerText.includes('cartorio') || lowerText.includes('cartório')) {
+      keywords.push('Registro Civil');
+    }
+    if (lowerText.includes('sermig') || lowerText.includes('migraciones')) keywords.push('SERMIG');
+    if (lowerText.includes('passaporte') || lowerText.includes('pasaporte')) keywords.push('Passaporte');
+
+    const dateMatch = textSlice.match(/\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/);
+
+    return {
+      validHeader: buf.subarray(0, 5).toString('ascii') === '%PDF-',
+      kind: 'pdf',
+      sizeKb,
+      pdfVersion: verMatch?.[1],
+      estimatedPages: pageMatches ? Math.max(1, pageMatches.length) : undefined,
+      encrypted,
+      detectedKeywords: keywords,
+      detectedDate: dateMatch?.[1],
+    };
+  }
+
+  // 2. PNG inspection (IHDR at bytes 16..24)
+  if (
+    buf.length >= 24 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    const width = buf.readUInt32BE(16);
+    const height = buf.readUInt32BE(20);
+    return {
+      validHeader: true,
+      kind: 'png',
+      sizeKb,
+      width,
+      height,
+      detectedKeywords: [],
+    };
+  }
+
+  // 3. JPEG inspection (scan SOF0..SOF3 markers for width/height)
+  if (buf.length >= 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    let offset = 2;
+    let width: number | undefined;
+    let height: number | undefined;
+    while (offset + 9 < buf.length) {
+      if (buf[offset] !== 0xff) break;
+      const marker = buf[offset + 1];
+      if (marker === 0xd9 || marker === 0xda) break;
+      const segLen = buf.readUInt16BE(offset + 2);
+      if (
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf)
+      ) {
+        height = buf.readUInt16BE(offset + 5);
+        width = buf.readUInt16BE(offset + 7);
+        break;
+      }
+      if (segLen < 2) break;
+      offset += 2 + segLen;
+    }
+    return {
+      validHeader: true,
+      kind: 'jpeg',
+      sizeKb,
+      width,
+      height,
+      detectedKeywords: [],
+    };
+  }
+
+  // 4. WEBP inspection
+  if (
+    buf.length >= 16 &&
+    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buf.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return {
+      validHeader: true,
+      kind: 'webp',
+      sizeKb,
+      detectedKeywords: [],
+    };
+  }
+
+  return {
+    validHeader: false,
+    kind: 'unknown',
+    sizeKb,
+    detectedKeywords: [],
+  };
 }
 
 // =============================================================================
@@ -126,16 +269,29 @@ export function buildParecerFallback(body: Record<string, unknown>) {
 
   const titulo = typeof caseData.titulo === 'string' ? caseData.titulo : 'Processo Migratório';
   const tipoServico = typeof caseData.tipoServico === 'string' ? caseData.tipoServico : 'Residência Temporal';
+  const subcategoria = typeof caseData.subcategoria === 'string' && caseData.subcategoria.trim() ? caseData.subcategoria.trim() : '';
   const statusSermig = typeof caseData.statusSermig === 'string' ? caseData.statusSermig : 'Em preparação';
   const notaViabilidade =
     typeof caseData.notaViabilidadeGeral === 'number' ? `${caseData.notaViabilidadeGeral}/100` : 'a apurar';
   const nomeCliente = typeof clientData.nomeCompleto === 'string' ? clientData.nomeCompleto : 'Titular';
   const localizacao = typeof clientData.localizacaoAtual === 'string' ? clientData.localizacaoAtual : 'Brasil/Exterior';
 
+  const riskAlerts: string[] = [];
+  if (clientData.antecedentesCriminais === true) {
+    riskAlerts.push('Sinalização de antecedentes criminais exige conferência jurídica antes do protocolo.');
+  }
+  if (clientData.restricaoEntrada === true) {
+    riskAlerts.push('Histórico de restrição de entrada informado — validar situação migratória prévia na PDI/SERMIG.');
+  }
+  const passVal = typeof clientData.validadePassaporte === 'string' ? clientData.validadePassaporte : '';
+  if (passVal) {
+    riskAlerts.push(`Passaporte com validade declarada até ${passVal}.`);
+  }
+
   return {
     rascunho: true,
-    enquadramentoLegal: `[${AI_FALLBACK_LABEL}]\nCaso: ${titulo} (${tipoServico}) para ${nomeCliente}.\nLocalização informada: ${localizacao}. Status atual no SERMIG: ${statusSermig}.\nEnquadramento orientativo preliminar definido conforme as regras ativas da subcategoria cadastrada.`,
-    elegibilidadeRiscos: `Viabilidade geral registrada: ${notaViabilidade}. Grupo familiar com ${dependents.length} dependente(s) vinculado(s). Conferir passaporte vigente (>= 12 meses para protocolo do exterior), regularidade de entradas/saídas na PDI, apostilamento de Haia e emissão dentro do prazo de validade das certidões (especialmente Antecedentes de 60 dias).`,
+    enquadramentoLegal: `[${AI_FALLBACK_LABEL}]\nCaso: ${titulo} (${tipoServico}${subcategoria ? ` · ${subcategoria}` : ''}) para ${nomeCliente}.\nLocalização informada: ${localizacao}. Status atual no SERMIG: ${statusSermig}.\nEnquadramento orientativo preliminar definido conforme as regras ativas da subcategoria cadastrada.`,
+    elegibilidadeRiscos: `Viabilidade geral registrada: ${notaViabilidade}. Grupo familiar com ${dependents.length} dependente(s) vinculado(s). Conferir passaporte vigente (>= 12 meses para protocolo do exterior), regularidade de entradas/saídas na PDI, apostilamento de Haia e emissão dentro do prazo de validade das certidões (especialmente Antecedentes de 60 dias).${riskAlerts.length > 0 ? `\nAlertas cadastrados: ${riskAlerts.join(' ')}` : ''}`,
     fundamentacaoNormativa:
       sources.length > 0
         ? `Fontes cadastradas na Biblioteca Legal aplicáveis ao caso:\n- ${citations.join('\n- ')}`
@@ -177,7 +333,7 @@ export function buildPropostaFallback(body: Record<string, unknown>) {
     nota: Math.min(100, nota),
     riscos,
     baseAplicada: `[${AI_FALLBACK_LABEL}] Referências cadastradas: ${citations.join(' · ')}`,
-    sugestaoDecisao: nota >= 80 ? 'indicar com ressalvas' : 'indicar com ressalvas',
+    sugestaoDecisao: 'indicar com ressalvas',
     textoIndicacao: `${empresa} — atuação em ${categoria} (${pais}${cidade ? ` · ${cidade}` : ''}). Pré-avaliação automática pelas regras internas; confirmar condições comerciais e compliance antes da homologação pública.`,
   };
 }
@@ -190,9 +346,10 @@ export function buildNormaFallback(body: Record<string, unknown>) {
   const newText = typeof body.newText === 'string' ? body.newText.trim() : '';
   const hasAttachment = typeof body.fileBase64 === 'string' && body.fileBase64.length > 0;
   const mimeType = typeof body.mimeType === 'string' ? body.mimeType : '';
+  const inspected = inspectUploadedDocumentBinary(body.fileBase64, mimeType);
 
   const articleMatches = newText
-    ? Array.from(new Set(newText.match(/(?:Art\.?|Artículo)\s*\d+[°ºo]?(?:\s*[\-,–]\s*[A-Za-z0-9]+)?/gi) || [])).slice(0, 12)
+    ? Array.from(new Set(newText.match(/(?:Art\.?|Artículo)\s*\d+[°ºo]?(?:\s*[-,–]\s*[A-Za-z0-9]+)?/gi) || [])).slice(0, 12)
     : [];
 
   const currentTitle = typeof currentSource.titulo === 'string' ? currentSource.titulo : 'Norma cadastrada';
@@ -223,7 +380,10 @@ export function buildNormaFallback(body: Record<string, unknown>) {
     divergencias.push('Texto enviado difere do resumo vigente cadastrado — comparar dispositivos antes de publicar nova versão.');
   }
   if (hasAttachment) {
-    divergencias.push(`Anexo (${mimeType || 'arquivo'}) recebido no servidor; leitura automatizada por IA indisponível no momento — validar conteúdo visualmente.`);
+    const fileInfo = inspected
+      ? `${inspected.kind.toUpperCase()} (${inspected.sizeKb} KB${inspected.estimatedPages ? `, ~${inspected.estimatedPages} pág.` : ''})`
+      : mimeType || 'arquivo';
+    divergencias.push(`Anexo ${fileInfo} inspecionado pelo servidor; leitura semântica completa por IA indisponível no momento — validar conteúdo visualmente.`);
   }
   if (divergencias.length === 0) {
     divergencias.push('Sem divergências textuais automáticas detectadas; confirmar manualmente com a fonte oficial.');
@@ -239,7 +399,7 @@ export function buildNormaFallback(body: Record<string, unknown>) {
       newText
         ? `Trecho recebido (${newText.length} caracteres): ${newText.slice(0, 260)}${newText.length > 260 ? '…' : ''}`
         : hasAttachment
-          ? `Anexo ${mimeType || 'binário'} recebido para conferência manual.`
+          ? `Anexo ${inspected?.kind.toUpperCase() || mimeType || 'binário'} recebido para conferência manual.`
           : currentResumo || 'fonte a cadastrar'
     }`,
     explicacaoCliente:
@@ -250,7 +410,10 @@ export function buildNormaFallback(body: Record<string, unknown>) {
   };
 }
 
-export function buildNormaVerificarFallback(body: Record<string, unknown>) {
+export async function buildNormaVerificarFallback(
+  body: Record<string, unknown>,
+  options?: { timeoutMs?: number; fetchFn?: FetchLike; skipLiveCheck?: boolean },
+) {
   const currentSource = (body.currentSource && typeof body.currentSource === 'object' ? body.currentSource : {}) as Record<string, unknown>;
   const titulo = typeof currentSource.titulo === 'string' && currentSource.titulo.trim() ? currentSource.titulo.trim() : 'Norma SERMIG/BCN';
   const numeroAno = typeof currentSource.numeroAno === 'string' ? currentSource.numeroAno.trim() : '';
@@ -258,10 +421,6 @@ export function buildNormaVerificarFallback(body: Record<string, unknown>) {
     typeof currentSource.linkOficial === 'string' && currentSource.linkOficial.trim()
       ? currentSource.linkOficial.trim()
       : 'https://serviciomigraciones.cl';
-  const resumoAtual =
-    typeof currentSource.resumoPortugues === 'string' && currentSource.resumoPortugues.trim()
-      ? currentSource.resumoPortugues.trim()
-      : 'Resumo técnico pendente de conferência manual.';
   const clienteAtual =
     typeof currentSource.explicacaoCliente === 'string' && currentSource.explicacaoCliente.trim()
       ? currentSource.explicacaoCliente.trim()
@@ -269,15 +428,54 @@ export function buildNormaVerificarFallback(body: Record<string, unknown>) {
   const artigosAtual =
     typeof currentSource.artigos === 'string' && currentSource.artigos.trim() ? currentSource.artigos.trim() : 'fonte a cadastrar';
 
+  const isTestEnv =
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.NODE_TEST_CONTEXT) ||
+    process.argv.includes('--test') ||
+    process.execArgv.includes('--test');
+  const shouldRunLiveHttp = !options?.skipLiveCheck && (Boolean(options?.fetchFn) || !isTestEnv);
+
+  let liveDetail = '';
+  let situacaoAtual = 'Confirmar na fonte oficial';
+  let divergencias: string[] = [
+    'Pesquisa semântica em nuvem indisponível no momento; nenhuma alteração normativa foi aplicada automaticamente.',
+  ];
+
+  if (shouldRunLiveHttp) {
+    try {
+      const check = await checkOfficialLegalSourceUrl(
+        { id: String(currentSource.id || 'norma'), titulo, url: linkOficial },
+        { timeoutMs: options?.timeoutMs ?? 3500, fetchFn: options?.fetchFn },
+      );
+      if (check.status === 'online' || check.status === 'redirect') {
+        situacaoAtual = `Portal acessível ao vivo (HTTP ${check.httpStatus ?? 200})`;
+        liveDetail = ` Verificação HTTP ao vivo confirmou resposta do portal${check.pageTitle ? ` ("${check.pageTitle}")` : ''}${check.lastModified ? ` · Last-Modified: ${check.lastModified}` : ''} em ${check.latencyMs} ms.`;
+        divergencias = [
+          `Link oficial respondeu com HTTP ${check.httpStatus ?? 200}; pesquisa semântica por IA indisponível no momento — revise o conteúdo na página oficial antes de alterar.`,
+        ];
+      } else if (check.status === 'degraded') {
+        situacaoAtual = 'Portal com firewall governamental — abrir link oficial';
+        liveDetail = ` O portal oficial retornou proteção anti-bot/timeout (${check.detail}).`;
+        divergencias = [check.detail];
+      } else {
+        situacaoAtual = 'Portal indisponível ou URL divergente';
+        liveDetail = ` A checagem HTTP ao vivo registrou: ${check.detail}`;
+        divergencias = [check.detail];
+      }
+    } catch {
+      // Keep safe manual check note
+    }
+  }
+
   return {
     rascunho: true,
     possuiAtualizacao: false,
-    situacaoAtual: 'Confirmar na fonte oficial',
+    situacaoAtual,
     artigosExtraidos: artigosAtual,
-    resumoExecutivo: `[${AI_FALLBACK_LABEL}] Verificação online de "${titulo}"${numeroAno ? ` (${numeroAno})` : ''} indisponível no momento. Mantenha o texto vigente e confira diretamente o link oficial (${linkOficial}) antes de publicar alterações.`,
+    resumoExecutivo: `[${AI_FALLBACK_LABEL}] Verificação de "${titulo}"${numeroAno ? ` (${numeroAno})` : ''}.${liveDetail || ' Mantenha o texto vigente e confira diretamente o link oficial antes de publicar alterações.'} Link oficial: ${linkOficial}.`,
     explicacaoCliente: clienteAtual,
-    impactosVistos: ['Conferência manual recomendada no portal oficial antes de alterar checklists de visto.'],
-    divergencias: ['Consulta automática com busca na web indisponível no momento; nenhuma alteração normativa aplicada.'],
+    impactosVistos: ['Conferência humana recomendada no portal oficial antes de alterar checklists de visto.'],
+    divergencias,
     fontesCitadas: [linkOficial, 'https://serviciomigraciones.cl', 'https://www.bcn.cl/leychile'],
   };
 }
@@ -312,21 +510,56 @@ export function buildAnalisarDocumentoFallback(body: Record<string, unknown>) {
     (typeof body.fileBase64 === 'string' && body.fileBase64.length > 0) ||
     (typeof body.arquivoUrl === 'string' && body.arquivoUrl.trim().length > 0);
   const mimeType = typeof body.mimeType === 'string' ? body.mimeType : '';
+  const inspected = inspectUploadedDocumentBinary(body.fileBase64, mimeType);
 
   const dateMatch = obs.match(/\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/);
-  const dataEmissao = dateMatch ? dateMatch[1] : 'Não informada';
-  const possuiApostila = /apostilad[oa]\s*(marcado)?:\s*true/i.test(obs) || /apostila/i.test(nomeEsperado);
+  const dataEmissao = dateMatch ? dateMatch[1] : inspected?.detectedDate || 'Não informada';
+  const possuiApostila =
+    /apostilad[oa]\s*(marcado)?:\s*true/i.test(obs) ||
+    /apostila/i.test(nomeEsperado) ||
+    Boolean(inspected?.detectedKeywords.includes('Apostila/Haia'));
 
   let orgaoEmissor = 'fonte a cadastrar';
   const lowerNome = nomeEsperado.toLowerCase();
-  if (lowerNome.includes('antecedent') || lowerNome.includes('passaporte')) {
+  if (lowerNome.includes('antecedent') || lowerNome.includes('passaporte') || inspected?.detectedKeywords.includes('Polícia Federal')) {
     orgaoEmissor = 'Polícia Federal (Brasil) / órgão emissor oficial';
-  } else if (lowerNome.includes('certid') || lowerNome.includes('nascimento') || lowerNome.includes('casamento')) {
+  } else if (
+    lowerNome.includes('certid') ||
+    lowerNome.includes('nascimento') ||
+    lowerNome.includes('casamento') ||
+    inspected?.detectedKeywords.includes('Registro Civil')
+  ) {
     orgaoEmissor = 'Cartório de Registro Civil / Registro Civil do Chile';
   } else if (lowerNome.includes('matríc') || lowerNome.includes('univers') || lowerNome.includes('estud')) {
     orgaoEmissor = 'Instituição de Ensino reconhecida no Chile';
   } else if (lowerNome.includes('contrat') || lowerNome.includes('ofert')) {
     orgaoEmissor = 'Empregador chileno / Notaría';
+  }
+
+  let legibilidade = 'Sem anexo binário legível — conferência manual necessária';
+  let sugestao: 'Revisar' | 'Reprovar' = 'Revisar';
+  let techSummary = '';
+
+  if (inspected) {
+    if (!inspected.validHeader) {
+      legibilidade = `Cabeçalho de arquivo divergente (${inspected.sizeKb} KB) — verificar integridade antes de aprovar`;
+      sugestao = 'Reprovar';
+      techSummary = ' Cabeçalho binário inconsistente com PDF/PNG/JPEG/WEBP.';
+    } else if (inspected.kind === 'pdf') {
+      const encWarn = inspected.encrypted ? ' · PDF protegido/criptografado' : '';
+      const pagesInfo = inspected.estimatedPages ? `, ~${inspected.estimatedPages} pág.` : '';
+      const kwInfo = inspected.detectedKeywords.length > 0 ? ` · Indícios: ${inspected.detectedKeywords.join(', ')}` : '';
+      legibilidade = `PDF v${inspected.pdfVersion || '1.x'} válido (${inspected.sizeKb} KB${pagesInfo}${encWarn}) — conferir visualmente`;
+      techSummary = ` Inspeção local identificou PDF válido${pagesInfo}${kwInfo}.`;
+    } else if (inspected.width && inspected.height) {
+      const lowRes = inspected.width < 600 || inspected.height < 600;
+      legibilidade = `${inspected.kind.toUpperCase()} ${inspected.width}x${inspected.height} px (${inspected.sizeKb} KB)${lowRes ? ' — resolução baixa, confirmar legibilidade' : ' — boa resolução nominal'}`;
+      techSummary = ` Imagem ${inspected.kind.toUpperCase()} validada (${inspected.width}x${inspected.height} px).`;
+    } else {
+      legibilidade = `${inspected.kind.toUpperCase()} válido (${inspected.sizeKb} KB) — conferência visual pelo analista`;
+    }
+  } else if (hasFile) {
+    legibilidade = `Anexo referenciado (${mimeType || 'arquivo'}) — conferência visual obrigatória pelo analista`;
   }
 
   return {
@@ -336,10 +569,8 @@ export function buildAnalisarDocumentoFallback(body: Record<string, unknown>) {
     orgaoEmissor,
     idioma: 'Português / Espanhol (confirmar visualmente)',
     possuiApostila,
-    legibilidade: hasFile
-      ? `Anexo recebido (${mimeType || 'arquivo'}) — conferência visual obrigatória pelo analista`
-      : 'Sem anexo binário legível — conferência manual necessária',
-    sugestao: 'Revisar',
-    justificativa: `${AI_FALLBACK_LABEL}. Pré-conferência gerada por regras a partir dos metadados do checklist (${nomeEsperado}). A decisão final permanece exclusivamente com o analista.`,
+    legibilidade,
+    sugestao,
+    justificativa: `${AI_FALLBACK_LABEL}. Pré-conferência gerada por regras e inspeção estrutural do arquivo (${nomeEsperado}).${techSummary} A decisão final permanece exclusivamente com o analista.`,
   };
 }

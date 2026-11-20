@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  AI_ATTACHMENT_MAX_BINARY_BYTES,
   clearAiDraftCache,
   CLIENT_MSG_AI_GENERIC_ERROR,
   CLIENT_MSG_AI_HIGH_DEMAND,
@@ -8,7 +9,9 @@ import {
   compactClientForAi,
   compactLegalSourcesForAi,
   compactSourceForAi,
+  estimateBase64DecodedBytes,
   loadAiDraftCache,
+  prepareAiAttachment,
   sanitizeClientAiError,
   saveAiDraftCache,
 } from './aiClient';
@@ -99,4 +102,19 @@ describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cach
       else (globalThis as { window?: unknown }).window = prevWindow;
     }
   });
+
+  it('estimates decoded base64 byte sizes accurately and rejects oversized PDFs safely for Vercel ceiling', async () => {
+    const sample = Buffer.from('D&M Integra Chile', 'utf8').toString('base64');
+    assert.equal(estimateBase64DecodedBytes(sample), 17);
+    assert.equal(estimateBase64DecodedBytes(`data:application/pdf;base64,${sample}`), 17);
+
+    const oversizedPdf = new Blob([new Uint8Array(AI_ATTACHMENT_MAX_BINARY_BYTES + 1024)], {
+      type: 'application/pdf',
+    });
+    await assert.rejects(() => prepareAiAttachment(oversizedPdf), (err: unknown) => {
+      const msg = sanitizeClientAiError(err);
+      return msg.includes('O anexo excede o limite de');
+    });
+  });
 });
+

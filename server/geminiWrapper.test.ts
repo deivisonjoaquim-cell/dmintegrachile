@@ -35,7 +35,11 @@ import {
   releaseUserAiLock,
   type ChamarGeminiParams,
 } from './geminiWrapper';
-import { AI_FALLBACK_LABEL } from './geminiFallbacks';
+import {
+  AI_FALLBACK_LABEL,
+  buildNormaVerificarFallback,
+  inspectUploadedDocumentBinary,
+} from './geminiFallbacks';
 
 const FORCED_503_MSG =
   '{"error":{"code":503,"status":"UNAVAILABLE","message":"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."}}';
@@ -637,5 +641,115 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
       'https://www.bcn.cl/leychile',
     ]);
   });
+
+  it('isolates concurrency locks per (uid, route) so parecer does not block custos for the same user', () => {
+    const uid = 'uid_per_route_lock';
+    assert.equal(acquireUserAiLock(uid, '/api/ai/parecer'), true);
+    assert.equal(acquireUserAiLock(uid, '/api/ai/parecer'), false);
+    // Different route on the same uid proceeds immediately
+    assert.equal(acquireUserAiLock(uid, '/api/ai/custos'), true);
+    releaseUserAiLock(uid, '/api/ai/parecer');
+    assert.equal(acquireUserAiLock(uid, '/api/ai/parecer'), true);
+    releaseUserAiLock(uid, '/api/ai/parecer');
+    releaseUserAiLock(uid, '/api/ai/custos');
+  });
+
+  it('injects JSON field schema hint into systemInstruction when tools (Google Search Grounding) are active', async () => {
+    let capturedSystemInstruction = '';
+    const spec = buildNormaVerificarSpec({
+      currentSource: {
+        titulo: 'Ley 21.325',
+        numeroAno: '21.325',
+        linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1158549',
+      },
+    });
+    const res = await chamarGemini({
+      ...spec,
+      configOverride: { apiKey: 'k', maxAttempts: 1, fallbackAttempts: 0, baseDelayMs: 0 },
+      generateFn: async ({ config }) => {
+        capturedSystemInstruction = String(config?.systemInstruction || '');
+        return makeResponse({
+          possuiAtualizacao: false,
+          situacaoAtual: 'Vigente',
+          artigosExtraidos: 'Art. 15',
+          resumoExecutivo: 'Resumo ok',
+          explicacaoCliente: 'Explicação ok',
+          impactosVistos: ['Mercosul'],
+          divergencias: [],
+          fontesCitadas: ['https://www.bcn.cl/leychile'],
+        });
+      },
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(capturedSystemInstruction.includes('possuiAtualizacao'));
+    assert.ok(capturedSystemInstruction.includes('situacaoAtual'));
+    assert.ok(capturedSystemInstruction.includes('explicacaoCliente'));
+  });
+
+  it('inspects PDF and PNG headers locally and flags corrupted headers in buildAnalisarDocumentoFallback', () => {
+    const fakePdfBytes = Buffer.from(
+      '%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n/Type /Page\n/Type /Page\nApostila da Haia Policia Federal 2026-03-10\n%%EOF',
+      'utf8',
+    ).toString('base64');
+    const pdfInfo = inspectUploadedDocumentBinary(fakePdfBytes, 'application/pdf');
+    assert.ok(pdfInfo);
+    assert.equal(pdfInfo.kind, 'pdf');
+    assert.equal(pdfInfo.validHeader, true);
+    assert.equal(pdfInfo.pdfVersion, '1.7');
+    assert.equal(pdfInfo.estimatedPages, 2);
+    assert.equal(pdfInfo.detectedDate, '2026-03-10');
+    assert.ok(pdfInfo.detectedKeywords.includes('Apostila/Haia'));
+
+    // Valid PNG IHDR header (1200x1600)
+    const pngBuf = Buffer.alloc(32);
+    pngBuf.write('89504e470d0a1a0a', 0, 'hex');
+    pngBuf.writeUInt32BE(13, 8);
+    pngBuf.write('IHDR', 12, 'ascii');
+    pngBuf.writeUInt32BE(1200, 16);
+    pngBuf.writeUInt32BE(1600, 20);
+    const pngInfo = inspectUploadedDocumentBinary(pngBuf.toString('base64'), 'image/png');
+    assert.ok(pngInfo);
+    assert.equal(pngInfo.kind, 'png');
+    assert.equal(pngInfo.validHeader, true);
+    assert.equal(pngInfo.width, 1200);
+    assert.equal(pngInfo.height, 1600);
+
+    // Corrupted payload claiming to be PDF triggers Reprovar in fallback
+    const badSpec = buildAnalisarDocumentoSpec(
+      {
+        nomeEsperado: 'Passaporte Titular',
+        fileBase64: Buffer.from('not-a-valid-pdf-binary', 'utf8').toString('base64'),
+        mimeType: 'application/pdf',
+      },
+      '',
+    );
+    const badRes = badSpec.buildFallback() as Record<string, unknown>;
+    assert.equal(badRes.sugestao, 'Reprovar');
+  });
+
+  it('performs live official portal probe inside buildNormaVerificarFallback when fetchFn is provided', async () => {
+    const out = await buildNormaVerificarFallback(
+      {
+        currentSource: {
+          id: 'src_bcn',
+          titulo: 'Ley de Migración',
+          numeroAno: '21.325',
+          linkOficial: 'https://www.bcn.cl/leychile/navegar?idNorma=1158549',
+        },
+      },
+      {
+        fetchFn: async () =>
+          new Response('<html><head><title>Biblioteca del Congreso Nacional</title></head></html>', {
+            status: 200,
+            headers: { 'content-type': 'text/html', 'last-modified': 'Mon, 01 Sep 2025 12:00:00 GMT' },
+          }),
+      },
+    );
+    assert.equal(out.possuiAtualizacao, false);
+    assert.ok(out.situacaoAtual.includes('HTTP 200'));
+    assert.ok(out.resumoExecutivo.includes('Biblioteca del Congreso Nacional'));
+  });
 });
+
 

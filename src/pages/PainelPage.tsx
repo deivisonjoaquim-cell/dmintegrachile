@@ -705,20 +705,20 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Sidebar Desktop Enxuta padronizada pela identidade D&M */}
       <aside
         className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-[272px]'
         }`}
       >
         <BrandRibbon className="h-[3px] w-full" />
-        <div className="h-14 px-4 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-2">
-          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
+        <div className="h-14 px-3 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-1.5">
+          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2 text-left min-w-0">
             <BrandLogo
               src={activeLogoUrl}
               alt={empresa.nome_empresa}
               variant={isDark ? 'emblem-dark' : 'emblem'}
-              className="h-9 w-9 object-contain shrink-0"
+              className="h-8 w-8 object-contain shrink-0"
             />
             {!sidebarCollapsed && (
-              <BrandWordmark tone={isDark ? 'dark' : 'light'} size="sm" className="truncate" />
+              <BrandWordmark tone={isDark ? 'dark' : 'light'} size="sm" className="whitespace-nowrap" />
             )}
           </button>
           <button

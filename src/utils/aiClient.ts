@@ -38,6 +38,7 @@ const SAFE_PT_MESSAGES = [
   'A solicitação de IA não pôde ser processada',
   'Os dados ou arquivo enviados excedem',
   'Arquivo ou payload excede',
+  'O anexo excede o limite de',
   'Tempo limite excedido',
   'Falha de conexão com o servidor',
   'Informe a norma atual',
@@ -47,6 +48,16 @@ const SAFE_PT_MESSAGES = [
   CLIENT_MSG_AI_HIGH_DEMAND,
   CLIENT_MSG_AI_GENERIC_ERROR,
 ];
+
+export interface AiEngineHealthInfo {
+  ok: boolean;
+  geminiConfigured: boolean;
+  mode: 'gemini_plus_rules' | 'rules_live_hybrid';
+  primaryModel: string;
+  fallbackModel: string;
+  activeEngine: string;
+  features?: string[];
+}
 
 export function sanitizeClientAiError(raw: unknown): string {
   const text =
@@ -85,6 +96,103 @@ export function sanitizeClientAiError(raw: unknown): string {
   }
 
   return CLIENT_MSG_AI_GENERIC_ERROR;
+}
+
+// =============================================================================
+// Vercel-Safe Attachment Encoder & Image Downscaler (keeps JSON < 4.5 MB limit)
+// =============================================================================
+export const AI_ATTACHMENT_MAX_BINARY_BYTES = 2_600_000;
+
+export function estimateBase64DecodedBytes(base64: string): number {
+  const clean = base64.replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+  if (!clean) return 0;
+  let padding = 0;
+  if (clean.endsWith('==')) padding = 2;
+  else if (clean.endsWith('=')) padding = 1;
+  return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+}
+
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo selecionado.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function compressImageBlobIfNeeded(blob: Blob, maxDimension = 1600): Promise<{ dataUri: string; mimeType: string } | null> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Image === 'undefined') {
+    return null;
+  }
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('Falha ao carregar imagem.'));
+      el.src = objectUrl;
+    });
+    const maxSide = Math.max(img.width || 0, img.height || 0);
+    if (maxSide <= 0) return null;
+    const scale = maxSide > maxDimension ? maxDimension / maxSide : 1;
+    const targetW = Math.max(1, Math.round(img.width * scale));
+    const targetH = Math.max(1, Math.round(img.height * scale));
+    if (scale === 1 && blob.size <= 900_000) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+    const compressedUri = canvas.toDataURL('image/jpeg', 0.82);
+    return { dataUri: compressedUri, mimeType: 'image/jpeg' };
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+export async function prepareAiAttachment(
+  blob: Blob,
+  options?: { maxBinaryBytes?: number; fallbackMimeType?: string },
+): Promise<{ fileBase64: string; mimeType: string; sizeBytes: number }> {
+  const maxBytes = options?.maxBinaryBytes ?? AI_ATTACHMENT_MAX_BINARY_BYTES;
+  const rawType = (blob.type || options?.fallbackMimeType || 'application/pdf').toLowerCase();
+
+  if (rawType === 'image/jpeg' || rawType === 'image/png' || rawType === 'image/webp') {
+    const compressed = await compressImageBlobIfNeeded(blob);
+    if (compressed) {
+      const b64 = compressed.dataUri.split(',')[1] || '';
+      const bytes = estimateBase64DecodedBytes(b64);
+      if (bytes > maxBytes) {
+        throw new Error('O anexo excede o limite de 2,6 MB para análise automatizada.');
+      }
+      return { fileBase64: b64, mimeType: compressed.mimeType, sizeBytes: bytes };
+    }
+  }
+
+  if (blob.size > maxBytes) {
+    throw new Error('O anexo excede o limite de 2,6 MB para análise automatizada.');
+  }
+
+  const dataUri = await readBlobAsDataUrl(blob);
+  const parsed = /^data:([^;,]+);base64,(.+)$/i.exec(dataUri);
+  const b64 = parsed ? parsed[2].replace(/\s+/g, '') : '';
+  if (!b64) {
+    throw new Error('Falha ao codificar anexo para análise.');
+  }
+  const bytes = estimateBase64DecodedBytes(b64);
+  if (bytes > maxBytes) {
+    throw new Error('O anexo excede o limite de 2,6 MB para análise automatizada.');
+  }
+  return {
+    fileBase64: b64,
+    mimeType: (parsed?.[1] || rawType).toLowerCase(),
+    sizeBytes: bytes,
+  };
 }
 
 // =============================================================================

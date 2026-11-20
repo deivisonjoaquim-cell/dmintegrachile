@@ -158,7 +158,7 @@ export const ConfirmActionModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
@@ -277,7 +277,7 @@ export const ConfirmTypedModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {

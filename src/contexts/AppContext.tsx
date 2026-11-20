@@ -10,6 +10,12 @@ import {
 import { reportAppError } from '../services/errorService';
 import { sanitizeFirestoreData } from '../utils/firestoreUtils';
 import {
+  createDevE2eFirebaseUser,
+  getDevE2eAuthProfile,
+  isDevE2eActive,
+  subscribeDevE2eChanges,
+} from '../utils/devE2eBridge';
+import {
   DEFAULT_DIAGNOSTIC_RULE_VERSION,
   DEFAULT_EMPRESA_CONFIG,
   SEED_LEGAL_SOURCES,
@@ -293,6 +299,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [syncUserDocument]);
 
   useEffect(() => {
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      setFirebaseUser(createDevE2eFirebaseUser() as unknown as User);
+      setUserProfile(getDevE2eAuthProfile());
+      setAuthError(null);
+      setAuthLoading(false);
+      return subscribeDevE2eChanges(() => {
+        void refreshPublicData();
+      });
+    }
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (!user) {
@@ -313,10 +328,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
     return () => unsub();
-  }, [syncUserDocument]);
+  }, [syncUserDocument, refreshPublicData]);
 
   const loginWithGoogle = useCallback(async (): Promise<UserProfile | null> => {
     setAuthError(null);
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      const profile = getDevE2eAuthProfile();
+      setFirebaseUser(createDevE2eFirebaseUser() as unknown as User);
+      setUserProfile(profile);
+      return profile;
+    }
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const profile = await syncUserDocument(result.user);
@@ -331,6 +352,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [syncUserDocument]);
 
   const logout = useCallback(async () => {
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      try {
+        window.sessionStorage.removeItem('__DM_E2E_SESSION__');
+      } catch {
+        // ignore
+      }
+      setUserProfile(null);
+      setFirebaseUser(null);
+      return;
+    }
     try {
       await signOut(auth);
     } catch (err) {

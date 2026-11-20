@@ -67,6 +67,7 @@ import {
   compactLegalSourcesForAi,
   compactSourceForAi,
   loadAiDraftCache,
+  prepareAiAttachment,
   sanitizeClientAiError,
   saveAiDraftCache,
   type AiResponseMeta,
@@ -756,23 +757,20 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     }
   };
 
-  const handleSelectNormaFile = (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMsg('O anexo da norma excede o limite de 5 MB.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const res = typeof reader.result === 'string' ? reader.result : '';
-      const base64 = res.includes(',') ? res.split(',')[1] : res;
-      if (!base64) return;
+  const handleSelectNormaFile = async (file: File) => {
+    setErrorMsg(null);
+    try {
+      const prepared = await prepareAiAttachment(file, {
+        fallbackMimeType: 'application/pdf',
+      });
       setNormaAttachment({
         name: file.name,
-        fileBase64: base64,
-        mimeType: file.type || 'application/pdf',
+        fileBase64: prepared.fileBase64,
+        mimeType: prepared.mimeType,
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setErrorMsg(sanitizeClientAiError(err));
+    }
   };
 
   const handleSyncOfficialBase = async () => {

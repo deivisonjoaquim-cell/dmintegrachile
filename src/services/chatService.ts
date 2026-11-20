@@ -17,6 +17,11 @@ import {
   buildStaffChatReplyPayload,
   sortChatMessagesChronologically,
 } from '../utils/documentChat';
+import {
+  getDevE2eDataset,
+  isDevE2eActive,
+  subscribeDevE2eChanges,
+} from '../utils/devE2eBridge';
 
 function stripUndefinedFields<T extends Record<string, unknown>>(obj: T): T {
   const out: Record<string, unknown> = {};
@@ -36,6 +41,16 @@ export function subscribeClientDocumentChat(
   if (!clientId) {
     onUpdate([]);
     return () => {};
+  }
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    const emit = () => {
+      const list = getDevE2eDataset().communicationLogs.filter(
+        (l) => l.clientId === clientId && l.canal === 'Chat Portal',
+      );
+      onUpdate(sortChatMessagesChronologically(list));
+    };
+    emit();
+    return subscribeDevE2eChanges(emit);
   }
   const q = query(
     collection(db, 'communicationLogs'),
@@ -65,6 +80,14 @@ export function subscribeStaffDocumentChat(
   onUpdate: (messages: CommunicationLog[]) => void,
   onError?: (err: unknown) => void,
 ): Unsubscribe {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    const emit = () => {
+      const list = getDevE2eDataset().communicationLogs.filter((l) => l.canal === 'Chat Portal');
+      onUpdate(sortChatMessagesChronologically(list));
+    };
+    emit();
+    return subscribeDevE2eChanges(emit);
+  }
   const q = query(
     collection(db, 'communicationLogs'),
     where('canal', '==', 'Chat Portal'),
