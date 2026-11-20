@@ -394,40 +394,6 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         )}
       </div>
 
-      {/* Resumo de Desempenho: Taxas de Conversão entre Etapas & Gargalos */}
-      <PainelFunnelPerformanceSummary
-        leads={filteredLeads}
-        cases={activeCases}
-        empresa={empresa}
-        clients={clients}
-        staffUsers={staffUsers}
-        period={perfPeriod}
-        onChangePeriod={setPerfPeriod}
-        onSelectStage={(stageId) => {
-          if (onOpenFunnelStage) {
-            onOpenFunnelStage(stageId);
-          } else {
-            onNavigateSection?.('funil');
-          }
-        }}
-        onOpenKanban={onNavigateSection ? () => onNavigateSection('funil') : undefined}
-      />
-
-      {/* Gráfico Recharts: Funil de Conversão & Taxa de Ocupação por Etapa */}
-      <PainelFunnelConversionChart
-        leads={filteredLeads}
-        cases={activeCases}
-        period={perfPeriod}
-        isDark={isDark}
-        onSelectStage={(stageId) => {
-          if (onOpenFunnelStage) {
-            onOpenFunnelStage(stageId);
-          } else {
-            onNavigateSection?.('funil');
-          }
-        }}
-      />
-
       {/* Funil Interativo em 5 Marcos: clique em qualquer marco para ir direto aos registros */}
       <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 space-y-4 shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -529,7 +495,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
               { id: 'hoje', label: 'Atenção Hoje', count: urgencias.length + dailySummary.openTasksCount },
               { id: 'documentos', label: 'Docs & Vencimentos', count: pendingDocsReview.length },
               { id: 'chat', label: 'Dúvidas do Portal', count: unreadChatTotal },
-              { id: 'relatorio', label: 'Progresso & PDF', count: undefined },
+              { id: 'relatorio', label: 'Métricas & Gráficos', count: undefined },
             ] as const
           ).map((tab) => {
             const active = workTab === tab.id;
@@ -898,19 +864,53 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             </div>
           )}
 
-          {/* ABA 4: PROGRESSO DE TAREFAS & EXPORTAÇÃO PDF VISUAL */}
+          {/* ABA 4: MÉTRICAS, FUNIL DE CONVERSÃO & PROGRESSO DE TAREFAS */}
           {workTab === 'relatorio' && (
-            <PainelProgressoTarefasChart
-              empresa={empresa}
-              tasks={tasks}
-              cases={cases}
-              clients={clients}
-              docs={docs}
-              selectedCaseId={null}
-              isDark={isDark}
-              onOpenAgenda={() => onNavigateSection?.('agenda')}
-              onOpenCase={onOpenCase}
-            />
+            <div className="space-y-6">
+              <PainelFunnelPerformanceSummary
+                leads={filteredLeads}
+                cases={activeCases}
+                empresa={empresa}
+                clients={clients}
+                staffUsers={staffUsers}
+                period={perfPeriod}
+                onChangePeriod={setPerfPeriod}
+                onSelectStage={(stageId) => {
+                  if (onOpenFunnelStage) {
+                    onOpenFunnelStage(stageId);
+                  } else {
+                    onNavigateSection?.('funil');
+                  }
+                }}
+                onOpenKanban={onNavigateSection ? () => onNavigateSection('funil') : undefined}
+              />
+
+              <PainelFunnelConversionChart
+                leads={filteredLeads}
+                cases={activeCases}
+                period={perfPeriod}
+                isDark={isDark}
+                onSelectStage={(stageId) => {
+                  if (onOpenFunnelStage) {
+                    onOpenFunnelStage(stageId);
+                  } else {
+                    onNavigateSection?.('funil');
+                  }
+                }}
+              />
+
+              <PainelProgressoTarefasChart
+                empresa={empresa}
+                tasks={tasks}
+                cases={cases}
+                clients={clients}
+                docs={docs}
+                selectedCaseId={null}
+                isDark={isDark}
+                onOpenAgenda={() => onNavigateSection?.('agenda')}
+                onOpenCase={onOpenCase}
+              />
+            </div>
           )}
         </div>
       </section>

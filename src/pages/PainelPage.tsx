@@ -108,6 +108,12 @@ const HUB_ICONS: Record<PanelHubId, React.ReactNode> = {
   config: <Settings className="w-4 h-4 shrink-0" />,
 };
 
+const SIDEBAR_GROUPS: { id: string; label: string; hubIds: PanelHubId[] }[] = [
+  { id: 'rotina', label: 'Dia a Dia', hubIds: ['hoje', 'funil', 'agenda'] },
+  { id: 'operacao', label: 'Leads & Processos', hubIds: ['leads', 'processos'] },
+  { id: 'gestao', label: 'Gestão', hubIds: ['financeiro', 'config'] },
+];
+
 export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const {
     userProfile,
@@ -736,39 +742,54 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto" aria-label="Navegação principal do painel">
-          {visibleHubs.map((hub) => {
-            const isActive = activeHub === hub.id;
-            const badge = hubBadges[hub.id];
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto" aria-label="Navegação principal do painel">
+          {SIDEBAR_GROUPS.map((group) => {
+            const groupHubs = group.hubIds
+              .map((id) => visibleHubs.find((h) => h.id === id))
+              .filter((h): h is NonNullable<typeof h> => Boolean(h));
+            if (groupHubs.length === 0) return null;
             return (
-              <button
-                key={hub.id}
-                type="button"
-                title={hub.description}
-                onClick={() => handleSelectHub(hub.id)}
-                className={`w-full flex items-center ${
-                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
-                } py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'text-white font-semibold'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
-                }`}
-                style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
-              >
-                <span className="flex items-center gap-2.5 min-w-0">
-                  {HUB_ICONS[hub.id]}
-                  {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
-                </span>
-                {!sidebarCollapsed && badge > 0 && (
-                  <span
-                    className={`text-xs font-semibold tabular-nums shrink-0 ${
-                      isActive ? 'text-white/90' : 'text-slate-400 dark:text-slate-500'
-                    }`}
-                  >
-                    {badge}
-                  </span>
+              <div key={group.id} className="space-y-1">
+                {!sidebarCollapsed && (
+                  <p className="px-3 pb-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                    {group.label}
+                  </p>
                 )}
-              </button>
+                {groupHubs.map((hub) => {
+                  const isActive = activeHub === hub.id;
+                  const badge = hubBadges[hub.id];
+                  return (
+                    <button
+                      key={hub.id}
+                      type="button"
+                      title={hub.description}
+                      onClick={() => handleSelectHub(hub.id)}
+                      className={`w-full flex items-center ${
+                        sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+                      } py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'text-white font-semibold'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                      }`}
+                      style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        {HUB_ICONS[hub.id]}
+                        {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
+                      </span>
+                      {!sidebarCollapsed && badge > 0 && (
+                        <span
+                          className={`text-xs font-semibold tabular-nums shrink-0 ${
+                            isActive ? 'text-white/90' : 'text-slate-400 dark:text-slate-500'
+                          }`}
+                        >
+                          {badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
 

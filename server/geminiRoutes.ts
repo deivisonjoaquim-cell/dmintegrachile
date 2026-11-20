@@ -19,6 +19,7 @@ import {
   MSG_AI_CONCURRENT_REQUEST,
   MSG_AI_OTHER_ERROR,
   releaseUserAiLock,
+  resolveAlternativeAiProvidersFromEnv,
   type ChamarGeminiParams,
   type ChamarGeminiResult,
   type GeminiRuntimeConfig,
@@ -28,6 +29,15 @@ import {
 export interface AiEngineHealthStatus {
   ok: true;
   geminiConfigured: boolean;
+  cloudAiConfigured: boolean;
+  activeProvider: 'gemini' | 'groq' | 'openrouter' | 'local_rules';
+  providers: {
+    gemini: boolean;
+    groq: boolean;
+    openrouter: boolean;
+    localRules: true;
+  };
+  vercelHobbyOptimized: true;
   mode: 'gemini_plus_rules' | 'rules_live_hybrid';
   primaryModel: string;
   fallbackModel: string;
@@ -38,15 +48,43 @@ export interface AiEngineHealthStatus {
 export function getAiEngineHealthStatus(): AiEngineHealthStatus {
   const cfg = getGeminiRuntimeConfig();
   const geminiConfigured = isValidGeminiApiKey(cfg.apiKey);
+  const altProviders = resolveAlternativeAiProvidersFromEnv();
+  const groqProvider = altProviders.find((p) => p.id === 'groq');
+  const openRouterProvider = altProviders.find((p) => p.id === 'openrouter');
+  const cloudAiConfigured = geminiConfigured || altProviders.length > 0;
+
+  const activeProvider: AiEngineHealthStatus['activeProvider'] = geminiConfigured
+    ? 'gemini'
+    : groqProvider
+      ? 'groq'
+      : openRouterProvider
+        ? 'openrouter'
+        : 'local_rules';
+
+  const activeEngine = geminiConfigured
+    ? `IA Gemini (${cfg.primaryModel} + reserva ${cfg.fallbackModel})${altProviders.length > 0 ? ` + failover ${altProviders.map((p) => p.label).join('/')}` : ''} com motor local`
+    : groqProvider
+      ? `IA Groq gratuita (${groqProvider.model}) com motor local`
+      : openRouterProvider
+        ? `IA OpenRouter gratuita (${openRouterProvider.model}) com motor local`
+        : 'Motor Local Inteligente + Regras SERMIG/BCN (sem necessidade de chave)';
+
   return {
     ok: true,
     geminiConfigured,
-    mode: geminiConfigured ? 'gemini_plus_rules' : 'rules_live_hybrid',
-    primaryModel: cfg.primaryModel,
+    cloudAiConfigured,
+    activeProvider,
+    providers: {
+      gemini: geminiConfigured,
+      groq: Boolean(groqProvider),
+      openrouter: Boolean(openRouterProvider),
+      localRules: true,
+    },
+    vercelHobbyOptimized: true,
+    mode: cloudAiConfigured ? 'gemini_plus_rules' : 'rules_live_hybrid',
+    primaryModel: geminiConfigured ? cfg.primaryModel : altProviders[0]?.model || 'motor_local',
     fallbackModel: cfg.fallbackModel,
-    activeEngine: geminiConfigured
-      ? `IA Gemini (${cfg.primaryModel} + reserva ${cfg.fallbackModel}) com fallback local`
-      : 'Motor Local Inteligente + Consulta HTTP SERMIG/BCN ao vivo',
+    activeEngine,
     features: [
       'diagnostico',
       'parecer',

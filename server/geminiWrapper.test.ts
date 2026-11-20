@@ -13,6 +13,7 @@ import {
   buildNormaVerificarSpec,
   buildParecerSpec,
   buildPropostaSpec,
+  getAiEngineHealthStatus,
   runAiRouteExecution,
   type AuditWriterOptions,
 } from './geminiRoutes';
@@ -23,6 +24,8 @@ import {
   computeRetryDelayMs,
   DEFAULT_GEMINI_FALLBACK_MODEL,
   DEFAULT_GEMINI_PRIMARY_MODEL,
+  DEFAULT_GROQ_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
   getEffectiveRuntimeConfig,
   getGeminiRuntimeConfig,
   isValidGeminiApiKey,
@@ -37,6 +40,7 @@ import {
   normalizeGeminiApiKey,
   parseRetryAfterMs,
   releaseUserAiLock,
+  resolveAlternativeAiProvidersFromEnv,
   resolveGeminiApiKeyFromEnv,
   resolveGeminiModelFromEnv,
   type ChamarGeminiParams,
@@ -355,10 +359,11 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     assert.equal(blockedRes.errorMessage, MSG_AI_BLOCKED);
   });
 
-  it('uses MSG_AI_MISSING_KEY rule fallback without network calls when GEMINI_API_KEY is absent', async () => {
+  it('uses MSG_AI_MISSING_KEY rule fallback without network calls when GEMINI_API_KEY and alternatives are absent', async () => {
     const res = await chamarGemini({
       ...buildCustosSpec({ currentCustos: { taxaSermigMercosulUsd: 88 } }),
       configOverride: { apiKey: '', maxAttempts: 4, fallbackAttempts: 2, baseDelayMs: 0 },
+      alternativeProviders: [],
     });
     assert.equal(res.ok, true);
     assert.equal(res.statusCode, 200);
@@ -368,7 +373,7 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     assert.equal(res.audit.statusMotivo, 'missing_api_key');
   });
 
-  it('caps timeoutMs, retry counts, and maxWallClockMs in Vercel mode when no explicit override', () => {
+  it('caps timeoutMs, retry counts, and maxWallClockMs for Vercel Hobby (10s ceiling) when no explicit override', () => {
     const baseCfg = {
       apiKey: 'k',
       primaryModel: 'gemini-4-hydrogen',
@@ -379,11 +384,11 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
       baseDelayMs: 1000,
     };
     const vercelCfg = getEffectiveRuntimeConfig(baseCfg, true, false);
-    assert.equal(vercelCfg.timeoutMs <= 14000, true);
-    assert.equal(vercelCfg.maxAttempts <= 2, true);
+    assert.equal(vercelCfg.timeoutMs <= 6200, true);
+    assert.equal(vercelCfg.maxAttempts <= 1, true);
     assert.equal(vercelCfg.fallbackAttempts <= 1, true);
-    assert.equal(vercelCfg.baseDelayMs <= 600, true);
-    assert.equal(vercelCfg.maxWallClockMs <= 42000, true);
+    assert.equal(vercelCfg.baseDelayMs <= 300, true);
+    assert.equal(vercelCfg.maxWallClockMs <= 8200, true);
   });
 
   it('extracts base64 inlineData from data: URIs in buildAnalisarDocumentoSpec', async () => {
@@ -827,6 +832,164 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     assert.equal(res.payload?.origem, 'principal');
     assert.equal(res.payload?.modeloUsado, DEFAULT_GEMINI_PRIMARY_MODEL);
     assert.deepEqual(modelsTried, ['custom-typo-model', DEFAULT_GEMINI_PRIMARY_MODEL]);
+  });
+
+  it('resolves free-tier alternative AI providers (Groq and OpenRouter) from env and rejects placeholders', () => {
+    const empty = resolveAlternativeAiProvidersFromEnv({
+      GROQ_API_KEY: 'MY_GROQ_API_KEY',
+      OPENROUTER_API_KEY: 'short',
+    });
+    assert.equal(empty.length, 0);
+
+    const both = resolveAlternativeAiProvidersFromEnv({
+      GROQ_API_KEY: 'gsk_validGroqFreeKey123456',
+      OPENROUTER_API_KEY: 'sk-or-v1-validOpenRouterKey123456',
+    });
+    assert.equal(both.length, 2);
+    assert.equal(both[0].id, 'groq');
+    assert.equal(both[0].model, DEFAULT_GROQ_MODEL);
+    assert.equal(both[0].endpoint, 'https://api.groq.com/openai/v1/chat/completions');
+    assert.equal(both[1].id, 'openrouter');
+    assert.equal(both[1].model, DEFAULT_OPENROUTER_MODEL);
+    assert.equal(both[1].endpoint, 'https://openrouter.ai/api/v1/chat/completions');
+  });
+
+  it('uses Groq free tier automatically when GEMINI_API_KEY is absent', async () => {
+    let calledUrl = '';
+    const res = await chamarGemini({
+      ...buildCustosSpec({ currentCustos: { taxaSermigMercosulUsd: 90 } }),
+      configOverride: { apiKey: '', maxAttempts: 1, fallbackAttempts: 1, baseDelayMs: 0 },
+      alternativeProviders: [
+        {
+          id: 'groq',
+          label: 'Groq (gratuito)',
+          endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+          apiKey: 'gsk_testValidGroqKey123456',
+          model: DEFAULT_GROQ_MODEL,
+        },
+      ],
+      altFetchFn: (async (url: string | URL | Request) => {
+        calledUrl = String(url);
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    taxaSermigMercosulUsd: 90,
+                    taxaSermigTemporalUsd: 90,
+                    taxaSermigDefinitivaUsd: 120,
+                    apostilaCnjBrl: 185,
+                    traducaoJuramentadaBrl: 210,
+                    cedulaIdentidadeClp: 4270,
+                    observacao: 'Estimativa via Groq gratuito',
+                    atualizadoEm: '2026-11-20',
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+
+    assert.equal(calledUrl, 'https://api.groq.com/openai/v1/chat/completions');
+    assert.equal(res.ok, true);
+    assert.equal(res.payload?.fallback, false);
+    assert.equal(res.payload?.origem, 'principal');
+    assert.equal(res.payload?.modeloUsado, `groq/${DEFAULT_GROQ_MODEL}`);
+    assert.equal(res.audit.statusMotivo, 'ok_groq');
+    assert.equal(res.audit.resultado, 'sucesso');
+  });
+
+  it('fails over from Gemini 503 to Groq free tier before falling back to local rules', async () => {
+    const res = await chamarGemini({
+      ...buildCustosSpec({ currentCustos: { taxaSermigMercosulUsd: 90 } }),
+      configOverride: { apiKey: 'AQ.ValidTestKey1234567890', maxAttempts: 1, fallbackAttempts: 1, baseDelayMs: 0 },
+      sleepFn: async () => {},
+      generateFn: async () => {
+        const err = new Error(FORCED_503_MSG) as Error & { status?: number };
+        err.status = 503;
+        throw err;
+      },
+      alternativeProviders: [
+        {
+          id: 'groq',
+          label: 'Groq (gratuito)',
+          endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+          apiKey: 'gsk_testValidGroqKey123456',
+          model: DEFAULT_GROQ_MODEL,
+        },
+      ],
+      altFetchFn: (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    taxaSermigMercosulUsd: 92,
+                    taxaSermigTemporalUsd: 92,
+                    taxaSermigDefinitivaUsd: 120,
+                    apostilaCnjBrl: 190,
+                    traducaoJuramentadaBrl: 220,
+                    cedulaIdentidadeClp: 4270,
+                    observacao: 'Failover via Groq gratuito',
+                    atualizadoEm: '2026-11-20',
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )) as typeof fetch,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.payload?.fallback, false);
+    assert.equal(res.payload?.origem, 'reserva');
+    assert.equal(res.payload?.modeloUsado, `groq/${DEFAULT_GROQ_MODEL}`);
+    assert.equal(res.audit.statusMotivo, 'ok_groq');
+  });
+
+  it('reports cloudAiConfigured, activeProvider, and vercelHobbyOptimized accurately in getAiEngineHealthStatus()', () => {
+    const saved = {
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      API_KEY: process.env.API_KEY,
+      GROQ_API_KEY: process.env.GROQ_API_KEY,
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    };
+
+    try {
+      delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      delete process.env.GOOGLE_API_KEY;
+      delete process.env.API_KEY;
+      delete process.env.GROQ_API_KEY;
+      delete process.env.OPENROUTER_API_KEY;
+
+      const localHealth = getAiEngineHealthStatus();
+      assert.equal(localHealth.cloudAiConfigured, false);
+      assert.equal(localHealth.activeProvider, 'local_rules');
+      assert.equal(localHealth.providers.localRules, true);
+      assert.equal(localHealth.vercelHobbyOptimized, true);
+
+      process.env.GROQ_API_KEY = 'gsk_validGroqKeyForHealthTest123';
+      const groqHealth = getAiEngineHealthStatus();
+      assert.equal(groqHealth.geminiConfigured, false);
+      assert.equal(groqHealth.cloudAiConfigured, true);
+      assert.equal(groqHealth.activeProvider, 'groq');
+      assert.equal(groqHealth.providers.groq, true);
+      assert.equal(groqHealth.mode, 'gemini_plus_rules');
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 });
 

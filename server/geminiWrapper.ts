@@ -1,4 +1,4 @@
-import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, type GenerateContentResponse } from '@google/genai';
 import { AI_FALLBACK_LABEL } from './geminiFallbacks.ts';
 
 export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-4-hydrogen';
@@ -58,6 +58,147 @@ export function resolveGeminiApiKeyFromEnv(env: Record<string, string | undefine
   return '';
 }
 
+export interface AlternativeAiProviderConfig {
+  id: 'groq' | 'openrouter';
+  label: string;
+  endpoint: string;
+  apiKey: string;
+  model: string;
+}
+
+export const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+export const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+
+export function resolveAlternativeAiProvidersFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): AlternativeAiProviderConfig[] {
+  const providers: AlternativeAiProviderConfig[] = [];
+
+  const groqKey = normalizeGeminiApiKey(env.GROQ_API_KEY);
+  if (groqKey) {
+    const groqModel = (env.GROQ_MODEL || DEFAULT_GROQ_MODEL).trim() || DEFAULT_GROQ_MODEL;
+    providers.push({
+      id: 'groq',
+      label: 'Groq (gratuito)',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      apiKey: groqKey,
+      model: groqModel,
+    });
+  }
+
+  const openRouterKey = normalizeGeminiApiKey(env.OPENROUTER_API_KEY);
+  if (openRouterKey) {
+    const openRouterModel = (env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL).trim() || DEFAULT_OPENROUTER_MODEL;
+    providers.push({
+      id: 'openrouter',
+      label: 'OpenRouter (gratuito)',
+      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+      apiKey: openRouterKey,
+      model: openRouterModel,
+    });
+  }
+
+  return providers;
+}
+
+function extractTextPromptFromContents(contents: unknown): { text: string; hasBinaryAttachment: boolean } {
+  if (typeof contents === 'string') {
+    return { text: contents, hasBinaryAttachment: false };
+  }
+  if (contents && typeof contents === 'object') {
+    const obj = contents as { parts?: Array<{ text?: string; inlineData?: { mimeType?: string } }> };
+    if (Array.isArray(obj.parts)) {
+      const texts: string[] = [];
+      let hasBinaryAttachment = false;
+      for (const part of obj.parts) {
+        if (typeof part?.text === 'string' && part.text.trim()) {
+          texts.push(part.text.trim());
+        }
+        if (part?.inlineData) {
+          hasBinaryAttachment = true;
+        }
+      }
+      return { text: texts.join('\n\n'), hasBinaryAttachment };
+    }
+  }
+  return { text: JSON.stringify(contents || ''), hasBinaryAttachment: false };
+}
+
+export async function callOpenAiCompatibleProvider<T extends Record<string, unknown>>(params: {
+  provider: AlternativeAiProviderConfig;
+  systemInstruction: string;
+  responseSchema: Record<string, unknown>;
+  contents: unknown;
+  validateJson: (parsed: Record<string, unknown>) => T | null;
+  timeoutMs: number;
+  fetchFn?: typeof fetch;
+}): Promise<{ ok: true; data: T } | { ok: false; reason: string }> {
+  const { text, hasBinaryAttachment } = extractTextPromptFromContents(params.contents);
+  if (!text || hasBinaryAttachment) {
+    return { ok: false, reason: hasBinaryAttachment ? 'binary_not_supported' : 'empty_prompt' };
+  }
+
+  const schemaHint = describeResponseSchemaHint(params.responseSchema);
+  const fullSystem = `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido em Português (Brasil), sem markdown nem texto fora do JSON.${schemaHint}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(800, params.timeoutMs));
+  const doFetch = params.fetchFn || fetch;
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.provider.apiKey}`,
+    };
+    if (params.provider.id === 'openrouter') {
+      headers['X-Title'] = 'DM Integra Chile';
+    }
+
+    const resp = await doFetch(params.provider.endpoint, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: params.provider.model,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: fullSystem },
+          { role: 'user', content: text },
+        ],
+      }),
+    });
+
+    if (!resp.ok) {
+      return { ok: false, reason: `${params.provider.id}_http_${resp.status}` };
+    }
+
+    const json = (await resp.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const rawContent = json?.choices?.[0]?.message?.content;
+    if (typeof rawContent !== 'string' || !rawContent.trim()) {
+      return { ok: false, reason: `${params.provider.id}_empty_response` };
+    }
+
+    const fakeGeminiResp = {
+      text: rawContent,
+      candidates: [{ finishReason: 'STOP' }],
+    } as unknown as GenerateContentResponse;
+
+    const extracted = extractAndValidateJson<T>(fakeGeminiResp, params.validateJson);
+    if (!extracted.ok) {
+      return { ok: false, reason: `${params.provider.id}_invalid_json` };
+    }
+    return { ok: true, data: extracted.data };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: msg.toLowerCase().includes('abort') ? `${params.provider.id}_timeout` : `${params.provider.id}_network` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const RETIRED_GEMINI_MODEL_RE = /^gemini-(?:1(?:\.\d+)?|2(?:\.\d+)?|pro|pro-vision)(?:-|$)/i;
 
 export function resolveGeminiModelFromEnv(raw: string | undefined, defaultModel: string): string {
@@ -101,18 +242,19 @@ export function getEffectiveRuntimeConfig(
   hasExplicitOverride = false,
 ): GeminiRuntimeConfig & { maxWallClockMs: number } {
   if (isVercelEnv && !hasExplicitOverride) {
+    // Otimizado para Vercel Gratuito (Hobby — limite rígido de 10s por função serverless)
     return {
       ...runtime,
-      timeoutMs: Math.min(runtime.timeoutMs, 14000),
-      maxAttempts: Math.min(runtime.maxAttempts, 2),
+      timeoutMs: Math.min(runtime.timeoutMs, 6200),
+      maxAttempts: Math.min(runtime.maxAttempts, 1),
       fallbackAttempts: Math.min(runtime.fallbackAttempts, 1),
-      baseDelayMs: Math.min(runtime.baseDelayMs, 600),
-      maxWallClockMs: Math.min(runtime.maxWallClockMs ?? 42000, 42000),
+      baseDelayMs: Math.min(runtime.baseDelayMs, 300),
+      maxWallClockMs: Math.min(runtime.maxWallClockMs ?? 8200, 8200),
     };
   }
   return {
     ...runtime,
-    maxWallClockMs: runtime.maxWallClockMs ?? (isVercelEnv ? 42000 : 180000),
+    maxWallClockMs: runtime.maxWallClockMs ?? (isVercelEnv ? 8200 : 180000),
   };
 }
 
@@ -447,6 +589,8 @@ export interface ChamarGeminiParams<T extends Record<string, unknown>> {
   // Dependency injection overrides for testing (keeps runtime decoupled and cleanly testable)
   configOverride?: Partial<GeminiRuntimeConfig>;
   generateFn?: (args: GeminiGenerateArgs) => Promise<GenerateContentResponse>;
+  alternativeProviders?: AlternativeAiProviderConfig[];
+  altFetchFn?: typeof fetch;
   sleepFn?: (ms: number) => Promise<void>;
   rngFn?: () => number;
 }
@@ -518,10 +662,70 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   const sleep = params.sleepFn || defaultSleep;
   const rng = params.rngFn || Math.random;
 
+  const alternativeProviders =
+    params.alternativeProviders !== undefined
+      ? params.alternativeProviders
+      : resolveAlternativeAiProvidersFromEnv();
+
+  const tryAlternativeProviders = async (
+    tier: 'principal' | 'reserva',
+  ): Promise<ChamarGeminiResult<T> | null> => {
+    for (const provider of alternativeProviders) {
+      const remainingMs = runtime.maxWallClockMs - (Date.now() - startedAtMs);
+      if (remainingMs < 1200) break;
+      params.onProgress?.({
+        attempt: 1,
+        maxAttempts: 1,
+        modelTier: tier,
+        message: `Consultando IA alternativa (${provider.label})…`,
+      });
+      const altRes = await callOpenAiCompatibleProvider<T>({
+        provider,
+        systemInstruction: params.systemInstruction,
+        responseSchema: params.responseSchema,
+        contents: params.contents,
+        validateJson: params.validateJson,
+        timeoutMs: Math.min(runtime.timeoutMs, Math.max(1200, remainingMs - 400)),
+        fetchFn: params.altFetchFn,
+      });
+      if (altRes.ok) {
+        const modelLabel = `${provider.id}/${provider.model}`;
+        return {
+          ok: true,
+          statusCode: 200,
+          payload: {
+            ...altRes.data,
+            fallback: false,
+            origem: tier,
+            origemLabel: `Rascunho gerado por IA (${provider.label})`,
+            modeloUsado: modelLabel,
+            tentativas: 1,
+          },
+          audit: {
+            rota: params.route,
+            modeloTipo: tier,
+            modeloNome: modelLabel,
+            tentativas: 1,
+            resultado: 'sucesso',
+            statusMotivo: `ok_${provider.id}`,
+          },
+        };
+      }
+      console.warn(`[AI][${params.route}] Provedor alternativo ${provider.id} indisponível (${altRes.reason}).`);
+    }
+    return null;
+  };
+
   let generateFn = params.generateFn;
   if (!generateFn) {
     const cleanApiKey = normalizeGeminiApiKey(runtime.apiKey);
     if (!cleanApiKey) {
+      // Se GEMINI_API_KEY não estiver configurada, tenta provedores gratuitos alternativos (Groq / OpenRouter) antes do motor local
+      if (alternativeProviders.length > 0) {
+        const altSuccess = await tryAlternativeProviders('principal');
+        if (altSuccess) return altSuccess;
+      }
+
       const fb = await params.buildFallback();
       return {
         ok: true,
@@ -596,16 +800,19 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       try {
         const hasTools = Boolean(params.tools && params.tools.length > 0);
         const schemaHint = hasTools ? describeResponseSchemaHint(params.responseSchema) : '';
+        const isGemini4 = /^gemini-4-/i.test(modelName);
         const requestConfig: Record<string, unknown> = hasTools
           ? {
               // When search grounding tools are active, omit responseMimeType/responseSchema to prevent 400 INVALID_ARGUMENT
               systemInstruction: `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido (sem markdown ou texto fora do JSON) seguindo exatamente o esquema solicitado.${schemaHint}`,
               tools: params.tools,
+              ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             }
           : {
               systemInstruction: params.systemInstruction,
               responseMimeType: 'application/json',
               responseSchema: params.responseSchema,
+              ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             };
 
         const attemptTimeoutMs = Math.max(20, Math.min(runtime.timeoutMs, Math.max(20, remainingBudgetMs - 1000)));
@@ -834,6 +1041,16 @@ export async function chamarGemini<T extends Record<string, unknown>>(
           statusMotivo: backupOutcome.fatal.safeReason,
         },
       };
+    }
+  }
+
+  // Phase 2.5: Alternative free-tier cloud providers (Groq / OpenRouter) if Gemini had transient failure
+  if (alternativeProviders.length > 0) {
+    const altFailover = await tryAlternativeProviders('reserva');
+    if (altFailover) {
+      altFailover.payload!.tentativas = totalAttempts + 1;
+      altFailover.audit.tentativas = totalAttempts + 1;
+      return altFailover;
     }
   }
 

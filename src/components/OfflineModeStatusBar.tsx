@@ -51,10 +51,19 @@ export const OfflineModeStatusBar: React.FC<OfflineModeStatusBarProps> = ({
     forceSyncOfflineData,
   } = useApp();
 
-  const isLocalRulesMode = !isOnline || catalogSource !== 'cloud' || aiRuntimeMode === 'local_rules';
+  const isNetworkOrCatalogLocal = !isOnline || catalogSource !== 'cloud';
+  const isAiLocalOnly = aiRuntimeMode === 'local_rules';
   const hasPending = pendingOfflineCounts.total > 0;
 
-  if (!alwaysShow && !isLocalRulesMode && !hasPending && !lastSyncFeedback) {
+  // No site público, exibe a faixa apenas quando houver offline real, snapshot local ou envios pendentes
+  const shouldShow =
+    alwaysShow ||
+    isNetworkOrCatalogLocal ||
+    hasPending ||
+    Boolean(lastSyncFeedback) ||
+    (variant === 'panel' && isAiLocalOnly);
+
+  if (!shouldShow) {
     return null;
   }
 
@@ -64,22 +73,22 @@ export const OfflineModeStatusBar: React.FC<OfflineModeStatusBarProps> = ({
 
   if (!isOnline) {
     tone = 'offline';
-    title = 'Modo local offline ativo — Motor de regras em persistência local';
-    subtitle = `Sem conexão de rede. Diagnóstico e orientações seguem operando com a base salva no dispositivo (${formatSyncTimePtBr(lastRulesSyncAt)}).`;
-  } else if (aiRuntimeMode === 'local_rules') {
-    tone = 'local';
-    title = 'Modo de regras locais ativo — IA em nuvem indisponível no momento';
-    subtitle =
-      aiRuntimeReason ||
-      'O motor determinístico local está operando normalmente e registrando as decisões para revisão da consultoria.';
+    title = 'Modo offline ativo — Motor de regras em persistência local';
+    subtitle = `Sem conexão de rede. Diagnóstico e orientações seguem operando normalmente com a base salva no dispositivo (${formatSyncTimePtBr(lastRulesSyncAt)}).`;
   } else if (catalogSource !== 'cloud') {
     tone = 'local';
-    title = 'Modo local ativo — Base do motor carregada do armazenamento local';
+    title = 'Modo local ativo — Base do motor carregada do dispositivo';
     subtitle = `Última sincronização com a nuvem: ${formatSyncTimePtBr(lastRulesSyncAt)}.`;
   } else if (hasPending) {
     tone = 'pending';
-    title = `Conexão restabelecida — ${pendingOfflineCounts.total} registro(s) local(is) aguardando sincronização`;
-    subtitle = `${pendingOfflineCounts.pendingLeads} diagnóstico(s) e ${pendingOfflineCounts.pendingLogs} log(s) de decisão do motor de regras prontos para envio à nuvem.`;
+    title = `Conexão restabelecida — ${pendingOfflineCounts.total} registro(s) aguardando sincronização`;
+    subtitle = `${pendingOfflineCounts.pendingLeads} diagnóstico(s) e ${pendingOfflineCounts.pendingLogs} log(s) de decisão prontos para envio à nuvem.`;
+  } else if (isAiLocalOnly && variant === 'panel') {
+    tone = 'local';
+    title = 'Motor Local Inteligente ativo (regras SERMIG/BCN)';
+    subtitle =
+      aiRuntimeReason ||
+      'Diagnósticos, pareceres e checklists operam normalmente pelo motor determinístico local, com registro interno para revisão da equipe.';
   }
 
   const palette =

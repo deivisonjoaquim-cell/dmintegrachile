@@ -271,12 +271,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ) {
         const aiHealth = await fetchAiHealthStatus();
         if (aiHealth) {
-          if (aiHealth.geminiConfigured) {
+          const hasCloudAi = Boolean(aiHealth.cloudAiConfigured ?? aiHealth.geminiConfigured);
+          if (hasCloudAi) {
             setLocalAiRuntimeNotice('cloud');
           } else {
             setLocalAiRuntimeNotice(
               'local_rules',
-              'Modo de regras locais ativo: a chave GEMINI_API_KEY não está configurada no ambiente do servidor.',
+              'Motor Local Inteligente ativo (100% funcional sem chave). Para ativar IA em nuvem gratuita na Vercel, configure GEMINI_API_KEY, GROQ_API_KEY ou OPENROUTER_API_KEY.',
             );
           }
         }
@@ -367,12 +368,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let cancelled = false;
     void fetchAiHealthStatus().then((health) => {
       if (cancelled || !health) return;
-      if (health.geminiConfigured) {
+      const hasCloudAi = Boolean(health.cloudAiConfigured ?? health.geminiConfigured);
+      if (hasCloudAi) {
         setLocalAiRuntimeNotice('cloud');
       } else {
         setLocalAiRuntimeNotice(
           'local_rules',
-          'Modo de regras locais ativo: a chave GEMINI_API_KEY não está configurada no ambiente do servidor.',
+          'Motor Local Inteligente ativo (100% funcional sem chave). Para ativar IA em nuvem gratuita na Vercel, configure GEMINI_API_KEY, GROQ_API_KEY ou OPENROUTER_API_KEY.',
         );
       }
     });

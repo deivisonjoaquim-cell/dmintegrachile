@@ -261,6 +261,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [caseSermigFilter, setCaseSermigFilter] = useState<string>('all');
   const [caseVisaFilter, setCaseVisaFilter] = useState<string>('all');
   const [caseCriticalOnly, setCaseCriticalOnly] = useState(false);
+  const [showMoreCaseFilters, setShowMoreCaseFilters] = useState(false);
 
   // Modais de criação e dossiê
   const [clientModalOpen, setClientModalOpen] = useState(false);
@@ -4708,39 +4709,43 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         ) || null
       : null;
 
+  const activeExtraCaseFiltersCount =
+    (casePriorityFilter !== 'all' ? 1 : 0) +
+    (caseSermigFilter !== 'all' ? 1 : 0) +
+    (caseVisaFilter !== 'all' ? 1 : 0) +
+    (caseCriticalOnly ? 1 : 0);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             {mode === 'clientes'
-              ? 'Clientes (CRM & Dossiê 360°)'
+              ? 'Clientes'
               : mode === 'casos'
-                ? 'Casos Migratórios & Pipeline'
-                : 'Clientes & Casos Migratórios'}
+                ? 'Processos'
+                : 'Clientes & Processos'}
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {mode === 'clientes'
-              ? 'Cadastre clientes, importe CSV, gerencie acesso ao Portal, dependentes e consentimento LGPD'
-              : mode === 'casos'
-                ? 'Conduza processos nas 15 etapas do pipeline, conferência documental, pareceres e prazos SERMIG'
-                : 'Cadastre clientes com dossiê 360°, importe CSV, e conduza processos nas 15 etapas do pipeline'}
+              ? 'Cadastro de clientes, dependentes e acesso ao Portal do Cliente.'
+              : 'Acompanhe cada cliente em 5 etapas simples: Diagnóstico, Abertura, Documentos, Protocolo SERMIG e Finalização.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {mode === 'ambos' && (
-            <div className="flex items-center p-1 bg-slate-200/70 rounded-lg">
+            <div className="flex items-center p-1 bg-slate-200/70 dark:bg-slate-800 rounded-lg">
               <button
                 type="button"
                 onClick={() => setSubView('casos')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'casos' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'casos' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
               >
-                Casos ({cases.length})
+                Processos ({cases.length})
               </button>
               <button
                 type="button"
                 onClick={() => setSubView('clientes')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'clientes' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'clientes' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
               >
                 Clientes ({clients.filter((c) => !c.arquivado).length})
               </button>
@@ -4752,7 +4757,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               <button
                 type="button"
                 onClick={() => setCsvImportOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
               >
                 <Upload className="w-3.5 h-3.5" />
                 Importar CSV
@@ -4763,7 +4768,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold ${
                   mode === 'clientes'
                     ? 'text-white'
-                    : 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                    : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
                 style={mode === 'clientes' ? { backgroundColor: 'var(--color-primary)' } : undefined}
               >
@@ -4780,40 +4785,88 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               <Plus className="w-3.5 h-3.5" />
-              Novo Caso
+              Novo Processo
             </button>
           )}
         </div>
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium">
+        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 font-medium">
           {feedback}
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium">
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-[#C82333] dark:text-red-300 font-medium">
           {errorMsg}
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+        {/* Barra rápida de 5 etapas em 1 clique para Processos */}
+        {subView === 'casos' && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <button
+              type="button"
+              onClick={() => setCaseStageFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
+                caseStageFilter === 'all'
+                  ? 'bg-[#0B1F33] dark:bg-sky-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              Todos ({cases.filter((c) => !c.arquivado).length})
+            </button>
+            {MACRO_FUNNEL_STAGES.map((m) => {
+              const value = `macro:${m.id}`;
+              const active = caseStageFilter === value;
+              const count = cases.filter((c) => !c.arquivado && getMacroStageForCase(c).id === m.id).length;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setCaseStageFilter(value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
+                    active
+                      ? 'bg-[#0B1F33] dark:bg-sky-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {m.ordem}. {m.nome} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por cliente, título do caso, CPF, WhatsApp ou nº pedido SERMIG..."
-            className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 text-sm"
+            placeholder="Buscar por cliente, título do processo, CPF, WhatsApp ou nº SERMIG..."
+            className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 text-sm"
           />
           {subView === 'casos' ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowMoreCaseFilters((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold whitespace-nowrap ${
+                  showMoreCaseFilters || activeExtraCaseFiltersCount > 0
+                    ? 'border-[#0B1F33] dark:border-sky-500 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                Mais filtros{activeExtraCaseFiltersCount > 0 ? ` (${activeExtraCaseFiltersCount})` : ''}
+              </button>
               <button
                 type="button"
                 onClick={() => setCasesLayout(casesLayout === 'lista' ? 'kanban' : 'lista')}
-                className="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
               >
-                Visualização: {casesLayout === 'lista' ? 'Lista' : 'Kanban'}
+                Ver como: {casesLayout === 'lista' ? 'Kanban' : 'Lista'}
               </button>
               <button
                 type="button"
@@ -4831,7 +4884,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     ]),
                   )
                 }
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
               >
                 <Download className="w-3.5 h-3.5" />
                 CSV
@@ -4854,10 +4907,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   ]),
                 )
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               <Download className="w-3.5 h-3.5" />
-              Exportar Clientes CSV
+              Exportar CSV
             </button>
           )}
         </div>
@@ -4868,7 +4921,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={clientPortalFilter}
               onChange={(e) => setClientPortalFilter(e.target.value as 'all' | 'liberado' | 'pendente')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
             >
               <option value="all">Portal: Todos</option>
               <option value="liberado">Portal Liberado</option>
@@ -4877,7 +4930,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={clientPassportFilter}
               onChange={(e) => setClientPassportFilter(e.target.value as 'all' | 'expiring_12m')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
             >
               <option value="all">Passaporte: Todos</option>
               <option value="expiring_12m">Passaporte &lt; 12 meses</option>
@@ -4885,12 +4938,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={clientPendingFilter}
               onChange={(e) => setClientPendingFilter(e.target.value as 'all' | 'com_pendencias')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
             >
               <option value="all">Pendências: Todas</option>
               <option value="com_pendencias">Com documentos pendentes</option>
             </select>
-            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={showArchivedClients}
@@ -4899,33 +4952,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               Mostrar arquivados
             </label>
           </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <select
-              value={caseStageFilter}
-              onChange={(e) => setCaseStageFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
-            >
-              <option value="all">Funil / Etapa: Todas</option>
-              <optgroup label="Marcos do Funil (5 Etapas)">
-                {MACRO_FUNNEL_STAGES.map((m) => (
-                  <option key={m.id} value={`macro:${m.id}`}>
-                    {m.ordem}. {m.nome}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Sub-etapas Operacionais (Detalhe)">
-                {PIPELINE_STAGES.map((st) => (
-                  <option key={st.numero} value={String(st.numero)}>
-                    Sub-etapa {st.numero}: {st.nome}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
+        ) : showMoreCaseFilters ? (
+          <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs">
             <select
               value={casePriorityFilter}
               onChange={(e) => setCasePriorityFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
             >
               <option value="all">Prioridade: Todas</option>
               <option value="Urgente">Urgente</option>
@@ -4936,7 +4968,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={caseSermigFilter}
               onChange={(e) => setCaseSermigFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
             >
               <option value="all">SERMIG: Todos</option>
               {SERMIG_STATUSES.map((s) => (
@@ -4946,14 +4978,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={caseVisaFilter}
               onChange={(e) => setCaseVisaFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
             >
               <option value="all">Subcategoria: Todas</option>
               {visaCategories.map((v) => (
                 <option key={v.id} value={v.id}>{v.codigo} — {v.nomePortugues}</option>
               ))}
             </select>
-            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={caseCriticalOnly}
@@ -4961,8 +4993,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               />
               Prazos críticos (&le; 30d)
             </label>
+            {activeExtraCaseFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCasePriorityFilter('all');
+                  setCaseSermigFilter('all');
+                  setCaseVisaFilter('all');
+                  setCaseCriticalOnly(false);
+                }}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {subView === 'clientes' ? (
@@ -5011,7 +5057,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
                         style={{ backgroundColor: 'var(--color-primary)' }}
                       >
-                        Abrir Dossiê (9 Abas)
+                        Abrir Cliente
                       </button>
                       {canManageClients && (
                         <>
@@ -5146,7 +5192,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white"
                           style={{ backgroundColor: 'var(--color-primary)' }}
                         >
-                          Abrir Ficha (8 Abas)
+                          Abrir Processo
                         </button>
                         {isAdmin && (
                           <button

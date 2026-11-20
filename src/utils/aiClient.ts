@@ -52,6 +52,15 @@ const SAFE_PT_MESSAGES = [
 export interface AiEngineHealthInfo {
   ok: boolean;
   geminiConfigured: boolean;
+  cloudAiConfigured?: boolean;
+  activeProvider?: 'gemini' | 'groq' | 'openrouter' | 'local_rules';
+  providers?: {
+    gemini: boolean;
+    groq: boolean;
+    openrouter: boolean;
+    localRules: boolean;
+  };
+  vercelHobbyOptimized?: boolean;
   mode: 'gemini_plus_rules' | 'rules_live_hybrid';
   primaryModel: string;
   fallbackModel: string;
