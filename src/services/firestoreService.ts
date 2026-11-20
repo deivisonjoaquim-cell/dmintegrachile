@@ -82,6 +82,21 @@ import {
   validateBancarioConfigPayload,
   validateEmpresaConfigPayload,
 } from '../utils/firestoreUtils';
+import {
+  sanitizeDiagnosticLeadPayload,
+  sanitizeDiagnosticSessionPayload,
+} from '../utils/firestorePayloads';
+import {
+  buildAuditLogPayloadForRuleDecision,
+  loadRuleEngineSnapshotAsync,
+  recordRuleEngineDecision,
+  saveRuleEngineSnapshot,
+  setLocalAiRuntimeNotice,
+  type CatalogSyncSource,
+  type PendingOfflineDiagnostic,
+  type RuleDecisionOrigin,
+  type RuleEngineDecisionLog,
+} from '../utils/offlineRuleEngineStore';
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
 import { upgradeLegacyCopyString, upgradeLegacySiteContentCopy } from '../utils/homeCopyNormalizer';
 import { reportAppError } from './errorService';
@@ -371,6 +386,216 @@ export async function fetchActiveDiagnosticRules(): Promise<DiagnosticRuleVersio
   } catch {
     return DEFAULT_DIAGNOSTIC_RULE_VERSION;
   }
+}
+
+export interface RuleEngineBundleResult {
+  fromCloud: boolean;
+  source: CatalogSyncSource;
+  savedAt: string;
+  empresa: EmpresaConfig;
+  siteContent: SiteContent[];
+  partnersPublic: PartnerPublic[];
+  visaCategories: VisaCategory[];
+  visaRequirements: VisaRequirement[];
+  legalSources: LegalSource[];
+  activeDiagnosticRules: DiagnosticRuleVersion;
+}
+
+export async function fetchRuleEngineBundleWithSync(): Promise<RuleEngineBundleResult> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    const ds = getDevE2eDataset();
+    const cat = devE2eGetCatalog();
+    return {
+      fromCloud: true,
+      source: 'cloud',
+      savedAt: new Date().toISOString(),
+      empresa: ds.empresa,
+      siteContent: ds.siteContent,
+      partnersPublic: ds.partnersPublic,
+      visaCategories: cat.categories,
+      visaRequirements: cat.requirements,
+      legalSources: cat.legalSources,
+      activeDiagnosticRules: DEFAULT_DIAGNOSTIC_RULE_VERSION,
+    };
+  }
+
+  const isBrowserOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (isBrowserOffline) {
+    const localSnap = await loadRuleEngineSnapshotAsync();
+    return {
+      fromCloud: false,
+      source: localSnap.source,
+      savedAt: localSnap.savedAt,
+      empresa: localSnap.empresa,
+      siteContent: SEED_SITE_CONTENT,
+      partnersPublic: SEED_PARTNERS.map((p) => p.pub),
+      visaCategories: localSnap.visaCategories,
+      visaRequirements: localSnap.visaRequirements,
+      legalSources: localSnap.legalSources,
+      activeDiagnosticRules: localSnap.activeDiagnosticRules,
+    };
+  }
+
+  try {
+    const [empresaSnap, siteSnap, partnersSnap, catSnap, reqSnap, legSnap, rulesSnap] = await Promise.all([
+      getDoc(doc(db, 'config', 'empresa')),
+      getDocs(query(collection(db, 'siteContent'), where('ativo', '==', true))),
+      getDocs(
+        query(
+          collection(db, 'partnersPublic'),
+          where('recomendadoAosClientes', '==', true),
+          where('statusHomologacao', '==', 'Ativo/Indicado'),
+        ),
+      ),
+      getDocs(query(collection(db, 'visaCategories'), where('ativo', '==', true))),
+      getDocs(query(collection(db, 'visaRequirements'), where('peso', '>=', 1))),
+      getDocs(
+        query(
+          collection(db, 'legalSources'),
+          where('statusVigencia', 'in', ['Vigente', 'Alterada', 'Revogada', 'A verificar']),
+        ),
+      ),
+      getDocs(query(collection(db, 'diagnosticRuleVersions'), where('ativa', '==', true))),
+    ]);
+
+    const empresa = empresaSnap.exists()
+      ? normalizeEmpresaConfig(empresaSnap.data() as Partial<EmpresaConfig>)
+      : DEFAULT_EMPRESA_CONFIG;
+
+    const siteContent = siteSnap.empty
+      ? SEED_SITE_CONTENT
+      : normalizeSiteContentAssets(
+          siteSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) })),
+        ).sort((a, b) => a.ordem - b.ordem);
+
+    const partnersPublic = partnersSnap.empty
+      ? SEED_PARTNERS.map((p) => p.pub)
+      : partnersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PartnerPublic, 'id'>) }));
+
+    const rawCategories = catSnap.empty
+      ? SEED_VISA_CATEGORIES
+      : catSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaCategory, 'id'>) }));
+    const mercosulSeed = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
+    const visaCategories = rawCategories.map((c) => (c.codigo === '15' ? { ...c, ...mercosulSeed, id: c.id } : c));
+
+    const visaRequirements = reqSnap.empty
+      ? SEED_VISA_REQUIREMENTS
+      : reqSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaRequirement, 'id'>) }));
+
+    const legalSources = legSnap.empty
+      ? SEED_LEGAL_SOURCES
+      : legSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LegalSource, 'id'>) }));
+
+    const ruleRows = rulesSnap.empty
+      ? [DEFAULT_DIAGNOSTIC_RULE_VERSION]
+      : rulesSnap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<DiagnosticRuleVersion, 'id'>) }))
+          .sort((a, b) => (b.dataPublicacao || '').localeCompare(a.dataPublicacao || ''));
+    const activeDiagnosticRules = ruleRows[0] || DEFAULT_DIAGNOSTIC_RULE_VERSION;
+
+    const persisted = await saveRuleEngineSnapshot({
+      empresa,
+      visaCategories,
+      visaRequirements,
+      legalSources,
+      activeDiagnosticRules,
+      source: 'cloud',
+    });
+
+    return {
+      fromCloud: true,
+      source: 'cloud',
+      savedAt: persisted.savedAt,
+      empresa,
+      siteContent,
+      partnersPublic,
+      visaCategories,
+      visaRequirements,
+      legalSources,
+      activeDiagnosticRules,
+    };
+  } catch {
+    const localSnap = await loadRuleEngineSnapshotAsync();
+    return {
+      fromCloud: false,
+      source: localSnap.source,
+      savedAt: localSnap.savedAt,
+      empresa: localSnap.empresa,
+      siteContent: SEED_SITE_CONTENT,
+      partnersPublic: SEED_PARTNERS.map((p) => p.pub),
+      visaCategories: localSnap.visaCategories,
+      visaRequirements: localSnap.visaRequirements,
+      legalSources: localSnap.legalSources,
+      activeDiagnosticRules: localSnap.activeDiagnosticRules,
+    };
+  }
+}
+
+export async function syncRuleEngineDecisionLogToFirestore(
+  log: RuleEngineDecisionLog,
+  actorRole?: UserRole,
+): Promise<void> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return;
+  }
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('Autenticação obrigatória para sincronizar logs de decisão na nuvem.');
+  }
+  const payload = buildAuditLogPayloadForRuleDecision(log);
+  const docId = `aud_rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  try {
+    await setDoc(doc(db, 'auditLogs', docId), {
+      id: docId,
+      actorUid: String(currentUser.uid).slice(0, 128),
+      actorEmail: String(currentUser.email || '').slice(0, 200),
+      actorRole: String(actorRole || 'usuario').slice(0, 40),
+      acao: payload.acao,
+      entidade: payload.entidade,
+      entidadeId: payload.entidadeId,
+      campo: payload.campo,
+      antes: '',
+      depois: payload.depois,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `auditLogs/${docId}`);
+  }
+}
+
+export async function syncPendingOfflineDiagnosticToFirestore(
+  pending: PendingOfflineDiagnostic,
+): Promise<{ leadId: string }> {
+  if (import.meta.env.DEV && isDevE2eActive()) {
+    return { leadId: pending.existingLeadId || pending.id };
+  }
+  const leadId = pending.existingLeadId || makeId('lead');
+  const isNewLead = !pending.existingLeadId;
+  const leadPayload = sanitizeDiagnosticLeadPayload(
+    {
+      ...pending.leadPayload,
+      id: leadId,
+      statusFunil: 'Novo',
+      createdAt: pending.createdAt,
+    },
+    { isNew: isNewLead, forcePublicCreate: true },
+  );
+  await setDoc(doc(db, 'leads', leadId), stripUndefined(leadPayload), { merge: true });
+
+  const sessionPayload = sanitizeDiagnosticSessionPayload(
+    pending.sessionToken,
+    {
+      ...pending.sessionPayload,
+      leadId,
+      createdAt: pending.createdAt,
+    },
+    isNewLead,
+  );
+  await setDoc(doc(db, 'diagnosticSessions', pending.sessionToken), stripUndefined(sessionPayload), {
+    merge: true,
+  });
+
+  return { leadId };
 }
 
 export async function fetchAllDiagnosticRuleVersions(): Promise<DiagnosticRuleVersion[]> {
@@ -2167,7 +2392,57 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
     }
   };
 
-  return executeFetch(false, Boolean(options?.onProgress));
+  const routeOriginMap: Record<string, RuleDecisionOrigin> = {
+    '/api/ai/diagnostico': 'diagnostico_ia_regras',
+    '/api/ai/parecer': 'parecer_regras',
+    '/api/ai/custos': 'custos_regras',
+    '/api/ai/norma': 'norma_regras',
+    '/api/ai/norma-verificar': 'norma_regras',
+    '/api/ai/analisar-documento': 'documento_regras',
+    '/api/ai/proposta': 'proposta_regras',
+  };
+
+  try {
+    const result = await executeFetch(false, Boolean(options?.onProgress));
+    const meta = result as {
+      fallback?: boolean;
+      origem?: string;
+      mensagemUsuario?: string;
+      resumoExecutivo?: string;
+      fontesCitadas?: string[];
+      riscos?: string[];
+    };
+    if (meta?.fallback || meta?.origem === 'regras') {
+      setLocalAiRuntimeNotice('local_rules', meta.mensagemUsuario);
+      const reqBody = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+      const subLabel =
+        typeof reqBody.subcategoriaRecomendada === 'string' && reqBody.subcategoriaRecomendada.trim()
+          ? reqBody.subcategoriaRecomendada.trim()
+          : endpoint.replace('/api/ai/', '').toUpperCase();
+      recordRuleEngineDecision({
+        mode: 'online_fallback_regras',
+        origin: routeOriginMap[endpoint] || 'diagnostico_ia_regras',
+        ruleVersion: 'regras-servidor',
+        subcategoriaRecomendada: subLabel,
+        regrasAcionadas: Array.isArray(reqBody.regrasAcionadas)
+          ? reqBody.regrasAcionadas.map((r) => String(r))
+          : meta.resumoExecutivo
+            ? [meta.resumoExecutivo]
+            : [`Execução via motor local inteligente em ${endpoint}`],
+        flagsRisco: Array.isArray(meta.riscos) ? meta.riscos.map((r) => String(r)) : [],
+        fontesLegaisCitadas: Array.isArray(meta.fontesCitadas) ? meta.fontesCitadas.map((f) => String(f)) : [],
+        motivoModoLocal: meta.mensagemUsuario || 'IA em nuvem indisponível; resposta gerada pelo motor local inteligente.',
+      });
+    } else if (meta?.origem === 'principal' || meta?.origem === 'reserva') {
+      setLocalAiRuntimeNotice('cloud');
+    }
+    return result;
+  } catch (err) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setLocalAiRuntimeNotice('local_rules', 'Sem conexão de rede — operando no motor local persistido.');
+    }
+    throw err;
+  }
 }
 
 export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {

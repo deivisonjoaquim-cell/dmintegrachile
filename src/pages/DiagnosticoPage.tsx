@@ -50,6 +50,12 @@ import {
   saveAiDraftCache,
 } from '../utils/aiClient';
 import {
+  buildLocalDiagnosticSynthesis,
+  recordRuleEngineDecision,
+  savePendingOfflineDiagnostic,
+  setLocalAiRuntimeNotice,
+} from '../utils/offlineRuleEngineStore';
+import {
   formatLegalSourceWithJurisdiction,
   getJurisdictionTextClass,
 } from '../utils/legalJurisdiction';
@@ -673,36 +679,43 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           savedLeadIdRef.current && savedLeadIdRef.current !== 'local-preview'
             ? savedLeadIdRef.current
             : undefined;
+        let savedToCloud = false;
+        const submittedIso = new Date().toISOString();
+        const combinedRiskFlags = [
+          ...diag.flagsRisco.map((f) => f.pergunta),
+          ...diag.flagsRevisaoConsultor.map((f) => f.label),
+        ];
+        const leadDataPayload = {
+          nome: cleanAnswers.nome.trim(),
+          whatsapp: cleanAnswers.whatsapp.trim(),
+          email: cleanAnswers.email.trim().toLowerCase(),
+          cidadeUf: cleanAnswers.cidadeUf.trim(),
+          origem: cleanAnswers.origem,
+          interesse: diag.recomendada?.visa.nomePortugues || 'Análise migratória',
+          respostasTriagem: cleanAnswers,
+          subcategoriaSugerida: subLabel,
+          notaViabilidade: diag.viabilidade.total,
+          confianca: diag.confianca,
+          temperatura,
+          prioridade,
+          flagsRisco: combinedRiskFlags,
+          versaoRegras: diag.versaoRegras.versao,
+          sessionToken: token,
+          statusConclusao: 'Concluído' as const,
+          etapaAtual: 6,
+          utmSource: utm.source,
+          utmMedium: utm.medium,
+          utmCampaign: utm.campaign,
+          lgpdAceito: cleanAnswers.lgpdAceito,
+          lgpdVersao: empresa.termoLgpdVersao || '1.0',
+          lgpdData: submittedIso,
+        };
         try {
+          if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            throw new Error('offline');
+          }
           const saved = await saveDiagnosticFirestore(
-            {
-              nome: cleanAnswers.nome.trim(),
-              whatsapp: cleanAnswers.whatsapp.trim(),
-              email: cleanAnswers.email.trim().toLowerCase(),
-              cidadeUf: cleanAnswers.cidadeUf.trim(),
-              origem: cleanAnswers.origem,
-              interesse: diag.recomendada?.visa.nomePortugues || 'Análise migratória',
-              respostasTriagem: cleanAnswers,
-              subcategoriaSugerida: subLabel,
-              notaViabilidade: diag.viabilidade.total,
-              confianca: diag.confianca,
-              temperatura,
-              prioridade,
-              flagsRisco: [
-                ...diag.flagsRisco.map((f) => f.pergunta),
-                ...diag.flagsRevisaoConsultor.map((f) => f.label),
-              ],
-              versaoRegras: diag.versaoRegras.versao,
-              sessionToken: token,
-              statusConclusao: 'Concluído',
-              etapaAtual: 6,
-              utmSource: utm.source,
-              utmMedium: utm.medium,
-              utmCampaign: utm.campaign,
-              lgpdAceito: cleanAnswers.lgpdAceito,
-              lgpdVersao: empresa.termoLgpdVersao || '1.0',
-              lgpdData: new Date().toISOString(),
-            },
+            leadDataPayload,
             existingLeadId
               ? { existingLeadId, createdAt: leadCreatedAtRef.current }
               : undefined,
@@ -714,34 +727,71 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             leadCreatedAtRef.current = saved.createdAt;
             setLeadCreatedAt(saved.createdAt);
           }
+          savedToCloud = true;
         } catch {
-          // fallback preview
+          savedToCloud = false;
         }
 
         const expDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
         const existingSessionCreatedAt = sessionCreatedAtRef.current;
-        try {
-          const savedSess = await saveDiagnosticSessionFirestore(
-            token,
-            {
-              etapaAtual: 6,
-              answers: cleanAnswers,
-              concluido: true,
-              leadId: finalLeadId !== 'local-preview' ? finalLeadId : '',
-              expiraEmMs: Date.now() + expDays * 86400000,
-              utm,
-              createdAt: existingSessionCreatedAt,
-            },
-            !existingSessionCreatedAt,
-          );
-          const resolvedCreatedAt = existingSessionCreatedAt || savedSess.createdAt;
-          if (resolvedCreatedAt) {
-            sessionCreatedAtRef.current = resolvedCreatedAt;
-            setSessionCreatedAt(resolvedCreatedAt);
+        const sessionPayload = {
+          etapaAtual: 6,
+          answers: cleanAnswers,
+          concluido: true,
+          expiraEmMs: Date.now() + expDays * 86400000,
+          utm,
+        };
+        if (savedToCloud) {
+          try {
+            const savedSess = await saveDiagnosticSessionFirestore(
+              token,
+              {
+                ...sessionPayload,
+                leadId: finalLeadId !== 'local-preview' ? finalLeadId : '',
+                createdAt: existingSessionCreatedAt,
+              },
+              !existingSessionCreatedAt,
+            );
+            const resolvedCreatedAt = existingSessionCreatedAt || savedSess.createdAt;
+            if (resolvedCreatedAt) {
+              sessionCreatedAtRef.current = resolvedCreatedAt;
+              setSessionCreatedAt(resolvedCreatedAt);
+            }
+          } catch {
+            // non-blocking
           }
-        } catch {
-          // non-blocking
+        } else {
+          // Persiste diagnóstico completo localmente para envio automático assim que a conexão retornar
+          savePendingOfflineDiagnostic({
+            id: `offdiag_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            createdAt: submittedIso,
+            sessionToken: token,
+            existingLeadId,
+            leadPayload: leadDataPayload,
+            sessionPayload,
+          });
         }
+
+        // Registra a decisão do motor de regras no log interno local para auditoria e revisão da consultoria
+        recordRuleEngineDecision({
+          mode: savedToCloud ? 'online_nuvem' : 'offline',
+          origin: 'diagnostico_publico',
+          leadName: cleanAnswers.nome.trim(),
+          leadEmail: cleanAnswers.email.trim().toLowerCase(),
+          leadId: finalLeadId !== 'local-preview' ? finalLeadId : undefined,
+          sessionToken: token,
+          ruleVersion: diag.versaoRegras.versao,
+          subcategoriaRecomendada: subLabel,
+          notaViabilidade: diag.viabilidade.total,
+          confianca: diag.confianca,
+          regrasAcionadas: diag.regrasAcionadas,
+          flagsRisco: combinedRiskFlags,
+          fontesLegaisCitadas: diag.fontesLegais.map((f) => `${f.titulo}${f.numeroAno ? ` (${f.numeroAno})` : ''}`),
+          motivoModoLocal: savedToCloud
+            ? undefined
+            : 'Diagnóstico gerado em modo local por falha de rede ou indisponibilidade da nuvem; aguardando sincronização.',
+          syncStatus: savedToCloud ? 'sincronizado' : 'pendente',
+        });
 
         const finalUrl = `${window.location.origin}/diagnostico?retomar=${token}`;
         setResumeUrlSaved(finalUrl);
@@ -757,6 +807,43 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   const handleRefineAi = async () => {
     if (!result || aiLoading) return;
     setAiError(null);
+    const subLabel = result.recomendada
+      ? `${result.recomendada.visa.codigo} - ${result.recomendada.visa.nomePortugues}`
+      : 'Análise complementar';
+
+    const applyLocalSynthesisFallback = (reason: string) => {
+      const localDraft = buildLocalDiagnosticSynthesis(answers, result, reason);
+      setAiDraft(localDraft);
+      setLocalAiRuntimeNotice('local_rules', reason);
+      recordRuleEngineDecision({
+        mode: typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online_fallback_regras',
+        origin: 'diagnostico_ia_regras',
+        leadName: answers.nome?.trim() || undefined,
+        leadEmail: answers.email?.trim().toLowerCase() || undefined,
+        leadId: savedLeadId && savedLeadId !== 'local-preview' ? savedLeadId : undefined,
+        sessionToken: sessionToken || undefined,
+        ruleVersion: result.versaoRegras.versao,
+        subcategoriaRecomendada: subLabel,
+        notaViabilidade: result.viabilidade.total,
+        confianca: result.confianca,
+        regrasAcionadas: result.regrasAcionadas,
+        flagsRisco: [
+          ...result.flagsRisco.map((f) => f.pergunta),
+          ...result.flagsRevisaoConsultor.map((f) => f.label),
+        ],
+        fontesLegaisCitadas: result.fontesLegais.map((f) => `${f.titulo}${f.numeroAno ? ` (${f.numeroAno})` : ''}`),
+        motivoModoLocal: reason,
+        syncStatus: 'pendente',
+      });
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      applyLocalSynthesisFallback(
+        'Modo local offline ativo: sem conexão de rede para consultar a IA em nuvem. Orientações geradas diretamente pelas regras persistidas no dispositivo.',
+      );
+      return;
+    }
+
     if (!firebaseUser) {
       const profile = await loginWithGoogle();
       if (!profile) {
@@ -789,7 +876,19 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
       setAiDraft(data);
       saveAiDraftCache(aiCacheKey, data);
     } catch (err) {
-      setAiError(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      if (
+        (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+        msg.includes('Tempo limite excedido') ||
+        msg.includes('Falha de conexão') ||
+        msg.includes('Não foi possível gerar o rascunho agora')
+      ) {
+        applyLocalSynthesisFallback(
+          'Conexão com o servidor de IA indisponível no momento. Orientações geradas automaticamente pelo motor local de regras persistido.',
+        );
+      } else {
+        setAiError(msg);
+      }
     } finally {
       setAiLoading(false);
       setAiProgress(null);

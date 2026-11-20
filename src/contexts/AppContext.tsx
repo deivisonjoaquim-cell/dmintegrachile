@@ -16,23 +16,31 @@ import {
   subscribeDevE2eChanges,
 } from '../utils/devE2eBridge';
 import {
-  DEFAULT_DIAGNOSTIC_RULE_VERSION,
-  DEFAULT_EMPRESA_CONFIG,
-  SEED_LEGAL_SOURCES,
   SEED_PARTNERS,
   SEED_SITE_CONTENT,
-  SEED_VISA_CATEGORIES,
-  SEED_VISA_REQUIREMENTS,
 } from '../data/seeds';
 import {
-  fetchActiveDiagnosticRules,
-  fetchEmpresaConfig,
-  fetchPartnersPublic,
-  fetchSiteContentPublic,
-  fetchVisaCatalogPublic,
+  fetchAiHealthStatus,
+  fetchRuleEngineBundleWithSync,
   linkGoogleUserToClientOrLead,
   runIdempotentSeedsIfAdmin,
+  syncPendingOfflineDiagnosticToFirestore,
+  syncRuleEngineDecisionLogToFirestore,
 } from '../services/firestoreService';
+import {
+  countPendingOfflineItems,
+  getLocalAiRuntimeNotice,
+  hydratePendingDiagnosticsFromIdb,
+  hydrateRuleEngineLogsFromIdb,
+  listPendingOfflineDiagnostics,
+  listRuleEngineDecisionLogs,
+  loadRuleEngineSnapshotSync,
+  markRuleEngineDecisionSynced,
+  removePendingOfflineDiagnostic,
+  setLocalAiRuntimeNotice,
+  subscribeOfflineEngineChanges,
+  type CatalogSyncSource,
+} from '../utils/offlineRuleEngineStore';
 import type {
   DiagnosticRuleVersion,
   EmpresaConfig,
@@ -43,6 +51,15 @@ import type {
   VisaCategory,
   VisaRequirement,
 } from '../types/domain';
+
+export interface OfflineSyncResultSummary {
+  ok: boolean;
+  syncedCatalog: boolean;
+  syncedLeads: number;
+  syncedLogs: number;
+  remainingPending: number;
+  message: string;
+}
 
 interface AppContextValue {
   firebaseUser: User | null;
@@ -56,11 +73,20 @@ interface AppContextValue {
   visaRequirements: VisaRequirement[];
   legalSources: LegalSource[];
   activeDiagnosticRules: DiagnosticRuleVersion;
+  isOnline: boolean;
+  catalogSource: CatalogSyncSource;
+  lastRulesSyncAt: string | null;
+  aiRuntimeMode: 'unknown' | 'cloud' | 'local_rules';
+  aiRuntimeReason: string | null;
+  pendingOfflineCounts: { pendingLeads: number; pendingLogs: number; total: number };
+  syncingOffline: boolean;
+  lastSyncFeedback: string | null;
   loginWithGoogle: () => Promise<UserProfile | null>;
   logout: () => Promise<void>;
   clearAuthError: () => void;
   refreshPublicData: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
+  forceSyncOfflineData: () => Promise<OfflineSyncResultSummary>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -101,13 +127,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [empresa, setEmpresa] = useState<EmpresaConfig>(DEFAULT_EMPRESA_CONFIG);
+  const initialSnapshot = React.useMemo(() => loadRuleEngineSnapshotSync(), []);
+
+  const [empresa, setEmpresa] = useState<EmpresaConfig>(initialSnapshot.empresa);
   const [siteContent, setSiteContent] = useState<SiteContent[]>(SEED_SITE_CONTENT);
   const [partnersPublic, setPartnersPublic] = useState<PartnerPublic[]>(SEED_PARTNERS.map((p) => p.pub));
-  const [visaCategories, setVisaCategories] = useState<VisaCategory[]>(SEED_VISA_CATEGORIES);
-  const [visaRequirements, setVisaRequirements] = useState<VisaRequirement[]>(SEED_VISA_REQUIREMENTS);
-  const [legalSources, setLegalSources] = useState<LegalSource[]>(SEED_LEGAL_SOURCES);
-  const [activeDiagnosticRules, setActiveDiagnosticRules] = useState<DiagnosticRuleVersion>(DEFAULT_DIAGNOSTIC_RULE_VERSION);
+  const [visaCategories, setVisaCategories] = useState<VisaCategory[]>(initialSnapshot.visaCategories);
+  const [visaRequirements, setVisaRequirements] = useState<VisaRequirement[]>(initialSnapshot.visaRequirements);
+  const [legalSources, setLegalSources] = useState<LegalSource[]>(initialSnapshot.legalSources);
+  const [activeDiagnosticRules, setActiveDiagnosticRules] = useState<DiagnosticRuleVersion>(
+    initialSnapshot.activeDiagnosticRules,
+  );
+
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+  );
+  const [catalogSource, setCatalogSource] = useState<CatalogSyncSource>(initialSnapshot.source);
+  const [lastRulesSyncAt, setLastRulesSyncAt] = useState<string | null>(initialSnapshot.savedAt || null);
+  const [aiRuntimeMode, setAiRuntimeMode] = useState<'unknown' | 'cloud' | 'local_rules'>(
+    () => getLocalAiRuntimeNotice().mode,
+  );
+  const [aiRuntimeReason, setAiRuntimeReason] = useState<string | null>(
+    () => getLocalAiRuntimeNotice().reason || null,
+  );
+  const [pendingOfflineCounts, setPendingOfflineCounts] = useState(() => countPendingOfflineItems());
+  const [syncingOffline, setSyncingOffline] = useState(false);
+  const [lastSyncFeedback, setLastSyncFeedback] = useState<string | null>(null);
 
   // Aplica tema e layout dinâmicos lidos do Firestore (config/empresa) via CSS variables + Favicon
   useEffect(() => {
@@ -161,26 +206,180 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [empresa]);
 
-  const refreshPublicData = useCallback(async () => {
-    const [cfg, content, partners, catalog, rules] = await Promise.all([
-      fetchEmpresaConfig(),
-      fetchSiteContentPublic(),
-      fetchPartnersPublic(),
-      fetchVisaCatalogPublic(),
-      fetchActiveDiagnosticRules(),
-    ]);
-    setEmpresa(cfg);
-    setSiteContent(content);
-    setPartnersPublic(partners);
-    setVisaCategories(catalog.categories);
-    setVisaRequirements(catalog.requirements);
-    setLegalSources(catalog.legalSources);
-    setActiveDiagnosticRules(rules);
+  const refreshPublicDataWithStatus = useCallback(async (): Promise<boolean> => {
+    const bundle = await fetchRuleEngineBundleWithSync();
+    setEmpresa(bundle.empresa);
+    setSiteContent(bundle.siteContent);
+    setPartnersPublic(bundle.partnersPublic);
+    setVisaCategories(bundle.visaCategories);
+    setVisaRequirements(bundle.visaRequirements);
+    setLegalSources(bundle.legalSources);
+    setActiveDiagnosticRules(bundle.activeDiagnosticRules);
+    setCatalogSource(bundle.source);
+    if (bundle.savedAt) {
+      setLastRulesSyncAt(bundle.savedAt);
+    }
+    return bundle.fromCloud;
   }, []);
+
+  const refreshPublicData = useCallback(async (): Promise<void> => {
+    await refreshPublicDataWithStatus();
+  }, [refreshPublicDataWithStatus]);
 
   useEffect(() => {
     void refreshPublicData();
+    void Promise.all([hydrateRuleEngineLogsFromIdb(), hydratePendingDiagnosticsFromIdb()]).then(() => {
+      setPendingOfflineCounts(countPendingOfflineItems());
+    });
+    return subscribeOfflineEngineChanges(() => {
+      const notice = getLocalAiRuntimeNotice();
+      setAiRuntimeMode(notice.mode);
+      setAiRuntimeReason(notice.reason || null);
+      setPendingOfflineCounts(countPendingOfflineItems());
+    });
   }, [refreshPublicData]);
+
+  const forceSyncOfflineData = useCallback(async (): Promise<OfflineSyncResultSummary> => {
+    setSyncingOffline(true);
+    setLastSyncFeedback(null);
+    const onlineNow = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+    setIsOnline(onlineNow);
+
+    try {
+      if (!onlineNow) {
+        const counts = countPendingOfflineItems();
+        const message =
+          'Dispositivo ainda sem conexão de rede. O motor local segue operando com os dados salvos.';
+        setLastSyncFeedback(message);
+        return {
+          ok: false,
+          syncedCatalog: false,
+          syncedLeads: 0,
+          syncedLogs: 0,
+          remainingPending: counts.total,
+          message,
+        };
+      }
+
+      const syncedCatalog = await refreshPublicDataWithStatus();
+
+      // Verifica saúde da IA em nuvem quando há equipe autenticada
+      if (
+        userProfile &&
+        userProfile.status === 'ativo' &&
+        (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente')
+      ) {
+        const aiHealth = await fetchAiHealthStatus();
+        if (aiHealth) {
+          if (aiHealth.geminiConfigured) {
+            setLocalAiRuntimeNotice('cloud');
+          } else {
+            setLocalAiRuntimeNotice(
+              'local_rules',
+              'Modo de regras locais ativo: a chave GEMINI_API_KEY não está configurada no ambiente do servidor.',
+            );
+          }
+        }
+      }
+
+      let syncedLeads = 0;
+      const pendingDiags = listPendingOfflineDiagnostics();
+      for (const item of pendingDiags) {
+        try {
+          await syncPendingOfflineDiagnosticToFirestore(item);
+          removePendingOfflineDiagnostic(item.sessionToken);
+          syncedLeads += 1;
+        } catch {
+          // mantém na fila local para próxima tentativa
+        }
+      }
+
+      let syncedLogs = 0;
+      if (auth.currentUser || (import.meta.env.DEV && isDevE2eActive())) {
+        const pendingLogs = listRuleEngineDecisionLogs().filter((l) => l.syncStatus === 'pendente');
+        for (const log of pendingLogs) {
+          try {
+            await syncRuleEngineDecisionLogToFirestore(log, userProfile?.role);
+            markRuleEngineDecisionSynced(log.id);
+            syncedLogs += 1;
+          } catch {
+            // mantém pendente localmente
+          }
+        }
+      }
+
+      const remaining = countPendingOfflineItems();
+      setPendingOfflineCounts(remaining);
+
+      const parts: string[] = [];
+      parts.push(
+        syncedCatalog
+          ? 'Catálogo do motor de regras sincronizado com a nuvem'
+          : 'Não foi possível alcançar o Firestore agora (mantida base local)',
+      );
+      if (syncedLeads > 0) parts.push(`${syncedLeads} diagnóstico(s) offline enviado(s)`);
+      if (syncedLogs > 0) parts.push(`${syncedLogs} log(s) de decisão sincronizado(s)`);
+      if (remaining.total > 0 && !auth.currentUser && remaining.pendingLogs > 0) {
+        parts.push(`${remaining.pendingLogs} log(s) aguardam login da equipe para subir à nuvem`);
+      }
+
+      const message = `${parts.join(' · ')}.`;
+      setLastSyncFeedback(message);
+      return {
+        ok: syncedCatalog,
+        syncedCatalog,
+        syncedLeads,
+        syncedLogs,
+        remainingPending: remaining.total,
+        message,
+      };
+    } finally {
+      setSyncingOffline(false);
+    }
+  }, [refreshPublicDataWithStatus, userProfile]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOnline = () => {
+      setIsOnline(true);
+      void forceSyncOfflineData();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setLastSyncFeedback(null);
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [forceSyncOfflineData]);
+
+  useEffect(() => {
+    if (
+      !userProfile ||
+      userProfile.status !== 'ativo' ||
+      (userProfile.role !== 'admin' && userProfile.role !== 'consultor' && userProfile.role !== 'assistente')
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void fetchAiHealthStatus().then((health) => {
+      if (cancelled || !health) return;
+      if (health.geminiConfigured) {
+        setLocalAiRuntimeNotice('cloud');
+      } else {
+        setLocalAiRuntimeNotice(
+          'local_rules',
+          'Modo de regras locais ativo: a chave GEMINI_API_KEY não está configurada no ambiente do servidor.',
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userProfile]);
 
   const inFlightSyncRef = React.useRef<Map<string, Promise<UserProfile>>>(new Map());
 
@@ -387,11 +586,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         visaRequirements,
         legalSources,
         activeDiagnosticRules,
+        isOnline,
+        catalogSource,
+        lastRulesSyncAt,
+        aiRuntimeMode,
+        aiRuntimeReason,
+        pendingOfflineCounts,
+        syncingOffline,
+        lastSyncFeedback,
         loginWithGoogle,
         logout,
         clearAuthError,
         refreshPublicData,
         refreshUserProfile,
+        forceSyncOfflineData,
       }}
     >
       {children}

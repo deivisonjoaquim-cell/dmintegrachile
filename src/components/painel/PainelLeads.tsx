@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
 import { ConfirmActionModal } from '../ui/DesignSystem';
+import { OfflineDecisionLogsPanel } from './OfflineDecisionLogsPanel';
 import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
 import { buildUpdatedLeadFromPatch, type LeadQuickEditPatch } from '../../utils/leadKanban';
 import {
@@ -32,6 +33,7 @@ import {
   syncDiagnosticFollowUpTasks,
 } from '../../services/firestoreService';
 import type {
+  AuditLog,
   Client,
   DiagnosticAnswers,
   DiagnosticRuleVersion,
@@ -59,7 +61,15 @@ import {
   sanitizeClientAiError,
   saveAiDraftCache,
 } from '../../utils/aiClient';
+import {
+  listRuleEngineDecisionLogs,
+  mergeLocalAndCloudRuleLogs,
+  parseRuleDecisionLogsFromAuditLogs,
+  subscribeOfflineEngineChanges,
+} from '../../utils/offlineRuleEngineStore';
 type PanelTheme = 'light' | 'dark';
+
+export type PainelLeadsViewId = 'lista' | 'kanban' | 'inteligencia' | 'motor_local';
 
 interface PainelLeadsProps {
   role: UserRole;
@@ -68,6 +78,8 @@ interface PainelLeadsProps {
   leads: Lead[];
   clients: Client[];
   tasks: Task[];
+  auditLogs?: AuditLog[];
+  requestedView?: { view: PainelLeadsViewId; seq: number } | null;
   visaCategories: VisaCategory[];
   visaRequirements: VisaRequirement[];
   legalSources: LegalSource[];
@@ -87,6 +99,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   leads,
   clients,
   tasks,
+  auditLogs = [],
+  requestedView,
   visaCategories,
   visaRequirements,
   legalSources,
@@ -98,15 +112,33 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   onLogWhatsApp,
   onOpenCase,
 }) => {
-  const [view, setView] = useState<'lista' | 'kanban' | 'inteligencia'>(() => {
+  const [view, setView] = useState<PainelLeadsViewId>(() => {
     try {
       const saved = window.localStorage.getItem('dm_leads_view');
-      if (saved === 'lista' || saved === 'kanban' || saved === 'inteligencia') return saved;
+      if (saved === 'lista' || saved === 'kanban' || saved === 'inteligencia' || saved === 'motor_local') return saved;
     } catch {
       // ignore storage errors
     }
     return 'lista';
   });
+
+  useEffect(() => {
+    if (requestedView?.view) {
+      setView(requestedView.view);
+    }
+  }, [requestedView]);
+
+  const [localDecisionTick, setLocalDecisionTick] = useState(0);
+  useEffect(() => subscribeOfflineEngineChanges(() => setLocalDecisionTick((n) => n + 1)), []);
+
+  const pendingOfflineReviewCount = useMemo(() => {
+    void localDecisionTick;
+    const merged = mergeLocalAndCloudRuleLogs(
+      listRuleEngineDecisionLogs(),
+      parseRuleDecisionLogsFromAuditLogs(auditLogs),
+    );
+    return merged.filter((l) => l.syncStatus !== 'revisado').length;
+  }, [auditLogs, localDecisionTick]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [smartFilter, setSmartFilter] = useState<
@@ -552,12 +584,19 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               { id: 'lista', label: 'Lista' },
               { id: 'kanban', label: 'Kanban' },
               { id: 'inteligencia', label: 'Inteligência & Métricas' },
+              {
+                id: 'motor_local',
+                label:
+                  pendingOfflineReviewCount > 0
+                    ? `Motor Local (${pendingOfflineReviewCount})`
+                    : 'Motor Local',
+              },
             ].map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => {
-                  const next = t.id as typeof view;
+                  const next = t.id as PainelLeadsViewId;
                   setView(next);
                   try {
                     window.localStorage.setItem('dm_leads_view', next);
@@ -658,8 +697,16 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         </div>
       )}
 
-      {/* PAINEL DE INTELIGÊNCIA DO DIAGNÓSTICO */}
-      {view === 'inteligencia' ? (
+      {/* LOG INTERNO DO MOTOR DE REGRAS OFFLINE / LOCAL */}
+      {view === 'motor_local' ? (
+        <OfflineDecisionLogsPanel
+          role={role}
+          userProfile={userProfile}
+          auditLogs={auditLogs}
+          isDark={panelTheme === 'dark'}
+          onRefreshWorkspace={onRefresh}
+        />
+      ) : view === 'inteligencia' ? (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
             <div className="flex items-center gap-2">

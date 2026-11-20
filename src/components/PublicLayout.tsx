@@ -3,6 +3,7 @@ import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
 import { BrandLogo, BrandRibbon, BrandWordmark } from './BrandLogo';
+import { OfflineModeStatusBar } from './OfflineModeStatusBar';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -175,6 +176,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           </div>
         )}
       </header>
+
+      <OfflineModeStatusBar variant="public" />
 
       <main className={`flex-1 ${showMobileCtaBar ? 'pb-16 md:pb-0' : ''}`}>{children}</main>
 
