@@ -1,14 +1,17 @@
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { AI_FALLBACK_LABEL } from './geminiFallbacks.ts';
 
+export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-4-hydrogen';
+export const DEFAULT_GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite';
+
 export const MSG_AI_HIGH_DEMAND =
   'O serviço de IA está com alta demanda. Tentamos novamente automaticamente; se não responder, geramos um rascunho pelas regras. Você pode tentar de novo em instantes.';
 export const MSG_AI_OTHER_ERROR =
   'Não foi possível gerar o rascunho agora. Seus dados foram mantidos.';
 export const MSG_AI_MISSING_KEY =
-  'Modo de regras locais ativo: a chave da IA não está configurada no servidor.';
+  'Modo de regras locais ativo: a chave GEMINI_API_KEY não está configurada no ambiente do servidor (verifique Settings > Secrets no AI Studio ou Environment Variables na Vercel).';
 export const MSG_AI_INVALID_KEY =
-  'Chave de IA inválida ou sem permissão de acesso no servidor.';
+  'Chave de IA inválida ou sem permissão de acesso no servidor. Verifique GEMINI_API_KEY em Settings > Secrets.';
 export const MSG_AI_MODEL_NOT_FOUND =
   'Modelo de IA indisponível ou não encontrado na configuração atual do servidor.';
 export const MSG_AI_BLOCKED =
@@ -17,6 +20,67 @@ export const MSG_AI_BAD_REQUEST =
   'A solicitação de IA não pôde ser processada com os parâmetros enviados. Revise os dados e tente novamente.';
 export const MSG_AI_CONCURRENT_REQUEST =
   'Já existe uma solicitação de IA em andamento para sua conta. Aguarde a conclusão antes de tentar novamente.';
+
+const API_KEY_PLACEHOLDERS = new Set([
+  'MY_GEMINI_API_KEY',
+  'YOUR_GEMINI_API_KEY',
+  'GEMINI_API_KEY',
+  'REPLACE_ME',
+  'CHANGEME',
+  'UNDEFINED',
+  'NULL',
+]);
+
+export function normalizeGeminiApiKey(raw: string | undefined): string {
+  if (typeof raw !== 'string') return '';
+  const stripped = raw.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+  if (!stripped || stripped.length < 10) return '';
+  if (API_KEY_PLACEHOLDERS.has(stripped.toUpperCase())) return '';
+  if (/^MY_[A-Z0-9_]+$/i.test(stripped) || /^YOUR_[A-Z0-9_]+$/i.test(stripped)) return '';
+  return stripped;
+}
+
+export function isValidGeminiApiKey(raw: string | undefined): boolean {
+  return Boolean(normalizeGeminiApiKey(raw));
+}
+
+export function resolveGeminiApiKeyFromEnv(env: Record<string, string | undefined> = process.env): string {
+  const candidates = [
+    env.GEMINI_API_KEY,
+    env.GOOGLE_GENERATIVE_AI_API_KEY,
+    env.GOOGLE_API_KEY,
+    env.API_KEY,
+  ];
+  for (const candidate of candidates) {
+    const clean = normalizeGeminiApiKey(candidate);
+    if (clean) return clean;
+  }
+  return '';
+}
+
+const RETIRED_GEMINI_MODEL_RE = /^gemini-(?:1(?:\.\d+)?|2(?:\.\d+)?|pro|pro-vision)(?:-|$)/i;
+
+export function resolveGeminiModelFromEnv(raw: string | undefined, defaultModel: string): string {
+  if (typeof raw !== 'string') return defaultModel;
+  const cleaned = raw
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .trim()
+    .replace(/^models\//i, '');
+  if (!cleaned) return defaultModel;
+  // Reject pure numbers (e.g. accidental timeout value like "30000"), booleans, whitespace, or invalid chars
+  if (
+    /^\d+$/.test(cleaned) ||
+    /^(true|false|null|undefined|none)$/i.test(cleaned) ||
+    !/^[a-zA-Z][a-zA-Z0-9._-]{2,79}$/.test(cleaned) ||
+    /^MY_/i.test(cleaned) ||
+    RETIRED_GEMINI_MODEL_RE.test(cleaned)
+  ) {
+    console.warn(`[Gemini] Valor inválido ou obsoleto para modelo ("${cleaned}"); usando padrão "${defaultModel}".`);
+    return defaultModel;
+  }
+  return cleaned;
+}
 
 export type ModelTier = 'principal' | 'reserva' | 'regras';
 
@@ -64,9 +128,9 @@ export function formatFatalAiErrorMessage(fatal: ClassifiedGeminiError): string 
 }
 
 export function getGeminiRuntimeConfig(): GeminiRuntimeConfig {
-  const apiKey = process.env.GEMINI_API_KEY || '';
-  const primaryModel = (process.env.GEMINI_MODEL_PRIMARY || '').trim() || 'gemini-4-hydrogen';
-  const fallbackModel = (process.env.GEMINI_MODEL_FALLBACK || '').trim() || 'gemini-3.1-flash-lite';
+  const apiKey = resolveGeminiApiKeyFromEnv();
+  const primaryModel = resolveGeminiModelFromEnv(process.env.GEMINI_MODEL_PRIMARY, DEFAULT_GEMINI_PRIMARY_MODEL);
+  const fallbackModel = resolveGeminiModelFromEnv(process.env.GEMINI_MODEL_FALLBACK, DEFAULT_GEMINI_FALLBACK_MODEL);
   const parsedTimeout = Number(process.env.GEMINI_TIMEOUT_MS || 40000);
   const parsedMaxAttempts = Number(process.env.GEMINI_MAX_ATTEMPTS || 4);
   const parsedFallbackAttempts = Number(process.env.GEMINI_FALLBACK_ATTEMPTS || 2);
@@ -76,10 +140,10 @@ export function getGeminiRuntimeConfig(): GeminiRuntimeConfig {
     apiKey,
     primaryModel,
     fallbackModel,
-    timeoutMs: Number.isFinite(parsedTimeout) && parsedTimeout >= 1000 ? parsedTimeout : 40000,
+    timeoutMs: Number.isFinite(parsedTimeout) && parsedTimeout >= 1000 ? Math.min(120000, parsedTimeout) : 40000,
     maxAttempts: Number.isFinite(parsedMaxAttempts) && parsedMaxAttempts >= 1 ? Math.min(6, parsedMaxAttempts) : 4,
     fallbackAttempts: Number.isFinite(parsedFallbackAttempts) && parsedFallbackAttempts >= 1 ? Math.min(3, parsedFallbackAttempts) : 2,
-    baseDelayMs: Number.isFinite(parsedBaseDelay) && parsedBaseDelay >= 0 ? parsedBaseDelay : 1000,
+    baseDelayMs: Number.isFinite(parsedBaseDelay) && parsedBaseDelay >= 0 ? Math.min(15000, parsedBaseDelay) : 1000,
   };
 }
 
@@ -456,7 +520,8 @@ export async function chamarGemini<T extends Record<string, unknown>>(
 
   let generateFn = params.generateFn;
   if (!generateFn) {
-    if (!runtime.apiKey || runtime.apiKey === 'MY_GEMINI_API_KEY') {
+    const cleanApiKey = normalizeGeminiApiKey(runtime.apiKey);
+    if (!cleanApiKey) {
       const fb = await params.buildFallback();
       return {
         ok: true,
@@ -481,7 +546,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       };
     }
     const ai = new GoogleGenAI({
-      apiKey: runtime.apiKey,
+      apiKey: cleanApiKey,
       httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
     });
     generateFn = (args) =>
@@ -677,7 +742,15 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   };
 
   // Phase 1: Primary model (up to maxAttempts within wall clock budget)
-  const primaryOutcome = await tryModelPhase(runtime.primaryModel, 'principal', runtime.maxAttempts);
+  let effectivePrimaryModel = runtime.primaryModel;
+  let primaryOutcome = await tryModelPhase(effectivePrimaryModel, 'principal', runtime.maxAttempts);
+  if (primaryOutcome.fatal?.statusCode === 404 && effectivePrimaryModel !== DEFAULT_GEMINI_PRIMARY_MODEL) {
+    console.warn(
+      `[Gemini][${params.route}] Modelo configurado "${effectivePrimaryModel}" retornou 404; alternando para "${DEFAULT_GEMINI_PRIMARY_MODEL}".`,
+    );
+    effectivePrimaryModel = DEFAULT_GEMINI_PRIMARY_MODEL;
+    primaryOutcome = await tryModelPhase(effectivePrimaryModel, 'principal', runtime.maxAttempts);
+  }
   if (primaryOutcome.matched) {
     return {
       ok: true,
@@ -687,13 +760,13 @@ export async function chamarGemini<T extends Record<string, unknown>>(
         fallback: false,
         origem: 'principal',
         origemLabel: 'Rascunho gerado por IA (modelo principal)',
-        modeloUsado: runtime.primaryModel,
+        modeloUsado: effectivePrimaryModel,
         tentativas: totalAttempts,
       },
       audit: {
         rota: params.route,
         modeloTipo: 'principal',
-        modeloNome: runtime.primaryModel,
+        modeloNome: effectivePrimaryModel,
         tentativas: totalAttempts,
         resultado: 'sucesso',
         statusMotivo: 'ok',
@@ -708,7 +781,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       audit: {
         rota: params.route,
         modeloTipo: 'principal',
-        modeloNome: runtime.primaryModel,
+        modeloNome: effectivePrimaryModel,
         tentativas: totalAttempts,
         resultado: 'erro_definitivo',
         statusMotivo: primaryOutcome.fatal.safeReason,

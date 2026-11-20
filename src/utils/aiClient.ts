@@ -266,7 +266,7 @@ export function compactClientForAi(clientData: Record<string, unknown> | null | 
 // =============================================================================
 // Short-lived cache (30 min TTL) for generated AI/rule drafts
 // =============================================================================
-const CACHE_PREFIX = 'dm_integra_ai_cache_v1_';
+const CACHE_PREFIX = 'dm_integra_ai_cache_v2_';
 const DEFAULT_TTL_MS = 30 * 60 * 1000;
 
 interface CachedEntry<T> {
@@ -275,8 +275,20 @@ interface CachedEntry<T> {
   data: T;
 }
 
+function isStaleMissingKeyFallback(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  const meta = data as AiResponseMeta;
+  if (meta.fallback !== true) return false;
+  const msg = typeof meta.mensagemUsuario === 'string' ? meta.mensagemUsuario.toLowerCase() : '';
+  return msg.includes('modo de regras locais ativo') || msg.includes('chave') && msg.includes('não está configurada');
+}
+
 export function saveAiDraftCache<T>(key: string, data: T, ttlMs = DEFAULT_TTL_MS): void {
   if (!key || typeof window === 'undefined' || !window.localStorage) return;
+  if (isStaleMissingKeyFallback(data)) {
+    clearAiDraftCache(key);
+    return;
+  }
   try {
     const entry: CachedEntry<T> = {
       savedAt: Date.now(),
@@ -296,6 +308,10 @@ export function loadAiDraftCache<T>(key: string): T | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CachedEntry<T>;
     if (!parsed || typeof parsed.expiresAt !== 'number' || Date.now() > parsed.expiresAt) {
+      window.localStorage.removeItem(`${CACHE_PREFIX}${key}`);
+      return null;
+    }
+    if (isStaleMissingKeyFallback(parsed.data)) {
       window.localStorage.removeItem(`${CACHE_PREFIX}${key}`);
       return null;
     }

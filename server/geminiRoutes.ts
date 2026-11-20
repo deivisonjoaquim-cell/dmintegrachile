@@ -15,6 +15,7 @@ import {
   acquireUserAiLock,
   chamarGemini,
   getGeminiRuntimeConfig,
+  isValidGeminiApiKey,
   MSG_AI_CONCURRENT_REQUEST,
   MSG_AI_OTHER_ERROR,
   releaseUserAiLock,
@@ -36,7 +37,7 @@ export interface AiEngineHealthStatus {
 
 export function getAiEngineHealthStatus(): AiEngineHealthStatus {
   const cfg = getGeminiRuntimeConfig();
-  const geminiConfigured = Boolean(cfg.apiKey && cfg.apiKey !== 'MY_GEMINI_API_KEY');
+  const geminiConfigured = isValidGeminiApiKey(cfg.apiKey);
   return {
     ok: true,
     geminiConfigured,

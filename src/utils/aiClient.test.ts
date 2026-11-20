@@ -95,6 +95,13 @@ describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cach
       saveAiDraftCache('expirado', { resumo: 'Velho' }, -1000);
       assert.equal(loadAiDraftCache('expirado'), null);
 
+      saveAiDraftCache('missing_key_fb', {
+        fallback: true,
+        origem: 'regras',
+        mensagemUsuario: 'Modo de regras locais ativo: a chave da IA não está configurada no servidor.',
+      });
+      assert.equal(loadAiDraftCache('missing_key_fb'), null);
+
       clearAiDraftCache('parecer_123');
       assert.equal(loadAiDraftCache('parecer_123'), null);
     } finally {

@@ -21,8 +21,11 @@ import {
   chamarGemini,
   classifyGeminiError,
   computeRetryDelayMs,
+  DEFAULT_GEMINI_FALLBACK_MODEL,
+  DEFAULT_GEMINI_PRIMARY_MODEL,
   getEffectiveRuntimeConfig,
   getGeminiRuntimeConfig,
+  isValidGeminiApiKey,
   MSG_AI_BAD_REQUEST,
   MSG_AI_BLOCKED,
   MSG_AI_CONCURRENT_REQUEST,
@@ -31,8 +34,11 @@ import {
   MSG_AI_MISSING_KEY,
   MSG_AI_MODEL_NOT_FOUND,
   MSG_AI_OTHER_ERROR,
+  normalizeGeminiApiKey,
   parseRetryAfterMs,
   releaseUserAiLock,
+  resolveGeminiApiKeyFromEnv,
+  resolveGeminiModelFromEnv,
   type ChamarGeminiParams,
 } from './geminiWrapper';
 import {
@@ -750,6 +756,79 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     assert.ok(out.situacaoAtual.includes('HTTP 200'));
     assert.ok(out.resumoExecutivo.includes('Biblioteca del Congreso Nacional'));
   });
+
+  it('sanitizes quoted/padded API keys, rejects placeholders, and supports standard server env aliases', () => {
+    assert.equal(normalizeGeminiApiKey(''), '');
+    assert.equal(normalizeGeminiApiKey('MY_GEMINI_API_KEY'), '');
+    assert.equal(normalizeGeminiApiKey('"MY_GEMINI_API_KEY"'), '');
+    assert.equal(normalizeGeminiApiKey('YOUR_API_KEY'), '');
+    assert.equal(normalizeGeminiApiKey('short'), '');
+    assert.equal(normalizeGeminiApiKey('  "AQ.validTestKey1234567890"  '), 'AQ.validTestKey1234567890');
+    assert.equal(isValidGeminiApiKey('AIzaSyValidKeyExample12345'), true);
+
+    assert.equal(
+      resolveGeminiApiKeyFromEnv({
+        GEMINI_API_KEY: 'MY_GEMINI_API_KEY',
+        GOOGLE_API_KEY: '  "AIzaSyFallbackServerKey999"  ',
+      }),
+      'AIzaSyFallbackServerKey999',
+    );
+    assert.equal(
+      resolveGeminiApiKeyFromEnv({
+        GEMINI_API_KEY: 'AQ.PrimaryKeyTakesPrecedence123',
+        GOOGLE_API_KEY: 'AIzaSySecondaryKey999',
+      }),
+      'AQ.PrimaryKeyTakesPrecedence123',
+    );
+  });
+
+  it('rejects numeric/corrupted or retired model env values (like "30000" or "gemini-2.5-flash") and defaults safely', () => {
+    assert.equal(resolveGeminiModelFromEnv('30000', DEFAULT_GEMINI_PRIMARY_MODEL), DEFAULT_GEMINI_PRIMARY_MODEL);
+    assert.equal(resolveGeminiModelFromEnv('false', DEFAULT_GEMINI_FALLBACK_MODEL), DEFAULT_GEMINI_FALLBACK_MODEL);
+    assert.equal(resolveGeminiModelFromEnv('gemini-2.5-flash', DEFAULT_GEMINI_PRIMARY_MODEL), DEFAULT_GEMINI_PRIMARY_MODEL);
+    assert.equal(resolveGeminiModelFromEnv('gemini-1.5-pro', DEFAULT_GEMINI_PRIMARY_MODEL), DEFAULT_GEMINI_PRIMARY_MODEL);
+    assert.equal(resolveGeminiModelFromEnv('models/gemini-4-hydrogen', DEFAULT_GEMINI_PRIMARY_MODEL), 'gemini-4-hydrogen');
+    assert.equal(resolveGeminiModelFromEnv('"gemini-3.1-flash-lite"', DEFAULT_GEMINI_FALLBACK_MODEL), 'gemini-3.1-flash-lite');
+  });
+
+  it('auto-recovers to DEFAULT_GEMINI_PRIMARY_MODEL when a custom configured primary model returns HTTP 404', async () => {
+    const modelsTried: string[] = [];
+    const res = await chamarGemini({
+      ...buildCustosSpec({}),
+      configOverride: {
+        apiKey: 'AQ.ValidTestKey1234567890',
+        primaryModel: 'custom-typo-model',
+        fallbackModel: DEFAULT_GEMINI_FALLBACK_MODEL,
+        maxAttempts: 2,
+        fallbackAttempts: 1,
+        baseDelayMs: 0,
+      },
+      sleepFn: async () => {},
+      generateFn: async ({ model }) => {
+        modelsTried.push(model);
+        if (model === 'custom-typo-model') {
+          const err = new Error('models/custom-typo-model is not found') as Error & { status?: number };
+          err.status = 404;
+          throw err;
+        }
+        return makeResponse({
+          taxaSermigMercosulUsd: 90,
+          taxaSermigTemporalUsd: 90,
+          taxaSermigDefinitivaUsd: 120,
+          apostilaCnjBrl: 185,
+          traducaoJuramentadaBrl: 210,
+          cedulaIdentidadeClp: 4270,
+          observacao: 'Estimativa — confirmar na fonte oficial',
+          atualizadoEm: '2026-11-20',
+        });
+      },
+    });
+    assert.equal(res.ok, true);
+    assert.equal(res.payload?.origem, 'principal');
+    assert.equal(res.payload?.modeloUsado, DEFAULT_GEMINI_PRIMARY_MODEL);
+    assert.deepEqual(modelsTried, ['custom-typo-model', DEFAULT_GEMINI_PRIMARY_MODEL]);
+  });
 });
+
 
 
