@@ -39,12 +39,13 @@ import { useFirestore } from '../hooks/useFirestore';
 import { subscribeStaffDocumentChat } from '../services/chatService';
 import { reportAppError } from '../services/errorService';
 import {
+  convertLeadToClientAndCaseEnhanced,
   fetchAllSiteContentStaff,
   fetchStaffWorkspaceData,
   makeId,
   saveDocumentAudited,
 } from '../services/firestoreService';
-import type { CommunicationLog, SiteContent, Task, UserRole } from '../types/domain';
+import type { CommunicationLog, Lead, SiteContent, Task, UserRole } from '../types/domain';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../utils/documentChat';
 import { daysUntilDate, formatDateBR } from '../utils/formatters';
 import type { MacroFunnelStageId } from '../utils/funnelModel';
@@ -153,6 +154,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     view: PainelLeadsViewId;
     seq: number;
   } | null>(null);
+  const [requestedOpenLead, setRequestedOpenLead] = useState<{
+    leadId: string;
+    seq: number;
+  } | null>(null);
+  const [requestedQuickLeadSeq, setRequestedQuickLeadSeq] = useState(0);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -425,10 +431,60 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     setMobileMenuOpen(false);
   }, []);
 
+  const handleOpenLead = useCallback((leadId?: string) => {
+    setActiveHub('leads');
+    setSelectedCaseId(null);
+    if (leadId) {
+      setRequestedOpenLead({ leadId, seq: Date.now() });
+    }
+    setMobileMenuOpen(false);
+  }, []);
+
+  const handleQuickCreateLead = useCallback(() => {
+    setQuickCreateOpen(false);
+    setActiveHub('leads');
+    setSelectedCaseId(null);
+    setRequestedQuickLeadSeq(Date.now());
+    setMobileMenuOpen(false);
+  }, []);
+
+  const handleConvertLeadFromKanban = useCallback(
+    async (lead: Lead) => {
+      if (!userProfile || !effectiveWorkspace) return null;
+      if (userProfile.role !== 'admin' && userProfile.role !== 'consultor') return null;
+      const res = await convertLeadToClientAndCaseEnhanced({
+        lead,
+        clients: effectiveWorkspace.clients,
+        visaCategories,
+        visaRequirements,
+        legalSources,
+        activeRules: activeDiagnosticRules,
+        empresa,
+        role: userProfile.role,
+        autorNome: userProfile.nome || userProfile.email,
+        initialPipelineStep: 3,
+      });
+      await handleRefreshAll();
+      return { caseId: res.caseId, docsCount: res.docsCount, tasksCount: res.tasksCount };
+    },
+    [
+      userProfile,
+      effectiveWorkspace,
+      visaCategories,
+      visaRequirements,
+      legalSources,
+      activeDiagnosticRules,
+      empresa,
+      handleRefreshAll,
+    ],
+  );
+
   const triggerQuickCreate = useCallback(
-    (action: 'new_case' | 'new_client' | 'agenda' | 'contratos' | 'financeiro') => {
+    (action: 'new_lead' | 'new_case' | 'new_client' | 'agenda' | 'contratos' | 'financeiro') => {
       setQuickCreateOpen(false);
-      if (action === 'new_case') {
+      if (action === 'new_lead') {
+        handleQuickCreateLead();
+      } else if (action === 'new_case') {
         setActiveHub('processos');
         setProcessosTab('casos');
         setSelectedCaseId(null);
@@ -442,7 +498,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         handleNavigateLegacySection(action);
       }
     },
-    [handleNavigateLegacySection],
+    [handleNavigateLegacySection, handleQuickCreateLead],
   );
 
   const visibleHubs = useMemo(() => getVisiblePanelHubs(role), [role]);
@@ -959,6 +1015,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-1.5 z-40 text-xs">
                   <button
                     type="button"
+                    onClick={() => triggerQuickCreate('new_lead')}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-[var(--color-primary)] dark:text-sky-400"
+                  >
+                    Novo Lead (Chegada Rápida)
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => triggerQuickCreate('new_case')}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
                   >
@@ -1211,7 +1274,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   tasks={effectiveWorkspace.tasks}
                   deadlines={effectiveWorkspace.deadlines}
                   onOpenCase={handleOpenCase}
-                  onOpenLeads={() => handleSelectHub('leads')}
+                  onOpenLeads={handleOpenLead}
+                  onQuickCreateLead={handleQuickCreateLead}
+                  onConvertLead={handleConvertLeadFromKanban}
                   onRefresh={handleRefreshAll}
                 />
               )}
@@ -1227,6 +1292,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   tasks={effectiveWorkspace.tasks}
                   auditLogs={effectiveWorkspace.auditLogs}
                   requestedView={requestedLeadsView}
+                  requestedOpenLead={requestedOpenLead}
+                  requestedQuickLeadSeq={requestedQuickLeadSeq}
                   visaCategories={visaCategories}
                   visaRequirements={visaRequirements}
                   legalSources={legalSources}

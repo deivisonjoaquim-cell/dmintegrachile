@@ -218,6 +218,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     getDiagnosticSession: getDiagnosticSessionFirestore,
   } = useFirestore({ realtime: false });
 
+  const [quickMode, setQuickMode] = useState(true);
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [answers, setAnswers] = useState<DiagnosticAnswers>(() => {
@@ -385,6 +386,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         );
         setAnswers(restoredAnswers);
         const targetStep = Math.min(6, Math.max(1, sess.etapaAtual || 1));
+        if (targetStep > 1) setQuickMode(false);
         setStep(targetStep);
         setMaxStepReached((prev) => Math.max(prev, targetStep));
         setResumeBanner('Diagnóstico retomado com sucesso a partir do seu link salvo.');
@@ -601,7 +603,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
   const validateStep = (): boolean => {
     setStepError(null);
-    if (step === 1) {
+    if (step === 1 || quickMode) {
       if (answers.nome.trim().length < 2 || !answers.email.includes('@')) {
         setStepError('Informe seu nome completo e um e-mail válido para continuar.');
         return false;
@@ -611,13 +613,13 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         return false;
       }
     }
-    if (step === 2 && answers.passaporteStatus !== 'nao_possui') {
+    if (!quickMode && step === 2 && answers.passaporteStatus !== 'nao_possui') {
       if (answers.passaporteValidadeMeses < 0 || Number.isNaN(answers.passaporteValidadeMeses)) {
         setStepError('Informe os meses aproximados de validade do passaporte (0 se vencido).');
         return false;
       }
     }
-    if (step === 6) {
+    if (quickMode || step === 6) {
       if (!answers.lgpdAceito) {
         setStepError(
           'É obrigatório aceitar o Termo LGPD (Lei brasileira nº 13.709/2018) para gerar o diagnóstico e registrar seu atendimento.',
@@ -1043,78 +1045,115 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
         {/* Cabeçalho e Progresso */}
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-slate-600 tabular-nums">
-              Etapa {step} de 6 ·{' '}
-              {adaptiveMeta.faltamPerguntas === 1
-                ? 'Falta 1 pergunta'
-                : `Faltam ${adaptiveMeta.faltamPerguntas} perguntas`}{' '}
-              · cerca de {adaptiveMeta.tempoEstimadoMinutos}{' '}
-              {adaptiveMeta.tempoEstimadoMinutos === 1 ? 'minuto restante' : 'minutos restantes'}
-            </p>
-            <span className="text-xs font-bold text-[var(--color-primary)] tabular-nums">
-              {adaptiveMeta.percentualProgresso}% concluído
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-1.5">
+                Diagnóstico de Elegibilidade Migratória
+              </h1>
+              <p className="text-sm text-slate-600 leading-relaxed max-w-3xl">
+                {quickMode
+                  ? 'Preencha seus dados básicos em menos de 1 minuto para receber o enquadramento inicial pela Ley Nº 21.325 e Acordo Mercosul.'
+                  : 'Questionário completo fundamentado na legislação chilena (Ley Nº 21.325, Decretos Nº 177 e Nº 296/2022), no Acordo Mercosul e protegido pela LGPD.'}
+              </p>
+            </div>
+
+            {/* Alternador limpo: Triagem Rápida (1 passo) vs Questionário Completo (6 etapas) */}
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 border border-slate-300/60 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickMode(true);
+                  setStep(1);
+                  setStepError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  quickMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Triagem Rápida (1 passo)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickMode(false);
+                  setStepError(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  !quickMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Completo (6 etapas)
+              </button>
+            </div>
           </div>
 
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-1.5">
-              Diagnóstico Inteligente de Elegibilidade Migratória
-            </h1>
-            <p className="text-sm text-slate-600 leading-relaxed max-w-3xl">
-              Questionário dinâmico fundamentado na <strong>legislação chilena</strong> (Ley Nº 21.325, Decretos Supremos Nº 177 e Nº 296/2022 e base SERMIG), no <strong>Acordo Mercosul</strong> e protegido pela <strong>legislação brasileira</strong> (LGPD, Lei nº 13.709/2018).
-            </p>
-          </div>
+          {!quickMode && (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-600 tabular-nums">
+                  Etapa {step} de 6 ·{' '}
+                  {adaptiveMeta.faltamPerguntas === 1
+                    ? 'Falta 1 pergunta'
+                    : `Faltam ${adaptiveMeta.faltamPerguntas} perguntas`}{' '}
+                  · cerca de {adaptiveMeta.tempoEstimadoMinutos}{' '}
+                  {adaptiveMeta.tempoEstimadoMinutos === 1 ? 'minuto restante' : 'minutos restantes'}
+                </p>
+                <span className="text-xs font-bold text-[var(--color-primary)] tabular-nums">
+                  {adaptiveMeta.percentualProgresso}% concluído
+                </span>
+              </div>
 
-          <div
-            className="h-1.5 rounded-full bg-slate-200 overflow-hidden"
-            role="progressbar"
-            aria-valuenow={adaptiveMeta.percentualProgresso}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div
-              className="h-full transition-all duration-200"
-              style={{
-                width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%`,
-                backgroundColor: 'var(--color-primary)',
-              }}
-            />
-          </div>
-
-          {/* Navegação clicável das 6 etapas (permite retornar às etapas já alcançadas) */}
-          <nav className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1" aria-label="Etapas do diagnóstico">
-            {STEP_LABELS.map((item) => {
-              const isCurrent = step === item.num;
-              const isReachable = item.num <= maxStepReached;
-              const isDone = item.num < step;
-              return (
-                <button
-                  key={item.num}
-                  type="button"
-                  disabled={!isReachable}
-                  onClick={() => {
-                    if (isReachable) {
-                      setStepError(null);
-                      setStep(item.num);
-                    }
+              <div
+                className="h-1.5 rounded-full bg-slate-200 overflow-hidden"
+                role="progressbar"
+                aria-valuenow={adaptiveMeta.percentualProgresso}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full transition-all duration-200"
+                  style={{
+                    width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%`,
+                    backgroundColor: 'var(--color-primary)',
                   }}
-                  className={`px-2.5 py-2 rounded-lg border text-left text-xs transition-colors ${
-                    isCurrent
-                      ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
-                      : isDone
-                        ? 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50 font-medium'
-                        : isReachable
-                          ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          : 'bg-slate-100/80 text-slate-400 border-slate-200/70 cursor-not-allowed'
-                  }`}
-                >
-                  <span className="block text-[10px] opacity-80 tabular-nums">Etapa {item.num}</span>
-                  <span className="block truncate">{item.title}</span>
-                </button>
-              );
-            })}
-          </nav>
+                />
+              </div>
+
+              {/* Navegação clicável das 6 etapas (permite retornar às etapas já alcançadas) */}
+              <nav className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1" aria-label="Etapas do diagnóstico">
+                {STEP_LABELS.map((item) => {
+                  const isCurrent = step === item.num;
+                  const isReachable = item.num <= maxStepReached;
+                  const isDone = item.num < step;
+                  return (
+                    <button
+                      key={item.num}
+                      type="button"
+                      disabled={!isReachable}
+                      onClick={() => {
+                        if (isReachable) {
+                          setStepError(null);
+                          setStep(item.num);
+                        }
+                      }}
+                      className={`px-2.5 py-2 rounded-lg border text-left text-xs transition-colors ${
+                        isCurrent
+                          ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
+                          : isDone
+                            ? 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50 font-medium'
+                            : isReachable
+                              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                              : 'bg-slate-100/80 text-slate-400 border-slate-200/70 cursor-not-allowed'
+                      }`}
+                    >
+                      <span className="block text-[10px] opacity-80 tabular-nums">Etapa {item.num}</span>
+                      <span className="block truncate">{item.title}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </>
+          )}
         </div>
 
         {resumeBanner && (
@@ -1308,11 +1347,76 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     </select>
                   </div>
                 </div>
+
+                {quickMode && (
+                  <div className="pt-4 border-t border-slate-200 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-quick-loc">
+                          Onde você está hoje? *
+                        </label>
+                        <select
+                          id="diag-quick-loc"
+                          value={answers.localizacao}
+                          onChange={(e) => updateAnswers({ localizacao: e.target.value as DiagnosticLocation })}
+                          className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                        >
+                          <option value="No Brasil">No Brasil</option>
+                          <option value="No Chile como turista">No Chile como turista</option>
+                          <option value="No Chile com residência temporal">No Chile com residência temporal</option>
+                          <option value="No Chile com residência definitiva">No Chile com residência definitiva</option>
+                          <option value="Outro país">Em outro país</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-quick-obj">
+                          Principal objetivo no Chile *
+                        </label>
+                        <select
+                          id="diag-quick-obj"
+                          value={answers.objetivo}
+                          onChange={(e) => updateAnswers({ objetivo: e.target.value as DiagnosticObjective })}
+                          className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                        >
+                          <option value="explorar">Morar no Chile (Acordo Mercosul / explorar opções)</option>
+                          <option value="trabalhar">Trabalhar com contrato ou empresa no Chile</option>
+                          <option value="estudar">Estudar em instituição chilena</option>
+                          <option value="aposentado_rentista">Aposentado / renda passiva</option>
+                          <option value="investir">Investir ou empreender no Chile</option>
+                          <option value="familia">Reunificação familiar</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer leading-relaxed">
+                        <input
+                          type="checkbox"
+                          checked={answers.lgpdAceito}
+                          onChange={(e) => updateAnswers({ lgpdAceito: e.target.checked })}
+                          className="mt-0.5 rounded border-slate-300"
+                        />
+                        <span>
+                          Autorizo o uso dos dados informados para gerar meu diagnóstico migratório e contato da equipe, conforme o{' '}
+                          <button
+                            type="button"
+                            onClick={() => setLgpdOpen(true)}
+                            className="font-semibold text-[var(--color-primary)] underline"
+                          >
+                            Termo LGPD (Versão {empresa.termoLgpdVersao || '1.0'})
+                          </button>
+                          . *
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* ETAPA 2 */}
-            {step === 2 && (
+            {!quickMode && step === 2 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-slate-900">2. Localização atual, perfil e passaporte</h2>
 
@@ -2159,7 +2263,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* Barra de Navegação do Formulário */}
             <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                {step > 1 && (
+                {!quickMode && step > 1 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -2172,18 +2276,32 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     Voltar
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={savingDraft}
-                  onClick={() => void handleSaveAndCopyLink()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <BookmarkCheck className="w-4 h-4 text-[var(--color-primary)]" />
-                  {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
-                </button>
+                {!quickMode && (
+                  <button
+                    type="button"
+                    disabled={savingDraft}
+                    onClick={() => void handleSaveAndCopyLink()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <BookmarkCheck className="w-4 h-4 text-[var(--color-primary)]" />
+                    {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
+                  </button>
+                )}
+                {quickMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickMode(false);
+                      setStepError(null);
+                    }}
+                    className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline"
+                  >
+                    Prefiro detalhar família e documentos (6 etapas)
+                  </button>
+                )}
               </div>
 
-              {step < 6 ? (
+              {!quickMode && step < 6 ? (
                 <button
                   type="button"
                   onClick={() => void handleNext()}

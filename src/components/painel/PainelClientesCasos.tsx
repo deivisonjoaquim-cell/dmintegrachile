@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  ArrowRight,
   Bell,
   BookOpen,
   Calendar,
@@ -241,6 +242,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   }, [requestedCaseTab, selectedCaseId]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showDetailedSubStage, setShowDetailedSubStage] = useState(false);
+  const [approvingAllDocs, setApprovingAllDocs] = useState(false);
   const [pushTipo, setPushTipo] = useState<ClientNotificationType>('geral');
   const [pushTitle, setPushTitle] = useState('');
   const [pushMessage, setPushMessage] = useState('');
@@ -1098,19 +1101,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       if (thermo.bloqueadoProtocolo) {
         reasons.push(`Termômetro documental em ${thermo.notaGeral}% (mínimo exigido: ${empresa.bloqueioProtocoloMinimo || 100}%).`);
       }
-      const hasSignedContract =
-        Boolean(activeCase.dataContrato) ||
-        generatedDocuments.some(
-          (g) =>
-            g.clientId === activeCase.clientId &&
-            (!g.caseId || g.caseId === activeCase.id) &&
-            (g.tipo === 'contrato' || g.tipo === 'procuracao') &&
-            (g.status === 'Assinado' || Boolean(g.assinadoEm)) &&
-            !g.canceladoEm,
-        );
-      if (!hasSignedContract) {
-        reasons.push('Nenhum contrato assinado ou data de contrato registrada para o caso.');
-      }
       const pendingApostilles = caseDocs.filter((d) => d.obrigatorio && d.exigeApostila && !d.apostilado);
       if (pendingApostilles.length > 0) {
         reasons.push(`${pendingApostilles.length} documento(s) obrigatório(s) ainda aguardam Apostila de Haia.`);
@@ -1118,7 +1108,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       if (reasons.length > 0) {
         if (!isAdmin) {
           setErrorMsg(
-            `Protocolo bloqueado na Etapa ${targetStage}: ${reasons.join(' ')} Somente um Administrador pode autorizar override.`,
+            `Antes de protocolar no SERMIG: ${reasons.join(' ')} Revise na aba Documentos ou solicite liberação de um Administrador.`,
           );
           return;
         }
@@ -1126,8 +1116,48 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         return;
       }
     }
-    await handleSaveCaseField({ etapaPipeline: targetStage }, 'etapaPipeline');
+    const nextStatusPatch: Partial<Case> = { etapaPipeline: targetStage };
+    if (targetStage >= 7 && activeCase.statusSermig === 'Não protocolado') {
+      nextStatusPatch.statusSermig = 'Em trâmite';
+    }
+    if (targetStage >= 15 && !activeCase.encerradoEm) {
+      nextStatusPatch.encerradoEm = new Date().toISOString();
+    }
+    await handleSaveCaseField(nextStatusPatch, 'etapaPipeline');
     await createDefaultStageTasks(targetStage, activeCase);
+  };
+
+  const handleApproveAllSubmittedDocs = async () => {
+    if (!activeCase || approvingAllDocs) return;
+    const submitted = caseDocs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise');
+    if (submitted.length === 0) return;
+    setApprovingAllDocs(true);
+    setErrorMsg(null);
+    try {
+      const reviewer = userProfile.nome || userProfile.email;
+      for (const doc of submitted) {
+        await saveDocumentAudited(
+          'caseDocuments',
+          doc.id,
+          {
+            ...doc,
+            status: 'Aprovado',
+            etapaEsteira: '6 Aprovado para Protocolo',
+            revisadoPor: reviewer,
+          } as unknown as Record<string, unknown>,
+          false,
+          role,
+          'aprovar_documentos_lote',
+          doc,
+        );
+      }
+      setFeedback(`${submitted.length} documento(s) aprovado(s) em lote com sucesso.`);
+      await onRefresh();
+    } catch (err) {
+      setErrorMsg(translateAppError(err).message);
+    } finally {
+      setApprovingAllDocs(false);
+    }
   };
 
   const handleConfirmOverride = async (e: React.FormEvent) => {
@@ -2187,51 +2217,100 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             </div>
           </div>
 
-          {/* Barra Interativa dos 5 Marcos + Sub-etapa compacta */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-2 pt-2 border-t border-slate-100">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 flex-1">
-              {MACRO_FUNNEL_STAGES.map((stage) => {
-                const isCurrent = caseCtx.currentMacroStage.id === stage.id;
-                const isDone = stage.ordem < caseCtx.currentMacroStage.ordem;
-                return (
-                  <button
-                    key={stage.id}
-                    type="button"
-                    onClick={() => {
-                      const targetStep = resolveTargetPipelineStep(stage.id, activeCase.etapaPipeline);
-                      if (targetStep !== activeCase.etapaPipeline) {
-                        void handleStageChange(targetStep);
-                      }
-                    }}
-                    title={stage.marcoConversao}
-                    className={`px-2.5 py-1.5 rounded-lg text-left transition-colors border text-xs ${
-                      isCurrent
-                        ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
-                        : isDone
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/70'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className="block truncate whitespace-nowrap">
-                      {stage.ordem}. {stage.nome}
+          {/* Barra Simplificada dos 5 Marcos + Botão 1-Clique de Avanço */}
+          {(() => {
+            const nextMacro = getNextMacroStage(caseCtx.currentMacroStage.id);
+            const isFinished = Boolean(activeCase.encerradoEm) || activeCase.etapaPipeline >= 15;
+            return (
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex flex-col xl:flex-row xl:items-center gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 flex-1">
+                    {MACRO_FUNNEL_STAGES.map((stage) => {
+                      const isCurrent = caseCtx.currentMacroStage.id === stage.id;
+                      const isDone = stage.ordem < caseCtx.currentMacroStage.ordem || isFinished;
+                      return (
+                        <button
+                          key={stage.id}
+                          type="button"
+                          onClick={() => {
+                            const targetStep = resolveTargetPipelineStep(stage.id, activeCase.etapaPipeline);
+                            if (targetStep !== activeCase.etapaPipeline) {
+                              void handleStageChange(targetStep);
+                            }
+                          }}
+                          title={stage.marcoConversao}
+                          className={`px-2.5 py-2 rounded-lg text-left transition-colors border text-xs ${
+                            isCurrent
+                              ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
+                              : isDone
+                                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/70'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className="block truncate whitespace-nowrap">
+                            {stage.ordem}. {stage.nome}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {nextMacro ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleStageChange(resolveTargetPipelineStep(nextMacro.id, activeCase.etapaPipeline))}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
+                        style={{ backgroundColor: '#1E7E34' }}
+                      >
+                        <span>Avançar: {nextMacro.nome}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    ) : !isFinished ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleStageChange(15)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
+                        style={{ backgroundColor: '#1E7E34' }}
+                      >
+                        <span>Concluir Processo</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowDetailedSubStage((v) => !v)}
+                      title="Ajuste fino de sub-etapa operacional (1 a 15)"
+                      className="px-2.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-600 hover:bg-slate-100 whitespace-nowrap shrink-0"
+                    >
+                      Sub-etapa ({activeCase.etapaPipeline}/15)
+                    </button>
+                  </div>
+                </div>
+
+                {showDetailedSubStage && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                    <span className="text-slate-600">
+                      Sub-etapa operacional detalhada (opcional):
                     </span>
-                  </button>
-                );
-              })}
-            </div>
-            <select
-              value={activeCase.etapaPipeline}
-              onChange={(e) => void handleStageChange(Number(e.target.value))}
-              aria-label="Sub-etapa operacional"
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 lg:max-w-[230px]"
-            >
-              {PIPELINE_STAGES.map((st) => (
-                <option key={st.numero} value={st.numero}>
-                  Etapa {st.numero}: {st.nome}
-                </option>
-              ))}
-            </select>
-          </div>
+                    <select
+                      value={activeCase.etapaPipeline}
+                      onChange={(e) => void handleStageChange(Number(e.target.value))}
+                      aria-label="Sub-etapa operacional"
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 max-w-xs"
+                    >
+                      {PIPELINE_STAGES.map((st) => (
+                        <option key={st.numero} value={st.numero}>
+                          Etapa {st.numero}: {st.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-5">
@@ -3003,6 +3082,24 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 bg-white flex flex-col justify-center gap-2">
+                  {(() => {
+                    const submittedCount = caseDocs.filter(
+                      (d) => d.status === 'Enviado' || d.status === 'Em análise',
+                    ).length;
+                    if (submittedCount === 0) return null;
+                    return (
+                      <button
+                        type="button"
+                        disabled={approvingAllDocs}
+                        onClick={() => void handleApproveAllSubmittedDocs()}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                        style={{ backgroundColor: '#1E7E34' }}
+                      >
+                        <CheckSquare className="w-3.5 h-3.5" />
+                        {approvingAllDocs ? 'Aprovando...' : `Aprovar enviados (${submittedCount})`}
+                      </button>
+                    );
+                  })()}
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"

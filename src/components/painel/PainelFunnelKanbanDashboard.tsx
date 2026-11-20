@@ -3,8 +3,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BarChart3,
   BellRing,
   ExternalLink,
+  Plus,
   X,
 } from 'lucide-react';
 import { reportAppError } from '../../services/errorService';
@@ -48,7 +50,9 @@ interface PainelFunnelKanbanDashboardProps {
   tasks: Task[];
   deadlines: Deadline[];
   onOpenCase: (caseId: string, targetTab?: 'resumo' | 'comunicacao') => void;
-  onOpenLeads: () => void;
+  onOpenLeads: (leadId?: string) => void;
+  onQuickCreateLead?: () => void;
+  onConvertLead?: (lead: Lead) => Promise<{ caseId: string; docsCount: number; tasksCount: number } | null>;
   onRefresh: () => Promise<void>;
 }
 
@@ -66,6 +70,8 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
   deadlines,
   onOpenCase,
   onOpenLeads,
+  onQuickCreateLead,
+  onConvertLead,
   onRefresh,
 }) => {
   const [query, setQuery] = useState('');
@@ -77,6 +83,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
   const [createdTo, setCreatedTo] = useState('');
   const [sortBy, setSortBy] = useState<FunnelKanbanSortBy>('urgency_date');
   const [focusedStageId, setFocusedStageId] = useState<MacroFunnelStageId | null>(null);
+  const [showMetrics, setShowMetrics] = useState(false);
 
   const [movingCardId, setMovingCardId] = useState<string | null>(null);
   const [notifyingCardId, setNotifyingCardId] = useState<string | null>(null);
@@ -88,6 +95,8 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
     actionLabel?: string;
     onAction?: () => void;
   } | null>(null);
+
+  const canConvertLead = role === 'admin' || role === 'consultor';
 
   const minProtocolScore = empresa.bloqueioProtocoloMinimo ?? 100;
 
@@ -187,13 +196,38 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
     if (!evaluation.allowed) {
       if (evaluation.reason === 'same-stage') return;
       if (evaluation.reason === 'requires-lead-conversion') {
+        if (card.lead && canConvertLead && onConvertLead) {
+          setMovingCardId(card.id);
+          setNotice(null);
+          try {
+            const converted = await onConvertLead(card.lead);
+            if (converted) {
+              setNotice({
+                tone: 'success',
+                message: `"${card.clientName}" convertido em Cliente + Processo na etapa Documentação (${converted.docsCount} doc(s) e ${converted.tasksCount} tarefa(s)).`,
+                actionLabel: 'Abrir Processo',
+                onAction: () => {
+                  setNotice(null);
+                  onOpenCase(converted.caseId, 'resumo');
+                },
+              });
+            }
+          } catch (err) {
+            reportAppError(err, { source: 'funnel-kanban-convert-lead' });
+          } finally {
+            setMovingCardId(null);
+          }
+          return;
+        }
         setNotice({
           tone: 'warning',
-          message: evaluation.message,
-          actionLabel: 'Abrir Leads para converter',
+          message: canConvertLead
+            ? evaluation.message
+            : 'Apenas Admin ou Consultor podem converter um lead em Cliente e Processo.',
+          actionLabel: 'Abrir Lead',
           onAction: () => {
             setNotice(null);
-            onOpenLeads();
+            onOpenLeads(card.lead?.id);
           },
         });
         return;
@@ -335,63 +369,87 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
   return (
     <div className="space-y-5">
       {/* Cabeçalho Principal */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Dashboard de Funil (Kanban)
+            Funil Completo (5 Etapas)
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Acompanhe taxas de conversão etapa a etapa e gerencie clientes entre Diagnóstico, Proposta, Documentação, Trâmite e Finalização.
+            Arraste ou clique para avançar da chegada do lead até a finalização. Mover um lead para Documentação cria o processo automaticamente.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300 tabular-nums">
-          <span>
-            Exibindo{' '}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <span className="text-xs text-slate-600 dark:text-slate-300 tabular-nums mr-1">
             <strong className="text-slate-900 dark:text-slate-100">{board.totalVisibleCards}</strong> de{' '}
             <strong className="text-slate-900 dark:text-slate-100">{board.totalAllCards}</strong> ativo(s)
+            {board.attentionCardsCount > 0 && (
+              <>
+                <span aria-hidden="true"> · </span>
+                <span className="font-semibold text-[#C82333] dark:text-red-400">
+                  {board.attentionCardsCount} atenção
+                </span>
+              </>
+            )}
           </span>
-          {board.attentionCardsCount > 0 && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="font-semibold text-[#C82333] dark:text-red-400">
-                {board.attentionCardsCount} requer(em) atenção
-              </span>
-            </>
+          <button
+            type="button"
+            onClick={() => setShowMetrics((v) => !v)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+              showMetrics
+                ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)] dark:text-sky-300'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            {showMetrics ? 'Ocultar métricas' : 'Ver métricas'}
+          </button>
+          {onQuickCreateLead && (
+            <button
+              type="button"
+              onClick={onQuickCreateLead}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Lead
+            </button>
           )}
         </div>
       </div>
 
-      {/* Resumo de Desempenho & Taxas de Conversão entre Etapas (Sincronizado com o Período) */}
-      <PainelFunnelPerformanceSummary
-        leads={leads}
-        cases={cases}
-        empresa={empresa}
-        clients={clients}
-        staffUsers={staffUsers}
-        period={datePreset}
-        fromDate={createdFrom}
-        toDate={createdTo}
-        highlightedStageId={focusedStageId}
-        onChangePeriod={handleChangePeriod}
-        onSelectStage={(stageId) =>
-          setFocusedStageId((prev) => (prev === stageId ? null : stageId))
-        }
-      />
-
-      {/* Gráfico Interativo de Conversão & Ocupação por Etapa (Recharts) */}
-      <PainelFunnelConversionChart
-        leads={leads}
-        cases={cases}
-        period={datePreset}
-        fromDate={createdFrom}
-        toDate={createdTo}
-        isDark={isDark}
-        highlightedStageId={focusedStageId}
-        onSelectStage={(stageId) =>
-          setFocusedStageId((prev) => (prev === stageId ? null : stageId))
-        }
-      />
+      {/* Métricas e Gráfico sob demanda (mantém as 5 colunas do Kanban imediatamente visíveis) */}
+      {showMetrics && (
+        <div className="space-y-4">
+          <PainelFunnelPerformanceSummary
+            leads={leads}
+            cases={cases}
+            empresa={empresa}
+            clients={clients}
+            staffUsers={staffUsers}
+            period={datePreset}
+            fromDate={createdFrom}
+            toDate={createdTo}
+            highlightedStageId={focusedStageId}
+            onChangePeriod={handleChangePeriod}
+            onSelectStage={(stageId) =>
+              setFocusedStageId((prev) => (prev === stageId ? null : stageId))
+            }
+          />
+          <PainelFunnelConversionChart
+            leads={leads}
+            cases={cases}
+            period={datePreset}
+            fromDate={createdFrom}
+            toDate={createdTo}
+            isDark={isDark}
+            highlightedStageId={focusedStageId}
+            onSelectStage={(stageId) =>
+              setFocusedStageId((prev) => (prev === stageId ? null : stageId))
+            }
+          />
+        </div>
+      )}
 
       {/* Barra de Filtros Avançada do Kanban (Nome, Data de Criação, Urgência, Responsável e Ordenação) */}
       <PainelKanbanFilterBar
@@ -621,7 +679,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                               if (card.kind === 'case' && card.caseRecord) {
                                 onOpenCase(card.caseRecord.id);
                               } else {
-                                onOpenLeads();
+                                onOpenLeads(card.lead?.id);
                               }
                             }}
                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
@@ -660,11 +718,23 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                                 type="button"
                                 disabled={isMoving}
                                 onClick={() => void handleMoveCard(card, card.nextStage!.id)}
-                                title={`Avançar para ${card.nextStage.nome}`}
+                                title={
+                                  card.kind === 'lead' && card.nextStage.id === 'documentacao'
+                                    ? `Converter ${card.clientName} em Cliente + Processo na etapa Documentação`
+                                    : `Avançar para ${card.nextStage.nome}`
+                                }
                                 aria-label={`Avançar ${card.clientName} para ${card.nextStage.nome}`}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 whitespace-nowrap"
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-semibold disabled:opacity-40 whitespace-nowrap transition-colors ${
+                                  card.kind === 'lead' && card.nextStage.id === 'documentacao' && canConvertLead
+                                    ? 'border-[#1E7E34]/40 bg-[#1E7E34]/10 text-[#1E7E34] dark:text-emerald-300 hover:bg-[#1E7E34]/20'
+                                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                }`}
                               >
-                                <span>{card.nextStage.nomeCurto}</span>
+                                <span>
+                                  {card.kind === 'lead' && card.nextStage.id === 'documentacao'
+                                    ? 'Abrir Processo'
+                                    : card.nextStage.nomeCurto}
+                                </span>
                                 <ArrowRight className="w-3 h-3" />
                               </button>
                             )}

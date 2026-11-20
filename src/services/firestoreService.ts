@@ -1090,8 +1090,20 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
   empresa: EmpresaConfig;
   role: UserRole;
   autorNome: string;
+  initialPipelineStep?: number;
 }): Promise<{ clientId: string; caseId: string; clientReused: boolean; docsCount: number; tasksCount: number }> {
-  const { lead, clients, visaCategories, visaRequirements, legalSources, activeRules, empresa, role, autorNome } = params;
+  const {
+    lead,
+    clients,
+    visaCategories,
+    visaRequirements,
+    legalSources,
+    activeRules,
+    empresa,
+    role,
+    autorNome,
+    initialPipelineStep = 3,
+  } = params;
   const cleanPhone = (p: string) => p.replace(/\D/g, '');
   const existingClient = clients.find(
     (c) =>
@@ -1133,7 +1145,7 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     tipoServico: 'Residência Temporal',
     visaCategoryId: matchedVisa?.id || 'visa_15_mercosul',
     subcategoriaIa: lead.subcategoriaSugerida || '',
-    etapaPipeline: 2,
+    etapaPipeline: initialPipelineStep,
     statusSermig: 'Não protocolado',
     portalLiberado: false,
     relatorioViabilidadeLiberado: false,
@@ -1143,10 +1155,11 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
   };
   await saveDocumentAudited('cases', caseId, newCase as unknown as Record<string, unknown>, true, role, 'conversao_lead');
 
-  // Gerar diagnóstico completo para vincular checklist por pessoa, plano de ação em tarefas e parecer inicial
+  // Gerar diagnóstico completo (quando houver respostas) ou checklist inicial padrão para leads rápidos
   const answers: DiagnosticAnswers | undefined = lead.respostasTriagem;
   let docsCount = 0;
   let tasksCount = 0;
+  const reqs = visaRequirements.filter((r) => r.visaCategoryId === (matchedVisa?.id || 'visa_15_mercosul'));
 
   if (answers) {
     const diag = runDiagnosticEngine(answers, visaCategories, visaRequirements, legalSources, {
@@ -1180,7 +1193,6 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     }
 
     const pessoasParaChecklist = ['Titular', ...depNames];
-    const reqs = visaRequirements.filter((r) => r.visaCategoryId === (matchedVisa?.id || 'visa_15_mercosul'));
 
     for (const pessoa of pessoasParaChecklist) {
       for (const req of reqs) {
@@ -1256,6 +1268,61 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     };
     if (role === 'admin' || role === 'consultor') {
       await saveDocumentAudited('viabilityAssessments', assessmentId, assessment as unknown as Record<string, unknown>, true, role, 'parecer_inicial_lead');
+    }
+  } else {
+    // Lead rápido (WhatsApp / Instagram / Cadastro manual): gera checklist padrão do visto e 2 tarefas iniciais
+    for (const req of reqs) {
+      const docId = makeId('doc');
+      const caseDoc: CaseDocument = {
+        id: docId,
+        caseId,
+        clientId,
+        pessoa: 'Titular',
+        visaRequirementId: req.id,
+        nomeDocumento: req.nomeDocumento,
+        categoriaDoc: req.categoriaDoc,
+        etapaEsteira: '1 Aguardando Envio',
+        ordemEmissao: req.ordemPrioridadeEmissao,
+        status: 'Pendente',
+        validadeDias: req.validadeDias,
+        apostilado: false,
+        traduzido: false,
+        exigeApostila: req.exigeApostila,
+        exigeTraducao: req.exigeTraducao,
+        obrigatorio: req.obrigatorio,
+        peso: req.peso,
+        versao: 1,
+      };
+      await saveDocumentAudited('caseDocuments', docId, caseDoc as unknown as Record<string, unknown>, true, role, 'checklist_lead');
+      docsCount += 1;
+    }
+
+    const starterTasks = [
+      {
+        titulo: 'Confirmar contrato e liberar acesso ao Portal do Cliente',
+        descricao: 'Validar assinatura/honorários e liberar envio de documentos pelo portal.',
+        prioridade: 'Alta' as const,
+      },
+      {
+        titulo: 'Solicitar e conferir documentos iniciais do checklist',
+        descricao: 'Acompanhar envio de passaporte, antecedentes e certidões necessárias.',
+        prioridade: 'Média' as const,
+      },
+    ];
+    for (const st of starterTasks) {
+      const taskId = makeId('task');
+      const t: Task = {
+        id: taskId,
+        titulo: st.titulo,
+        descricao: st.descricao,
+        caseId,
+        clientId,
+        prioridade: st.prioridade,
+        status: 'Pendente',
+        createdAt: new Date().toISOString(),
+      };
+      await saveDocumentAudited('tasks', taskId, t as unknown as Record<string, unknown>, true, role, 'plano_acao_lead');
+      tasksCount += 1;
     }
   }
 

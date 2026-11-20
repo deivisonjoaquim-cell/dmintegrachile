@@ -89,6 +89,8 @@ interface PainelLeadsProps {
   messageTemplates: MessageTemplate[];
   panelTheme?: PanelTheme;
   onToggleTheme?: () => void;
+  requestedOpenLead?: { leadId: string; seq: number } | null;
+  requestedQuickLeadSeq?: number;
   onRefresh: () => Promise<void>;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
@@ -109,7 +111,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   activeRules,
   messageTemplates,
   panelTheme = 'light',
-  onToggleTheme,
+  requestedOpenLead,
+  requestedQuickLeadSeq,
   onRefresh,
   onLogWhatsApp,
   onOpenCase,
@@ -162,6 +165,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
 
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [lastConvertedCaseId, setLastConvertedCaseId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedTplId, setSelectedTplId] = useState(messageTemplates[0]?.id || '');
@@ -169,6 +173,25 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const [quickLeadOpen, setQuickLeadOpen] = useState(false);
   const [quickLeadSaving, setQuickLeadSaving] = useState(false);
   const [quickLeadError, setQuickLeadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (requestedQuickLeadSeq && requestedQuickLeadSeq > 0) {
+      setQuickLeadError(null);
+      setQuickLeadOpen(true);
+    }
+  }, [requestedQuickLeadSeq]);
+
+  useEffect(() => {
+    if (!requestedOpenLead?.leadId) return;
+    const found = leads.find((l) => l.id === requestedOpenLead.leadId);
+    if (found) {
+      setInspectingLead(found);
+      setWhatIfAnswers(found.respostasTriagem ? { ...found.respostasTriagem } : null);
+      setAiError(null);
+      setAiProgress(null);
+      setAiDraft(loadAiDraftCache<AiDiagnosticDraft>(`diagnostico_lead_${found.id}`));
+    }
+  }, [requestedOpenLead, leads]);
   const [quickLeadForm, setQuickLeadForm] = useState<{
     nome: string;
     whatsapp: string;
@@ -519,6 +542,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     }
     setConvertingId(lead.id);
     setFeedback(null);
+    setLastConvertedCaseId(null);
     try {
       const res = await convertLeadToClientAndCaseEnhanced({
         lead,
@@ -531,8 +555,14 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         role,
         autorNome: userProfile.nome || userProfile.email,
       });
+      setLastConvertedCaseId(res.caseId);
+      setInspectingLead((prev) =>
+        prev && prev.id === lead.id
+          ? { ...prev, statusFunil: 'Fechado', convertedClientId: res.clientId, convertedCaseId: res.caseId }
+          : prev,
+      );
       setFeedback(
-        `Lead convertido! Cliente ${res.clientReused ? 'reutilizado' : 'criado'}, Caso aberto com ${res.docsCount} documento(s) e ${res.tasksCount} tarefa(s) do plano de ação.`,
+        `Lead convertido! Cliente ${res.clientReused ? 'reutilizado' : 'criado'} e Processo aberto em Documentação com ${res.docsCount} documento(s) e ${res.tasksCount} tarefa(s).`,
       );
       await onRefresh();
     } finally {
@@ -719,8 +749,18 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 font-medium">
-          {feedback}
+        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 font-medium flex flex-wrap items-center justify-between gap-2">
+          <span>{feedback}</span>
+          {lastConvertedCaseId && (
+            <button
+              type="button"
+              onClick={() => onOpenCase(lastConvertedCaseId)}
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
+            >
+              Abrir Processo agora
+              <ArrowRightCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       )}
 
@@ -1246,6 +1286,75 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 >
                   <X className="w-4 h-4" />
                 </button>
+              </div>
+            </div>
+
+            {/* Fluxo Rápido do Lead: avançar etapas ou converter em Processo em 1 clique */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  Fluxo do Lead · Etapa atual: <strong className="text-slate-900 dark:text-slate-100">{inspectingLead.statusFunil}</strong>
+                </p>
+                <div className="flex flex-wrap items-center gap-1">
+                  {(['Novo', 'Contatado', 'Diagnóstico Agendado', 'Orçamento Enviado', 'Fechado'] as Lead['statusFunil'][]).map((st) => {
+                    const active = inspectingLead.statusFunil === st;
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        disabled={movingLeadId === inspectingLead.id}
+                        onClick={async () => {
+                          await handleMoveLeadStage(inspectingLead, st);
+                          setInspectingLead((prev) => (prev ? { ...prev, statusFunil: st } : prev));
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors whitespace-nowrap ${
+                          active
+                            ? 'bg-[var(--color-primary)] text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void handleSendTemplate(inspectingLead)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700/70 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 text-xs font-semibold hover:bg-emerald-100/70 whitespace-nowrap"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  WhatsApp
+                </button>
+                {inspectingLead.convertedCaseId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cid = inspectingLead.convertedCaseId!;
+                      setInspectingLead(null);
+                      onOpenCase(cid);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
+                    style={{ backgroundColor: '#1E7E34' }}
+                  >
+                    Abrir Processo
+                    <ArrowRightCircle className="w-3.5 h-3.5" />
+                  </button>
+                ) : (role === 'admin' || role === 'consultor') ? (
+                  <button
+                    type="button"
+                    disabled={convertingId === inspectingLead.id}
+                    onClick={() => void handleConvert(inspectingLead)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap disabled:opacity-50"
+                    style={{ backgroundColor: '#1E7E34' }}
+                  >
+                    <ArrowRightCircle className="w-3.5 h-3.5" />
+                    {convertingId === inspectingLead.id ? 'Abrindo Processo...' : 'Converter em Processo (1 clique)'}
+                  </button>
+                ) : null}
               </div>
             </div>
 
