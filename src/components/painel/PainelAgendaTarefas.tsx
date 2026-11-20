@@ -10,7 +10,8 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { EmptyState, UiButton } from '../ui/DesignSystem';
+import { ConfirmActionModal, EmptyState, UiButton } from '../ui/DesignSystem';
+import { translateAppError } from '../../services/errorService';
 import { deleteDocumentAudited, makeId, saveDocumentAudited } from '../../services/firestoreService';
 import type {
   Appointment,
@@ -59,6 +60,13 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
   const [showCompleted, setShowCompleted] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    col: 'tasks' | 'deadlines' | 'appointments';
+    id: string;
+    label: string;
+    item: Task | Deadline | Appointment;
+  } | null>(null);
 
   // Quick creation state
   const [createType, setCreateType] = useState<'none' | 'task' | 'deadline' | 'appointment'>('none');
@@ -313,6 +321,14 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-800 flex items-center justify-between">
           <span>{feedback}</span>
           <button type="button" onClick={() => setFeedback(null)} className="underline">
+            Fechar
+          </button>
+        </div>
+      )}
+      {errorMsg && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-[#C82333] flex items-center justify-between">
+          <span>{errorMsg}</span>
+          <button type="button" onClick={() => setErrorMsg(null)} className="underline">
             Fechar
           </button>
         </div>
@@ -623,10 +639,14 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
                       {canDelete && (
                         <button
                           type="button"
-                          onClick={async () => {
-                            await deleteDocumentAudited('tasks', t.id, role, t);
-                            await onRefresh();
-                          }}
+                          onClick={() =>
+                            setDeleteTarget({
+                              col: 'tasks',
+                              id: t.id,
+                              label: `tarefa "${t.titulo}"`,
+                              item: t,
+                            })
+                          }
                           aria-label="Excluir tarefa"
                           className="p-1.5 rounded text-slate-400 hover:text-red-600"
                         >
@@ -725,10 +745,14 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
                       {canDelete && (
                         <button
                           type="button"
-                          onClick={async () => {
-                            await deleteDocumentAudited('deadlines', dl.id, role, dl);
-                            await onRefresh();
-                          }}
+                          onClick={() =>
+                            setDeleteTarget({
+                              col: 'deadlines',
+                              id: dl.id,
+                              label: `prazo "${dl.titulo}"`,
+                              item: dl,
+                            })
+                          }
                           aria-label="Excluir prazo"
                           className="p-1.5 rounded text-slate-400 hover:text-red-600"
                         >
@@ -816,6 +840,23 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
                         Abrir Caso
                       </button>
                     )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeleteTarget({
+                            col: 'appointments',
+                            id: apt.id,
+                            label: `agendamento "${apt.titulo}"`,
+                            item: apt,
+                          })
+                        }
+                        aria-label="Excluir agendamento"
+                        className="p-1.5 rounded text-slate-400 hover:text-red-600"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -823,6 +864,27 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
           )}
         </section>
       )}
+
+      <ConfirmActionModal
+        open={Boolean(deleteTarget)}
+        title="Confirmar Exclusão"
+        description={`Tem certeza que deseja excluir permanentemente ${deleteTarget?.label || 'este registro'}? Esta ação será registrada na auditoria.`}
+        confirmLabel="Excluir"
+        tone="danger"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setErrorMsg(null);
+          try {
+            await deleteDocumentAudited(deleteTarget.col, deleteTarget.id, role, deleteTarget.item);
+            setFeedback(`Registro removido com sucesso (${deleteTarget.label}).`);
+            setDeleteTarget(null);
+            await onRefresh();
+          } catch (err) {
+            throw new Error(translateAppError(err).message || 'Não foi possível excluir este item.');
+          }
+        }}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

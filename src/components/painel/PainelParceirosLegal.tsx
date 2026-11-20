@@ -20,11 +20,13 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Trash2,
   Upload,
   Wifi,
   X,
 } from 'lucide-react';
 import { LegalBaseModal } from '../LegalBaseModal';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import {
   checkSermigOfficialLinksLive,
   type SermigBatchCheckResponse,
@@ -32,7 +34,11 @@ import {
 } from '../../services/sermigLegalClient';
 import {
   callAiEndpoint,
+  deleteDocumentAudited,
+  deletePartnerAndPublicAudited,
+  deletePartnerProposalAudited,
   makeId,
+  rejectPartnerProposalAudited,
   saveDocumentAudited,
   syncOfficialLegalCatalog,
   syncPartnerAndPublic,
@@ -58,6 +64,8 @@ import { buildWhatsAppUrl, formatDateBR, toIsoDate } from '../../utils/formatter
 import { isLegalSourceOutdated } from '../../utils/legalSync';
 import {
   clearAiDraftCache,
+  compactLegalSourcesForAi,
+  compactSourceForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
@@ -159,9 +167,21 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   // IA Proposta
   const [aiPropLoadingId, setAiPropLoadingId] = useState<string | null>(null);
   const [aiPropProgress, setAiPropProgress] = useState<string | null>(null);
+  const [approvingPropId, setApprovingPropId] = useState<string | null>(null);
 
-  // Novo Parceiro
+  // Novo / Edição Parceiro
   const [partnerModal, setPartnerModal] = useState<Partial<Partner> | null>(null);
+  const [savingPartner, setSavingPartner] = useState(false);
+
+  // Modal genérico de confirmação para exclusões e recusas
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    description: string;
+    details?: string[];
+    confirmLabel: string;
+    tone?: 'danger' | 'warning' | 'primary';
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   // Norma: Criação/Edição completa + IA + Vínculos + Histórico
   const [editingSource, setEditingSource] = useState<LegalSource | null>(null);
@@ -384,7 +404,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         '/api/ai/proposta',
         {
           proposal: prop,
-          legalSources,
+          legalSources: compactLegalSourcesForAi(legalSources),
         },
         {
           onProgress: (msg) => setAiPropProgress(msg),
@@ -423,61 +443,170 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   };
 
   const handleApproveProposal = async (prop: PartnerProposal) => {
-    const partnerId = makeId('part');
-    const newPartner: Partner = {
-      id: partnerId,
-      nome: prop.nome_empresa,
-      tipoPessoa: 'Pessoa Jurídica',
-      categoria: prop.categoria,
-      pais: prop.pais,
-      cidadeRegiao: prop.cidade,
-      contato: prop.responsavel,
-      whatsapp: prop.whatsapp,
-      email: prop.email,
-      siteInstagram: '',
-      moedaNegociacao: prop.moeda,
-      tabelaValoresComissao: prop.proposta,
-      condicoesParceria: prop.mensagem,
-      recomendadoAosClientes: true,
-      avaliacao: 5,
-      statusHomologacao: 'Ativo/Indicado',
-      descricaoPublica: prop.textoIndicacao || prop.mensagem,
-      observacoes: prop.parecerIa || 'Convertido a partir de proposta recebida no site.',
-    };
-    await syncPartnerAndPublic(newPartner, true, role);
-    await saveDocumentAudited('partnerProposals', prop.id, { ...prop, status: 'Aprovada' }, false, role, 'aprovar_proposta');
-    setFeedback(`Parceiro "${newPartner.nome}" homologado e publicado em /parceiros.`);
-    await Promise.all([onRefresh(), onRefreshPublic()]);
+    if (approvingPropId) return;
+    setApprovingPropId(prop.id);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const partnerId = makeId('part');
+      const newPartner: Partner = {
+        id: partnerId,
+        nome: String(prop.nome_empresa || '').slice(0, 200),
+        tipoPessoa: 'Pessoa Jurídica',
+        categoria: prop.categoria,
+        pais: prop.pais,
+        cidadeRegiao: prop.cidade,
+        contato: prop.responsavel,
+        whatsapp: String(prop.whatsapp || '').slice(0, 40),
+        email: prop.email,
+        siteInstagram: '',
+        moedaNegociacao: prop.moeda,
+        tabelaValoresComissao: String(prop.proposta || '').slice(0, 2000),
+        condicoesParceria: String(prop.mensagem || prop.proposta || '').slice(0, 2000),
+        recomendadoAosClientes: true,
+        avaliacao: 5,
+        statusHomologacao: 'Ativo/Indicado',
+        descricaoPublica: String(prop.textoIndicacao || prop.mensagem || prop.proposta || '').slice(0, 1000),
+        observacoes: String(prop.parecerIa || 'Convertido a partir de proposta recebida no site.').slice(0, 3000),
+      };
+      await syncPartnerAndPublic(newPartner, true, role);
+      await saveDocumentAudited(
+        'partnerProposals',
+        prop.id,
+        { ...prop, status: 'Aprovada', partnerIdVinculado: partnerId },
+        false,
+        role,
+        'aprovar_proposta',
+      );
+      setFeedback(`Parceiro "${newPartner.nome}" homologado e publicado em /parceiros.`);
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível aprovar e converter a proposta em parceiro.');
+    } finally {
+      setApprovingPropId(null);
+    }
+  };
+
+  const requestRejectProposal = (prop: PartnerProposal) => {
+    setConfirmModal({
+      title: 'Recusar proposta de parceria',
+      description: `Deseja marcar a proposta de "${prop.nome_empresa}" como Recusada? O registro permanecerá no histórico para auditoria e poderá ser excluído posteriormente.`,
+      confirmLabel: 'Recusar proposta',
+      tone: 'warning',
+      onConfirm: async () => {
+        setErrorMsg(null);
+        await rejectPartnerProposalAudited(prop, '', role);
+        setFeedback(`Proposta de "${prop.nome_empresa}" marcada como Recusada.`);
+        await onRefresh();
+      },
+    });
+  };
+
+  const requestDeleteProposal = (prop: PartnerProposal) => {
+    setConfirmModal({
+      title: 'Excluir proposta de parceria',
+      description: `Confirma a exclusão permanente da proposta enviada por "${prop.nome_empresa}" (${prop.responsavel})? Esta ação será registrada em auditoria.`,
+      details: [
+        `Categoria: ${prop.categoria} · ${prop.pais}`,
+        `Status atual: ${prop.status}`,
+      ],
+      confirmLabel: 'Excluir proposta',
+      tone: 'danger',
+      onConfirm: async () => {
+        setErrorMsg(null);
+        await deletePartnerProposalAudited(prop, role);
+        setFeedback(`Proposta de "${prop.nome_empresa}" excluída.`);
+        await onRefresh();
+      },
+    });
   };
 
   const handleSavePartner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!partnerModal) return;
-    const isNew = !partners.some((p) => p.id === partnerModal.id);
-    const full: Partner = {
-      id: partnerModal.id || makeId('part'),
-      nome: (partnerModal.nome || '').trim(),
-      tipoPessoa: partnerModal.tipoPessoa || 'Pessoa Jurídica',
-      categoria: (partnerModal.categoria || 'Outro') as PartnerCategory,
-      pais: (partnerModal.pais || 'Chile') as Partner['pais'],
-      cidadeRegiao: partnerModal.cidadeRegiao || '',
-      contato: partnerModal.contato || '',
-      whatsapp: partnerModal.whatsapp || '',
-      email: partnerModal.email || '',
-      siteInstagram: partnerModal.siteInstagram || '',
-      moedaNegociacao: partnerModal.moedaNegociacao || 'BRL',
-      tabelaValoresComissao: partnerModal.tabelaValoresComissao || '',
-      condicoesParceria: partnerModal.condicoesParceria || '',
-      recomendadoAosClientes: Boolean(partnerModal.recomendadoAosClientes),
-      avaliacao: Number(partnerModal.avaliacao || 5),
-      statusHomologacao: partnerModal.statusHomologacao || 'Ativo/Indicado',
-      descricaoPublica: partnerModal.descricaoPublica || '',
-      observacoes: partnerModal.observacoes || '',
-    };
-    await syncPartnerAndPublic(full, isNew, role);
-    setPartnerModal(null);
-    setFeedback(`Parceiro "${full.nome}" salvo e sincronizado com vitrine pública.`);
-    await Promise.all([onRefresh(), onRefreshPublic()]);
+    if (!partnerModal || savingPartner) return;
+    setSavingPartner(true);
+    setErrorMsg(null);
+    try {
+      const isNew = !partners.some((p) => p.id === partnerModal.id);
+      const full: Partner = {
+        id: partnerModal.id || makeId('part'),
+        nome: (partnerModal.nome || '').trim().slice(0, 200),
+        tipoPessoa: partnerModal.tipoPessoa || 'Pessoa Jurídica',
+        categoria: (partnerModal.categoria || 'Outro') as PartnerCategory,
+        pais: (partnerModal.pais || 'Chile') as Partner['pais'],
+        cidadeRegiao: (partnerModal.cidadeRegiao || '').trim(),
+        contato: (partnerModal.contato || '').trim(),
+        whatsapp: (partnerModal.whatsapp || '').trim().slice(0, 40),
+        email: (partnerModal.email || '').trim(),
+        siteInstagram: (partnerModal.siteInstagram || '').trim(),
+        moedaNegociacao: partnerModal.moedaNegociacao || 'BRL',
+        tabelaValoresComissao: (partnerModal.tabelaValoresComissao || '').slice(0, 2000),
+        condicoesParceria: (partnerModal.condicoesParceria || '').slice(0, 2000),
+        recomendadoAosClientes: Boolean(partnerModal.recomendadoAosClientes),
+        avaliacao: Math.min(5, Math.max(1, Number(partnerModal.avaliacao || 5))),
+        statusHomologacao: partnerModal.statusHomologacao || 'Ativo/Indicado',
+        descricaoPublica: (partnerModal.descricaoPublica || '').slice(0, 1000),
+        observacoes: (partnerModal.observacoes || '').slice(0, 3000),
+      };
+      await syncPartnerAndPublic(full, isNew, role);
+      setPartnerModal(null);
+      setFeedback(
+        full.recomendadoAosClientes && full.statusHomologacao === 'Ativo/Indicado'
+          ? `Parceiro "${full.nome}" salvo e publicado em /parceiros.`
+          : `Parceiro "${full.nome}" salvo e ocultado da vitrine pública.`,
+      );
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível salvar os dados do parceiro.');
+    } finally {
+      setSavingPartner(false);
+    }
+  };
+
+  const requestDeletePartner = (partner: Partner) => {
+    setConfirmModal({
+      title: 'Excluir parceiro comercial',
+      description: `Deseja excluir definitivamente o parceiro "${partner.nome}"? Se ele estiver visível na vitrine pública (/parceiros), também será removido de lá.`,
+      details: [
+        `Categoria: ${partner.categoria} · ${partner.pais}`,
+        `Status: ${partner.statusHomologacao}`,
+      ],
+      confirmLabel: 'Excluir parceiro',
+      tone: 'danger',
+      onConfirm: async () => {
+        setErrorMsg(null);
+        await deletePartnerAndPublicAudited(partner, role, partnerProposals);
+        if (partnerModal?.id === partner.id) setPartnerModal(null);
+        setFeedback(`Parceiro "${partner.nome}" excluído com sucesso.`);
+        await Promise.all([onRefresh(), onRefreshPublic()]);
+      },
+    });
+  };
+
+  const requestDeleteLegalSource = (s: LegalSource) => {
+    const usages = computeUsagesForSource(s);
+    setConfirmModal({
+      title: 'Excluir norma da Base Legal',
+      description: `Confirma a exclusão da norma "${s.titulo}"? Recomendamos alterar o status para "Revogada" se houver processos históricos vinculados.`,
+      details: [
+        `Subcategorias SERMIG vinculadas: ${usages.linkedVisas.length}`,
+        `Regras do diagnóstico: ${usages.linkedRules.length}`,
+        `Casos ativos potencialmente afetados: ${usages.activeCasesAffected.length}`,
+      ],
+      confirmLabel: 'Excluir norma',
+      tone: 'danger',
+      onConfirm: async () => {
+        setErrorMsg(null);
+        await deleteDocumentAudited('legalSources', s.id, role, {
+          titulo: s.titulo,
+          numeroAno: s.numeroAno,
+          pais: s.pais,
+        });
+        if (editingSource?.id === s.id) setEditingSource(null);
+        setFeedback(`Norma "${s.titulo}" excluída da Base Legal.`);
+        await Promise.all([onRefresh(), onRefreshPublic()]);
+      },
+    });
   };
 
   // ===========================================================================
@@ -685,7 +814,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       >(
         '/api/ai/norma',
         {
-          currentSource: editingSource,
+          currentSource: compactSourceForAi(editingSource),
           newText: normaNewText,
           fileBase64: normaAttachment?.fileBase64,
           mimeType: normaAttachment?.mimeType,
@@ -729,7 +858,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         }
       >(
         '/api/ai/norma-verificar',
-        { currentSource: src },
+        { currentSource: compactSourceForAi(src) },
         { onProgress: (msg) => setNormaAiProgress(msg) },
       );
       setNormaAiDraft(res);
@@ -1050,10 +1179,20 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     {p.status !== 'Aprovada' && (
                       <button
                         type="button"
+                        disabled={approvingPropId !== null}
                         onClick={() => void handleApproveProposal(p)}
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] disabled:opacity-50"
                       >
-                        Aprovar e Converter em Parceiro
+                        {approvingPropId === p.id ? 'Homologando...' : 'Aprovar e Converter em Parceiro'}
+                      </button>
+                    )}
+                    {p.status !== 'Aprovada' && p.status !== 'Recusada' && (
+                      <button
+                        type="button"
+                        onClick={() => requestRejectProposal(p)}
+                        className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                      >
+                        Recusar
                       </button>
                     )}
                     <a
@@ -1065,6 +1204,16 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       <MessageCircle className="w-3.5 h-3.5" />
                       Responder
                     </a>
+                    {role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => requestDeleteProposal(p)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir
+                      </button>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -1108,31 +1257,60 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {partners.map((p) => (
-              <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-2">
-                <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <p className="text-xs text-slate-500">{p.categoria} · {p.pais} · {p.statusHomologacao}</p>
-                    <h3 className="text-base font-bold text-slate-900">{p.nome}</h3>
+          {partners.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+              Nenhum parceiro cadastrado ainda.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {partners.map((p) => (
+                <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-500">
+                        {p.categoria} · {p.pais}
+                        {p.cidadeRegiao ? ` (${p.cidadeRegiao})` : ''} · {p.statusHomologacao}
+                      </p>
+                      <h3 className="text-base font-bold text-slate-900">{p.nome}</h3>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPartnerModal(p)}
+                        className="px-3 py-1 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Editar
+                      </button>
+                      {role === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => requestDeletePartner(p)}
+                          aria-label={`Excluir parceiro ${p.nome}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPartnerModal(p)}
-                    className="px-3 py-1 rounded-lg border border-slate-300 text-xs font-medium"
-                  >
-                    Editar
-                  </button>
+                  {(p.contato || p.whatsapp || p.email) && (
+                    <p className="text-xs text-slate-600">
+                      {p.contato ? `Contato: ${p.contato}` : ''}
+                      {p.whatsapp ? `${p.contato ? ' · ' : ''}${p.whatsapp}` : ''}
+                      {p.email ? ` · ${p.email}` : ''}
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-700">
+                    <strong>Comissão interna ({p.moedaNegociacao}):</strong> {p.tabelaValoresComissao || 'Não cadastrada'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Vitrine pública: {p.recomendadoAosClientes && p.statusHomologacao === 'Ativo/Indicado' ? 'Sim (Publicado em /parceiros)' : 'Oculto do público'}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-700">
-                  <strong>Comissão interna ({p.moedaNegociacao}):</strong> {p.tabelaValoresComissao || 'Não cadastrada'}
-                </p>
-                <p className="text-xs text-slate-500">
-                  Vitrine pública: {p.recomendadoAosClientes ? 'Sim (Recomendado)' : 'Oculto do público'}
-                </p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1391,6 +1569,17 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       >
                         Editar / IA
                       </button>
+                      {role === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteLegalSource(s)}
+                          aria-label={`Excluir norma ${s.titulo}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir
+                        </button>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-slate-700">{s.resumoPortugues}</p>
@@ -1736,43 +1925,168 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         </div>
       )}
 
-      {/* Modal Parceiro */}
+      {/* Modal Parceiro Completo */}
       {partnerModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handleSavePartner} className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-3">
-            <h2 className="text-lg font-bold text-slate-900">Cadastro de Parceiro</h2>
-            <input
-              required
-              value={partnerModal.nome || ''}
-              onChange={(e) => setPartnerModal({ ...partnerModal, nome: e.target.value })}
-              placeholder="Nome / Empresa"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={partnerModal.pais || 'Chile'}
-                onChange={(e) => setPartnerModal({ ...partnerModal, pais: e.target.value as Partner['pais'] })}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-              >
-                <option value="Brasil">Brasil</option>
-                <option value="Chile">Chile</option>
-                <option value="Ambos">Ambos</option>
-              </select>
-              <select
-                value={partnerModal.statusHomologacao || 'Ativo/Indicado'}
-                onChange={(e) => setPartnerModal({ ...partnerModal, statusHomologacao: e.target.value as Partner['statusHomologacao'] })}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-              >
-                <option value="Ativo/Indicado">Ativo/Indicado</option>
-                <option value="Em Análise">Em Análise</option>
-                <option value="Não Indicado/Suspenso">Não Indicado/Suspenso</option>
-              </select>
+          <form onSubmit={handleSavePartner} className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h2 className="text-lg font-bold text-slate-900">
+                {partners.some((p) => p.id === partnerModal.id) ? `Editar Parceiro: ${partnerModal.nome}` : 'Cadastro de Parceiro'}
+              </h2>
+              <button type="button" onClick={() => setPartnerModal(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              <div className="sm:col-span-2">
+                <label className="block font-semibold text-slate-700 mb-1">Nome / Razão Social *</label>
+                <input
+                  required
+                  value={partnerModal.nome || ''}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, nome: e.target.value })}
+                  placeholder="Nome / Empresa"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Categoria</label>
+                <select
+                  value={partnerModal.categoria || 'Outro'}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, categoria: e.target.value as PartnerCategory })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Tradutor">Tradutor</option>
+                  <option value="Cartório">Cartório</option>
+                  <option value="Corretor de Imóveis">Corretor de Imóveis</option>
+                  <option value="Escritório de Advocacia">Escritório de Advocacia</option>
+                  <option value="Contabilidade">Contabilidade</option>
+                  <option value="Despachante">Despachante</option>
+                  <option value="Transporte/Mudança">Transporte/Mudança</option>
+                  <option value="Banco/Câmbio">Banco/Câmbio</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Tipo de Pessoa</label>
+                <select
+                  value={partnerModal.tipoPessoa || 'Pessoa Jurídica'}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, tipoPessoa: e.target.value as Partner['tipoPessoa'] })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Pessoa Jurídica">Pessoa Jurídica</option>
+                  <option value="Pessoa Física">Pessoa Física</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">País</label>
+                <select
+                  value={partnerModal.pais || 'Chile'}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, pais: e.target.value as Partner['pais'] })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Brasil">Brasil</option>
+                  <option value="Chile">Chile</option>
+                  <option value="Ambos">Ambos</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Cidade / Região</label>
+                <input
+                  value={partnerModal.cidadeRegiao || ''}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, cidadeRegiao: e.target.value })}
+                  placeholder="Ex.: Santiago, São Paulo..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Pessoa de Contato</label>
+                <input
+                  value={partnerModal.contato || ''}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, contato: e.target.value })}
+                  placeholder="Nome do responsável"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">WhatsApp</label>
+                <input
+                  value={partnerModal.whatsapp || ''}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, whatsapp: e.target.value })}
+                  placeholder="+55 / +56 ..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">E-mail</label>
+                <input
+                  type="email"
+                  value={partnerModal.email || ''}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, email: e.target.value })}
+                  placeholder="contato@parceiro.com"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Site ou Instagram</label>
+                <input
+                  value={partnerModal.siteInstagram || ''}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, siteInstagram: e.target.value })}
+                  placeholder="https://... ou @perfil"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Status de Homologação</label>
+                <select
+                  value={partnerModal.statusHomologacao || 'Ativo/Indicado'}
+                  onChange={(e) => setPartnerModal({ ...partnerModal, statusHomologacao: e.target.value as Partner['statusHomologacao'] })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                >
+                  <option value="Ativo/Indicado">Ativo/Indicado</option>
+                  <option value="Em Análise">Em Análise</option>
+                  <option value="Não Indicado/Suspenso">Não Indicado/Suspenso</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Moeda / Avaliação Interna</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={partnerModal.moedaNegociacao || 'BRL'}
+                    onChange={(e) => setPartnerModal({ ...partnerModal, moedaNegociacao: e.target.value as Partner['moedaNegociacao'] })}
+                    className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="BRL">BRL</option>
+                    <option value="CLP">CLP</option>
+                    <option value="USD">USD</option>
+                  </select>
+                  <select
+                    value={Number(partnerModal.avaliacao || 5)}
+                    onChange={(e) => setPartnerModal({ ...partnerModal, avaliacao: Number(e.target.value) })}
+                    className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value={5}>5 estrelas</option>
+                    <option value={4}>4 estrelas</option>
+                    <option value={3}>3 estrelas</option>
+                    <option value={2}>2 estrelas</option>
+                    <option value={1}>1 estrela</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <textarea
               rows={2}
               value={partnerModal.tabelaValoresComissao || ''}
               onChange={(e) => setPartnerModal({ ...partnerModal, tabelaValoresComissao: e.target.value })}
-              placeholder="Tabela de valores e comissão (confidencial interno)"
+              placeholder="Tabela de valores e comissão (confidencial interno — nunca visível em /parceiros)"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+            />
+            <textarea
+              rows={2}
+              value={partnerModal.condicoesParceria || ''}
+              onChange={(e) => setPartnerModal({ ...partnerModal, condicoesParceria: e.target.value })}
+              placeholder="Condições comerciais e prazos de atendimento"
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
             />
             <textarea
@@ -1782,21 +2096,47 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
               placeholder="Descrição pública exibida em /parceiros"
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
             />
+            <textarea
+              rows={2}
+              value={partnerModal.observacoes || ''}
+              onChange={(e) => setPartnerModal({ ...partnerModal, observacoes: e.target.value })}
+              placeholder="Observações internas / compliance"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+            />
             <label className="inline-flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={Boolean(partnerModal.recomendadoAosClientes)}
                 onChange={(e) => setPartnerModal({ ...partnerModal, recomendadoAosClientes: e.target.checked })}
               />
-              Recomendado aos clientes (publicar em /parceiros)
+              Recomendado aos clientes (publicar em /parceiros se Status for Ativo/Indicado)
             </label>
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setPartnerModal(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs">
-                Cancelar
-              </button>
-              <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
-                Salvar Parceiro
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <div>
+                {role === 'admin' && partners.some((p) => p.id === partnerModal.id) && (
+                  <button
+                    type="button"
+                    onClick={() => requestDeletePartner(partnerModal as Partner)}
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir Parceiro
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPartnerModal(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs">
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPartner}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  {savingPartner ? 'Salvando...' : 'Salvar Parceiro'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -2222,6 +2562,19 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         onClose={() => setLegalDrawerData(null)}
         title={legalDrawerData?.title}
         sources={legalDrawerData?.sources || []}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(confirmModal)}
+        title={confirmModal?.title || 'Confirmar'}
+        description={confirmModal?.description || ''}
+        details={confirmModal?.details}
+        confirmLabel={confirmModal?.confirmLabel}
+        tone={confirmModal?.tone || 'danger'}
+        onConfirm={async () => {
+          if (confirmModal) await confirmModal.onConfirm();
+        }}
+        onClose={() => setConfirmModal(null)}
       />
     </div>
   );

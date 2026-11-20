@@ -15,7 +15,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { ConfirmTypedModal, UiButton } from '../ui/DesignSystem';
+import { ConfirmActionModal, ConfirmTypedModal, UiButton } from '../ui/DesignSystem';
+import { translateAppError } from '../../services/errorService';
 import {
   archiveClientAudited,
   deleteClientCascadeAudited,
@@ -132,6 +133,7 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [depToDelete, setDepToDelete] = useState<Dependent | null>(null);
 
   // Novo dependente
   const [depForm, setDepForm] = useState({
@@ -681,11 +683,8 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                         {canEdit && (
                           <button
                             type="button"
-                            onClick={async () => {
-                              await deleteDocumentAudited('dependents', dep.id, role, dep);
-                              await onRefresh();
-                            }}
-                            className="p-1.5 rounded border border-red-200 text-[#C82333]"
+                            onClick={() => setDepToDelete(dep)}
+                            className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
                             aria-label="Remover dependente"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1062,6 +1061,26 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
           await onRefresh();
           onClose();
         }}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(depToDelete)}
+        title="Remover Dependente"
+        description={`Tem certeza que deseja excluir permanentemente o dependente "${depToDelete?.nomeCompleto || ''}"?`}
+        confirmLabel="Excluir Dependente"
+        tone="danger"
+        onConfirm={async () => {
+          if (!depToDelete) return;
+          try {
+            await deleteDocumentAudited('dependents', depToDelete.id, role, depToDelete);
+            setFeedback(`Dependente "${depToDelete.nomeCompleto}" removido.`);
+            setDepToDelete(null);
+            await onRefresh();
+          } catch (err) {
+            throw new Error(translateAppError(err).message || 'Não foi possível remover o dependente.');
+          }
+        }}
+        onClose={() => setDepToDelete(null)}
       />
     </div>
   );

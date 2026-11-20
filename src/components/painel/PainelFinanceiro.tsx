@@ -18,13 +18,16 @@ import {
   saveAiDraftCache,
   type AiResponseMeta,
 } from '../../utils/aiClient';
+import { translateAppError } from '../../services/errorService';
 import {
+  cleanupServerUploadUrl,
   deleteDocumentAudited,
   makeId,
   saveDocumentAudited,
   saveEmpresaConfigAdmin,
   callAiEndpoint,
 } from '../../services/firestoreService';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import { ContractGeneratorModal } from './ContractGeneratorModal';
 import type {
   Budget,
@@ -87,6 +90,13 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   const [tab, setTab] = useState<FinTab>(sectionGroup === 'contratos' ? 'documentos' : 'orcamentos');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    col: 'budgets' | 'financialRecords' | 'generatedDocuments';
+    id: string;
+    label: string;
+    item: Budget | FinancialRecord | GeneratedDocument;
+    fileUrl?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (sectionGroup === 'contratos') {
@@ -544,6 +554,23 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                         Enviar no WhatsApp
                       </button>
                     )}
+                    {role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeleteTarget({
+                            col: 'budgets',
+                            id: b.id,
+                            label: `orçamento ${b.numeroOrcamento}`,
+                            item: b,
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 ml-auto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -627,11 +654,16 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                         {role === 'admin' && (
                           <button
                             type="button"
-                            onClick={async () => {
-                              await deleteDocumentAudited('financialRecords', f.id, role, f);
-                              await onRefresh();
-                            }}
-                            className="p-1.5 rounded border border-red-200 text-[#C82333]"
+                            onClick={() =>
+                              setDeleteTarget({
+                                col: 'financialRecords',
+                                id: f.id,
+                                label: `lançamento "${f.descricao}"`,
+                                item: f,
+                                fileUrl: f.comprovanteUrl,
+                              })
+                            }
+                            className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
                             aria-label="Excluir lançamento"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -733,6 +765,23 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                         className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium"
                       >
                         {gd.liberadoAoCliente ? 'Ocultar do Portal' : 'Liberar no Portal'}
+                      </button>
+                    )}
+                    {role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeleteTarget({
+                            col: 'generatedDocuments',
+                            id: gd.id,
+                            label: `documento "${gd.titulo}"`,
+                            item: gd,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-[#C82333] font-semibold hover:bg-red-50 ml-auto"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Excluir
                       </button>
                     )}
                   </div>
@@ -1037,6 +1086,30 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
         initialReceiptRecord={receiptFinRecord}
         onRefresh={onRefresh}
         onLogWhatsApp={onLogWhatsApp}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(deleteTarget)}
+        title="Confirmar Exclusão"
+        description={`Deseja excluir permanentemente ${deleteTarget?.label || 'este registro'}? Esta operação é auditada e irreversível.`}
+        confirmLabel="Excluir Permanentemente"
+        tone="danger"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setErrorMsg(null);
+          try {
+            await deleteDocumentAudited(deleteTarget.col, deleteTarget.id, role, deleteTarget.item);
+            if (deleteTarget.fileUrl) {
+              await cleanupServerUploadUrl(deleteTarget.fileUrl);
+            }
+            setFeedback(`Exclusão concluída (${deleteTarget.label}).`);
+            setDeleteTarget(null);
+            await onRefresh();
+          } catch (err) {
+            throw new Error(translateAppError(err).message || 'Não foi possível concluir a exclusão.');
+          }
+        }}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );

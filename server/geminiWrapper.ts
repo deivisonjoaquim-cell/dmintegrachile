@@ -5,6 +5,16 @@ export const MSG_AI_HIGH_DEMAND =
   'O serviço de IA está com alta demanda. Tentamos novamente automaticamente; se não responder, geramos um rascunho pelas regras. Você pode tentar de novo em instantes.';
 export const MSG_AI_OTHER_ERROR =
   'Não foi possível gerar o rascunho agora. Seus dados foram mantidos.';
+export const MSG_AI_MISSING_KEY =
+  'Modo de regras locais ativo: a chave da IA não está configurada no servidor.';
+export const MSG_AI_INVALID_KEY =
+  'Chave de IA inválida ou sem permissão de acesso no servidor.';
+export const MSG_AI_MODEL_NOT_FOUND =
+  'Modelo de IA indisponível ou não encontrado na configuração atual do servidor.';
+export const MSG_AI_BLOCKED =
+  'Conteúdo bloqueado pelos filtros de segurança da IA. Ajuste o texto e tente novamente.';
+export const MSG_AI_BAD_REQUEST =
+  'A solicitação de IA não pôde ser processada com os parâmetros enviados. Revise os dados e tente novamente.';
 export const MSG_AI_CONCURRENT_REQUEST =
   'Já existe uma solicitação de IA em andamento para sua conta. Aguarde a conclusão antes de tentar novamente.';
 
@@ -18,6 +28,39 @@ export interface GeminiRuntimeConfig {
   maxAttempts: number;
   fallbackAttempts: number;
   baseDelayMs: number;
+  maxWallClockMs?: number;
+}
+
+export function getEffectiveRuntimeConfig(
+  runtime: GeminiRuntimeConfig,
+  isVercelEnv = Boolean(process.env.VERCEL),
+  hasExplicitOverride = false,
+): GeminiRuntimeConfig & { maxWallClockMs: number } {
+  if (isVercelEnv && !hasExplicitOverride) {
+    return {
+      ...runtime,
+      timeoutMs: Math.min(runtime.timeoutMs, 14000),
+      maxAttempts: Math.min(runtime.maxAttempts, 2),
+      fallbackAttempts: Math.min(runtime.fallbackAttempts, 1),
+      baseDelayMs: Math.min(runtime.baseDelayMs, 600),
+      maxWallClockMs: Math.min(runtime.maxWallClockMs ?? 42000, 42000),
+    };
+  }
+  return {
+    ...runtime,
+    maxWallClockMs: runtime.maxWallClockMs ?? (isVercelEnv ? 42000 : 180000),
+  };
+}
+
+export function formatFatalAiErrorMessage(fatal: ClassifiedGeminiError): string {
+  if (fatal.kind === 'config_missing') return MSG_AI_MISSING_KEY;
+  if (fatal.kind === 'blocked') return MSG_AI_BLOCKED;
+  if (fatal.statusCode === 401 || fatal.statusCode === 403 || fatal.safeReason === 'definitive_api_error') {
+    return MSG_AI_INVALID_KEY;
+  }
+  if (fatal.statusCode === 404) return MSG_AI_MODEL_NOT_FOUND;
+  if (fatal.statusCode === 400) return MSG_AI_BAD_REQUEST;
+  return MSG_AI_OTHER_ERROR;
 }
 
 export function getGeminiRuntimeConfig(): GeminiRuntimeConfig {
@@ -380,7 +423,13 @@ async function runSingleAttemptWithTimeout(
 export async function chamarGemini<T extends Record<string, unknown>>(
   params: ChamarGeminiParams<T>,
 ): Promise<ChamarGeminiResult<T>> {
-  const runtime = { ...getGeminiRuntimeConfig(), ...(params.configOverride || {}) };
+  const baseRuntime = { ...getGeminiRuntimeConfig(), ...(params.configOverride || {}) };
+  const runtime = getEffectiveRuntimeConfig(
+    baseRuntime,
+    Boolean(process.env.VERCEL),
+    Boolean(params.configOverride && !params.configOverride.maxWallClockMs),
+  );
+  const startedAtMs = Date.now();
   const sleep = params.sleepFn || defaultSleep;
   const rng = params.rngFn || Math.random;
 
@@ -398,7 +447,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
           origemLabel: AI_FALLBACK_LABEL,
           modeloUsado: 'regras',
           tentativas: 0,
-          mensagemUsuario: MSG_AI_OTHER_ERROR,
+          mensagemUsuario: MSG_AI_MISSING_KEY,
         },
         audit: {
           rota: params.route,
@@ -434,6 +483,17 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     let malformedRetriesLeft = 1;
 
     for (let attempt = 1; attempt <= maxTries; attempt++) {
+      const remainingBudgetMs = runtime.maxWallClockMs - (Date.now() - startedAtMs);
+      if (attempt > 1 && remainingBudgetMs < 2500) {
+        lastError = lastError || {
+          statusCode: 504,
+          kind: 'timeout',
+          isHighDemand: true,
+          retryable: true,
+          safeReason: 'wall_clock_budget_exhausted',
+        };
+        break;
+      }
       totalAttempts += 1;
       params.onProgress?.({
         attempt,
@@ -461,6 +521,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
               responseSchema: params.responseSchema,
             };
 
+        const attemptTimeoutMs = Math.max(20, Math.min(runtime.timeoutMs, Math.max(20, remainingBudgetMs - 1000)));
         const resp = await runSingleAttemptWithTimeout(
           generateFn!,
           {
@@ -468,7 +529,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
             contents: params.contents,
             config: requestConfig,
           },
-          runtime.timeoutMs,
+          runtime.timeoutMs <= 200 ? runtime.timeoutMs : attemptTimeoutMs,
         );
 
         const attachGrounding = (data: T): T => {
@@ -571,6 +632,10 @@ export async function chamarGemini<T extends Record<string, unknown>>(
 
         if (attempt < maxTries) {
           const delayMs = computeRetryDelayMs(attempt, runtime.baseDelayMs, classified.retryAfterMs, rng);
+          const remainingAfter = runtime.maxWallClockMs - (Date.now() - startedAtMs);
+          if (remainingAfter - delayMs < 2500 && runtime.maxWallClockMs < 100000) {
+            break;
+          }
           params.onProgress?.({
             attempt: attempt + 1,
             maxAttempts: maxTries,
@@ -584,7 +649,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     return {};
   };
 
-  // Phase 1: Primary model (up to 4 attempts)
+  // Phase 1: Primary model (up to maxAttempts within wall clock budget)
   const primaryOutcome = await tryModelPhase(runtime.primaryModel, 'principal', runtime.maxAttempts);
   if (primaryOutcome.matched) {
     return {
@@ -612,7 +677,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     return {
       ok: false,
       statusCode: primaryOutcome.fatal.statusCode || 400,
-      errorMessage: MSG_AI_OTHER_ERROR,
+      errorMessage: formatFatalAiErrorMessage(primaryOutcome.fatal),
       audit: {
         rota: params.route,
         modeloTipo: 'principal',
@@ -624,8 +689,14 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     };
   }
 
-  // Phase 2: Lighter backup model if configured and different from primary
-  if (runtime.fallbackModel && runtime.fallbackModel !== runtime.primaryModel && !sawMalformedJson) {
+  // Phase 2: Lighter backup model if configured, different from primary, and budget remains
+  const remainingBeforeBackup = runtime.maxWallClockMs - (Date.now() - startedAtMs);
+  if (
+    runtime.fallbackModel &&
+    runtime.fallbackModel !== runtime.primaryModel &&
+    !sawMalformedJson &&
+    remainingBeforeBackup >= 2500
+  ) {
     const backupOutcome = await tryModelPhase(runtime.fallbackModel, 'reserva', runtime.fallbackAttempts);
     if (backupOutcome.matched) {
       return {
@@ -653,7 +724,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       return {
         ok: false,
         statusCode: backupOutcome.fatal.statusCode || 400,
-        errorMessage: MSG_AI_OTHER_ERROR,
+        errorMessage: formatFatalAiErrorMessage(backupOutcome.fatal),
         audit: {
           rota: params.route,
           modeloTipo: 'reserva',

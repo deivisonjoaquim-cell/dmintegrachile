@@ -31,6 +31,19 @@ const SAFE_PT_MESSAGES = [
   'Dados do diagnóstico incompletos',
   'Limite temporário de requisições',
   'Já existe uma solicitação de IA em andamento',
+  'Modo de regras locais ativo',
+  'Chave de IA inválida',
+  'Modelo de IA indisponível',
+  'Conteúdo bloqueado pelos filtros',
+  'A solicitação de IA não pôde ser processada',
+  'Os dados ou arquivo enviados excedem',
+  'Arquivo ou payload excede',
+  'Tempo limite excedido',
+  'Falha de conexão com o servidor',
+  'Informe a norma atual',
+  'Formato JSON inválido',
+  'Falha interna ao processar',
+  'Rota de API não encontrada',
   CLIENT_MSG_AI_HIGH_DEMAND,
   CLIENT_MSG_AI_GENERIC_ERROR,
 ];
@@ -72,6 +85,74 @@ export function sanitizeClientAiError(raw: unknown): string {
   }
 
   return CLIENT_MSG_AI_GENERIC_ERROR;
+}
+
+// =============================================================================
+// Lightweight AI Payload Compactors (prevents 413 / large prompt bloat on Vercel)
+// =============================================================================
+export interface CompactLegalSourceInput {
+  id?: string;
+  titulo?: string;
+  numeroAno?: string;
+  pais?: string;
+  artigos?: string;
+  resumoPortugues?: string;
+  explicacaoSimples?: string;
+  linkOficial?: string;
+}
+
+export function compactSourceForAi(source: CompactLegalSourceInput | null | undefined) {
+  if (!source) return {};
+  return {
+    id: source.id || '',
+    titulo: String(source.titulo || '').slice(0, 180),
+    numeroAno: String(source.numeroAno || '').slice(0, 80),
+    pais: source.pais || 'Chile',
+    artigos: String(source.artigos || '').slice(0, 500),
+    resumoPortugues: String(source.resumoPortugues || source.explicacaoSimples || '').slice(0, 900),
+    linkOficial: String(source.linkOficial || '').slice(0, 300),
+  };
+}
+
+export function compactLegalSourcesForAi(sources: CompactLegalSourceInput[] | undefined, maxItems = 15) {
+  if (!Array.isArray(sources)) return [];
+  return sources.slice(0, maxItems).map((s) => ({
+    titulo: String(s.titulo || '').slice(0, 140),
+    numeroAno: String(s.numeroAno || '').slice(0, 60),
+    artigos: String(s.artigos || '').slice(0, 220),
+    resumoPortugues: String(s.resumoPortugues || s.explicacaoSimples || '').slice(0, 380),
+  }));
+}
+
+export function compactCaseForAi(caseData: Record<string, unknown> | null | undefined) {
+  if (!caseData) return {};
+  return {
+    id: caseData.id,
+    titulo: caseData.titulo,
+    tipoServico: caseData.tipoServico,
+    subcategoria: caseData.subcategoria,
+    statusPipeline: caseData.statusPipeline,
+    statusSermig: caseData.statusSermig,
+    localSolicitacao: caseData.localSolicitacao,
+    notaViabilidadeGeral: caseData.notaViabilidadeGeral,
+    observacoes: typeof caseData.observacoes === 'string' ? caseData.observacoes.slice(0, 800) : '',
+  };
+}
+
+export function compactClientForAi(clientData: Record<string, unknown> | null | undefined) {
+  if (!clientData) return {};
+  return {
+    localizacaoAtual: clientData.localizacaoAtual,
+    situacaoMigratoriaAtual: clientData.situacaoMigratoriaAtual,
+    motivoMudanca: clientData.motivoMudanca,
+    prazoDesejado: clientData.prazoDesejado,
+    profissao: clientData.profissao,
+    possuiFilhosMenores: clientData.possuiFilhosMenores,
+    quantidadeDependentes: clientData.quantidadeDependentes,
+    antecedentesCriminais: clientData.antecedentesCriminais,
+    restricaoEntrada: clientData.restricaoEntrada,
+    validadePassaporte: clientData.validadePassaporte,
+  };
 }
 
 // =============================================================================

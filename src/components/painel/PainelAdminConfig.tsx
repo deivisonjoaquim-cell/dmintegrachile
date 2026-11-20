@@ -31,6 +31,7 @@ import { isPrimaryAdminEmail } from '../../services/adminSecurityService';
 import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidKey } from '../../services/notificationService';
 import {
+  deleteDocumentAudited,
   fetchAllDiagnosticRuleVersions,
   fetchBancarioConfigAdmin,
   fetchUsersList,
@@ -62,6 +63,7 @@ import { runDiagnosticEngine } from '../../utils/diagnosticEngine';
 import { DIAGNOSTIC_TEST_PROFILES } from '../../utils/diagnosticProfiles';
 import { exportToCSV, formatDateBR, formatDateTimeBR } from '../../utils/formatters';
 import { HomeSectionsView } from '../HomeSectionsView';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import { MediaAssetPicker } from './MediaAssetPicker';
 
 interface PainelAdminConfigProps {
@@ -237,6 +239,12 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [editingMember, setEditingMember] = useState<UserProfile | null>(null);
+  const [adminDeleteTarget, setAdminDeleteTarget] = useState<{
+    kind: 'user' | 'ruleVersion';
+    id: string;
+    label: string;
+    item: UserProfile | DiagnosticRuleVersion;
+  } | null>(null);
 
   // Studio CMS (Rascunho separado de Publicado)
   const [siteDraft, setSiteDraft] = useState<SiteContent[]>(() => {
@@ -2189,7 +2197,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                         <option value="inativo">inativo</option>
                       </select>
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
                       {u.role !== 'cliente' && (
                         <button
                           type="button"
@@ -2197,6 +2205,23 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           className="px-3 py-1 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
                         >
                           Editar Bio / Credenciais
+                        </button>
+                      )}
+                      {!isProtectedPrimaryAdmin && u.uid !== userProfile.uid && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminDeleteTarget({
+                              kind: 'user',
+                              id: u.uid,
+                              label: `usuário "${u.nome}" (${u.email})`,
+                              item: u,
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 font-semibold text-[#C82333] hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Excluir
                         </button>
                       )}
                     </td>
@@ -2460,9 +2485,28 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     )}
                     <p className="text-slate-600 mt-0.5">{v.resumoMudanca}</p>
                   </div>
-                  <div className="text-slate-500 text-right">
-                    <p>{v.publicadoPor}</p>
-                    <p>{formatDateBR(v.dataPublicacao)}</p>
+                  <div className="flex items-center gap-3 text-slate-500 text-right">
+                    <div>
+                      <p>{v.publicadoPor}</p>
+                      <p>{formatDateBR(v.dataPublicacao)}</p>
+                    </div>
+                    {!v.ativa && ruleVersions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminDeleteTarget({
+                            kind: 'ruleVersion',
+                            id: v.id,
+                            label: `versão de regras "${v.versao}"`,
+                            item: v,
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 font-semibold text-[#C82333] hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Excluir
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -3208,6 +3252,33 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
           </form>
         </div>
       )}
+
+      <ConfirmActionModal
+        open={Boolean(adminDeleteTarget)}
+        title={adminDeleteTarget?.kind === 'user' ? 'Excluir Usuário' : 'Excluir Versão de Regras'}
+        description={`Tem certeza que deseja excluir permanentemente ${adminDeleteTarget?.label || 'este item'}? Esta ação é registrada na auditoria.`}
+        confirmLabel="Excluir Permanentemente"
+        tone="danger"
+        onConfirm={async () => {
+          if (!adminDeleteTarget) return;
+          setErrorMsg(null);
+          try {
+            if (adminDeleteTarget.kind === 'user') {
+              await deleteDocumentAudited('users', adminDeleteTarget.id, role, adminDeleteTarget.item);
+              await loadUsers();
+            } else {
+              await deleteDocumentAudited('diagnosticRuleVersions', adminDeleteTarget.id, role, adminDeleteTarget.item);
+              await loadRuleVersions();
+            }
+            setFeedback(`Exclusão realizada (${adminDeleteTarget.label}).`);
+            setAdminDeleteTarget(null);
+            await onRefresh();
+          } catch (err) {
+            throw new Error(formatActionError(err, 'Não foi possível concluir a exclusão.'));
+          }
+        }}
+        onClose={() => setAdminDeleteTarget(null)}
+      />
     </div>
   );
 };

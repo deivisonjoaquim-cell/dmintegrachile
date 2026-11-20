@@ -478,14 +478,29 @@ app.delete('/api/media/:filename', requireAuth, requireRole(['admin']), (req: Au
   res.json({ ok: true });
 });
 
+app.delete('/api/uploads/:filename', requireAuth, requireRole(['admin', 'consultor']), (req: AuthedRequest, res: Response) => {
+  const safeName = path.basename(req.params.filename || '');
+  if (!safeName || safeName.includes('..')) {
+    res.status(400).json({ error: 'Nome de arquivo inválido.' });
+    return;
+  }
+  const fullPath = path.join(UPLOAD_DIR, safeName);
+  if (!fs.existsSync(fullPath)) {
+    res.json({ ok: true, deleted: false });
+    return;
+  }
+  fs.unlinkSync(fullPath);
+  res.json({ ok: true, deleted: true });
+});
+
 // -----------------------------------------------------------------------------
 // 1. /api/ai/diagnostico — Refina parecer orientativo (exige sessão Google válida)
 // -----------------------------------------------------------------------------
 app.post('/api/ai/diagnostico', requireAuth, aiRateLimit, async (req: AuthedRequest, res: Response) => {
   const body = (req.body || {}) as Record<string, unknown>;
   const rawSize = Buffer.byteLength(JSON.stringify(body), 'utf8');
-  if (rawSize > 64 * 1024) {
-    res.status(413).json({ error: 'Carga de dados do diagnóstico excede o limite máximo permitido (64 KB).' });
+  if (rawSize > 256 * 1024) {
+    res.status(413).json({ error: 'Carga de dados do diagnóstico excede o limite máximo permitido (256 KB).' });
     return;
   }
   if (!body.answers || !Array.isArray(body.regrasAcionadas)) {
@@ -635,6 +650,24 @@ app.get('/api/legal/sermig-check/health', (_req, res) => {
 // Garantir resposta JSON limpa para qualquer rota /api/* inexistente (evita HTML 404)
 app.all('/api/*', (_req, res) => {
   res.status(404).json({ error: 'Rota de API não encontrada.' });
+});
+
+// Middleware de erro para rotas /api/* (ex.: 413 Payload Too Large ou JSON malformado)
+app.use('/api', (err: unknown, _req: express.Request, res: Response, next: NextFunction) => {
+  const e = err as { type?: string; status?: number; statusCode?: number; message?: string };
+  if (e?.type === 'entity.too.large' || e?.status === 413 || e?.statusCode === 413) {
+    res.status(413).json({ error: 'Os dados ou arquivo enviados excedem o limite permitido pelo servidor (12 MB).' });
+    return;
+  }
+  if (err instanceof SyntaxError && (e?.status === 400 || e?.statusCode === 400)) {
+    res.status(400).json({ error: 'Formato JSON inválido na solicitação enviada.' });
+    return;
+  }
+  if (!res.headersSent && err) {
+    res.status(e?.status || 500).json({ error: 'Falha interna ao processar a solicitação na API.' });
+    return;
+  }
+  next(err);
 });
 
 // =============================================================================

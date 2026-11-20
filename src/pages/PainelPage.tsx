@@ -1272,6 +1272,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   docs={effectiveWorkspace.caseDocuments}
                   deadlines={effectiveWorkspace.deadlines}
                   avisoLegal={empresa.avisoLegal}
+                  onRefresh={handleRefreshAll}
                 />
               )}
 

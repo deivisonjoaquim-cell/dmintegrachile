@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Minimize2,
   SlidersHorizontal,
+  Trash2,
   X,
   Zap,
 } from 'lucide-react';
@@ -48,6 +49,7 @@ interface PainelLeadsKanbanProps {
   onQuickUpdateLead: (lead: Lead, patch: LeadQuickEditPatch) => Promise<void>;
   onInspectLead: (lead: Lead) => void;
   onEditLead: (lead: Lead) => void;
+  onDeleteLead?: (lead: Lead) => void;
   onSendWhatsApp: (lead: Lead) => Promise<void>;
   onConvertLead: (lead: Lead) => Promise<void>;
   onOpenCase: (caseId: string) => void;
@@ -92,6 +94,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
   onMoveStage,
   onQuickUpdateLead,
   onInspectLead,
+  onDeleteLead,
   onSendWhatsApp,
   onConvertLead,
   onOpenCase,
@@ -570,6 +573,17 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                 className="p-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0 disabled:opacity-50"
               >
                 <ArrowRight className="w-3 h-3" />
+              </button>
+            )}
+            {role === 'admin' && onDeleteLead && (
+              <button
+                type="button"
+                onClick={() => onDeleteLead(l)}
+                title={`Excluir lead ${l.nome}`}
+                aria-label={`Excluir lead ${l.nome}`}
+                className="p-1.5 rounded border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 shrink-0"
+              >
+                <Trash2 className="w-3 h-3" />
               </button>
             )}
           </div>
@@ -1156,7 +1170,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
             </div>
 
             <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/70 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {quickEditLead.respostasTriagem && (
                   <button
                     type="button"
@@ -1169,6 +1183,21 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                   >
                     <Eye className="w-3.5 h-3.5" />
                     Ver diagnóstico completo
+                  </button>
+                )}
+                {role === 'admin' && onDeleteLead && (
+                  <button
+                    type="button"
+                    disabled={quickSaving}
+                    onClick={() => {
+                      const target = quickEditLead;
+                      setQuickEditLead(null);
+                      onDeleteLead(target);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 whitespace-nowrap disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir Lead
                   </button>
                 )}
               </div>

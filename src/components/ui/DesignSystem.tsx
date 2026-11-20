@@ -108,6 +108,128 @@ export const UiModal: React.FC<{
   );
 };
 
+export const ConfirmActionModal: React.FC<{
+  open: boolean;
+  title: string;
+  description: string;
+  details?: string[];
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: 'danger' | 'warning' | 'primary';
+  onConfirm: () => Promise<void> | void;
+  onClose: () => void;
+}> = ({
+  open,
+  title,
+  description,
+  details = [],
+  confirmLabel = 'Confirmar exclusão',
+  cancelLabel = 'Cancelar',
+  tone = 'danger',
+  onConfirm,
+  onClose,
+}) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setError(null);
+      setBusy(false);
+      return;
+    }
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [open, busy, onClose]);
+
+  if (!open) return null;
+
+  const iconColor =
+    tone === 'danger'
+      ? 'text-[#A61C2B] dark:text-red-400'
+      : tone === 'warning'
+        ? 'text-amber-700 dark:text-amber-400'
+        : 'text-[var(--color-primary)]';
+
+  const confirmVariant = tone === 'danger' ? 'danger' : 'primary';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
+      <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-md w-full overflow-hidden shadow-2xl text-[#0B1523] dark:text-slate-100">
+        <BrandRibbon className="h-[2.5px] w-full" />
+        <div className="p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className={`flex items-center gap-2 ${iconColor}`}>
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-[#0B1523] dark:text-slate-100">{title}</h3>
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+              aria-label="Fechar"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] transition-colors disabled:opacity-40"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{description}</p>
+
+          {details.length > 0 && (
+            <ul className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+              {details.map((it, idx) => (
+                <li key={idx}>• {it}</li>
+              ))}
+            </ul>
+          )}
+
+          {error && (
+            <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <UiButton type="button" variant="outline" onClick={onClose} disabled={busy}>
+              {cancelLabel}
+            </UiButton>
+            <UiButton
+              type="button"
+              variant={confirmVariant}
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  await onConfirm();
+                  onClose();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Não foi possível concluir a operação.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? 'Processando...' : confirmLabel}
+            </UiButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ConfirmTypedModal: React.FC<{
   open: boolean;
   title: string;
@@ -133,17 +255,35 @@ export const ConfirmTypedModal: React.FC<{
 }) => {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) setTyped('');
-  }, [open]);
+    if (!open) {
+      setTyped('');
+      setError(null);
+      setBusy(false);
+      return;
+    }
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [open, busy, onClose]);
 
   if (!open) return null;
 
   const matches = typed.trim().toUpperCase() === requiredKeyword.trim().toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
       <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl text-[#0B1523] dark:text-slate-100">
         <BrandRibbon className="h-[2.5px] w-full" />
         <div className="p-6 space-y-4">
@@ -154,75 +294,88 @@ export const ConfirmTypedModal: React.FC<{
             </div>
             <button
               type="button"
+              disabled={busy}
               onClick={onClose}
               aria-label="Fechar"
-              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] transition-colors disabled:opacity-40"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{description}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{description}</p>
 
-        {summaryItems.length > 0 && (
-          <ul className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 space-y-1">
-            {summaryItems.map((it, idx) => (
-              <li key={idx}>• {it}</li>
-            ))}
-          </ul>
-        )}
+          {summaryItems.length > 0 && (
+            <ul className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+              {summaryItems.map((it, idx) => (
+                <li key={idx}>• {it}</li>
+              ))}
+            </ul>
+          )}
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Para prosseguir, digite exatamente <strong>{requiredKeyword}</strong>:
-          </label>
-          <input
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            placeholder={requiredKeyword}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
-          />
-        </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Para prosseguir, digite exatamente <strong>{requiredKeyword}</strong>:
+            </label>
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={requiredKeyword}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
+            />
+          </div>
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
-          <UiButton type="button" variant="outline" onClick={onClose} disabled={busy}>
-            Cancelar
-          </UiButton>
-          {alternativeLabel && onAlternative && (
+          {error && (
+            <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <UiButton type="button" variant="outline" onClick={onClose} disabled={busy}>
+              Cancelar
+            </UiButton>
+            {alternativeLabel && onAlternative && (
+              <UiButton
+                type="button"
+                variant="primary"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    await onAlternative();
+                    onClose();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Não foi possível concluir a operação.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {alternativeLabel}
+              </UiButton>
+            )}
             <UiButton
               type="button"
-              variant="primary"
-              disabled={busy}
+              variant="danger"
+              disabled={!matches || busy}
               onClick={async () => {
                 setBusy(true);
+                setError(null);
                 try {
-                  await onAlternative();
+                  await onConfirm();
                   onClose();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Não foi possível concluir a exclusão.');
                 } finally {
                   setBusy(false);
                 }
               }}
             >
-              {alternativeLabel}
+              {busy ? 'Processando...' : confirmLabel}
             </UiButton>
-          )}
-          <UiButton
-            type="button"
-            variant="danger"
-            disabled={!matches || busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await onConfirm();
-                onClose();
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? 'Processando...' : confirmLabel}
-          </UiButton>
-        </div>
+          </div>
         </div>
       </div>
     </div>

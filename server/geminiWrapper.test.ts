@@ -21,9 +21,15 @@ import {
   chamarGemini,
   classifyGeminiError,
   computeRetryDelayMs,
+  getEffectiveRuntimeConfig,
   getGeminiRuntimeConfig,
+  MSG_AI_BAD_REQUEST,
+  MSG_AI_BLOCKED,
   MSG_AI_CONCURRENT_REQUEST,
   MSG_AI_HIGH_DEMAND,
+  MSG_AI_INVALID_KEY,
+  MSG_AI_MISSING_KEY,
+  MSG_AI_MODEL_NOT_FOUND,
   MSG_AI_OTHER_ERROR,
   parseRetryAfterMs,
   releaseUserAiLock,
@@ -297,8 +303,14 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     }
   });
 
-  it('does NOT retry on definitive errors (400/401/403) or safety-blocked responses and returns clean Portuguese error', async () => {
-    for (const code of [400, 401, 403]) {
+  it('does NOT retry on definitive errors (400/401/403/404) or safety-blocked responses and returns distinct Portuguese errors', async () => {
+    const cases: Array<{ code: number; expectedMessage: string }> = [
+      { code: 400, expectedMessage: MSG_AI_BAD_REQUEST },
+      { code: 401, expectedMessage: MSG_AI_INVALID_KEY },
+      { code: 403, expectedMessage: MSG_AI_INVALID_KEY },
+      { code: 404, expectedMessage: MSG_AI_MODEL_NOT_FOUND },
+    ];
+    for (const { code, expectedMessage } of cases) {
       let attempts = 0;
       const res = await chamarGemini({
         ...buildCustosSpec({}),
@@ -314,7 +326,7 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
       assert.equal(attempts, 1, `HTTP ${code} must not retry`);
       assert.equal(res.ok, false);
       assert.equal(res.statusCode, code);
-      assert.equal(res.errorMessage, MSG_AI_OTHER_ERROR);
+      assert.equal(res.errorMessage, expectedMessage);
       assert.equal(res.audit.resultado, 'erro_definitivo');
     }
 
@@ -330,7 +342,72 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     });
     assert.equal(blockedAttempts, 1);
     assert.equal(blockedRes.ok, false);
-    assert.equal(blockedRes.errorMessage, MSG_AI_OTHER_ERROR);
+    assert.equal(blockedRes.errorMessage, MSG_AI_BLOCKED);
+  });
+
+  it('uses MSG_AI_MISSING_KEY rule fallback without network calls when GEMINI_API_KEY is absent', async () => {
+    const res = await chamarGemini({
+      ...buildCustosSpec({ currentCustos: { taxaSermigMercosulUsd: 88 } }),
+      configOverride: { apiKey: '', maxAttempts: 4, fallbackAttempts: 2, baseDelayMs: 0 },
+    });
+    assert.equal(res.ok, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload?.fallback, true);
+    assert.equal(res.payload?.origem, 'regras');
+    assert.equal(res.payload?.mensagemUsuario, MSG_AI_MISSING_KEY);
+    assert.equal(res.audit.statusMotivo, 'missing_api_key');
+  });
+
+  it('caps timeoutMs, retry counts, and maxWallClockMs in Vercel mode when no explicit override', () => {
+    const baseCfg = {
+      apiKey: 'k',
+      primaryModel: 'gemini-4-hydrogen',
+      fallbackModel: 'gemini-3.1-flash-lite',
+      timeoutMs: 40000,
+      maxAttempts: 4,
+      fallbackAttempts: 2,
+      baseDelayMs: 1000,
+    };
+    const vercelCfg = getEffectiveRuntimeConfig(baseCfg, true, false);
+    assert.equal(vercelCfg.timeoutMs <= 14000, true);
+    assert.equal(vercelCfg.maxAttempts <= 2, true);
+    assert.equal(vercelCfg.fallbackAttempts <= 1, true);
+    assert.equal(vercelCfg.baseDelayMs <= 600, true);
+    assert.equal(vercelCfg.maxWallClockMs <= 42000, true);
+  });
+
+  it('extracts base64 inlineData from data: URIs in buildAnalisarDocumentoSpec', async () => {
+    const sampleDataUri = `data:image/png;base64,${Buffer.from('fake-png-bytes').toString('base64')}`;
+    const spec = buildAnalisarDocumentoSpec(
+      {
+        nomeEsperado: 'Passaporte Titular',
+        arquivoUrl: sampleDataUri,
+        textoObservacao: 'Passaporte válido',
+      },
+      os.tmpdir(),
+    );
+    let sawInlinePng = false;
+    const res = await chamarGemini({
+      ...spec,
+      configOverride: { apiKey: 'k', maxAttempts: 1, fallbackAttempts: 1, baseDelayMs: 0 },
+      generateFn: async ({ contents }) => {
+        const c = contents as { parts: Array<{ inlineData?: { mimeType: string; data: string } }> };
+        sawInlinePng = c.parts.some((p) => p.inlineData?.mimeType === 'image/png');
+        return makeResponse({
+          nomeIdentificado: 'Passaporte Brasileiro',
+          dataEmissao: '2024-01-10',
+          orgaoEmissor: 'Polícia Federal',
+          idioma: 'Português',
+          possuiApostila: false,
+          legibilidade: 'Boa',
+          sugestao: 'Aprovar',
+          justificativa: 'Dados coerentes.',
+        });
+      },
+    });
+    assert.equal(sawInlinePng, true);
+    assert.equal(res.ok, true);
+    assert.equal(res.payload?.sugestao, 'Aprovar');
   });
 
   it('retries once on malformed JSON and then uses deterministic rule fallback if still malformed', async () => {

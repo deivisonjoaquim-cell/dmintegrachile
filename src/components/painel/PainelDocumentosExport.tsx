@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Eye, FileText, FolderArchive, Printer, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Eye, FileText, FolderArchive, Printer, Trash2, X } from 'lucide-react';
 import { DEFAULT_EMPRESA_CONFIG } from '../../data/seeds';
-import { logSensitiveDocumentAccess } from '../../services/firestoreService';
+import { translateAppError } from '../../services/errorService';
+import { deleteCaseDocumentAudited, logSensitiveDocumentAccess } from '../../services/firestoreService';
 import type { Case, CaseDocument, Client, Deadline, Dependent, EmpresaConfig, UserRole } from '../../types/domain';
 import { calcularTermometroDocumentos } from '../../utils/caseMetrics';
 import { exportToCSV, formatDateBR, formatStandardDocFilename } from '../../utils/formatters';
 import { buildZipBlob, type ZipEntryInput } from '../../utils/zipBuilder';
 import { PdfPreviewModal } from '../pdf/PdfPreviewModal';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 
 interface PainelDocumentosExportProps {
   role: UserRole;
@@ -17,6 +19,7 @@ interface PainelDocumentosExportProps {
   docs: CaseDocument[];
   deadlines?: Deadline[];
   avisoLegal: string;
+  onRefresh?: () => Promise<void>;
 }
 
 type DocStatusFilter = 'Todos' | CaseDocument['status'];
@@ -39,7 +42,9 @@ export const PainelDocumentosExport: React.FC<PainelDocumentosExportProps> = ({
   docs,
   deadlines = [],
   avisoLegal,
+  onRefresh,
 }) => {
+  const canDeleteDoc = role === 'admin' || role === 'consultor';
   const [expandedCaseIds, setExpandedCaseIds] = useState<string[]>(() => (cases[0]?.id ? [cases[0].id] : []));
   const [search, setSearch] = useState('');
   const [clientFilter, setClientFilter] = useState('');
@@ -50,6 +55,7 @@ export const PainelDocumentosExport: React.FC<PainelDocumentosExportProps> = ({
   const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
   const [pdfPreview, setPdfPreview] = useState<{ title: string; filename: string; blobUrl: string } | null>(null);
   const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
+  const [docToDelete, setDocToDelete] = useState<CaseDocument | null>(null);
 
   const effectiveEmpresa = useMemo<EmpresaConfig>(
     () => (empresa ? { ...empresa, avisoLegal: empresa.avisoLegal || avisoLegal } : { ...DEFAULT_EMPRESA_CONFIG, avisoLegal }),
@@ -449,34 +455,47 @@ export const PainelDocumentosExport: React.FC<PainelDocumentosExportProps> = ({
                                   {formatDateBR(d.dataValidadeCalculada)}
                                 </p>
                               </div>
-                              {d.arquivoUrl ? (
-                                <div className="flex items-center gap-2 no-print shrink-0">
+                              <div className="flex items-center gap-2 no-print shrink-0">
+                                {d.arquivoUrl ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void logSensitiveDocumentAccess(d, 'visualizar', role);
+                                        setPreviewDoc(d);
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      Visualizar
+                                    </button>
+                                    <a
+                                      href={d.arquivoUrl}
+                                      download={downloadName}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={() => void logSensitiveDocumentAccess(d, 'baixar', role)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Baixar
+                                    </a>
+                                  </>
+                                ) : (
+                                  <span className="text-slate-400">Sem anexo</span>
+                                )}
+                                {canDeleteDoc && (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      void logSensitiveDocumentAccess(d, 'visualizar', role);
-                                      setPreviewDoc(d);
-                                    }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
+                                    onClick={() => setDocToDelete(d)}
+                                    aria-label={`Excluir documento ${d.nomeDocumento}`}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-red-200 font-semibold text-[#C82333] hover:bg-red-50"
                                   >
-                                    <Eye className="w-3 h-3" />
-                                    Visualizar
+                                    <Trash2 className="w-3 h-3" />
+                                    Excluir
                                   </button>
-                                  <a
-                                    href={d.arquivoUrl}
-                                    download={downloadName}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => void logSensitiveDocumentAccess(d, 'baixar', role)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-[var(--color-primary)] hover:bg-slate-50"
-                                  >
-                                    <Download className="w-3 h-3" />
-                                    Baixar
-                                  </a>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400">Sem anexo</span>
-                              )}
+                                )}
+                              </div>
                             </div>
                           );
                         })}
@@ -533,6 +552,34 @@ export const PainelDocumentosExport: React.FC<PainelDocumentosExportProps> = ({
           a.click();
           document.body.removeChild(a);
         }}
+      />
+      <ConfirmActionModal
+        open={Boolean(docToDelete)}
+        title="Excluir Documento do Dossiê"
+        description={`Tem certeza que deseja excluir permanentemente "${docToDelete?.nomeDocumento || ''}"? Se houver arquivo enviado no servidor, ele também será removido.`}
+        confirmLabel="Excluir Documento"
+        tone="danger"
+        details={
+          docToDelete
+            ? [
+                `Pessoa: ${docToDelete.pessoa} · Status: ${docToDelete.status}`,
+                `Anexo: ${docToDelete.arquivoNome || (docToDelete.arquivoUrl ? 'Arquivo vinculado' : 'Sem anexo')}`,
+              ]
+            : []
+        }
+        onConfirm={async () => {
+          if (!docToDelete) return;
+          try {
+            await deleteCaseDocumentAudited(docToDelete, role);
+            if (previewDoc?.id === docToDelete.id) setPreviewDoc(null);
+            setPdfFeedback(`Documento "${docToDelete.nomeDocumento}" excluído com auditoria.`);
+            setDocToDelete(null);
+            await onRefresh?.();
+          } catch (err) {
+            throw new Error(translateAppError(err).message || 'Não foi possível excluir o documento.');
+          }
+        }}
+        onClose={() => setDocToDelete(null)}
       />
     </div>
   );

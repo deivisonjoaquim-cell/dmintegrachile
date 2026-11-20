@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
 import { buildUpdatedLeadFromPatch, type LeadQuickEditPatch } from '../../utils/leadKanban';
 import {
   callAiEndpoint,
   convertLeadToClientAndCaseEnhanced,
   deleteDocumentAudited,
+  deleteLeadAndSessionAudited,
   recalculateLeadsWithRules,
   saveDocumentAudited,
   syncDiagnosticFollowUpTasks,
@@ -52,6 +54,7 @@ import {
   formatDateBR,
 } from '../../utils/formatters';
 import {
+  compactLegalSourcesForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
@@ -128,6 +131,13 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const [busyAction, setBusyAction] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedTplId, setSelectedTplId] = useState(messageTemplates[0]?.id || '');
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    description: string;
+    details?: string[];
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const engineOptions = useMemo(
     () => ({
@@ -245,7 +255,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             nomePortugues: v.nomePortugues,
             permiteDentroChile: v.permiteDentroChile,
           })),
-          legalSources: inspectedResult.fontesLegais,
+          legalSources: compactLegalSourcesForAi(inspectedResult.fontesLegais),
         },
         {
           onProgress: (msg) => setAiProgress(msg),
@@ -330,12 +340,45 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     });
   };
 
-  const handleDelete = async (lead: Lead) => {
+  const requestDeleteLead = (lead: Lead) => {
     if (role !== 'admin') return;
-    if (!window.confirm(`Excluir o lead "${lead.nome}"? Esta ação será auditada e atende solicitação LGPD.`)) return;
-    await deleteDocumentAudited('leads', lead.id, role, lead);
-    setFeedback('Lead excluído com auditoria.');
-    await onRefresh();
+    setConfirmModal({
+      title: 'Excluir lead definitivamente',
+      description: `Deseja excluir o lead "${lead.nome}"? A sessão temporária do diagnóstico vinculada também será removida e a exclusão ficará registrada em auditoria LGPD.`,
+      details: [
+        `E-mail / WhatsApp: ${lead.email || '—'} · ${lead.whatsapp || '—'}`,
+        `Status no funil: ${lead.statusFunil}`,
+      ],
+      confirmLabel: 'Excluir lead',
+      onConfirm: async () => {
+        await deleteLeadAndSessionAudited(lead, role);
+        setSelectedLeadIds((prev) => prev.filter((id) => id !== lead.id));
+        if (inspectingLead?.id === lead.id) setInspectingLead(null);
+        if (editingLead?.id === lead.id) setEditingLead(null);
+        setFeedback(`Lead "${lead.nome}" excluído com auditoria.`);
+        await onRefresh();
+      },
+    });
+  };
+
+  const requestBulkDeleteLeads = () => {
+    if (role !== 'admin' || selectedLeadIds.length === 0) return;
+    const targets = effectiveLeads.filter((l) => selectedLeadIds.includes(l.id));
+    if (targets.length === 0) return;
+    setConfirmModal({
+      title: `Excluir ${targets.length} lead(s) selecionado(s)`,
+      description: 'Esta ação remove definitivamente os leads selecionados e suas sessões de retomada, atendendo auditoria LGPD.',
+      details: targets.slice(0, 6).map((t) => `${t.nome} (${t.statusFunil})`),
+      confirmLabel: `Excluir ${targets.length} lead(s)`,
+      onConfirm: async () => {
+        for (const target of targets) {
+          await deleteLeadAndSessionAudited(target, role);
+        }
+        setSelectedLeadIds([]);
+        setFeedback(`${targets.length} lead(s) excluído(s) com auditoria.`);
+        await onRefresh();
+      },
+    });
   };
 
   const handleExportLeadLgpd = (lead: Lead) => {
@@ -821,16 +864,29 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             {selectedLeadIds.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                 <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{selectedLeadIds.length} lead(s) selecionado(s)</span>
-                <button
-                  type="button"
-                  disabled={busyAction}
-                  onClick={() => void handleRecalculateSelected()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white font-semibold whitespace-nowrap shrink-0 disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Recalcular selecionados com regras {activeRules.versao}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busyAction}
+                    onClick={() => void handleRecalculateSelected()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white font-semibold whitespace-nowrap shrink-0 disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Recalcular selecionados com regras {activeRules.versao}
+                  </button>
+                  {role === 'admin' && (
+                    <button
+                      type="button"
+                      disabled={busyAction}
+                      onClick={requestBulkDeleteLeads}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 text-[#C82333] dark:text-red-400 font-semibold whitespace-nowrap shrink-0 hover:bg-red-100/80 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Excluir selecionados
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -957,7 +1013,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                           {role === 'admin' && (
                             <button
                               type="button"
-                              onClick={() => void handleDelete(l)}
+                              onClick={() => requestDeleteLead(l)}
                               aria-label={`Excluir ${l.nome}`}
                               className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                             >
@@ -985,6 +1041,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               onQuickUpdateLead={handleQuickUpdateLead}
               onInspectLead={openInspectModal}
               onEditLead={setEditingLead}
+              onDeleteLead={role === 'admin' ? requestDeleteLead : undefined}
               onSendWhatsApp={handleSendTemplate}
               onConvertLead={handleConvert}
               onOpenCase={onOpenCase}
@@ -1008,6 +1065,16 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => requestDeleteLead(inspectingLead)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800/70 bg-white dark:bg-slate-800 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleExportLeadLgpd(inspectingLead)}
@@ -1144,13 +1211,25 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               />
             </div>
             <div className="flex flex-wrap justify-between items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleExportLeadLgpd(editingLead)}
-                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                Exportar LGPD
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleExportLeadLgpd(editingLead)}
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Exportar LGPD
+                </button>
+                {role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => requestDeleteLead(editingLead)}
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/70 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </button>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1171,6 +1250,18 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           </form>
         </div>
       )}
+
+      <ConfirmActionModal
+        open={Boolean(confirmModal)}
+        title={confirmModal?.title || 'Confirmar'}
+        description={confirmModal?.description || ''}
+        details={confirmModal?.details}
+        confirmLabel={confirmModal?.confirmLabel}
+        onConfirm={async () => {
+          if (confirmModal) await confirmModal.onConfirm();
+        }}
+        onClose={() => setConfirmModal(null)}
+      />
     </div>
   );
 };

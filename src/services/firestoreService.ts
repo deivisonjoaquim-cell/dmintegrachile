@@ -50,6 +50,7 @@ import type {
   MediaAsset,
   MessageTemplate,
   Partner,
+  PartnerCategory,
   PartnerProposal,
   PartnerPublic,
   SiteContent,
@@ -595,6 +596,23 @@ export async function saveDiagnosticSession(
   isNew: boolean,
 ): Promise<DiagnosticSession> {
   const now = new Date().toISOString();
+  let resolvedCreatedAt = payload.createdAt || '';
+
+  if (!resolvedCreatedAt) {
+    try {
+      const existingSnap = await getDoc(doc(db, 'diagnosticSessions', token));
+      if (existingSnap.exists()) {
+        const existingData = existingSnap.data() as Partial<DiagnosticSession>;
+        if (typeof existingData.createdAt === 'string' && existingData.createdAt.length >= 10) {
+          resolvedCreatedAt = existingData.createdAt;
+        }
+      }
+    } catch {
+      // Documento inexistente ou inacessível ao usuário anônimo antes do create: segue com timestamp novo
+    }
+  }
+
+  const finalCreatedAt = resolvedCreatedAt || now;
   const session: DiagnosticSession = stripUndefined({
     id: token,
     etapaAtual: payload.etapaAtual,
@@ -603,14 +621,12 @@ export async function saveDiagnosticSession(
     leadId: payload.leadId || '',
     expiraEmMs: payload.expiraEmMs,
     utm: payload.utm,
-    createdAt: payload.createdAt || now,
+    createdAt: finalCreatedAt,
     updatedAt: now,
   });
+
   const writePayload: Record<string, unknown> = { ...session };
-  if (!isNew && !payload.createdAt) {
-    delete writePayload.createdAt;
-  }
-  await setDoc(doc(db, 'diagnosticSessions', token), writePayload, { merge: !isNew });
+  await setDoc(doc(db, 'diagnosticSessions', token), writePayload, { merge: !isNew || Boolean(resolvedCreatedAt) });
   return session;
 }
 
@@ -1224,6 +1240,159 @@ export async function mergeClientsAudited(params: {
   return movedCount;
 }
 
+export async function cleanupServerUploadUrl(url?: string | null): Promise<void> {
+  if (!url || typeof url !== 'string' || !url.startsWith('/uploads/')) return;
+  const filename = url.slice('/uploads/'.length).split('?')[0];
+  if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) return;
+  try {
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch(`/api/uploads/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // Limpeza best-effort no disco efêmero/local para nunca impedir remoção lógica no Firestore
+  }
+}
+
+export async function deleteCaseDocumentAudited(docItem: CaseDocument, role: UserRole): Promise<void> {
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Sem permissão para excluir documentos.');
+  }
+  await deleteDocumentAudited('caseDocuments', docItem.id, role, {
+    caseId: docItem.caseId,
+    clientId: docItem.clientId,
+    nomeDocumento: docItem.nomeDocumento,
+    pessoa: docItem.pessoa,
+  });
+  const urlsToClean = new Set<string>();
+  if (docItem.arquivoUrl) urlsToClean.add(docItem.arquivoUrl);
+  if (Array.isArray(docItem.anexos)) {
+    docItem.anexos.forEach((a) => {
+      if (a?.url) urlsToClean.add(a.url);
+    });
+  }
+  await Promise.all(Array.from(urlsToClean).map((u) => cleanupServerUploadUrl(u)));
+}
+
+export async function deleteLeadAndSessionAudited(lead: Lead, role: UserRole): Promise<void> {
+  if (role !== 'admin') {
+    throw new Error('Apenas administradores podem excluir leads.');
+  }
+  await deleteDocumentAudited('leads', lead.id, role, {
+    nome: lead.nome,
+    email: lead.email,
+    statusFunil: lead.statusFunil,
+  });
+  if (lead.sessionToken && lead.sessionToken.length >= 20) {
+    await deleteDoc(doc(db, 'diagnosticSessions', lead.sessionToken)).catch(() => {});
+  }
+}
+
+export async function deleteCaseCascadeAudited(params: {
+  caseItem: Case;
+  caseFinancials: CaseFinancialSummary[];
+  caseDocuments: CaseDocument[];
+  tasks: Task[];
+  deadlines: Deadline[];
+  appointments: Appointment[];
+  communicationLogs: CommunicationLog[];
+  viabilityAssessments: ViabilityAssessment[];
+  budgets: Budget[];
+  financialRecords: FinancialRecord[];
+  generatedDocuments: GeneratedDocument[];
+  role: UserRole;
+}): Promise<number> {
+  const {
+    caseItem,
+    caseFinancials,
+    caseDocuments,
+    tasks,
+    deadlines,
+    appointments,
+    communicationLogs,
+    viabilityAssessments,
+    budgets,
+    financialRecords,
+    generatedDocuments,
+    role,
+  } = params;
+
+  if (role !== 'admin') {
+    throw new Error('Apenas administradores podem excluir um processo definitivamente.');
+  }
+
+  let deleted = 0;
+  const uploadUrlsToClean = new Set<string>();
+
+  const matchingDocs = caseDocuments.filter((d) => d.caseId === caseItem.id);
+  matchingDocs.forEach((d) => {
+    if (d.arquivoUrl) uploadUrlsToClean.add(d.arquivoUrl);
+    if (Array.isArray(d.anexos)) {
+      d.anexos.forEach((a) => {
+        if (a?.url) uploadUrlsToClean.add(a.url);
+      });
+    }
+  });
+
+  const matchingRecords = financialRecords.filter((r) => r.caseId === caseItem.id);
+  matchingRecords.forEach((r) => {
+    if (r.comprovanteUrl) uploadUrlsToClean.add(r.comprovanteUrl);
+  });
+
+  const delCol = async <T extends { id: string; caseId?: string }>(col: string, list: T[]) => {
+    for (const item of list.filter((i) => i.caseId === caseItem.id)) {
+      await deleteDoc(doc(db, col, item.id));
+      deleted += 1;
+    }
+  };
+
+  await Promise.all([
+    delCol('caseDocuments', matchingDocs),
+    delCol('tasks', tasks),
+    delCol('deadlines', deadlines),
+    delCol('appointments', appointments),
+    delCol('communicationLogs', communicationLogs),
+    delCol('viabilityAssessments', viabilityAssessments),
+    delCol('budgets', budgets),
+    delCol('financialRecords', matchingRecords),
+    delCol('generatedDocuments', generatedDocuments),
+    ...caseFinancials
+      .filter((cf) => cf.caseId === caseItem.id)
+      .map(async (cf) => {
+        await deleteDoc(doc(db, 'caseFinancials', cf.caseId));
+        deleted += 1;
+      }),
+    (async () => {
+      try {
+        const notifSnap = await getDocs(query(collection(db, 'clientNotifications'), where('caseId', '==', caseItem.id)));
+        for (const d of notifSnap.docs) {
+          await deleteDoc(doc(db, 'clientNotifications', d.id));
+          deleted += 1;
+        }
+      } catch {
+        // non-blocking cleanup
+      }
+    })(),
+  ]);
+
+  await deleteDoc(doc(db, 'cases', caseItem.id));
+  await Promise.all(Array.from(uploadUrlsToClean).map((u) => cleanupServerUploadUrl(u)));
+
+  await registrarAuditoria(
+    'Exclusão em Cascata Processo',
+    'cases',
+    caseItem.id,
+    'exclusao_processo',
+    { titulo: caseItem.titulo, clientId: caseItem.clientId, tipoServico: caseItem.tipoServico },
+    { deletedRelatedCount: deleted },
+    role,
+  );
+  return deleted;
+}
+
 export async function deleteClientCascadeAudited(params: {
   client: Client;
   dependents: Dependent[];
@@ -1264,6 +1433,22 @@ export async function deleteClientCascadeAudited(params: {
   const caseIds = new Set(cases.filter((c) => c.clientId === client.id).map((c) => c.id));
   let deleted = 0;
 
+  const uploadUrlsToClean = new Set<string>();
+  const matchingDocs = caseDocuments.filter((i) => i.clientId === client.id || (i.caseId && caseIds.has(i.caseId)));
+  matchingDocs.forEach((d) => {
+    if (d.arquivoUrl) uploadUrlsToClean.add(d.arquivoUrl);
+    if (Array.isArray(d.anexos)) {
+      d.anexos.forEach((a) => {
+        if (a?.url) uploadUrlsToClean.add(a.url);
+      });
+    }
+  });
+  financialRecords
+    .filter((r) => r.clientId === client.id || (r.caseId && caseIds.has(r.caseId)))
+    .forEach((r) => {
+      if (r.comprovanteUrl) uploadUrlsToClean.add(r.comprovanteUrl);
+    });
+
   const delCol = async <T extends { id: string; clientId?: string; caseId?: string }>(col: string, list: T[]) => {
     for (const item of list.filter((i) => i.clientId === client.id || (i.caseId && caseIds.has(i.caseId)))) {
       await deleteDoc(doc(db, col, item.id));
@@ -1273,7 +1458,7 @@ export async function deleteClientCascadeAudited(params: {
 
   await Promise.all([
     delCol('dependents', dependents),
-    delCol('caseDocuments', caseDocuments),
+    delCol('caseDocuments', matchingDocs),
     delCol('tasks', tasks),
     delCol('deadlines', deadlines),
     delCol('appointments', appointments),
@@ -1292,9 +1477,37 @@ export async function deleteClientCascadeAudited(params: {
       await deleteDoc(doc(db, 'cases', cid));
       deleted += 1;
     }),
+    (async () => {
+      try {
+        const [notifSnap, tokenSnap, leadsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'clientNotifications'), where('clientId', '==', client.id))),
+          getDocs(query(collection(db, 'fcmTokens'), where('clientId', '==', client.id))),
+          getDocs(query(collection(db, 'leads'), where('convertedClientId', '==', client.id))),
+        ]);
+        for (const n of notifSnap.docs) {
+          await deleteDoc(doc(db, 'clientNotifications', n.id));
+          deleted += 1;
+        }
+        for (const t of tokenSnap.docs) {
+          await deleteDoc(doc(db, 'fcmTokens', t.id));
+          deleted += 1;
+        }
+        for (const l of leadsSnap.docs) {
+          await updateDoc(doc(db, 'leads', l.id), {
+            convertedClientId: '',
+            convertedCaseId: '',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } catch {
+        // non-blocking secondary cleanup
+      }
+    })(),
   ]);
 
   await deleteDoc(doc(db, 'clients', client.id));
+  await Promise.all(Array.from(uploadUrlsToClean).map((u) => cleanupServerUploadUrl(u)));
+
   await registrarAuditoria(
     lgpdJustification ? 'Exclusão LGPD Cliente' : 'Exclusão em Cascata Cliente',
     'clients',
@@ -1348,19 +1561,30 @@ export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: Empresa
 }
 
 export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {
-  await saveDocumentAudited('partners', partner.id, partner as unknown as Record<string, unknown>, isNew, role);
-  const pubRef = doc(db, 'partnersPublic', partner.id);
-  if (partner.recomendadoAosClientes && partner.statusHomologacao === 'Ativo/Indicado') {
+  const sanitizedPartner: Partner = {
+    ...partner,
+    nome: String(partner.nome || '').slice(0, 200),
+    categoria: (String(partner.categoria || 'Outro').slice(0, 100)) as PartnerCategory,
+    pais: partner.pais || 'Chile',
+    whatsapp: String(partner.whatsapp || '').slice(0, 40),
+    tabelaValoresComissao: String(partner.tabelaValoresComissao || '').slice(0, 2000),
+    condicoesParceria: String(partner.condicoesParceria || '').slice(0, 2000),
+    observacoes: String(partner.observacoes || '').slice(0, 3000),
+    descricaoPublica: partner.descricaoPublica ? String(partner.descricaoPublica).slice(0, 1000) : '',
+  };
+  await saveDocumentAudited('partners', sanitizedPartner.id, sanitizedPartner as unknown as Record<string, unknown>, isNew, role);
+  const pubRef = doc(db, 'partnersPublic', sanitizedPartner.id);
+  if (sanitizedPartner.recomendadoAosClientes && sanitizedPartner.statusHomologacao === 'Ativo/Indicado') {
     const pubPayload: PartnerPublic = sanitizeFirestoreData({
-      id: partner.id,
-      nome: partner.nome,
-      categoria: partner.categoria,
-      pais: partner.pais,
-      cidadeRegiao: partner.cidadeRegiao,
-      whatsapp: partner.whatsapp,
-      siteInstagram: partner.siteInstagram,
-      avaliacao: partner.avaliacao,
-      descricaoPublica: partner.descricaoPublica || partner.condicoesParceria || '',
+      id: sanitizedPartner.id,
+      nome: sanitizedPartner.nome,
+      categoria: sanitizedPartner.categoria,
+      pais: sanitizedPartner.pais,
+      cidadeRegiao: sanitizedPartner.cidadeRegiao,
+      whatsapp: sanitizedPartner.whatsapp,
+      siteInstagram: sanitizedPartner.siteInstagram,
+      avaliacao: sanitizedPartner.avaliacao,
+      descricaoPublica: (sanitizedPartner.descricaoPublica || sanitizedPartner.condicoesParceria || '').slice(0, 1000),
       recomendadoAosClientes: true,
       statusHomologacao: 'Ativo/Indicado',
       updatedAt: new Date().toISOString(),
@@ -1368,11 +1592,83 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
     await setDoc(pubRef, pubPayload);
   } else {
     try {
-      await deleteDoc(pubRef);
-    } catch {
-      // ignore if didn't exist
+      const pubSnap = await getDoc(pubRef);
+      if (pubSnap.exists()) {
+        await deleteDoc(pubRef);
+      }
+    } catch (err) {
+      const code = (err as { code?: string })?.code || '';
+      if (!code.includes('not-found')) {
+        handleFirestoreError(err, OperationType.DELETE, `partnersPublic/${sanitizedPartner.id}`);
+      }
     }
   }
+}
+
+export async function deletePartnerAndPublicAudited(
+  partner: Partner,
+  role: UserRole,
+  linkedProposals: PartnerProposal[] = [],
+): Promise<void> {
+  if (role !== 'admin') {
+    throw new Error('Apenas administradores podem excluir parceiros.');
+  }
+  const pubRef = doc(db, 'partnersPublic', partner.id);
+  try {
+    const pubSnap = await getDoc(pubRef);
+    if (pubSnap.exists()) {
+      await deleteDoc(pubRef);
+    }
+  } catch {
+    await deleteDoc(pubRef).catch(() => {});
+  }
+
+  for (const prop of linkedProposals.filter((p) => p.partnerIdVinculado === partner.id)) {
+    await updateDoc(doc(db, 'partnerProposals', prop.id), {
+      partnerIdVinculado: '',
+      updatedAt: new Date().toISOString(),
+    }).catch(() => {});
+  }
+
+  await deleteDocumentAudited('partners', partner.id, role, {
+    nome: partner.nome,
+    categoria: partner.categoria,
+    pais: partner.pais,
+  });
+}
+
+export async function rejectPartnerProposalAudited(
+  proposal: PartnerProposal,
+  motivo: string,
+  role: UserRole,
+): Promise<void> {
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Sem permissão para recusar propostas de parceria.');
+  }
+  await saveDocumentAudited(
+    'partnerProposals',
+    proposal.id,
+    {
+      ...proposal,
+      status: 'Recusada',
+      notasInternas: motivo ? `${proposal.notasInternas ? proposal.notasInternas + '\n' : ''}Motivo recusa: ${motivo}`.slice(0, 2000) : proposal.notasInternas,
+    } as unknown as Record<string, unknown>,
+    false,
+    role,
+    'recusar_proposta_parceiro',
+    { status: proposal.status },
+  );
+}
+
+export async function deletePartnerProposalAudited(proposal: PartnerProposal, role: UserRole): Promise<void> {
+  if (role !== 'admin') {
+    throw new Error('Apenas administradores podem excluir propostas de parceria.');
+  }
+  await deleteDocumentAudited('partnerProposals', proposal.id, role, {
+    nome_empresa: proposal.nome_empresa,
+    categoria: proposal.categoria,
+    status: proposal.status,
+  });
 }
 
 export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
@@ -1722,14 +2018,34 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   let rawText = '';
   try {
     rawText = await resp.text();
-    const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
-    if (!resp.ok) {
-      throw new Error(sanitizeClientAiError(data.error || rawText || String(resp.status)));
-    }
-    return data;
-  } catch (err) {
-    throw new Error(sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)));
+  } catch {
+    rawText = '';
   }
+
+  let data: (T & { error?: unknown }) | null = null;
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText) as T & { error?: unknown };
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!resp.ok) {
+    if (resp.status === 413) {
+      throw new Error('Os dados ou arquivo enviados excedem o limite permitido pelo servidor.');
+    }
+    if (resp.status === 504 || resp.status === 502) {
+      throw new Error('Tempo limite excedido ao consultar o serviço de IA. Tente novamente em instantes.');
+    }
+    throw new Error(sanitizeClientAiError(data?.error || rawText || String(resp.status)));
+  }
+
+  if (!data) {
+    throw new Error(sanitizeClientAiError(rawText || 'invalid_response'));
+  }
+
+  return data;
 }
 
 export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {

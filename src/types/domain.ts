@@ -229,6 +229,8 @@ export interface PartnerProposal {
   parecerIa?: string;
   decisaoConsultor?: string;
   textoIndicacao?: string;
+  partnerIdVinculado?: string;
+  notasInternas?: string;
   createdAt: string;
   updatedAt?: string;
 }

@@ -4,12 +4,16 @@ import {
   clearAiDraftCache,
   CLIENT_MSG_AI_GENERIC_ERROR,
   CLIENT_MSG_AI_HIGH_DEMAND,
+  compactCaseForAi,
+  compactClientForAi,
+  compactLegalSourcesForAi,
+  compactSourceForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
 } from './aiClient';
 
-describe('aiClient — Error Sanitization & Short-Lived Cache', () => {
+describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cache', () => {
   it('sanitizes raw 503/429 Gemini JSON into clean Portuguese message', () => {
     const rawJson503 =
       '{"error":{"code":503,"status":"UNAVAILABLE","message":"This model is currently experiencing high demand."}}';
@@ -23,9 +27,52 @@ describe('aiClient — Error Sanitization & Short-Lived Cache', () => {
     assert.equal(sanitizeClientAiError(new Error('TypeError: Cannot read properties of undefined')), CLIENT_MSG_AI_GENERIC_ERROR);
   });
 
-  it('preserves vetted Portuguese messages', () => {
-    const vetted = 'Faça login com sua conta Google para utilizar o apoio de IA.';
-    assert.equal(sanitizeClientAiError(vetted), vetted);
+  it('preserves vetted Portuguese messages including HTTP/AI error explanations', () => {
+    const msgs = [
+      'Faça login com sua conta Google para utilizar o apoio de IA.',
+      'Modo de regras locais ativo: a chave da IA não está configurada no servidor.',
+      'Chave de IA inválida ou sem permissão de acesso no servidor.',
+      'Modelo de IA indisponível ou não encontrado na configuração atual do servidor.',
+      'Conteúdo bloqueado pelos filtros de segurança da IA. Ajuste o texto e tente novamente.',
+      'Os dados ou arquivo enviados excedem o limite permitido para esta solicitação.',
+      'Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.',
+    ];
+    for (const m of msgs) {
+      assert.equal(sanitizeClientAiError(m), m);
+    }
+  });
+
+  it('compacts legal sources, cases, and clients cleanly without leaking unnecessary sensitive fields', () => {
+    const compactedSrc = compactSourceForAi({
+      id: 'src_1',
+      titulo: 'Ley 21.325'.repeat(30),
+      resumoPortugues: 'A'.repeat(2000),
+    });
+    assert.equal(compactedSrc.titulo?.length, 180);
+    assert.equal(compactedSrc.resumoPortugues?.length, 900);
+
+    const manySources = Array.from({ length: 30 }, (_, i) => ({
+      titulo: `Norma ${i}`,
+      resumoPortugues: 'Resumo detalhado',
+    }));
+    assert.equal(compactLegalSourcesForAi(manySources).length, 15);
+
+    const compactedClient = compactClientForAi({
+      cpf: '123.456.789-00',
+      email: 'privado@cliente.com',
+      localizacaoAtual: 'Brasil',
+      profissao: 'Engenheiro',
+    });
+    assert.equal('cpf' in compactedClient, false);
+    assert.equal('email' in compactedClient, false);
+    assert.equal(compactedClient.localizacaoAtual, 'Brasil');
+
+    const compactedCase = compactCaseForAi({
+      id: 'case_1',
+      titulo: 'Mercosul',
+      observacoes: 'X'.repeat(2000),
+    });
+    assert.equal(compactedCase.observacoes?.length, 800);
   });
 
   it('stores, loads, expires and clears short-lived local cache entries', () => {

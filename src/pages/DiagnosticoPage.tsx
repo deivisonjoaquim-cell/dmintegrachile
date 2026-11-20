@@ -44,6 +44,7 @@ import {
 import { isValidWhatsApp, maskPhoneBR } from '../utils/formatters';
 import {
   clearAiDraftCache,
+  compactLegalSourcesForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
@@ -779,7 +780,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             nomePortugues: v.nomePortugues,
             permiteDentroChile: v.permiteDentroChile,
           })),
-          legalSources: result.fontesLegais,
+          legalSources: compactLegalSourcesForAi(result.fontesLegais),
         },
         {
           onProgress: (msg) => setAiProgress(msg),

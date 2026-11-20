@@ -87,7 +87,20 @@ export function resolveAttachmentFromUploadUrl(
   uploadDir: string,
   arquivoUrl: unknown,
 ): { fileBase64: string; mimeType: string } | null {
-  if (typeof arquivoUrl !== 'string' || !arquivoUrl.startsWith('/uploads/')) return null;
+  if (typeof arquivoUrl !== 'string' || !arquivoUrl.trim()) return null;
+
+  if (arquivoUrl.startsWith('data:')) {
+    const match = arquivoUrl.match(/^data:([^;]+);base64,([A-Za-z0-9+/=\s]+)$/);
+    if (!match) return null;
+    const mimeType = match[1].toLowerCase().trim();
+    const allowedMimes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedMimes.has(mimeType)) return null;
+    const fileBase64 = match[2].replace(/\s+/g, '');
+    if (!fileBase64 || fileBase64.length > 14 * 1024 * 1024) return null;
+    return { fileBase64, mimeType };
+  }
+
+  if (!arquivoUrl.startsWith('/uploads/')) return null;
   const rel = arquivoUrl.slice('/uploads/'.length).split('?')[0];
   if (!rel || rel.includes('..') || rel.includes('/') || rel.includes('\\')) return null;
   const resolved = path.resolve(uploadDir, rel);
@@ -154,7 +167,9 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
       streamStarted = true;
       res.status(200);
       res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      (res as Response & { flushHeaders?: () => void }).flushHeaders?.();
     }
     res.write(`${JSON.stringify(obj)}\n`);
   };
@@ -201,7 +216,7 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
     if (wantsProgressStream && streamStarted) {
       writeNdjson({ type: 'error', statusCode: 500, error: MSG_AI_OTHER_ERROR });
       res.end();
-    } else {
+    } else if (!res.headersSent) {
       res.status(500).json({ error: MSG_AI_OTHER_ERROR });
     }
     return null;
