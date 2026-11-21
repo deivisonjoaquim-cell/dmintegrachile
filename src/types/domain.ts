@@ -190,18 +190,25 @@ export interface SiteContent {
   updatedAt?: string;
 }
 
+export type AdminLogOperationType = 'create' | 'update' | 'delete' | 'permission' | 'sensitive';
+
 export interface AuditLog {
   id: string;
   actorUid: string;
   actorEmail: string;
+  actorNome?: string;
   actorRole: string;
   acao: string;
+  tipoOperacao?: AdminLogOperationType;
+  sensivel?: boolean;
   entidade: string;
   entidadeId: string;
   campo?: string;
+  resumo?: string;
   antes?: string;
   depois?: string;
   createdAt: string;
+  sourceSubcollection?: 'adminAudit/painel/logs' | 'auditLogs';
 }
 
 export type PartnerCategory =

@@ -193,8 +193,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 src={footerLogoSrc}
                 alt={empresa.nome_empresa}
                 brandShortName={brandShortName}
-                imgClassName="h-9 w-auto max-w-[200px] object-contain"
-                hideFallback
+                variant="dark"
+                imgClassName="h-10 w-auto max-w-[220px] object-contain"
               />
               <p className="text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
               {lc.rodapeSubtitulo && (

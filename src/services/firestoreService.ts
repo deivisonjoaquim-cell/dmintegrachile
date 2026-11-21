@@ -134,9 +134,18 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
       ? data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE)
       : data.termoLgpd || DEFAULT_EMPRESA_CONFIG.termoLgpd;
 
+  const safeBrandUrl = (val: unknown, fallback: string) => {
+    const str = typeof val === 'string' ? val.trim() : '';
+    if (!str || str.startsWith('/uploads/')) return fallback;
+    return str;
+  };
+
   const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
+    logoUrl: safeBrandUrl(data.logoUrl, DEFAULT_EMPRESA_CONFIG.logoUrl),
+    logoDarkUrl: safeBrandUrl(data.logoDarkUrl, DEFAULT_EMPRESA_CONFIG.logoDarkUrl || '/logo-dm-integra-dark.svg'),
+    faviconUrl: safeBrandUrl(data.faviconUrl, DEFAULT_EMPRESA_CONFIG.faviconUrl || '/favicon-dm-integra.svg'),
     razao_social_cnpj_rut:
       !data.razao_social_cnpj_rut || data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL
         ? DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut
@@ -1075,11 +1084,13 @@ export async function saveDocumentAudited<T extends Record<string, unknown>>(
     await performWrite();
   } catch (err) {
     const currentUser = auth.currentUser;
-    if (isFirestorePermissionError(err) && currentUser && isPrimaryAdminEmail(currentUser.email)) {
+    if (isFirestorePermissionError(err) && currentUser) {
       try {
         await currentUser.getIdToken(true);
-        clearAdminVerificationCache();
-        await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        if (isPrimaryAdminEmail(currentUser.email)) {
+          clearAdminVerificationCache();
+          await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        }
         await performWrite();
         return;
       } catch (retryErr) {
@@ -1105,11 +1116,13 @@ export async function deleteDocumentAudited(
     await performDelete();
   } catch (err) {
     const currentUser = auth.currentUser;
-    if (isFirestorePermissionError(err) && currentUser && isPrimaryAdminEmail(currentUser.email)) {
+    if (isFirestorePermissionError(err) && currentUser) {
       try {
         await currentUser.getIdToken(true);
-        clearAdminVerificationCache();
-        await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        if (isPrimaryAdminEmail(currentUser.email)) {
+          clearAdminVerificationCache();
+          await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        }
         await performDelete();
         return;
       } catch (retryErr) {
@@ -1457,8 +1470,8 @@ export async function deleteClientCascadeAudited(params: {
     role,
     lgpdJustification,
   } = params;
-  if (role !== 'admin') {
-    throw new Error('Apenas administradores podem excluir definitivamente um cliente.');
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Apenas administradores ou consultores podem excluir definitivamente um cliente.');
   }
   const caseIds = new Set(cases.filter((c) => c.clientId === client.id).map((c) => c.id));
   let deleted = 0;
@@ -1500,7 +1513,85 @@ export async function deleteClientCascadeAudited(params: {
     client.id,
     'exclusao_cliente',
     { nome: client.nomeCompleto, email: client.email },
-    { deletedRelatedCount: deleted, lgpdJustification: lgpdJustification || 'Confirmado pelo admin' },
+    { deletedRelatedCount: deleted, lgpdJustification: lgpdJustification || 'Confirmado no painel' },
+    role,
+  );
+  return deleted;
+}
+
+export async function deleteCaseCascadeAudited(params: {
+  caseItem: Case;
+  caseFinancials?: CaseFinancialSummary[];
+  caseDocuments?: CaseDocument[];
+  tasks?: Task[];
+  deadlines?: Deadline[];
+  appointments?: Appointment[];
+  communicationLogs?: CommunicationLog[];
+  viabilityAssessments?: ViabilityAssessment[];
+  budgets?: Budget[];
+  financialRecords?: FinancialRecord[];
+  generatedDocuments?: GeneratedDocument[];
+  role: UserRole;
+}): Promise<number> {
+  const {
+    caseItem,
+    caseFinancials = [],
+    caseDocuments = [],
+    tasks = [],
+    deadlines = [],
+    appointments = [],
+    communicationLogs = [],
+    viabilityAssessments = [],
+    budgets = [],
+    financialRecords = [],
+    generatedDocuments = [],
+    role,
+  } = params;
+
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Apenas administradores ou consultores podem excluir casos.');
+  }
+
+  let deleted = 0;
+
+  const delColByCase = async <T extends { id: string; caseId?: string }>(col: string, list: T[]) => {
+    for (const item of list.filter((i) => i.caseId === caseItem.id)) {
+      await deleteDoc(doc(db, col, item.id));
+      deleted += 1;
+    }
+  };
+
+  await Promise.all([
+    delColByCase('caseDocuments', caseDocuments),
+    delColByCase('tasks', tasks),
+    delColByCase('deadlines', deadlines),
+    delColByCase('appointments', appointments),
+    delColByCase('communicationLogs', communicationLogs),
+    delColByCase('viabilityAssessments', viabilityAssessments),
+    delColByCase('budgets', budgets),
+    delColByCase('financialRecords', financialRecords),
+    delColByCase('generatedDocuments', generatedDocuments),
+    ...caseFinancials
+      .filter((cf) => cf.caseId === caseItem.id)
+      .map(async (cf) => {
+        await deleteDoc(doc(db, 'caseFinancials', cf.caseId));
+        deleted += 1;
+      }),
+  ]);
+
+  await deleteDoc(doc(db, 'cases', caseItem.id));
+  await registrarAuditoria(
+    'Excluir Caso',
+    'cases',
+    caseItem.id,
+    'exclusao_cascata_caso',
+    {
+      titulo: caseItem.titulo,
+      clientId: caseItem.clientId,
+      etapaPipeline: caseItem.etapaPipeline,
+      statusSermig: caseItem.statusSermig,
+    },
+    { deletedRelatedCount: deleted },
     role,
   );
   return deleted;
@@ -1626,7 +1717,8 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     messageTemplates,
     documentTemplates,
     generatedDocuments,
-    auditLogs,
+    legacyAuditLogs,
+    adminActionLogs,
     caseFinancials,
     budgets,
     financialRecords,
@@ -1653,6 +1745,7 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
           query(collection(db, 'generatedDocuments'), where('financeiro', '==', false)),
         ),
     safeList<AuditLog>('auditLogs', query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc'))),
+    canSeeFinance ? fetchAdminActionLogs() : Promise.resolve([]),
     canSeeFinance ? safeList<CaseFinancialSummary>('caseFinancials') : Promise.resolve([]),
     canSeeFinance ? safeList<Budget>('budgets') : Promise.resolve([]),
     canSeeFinance ? safeList<FinancialRecord>('financialRecords') : Promise.resolve([]),
@@ -1660,6 +1753,19 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     canSeeFinance ? safeList<PartnerProposal>('partnerProposals') : Promise.resolve([]),
     canSeeFinance ? safeList<UserProfile & { id?: string }>('users') : Promise.resolve([]),
   ]);
+
+  const mergedAuditMap = new Map<string, AuditLog>();
+  for (const log of adminActionLogs) {
+    mergedAuditMap.set(log.id, { ...log, sourceSubcollection: 'adminAudit/painel/logs' });
+  }
+  for (const legacy of legacyAuditLogs) {
+    if (!mergedAuditMap.has(legacy.id)) {
+      mergedAuditMap.set(legacy.id, { ...legacy, sourceSubcollection: 'auditLogs' });
+    }
+  }
+  const auditLogs = Array.from(mergedAuditMap.values()).sort((a, b) =>
+    (b.createdAt || '').localeCompare(a.createdAt || ''),
+  );
 
   const staffUsers: UserProfile[] = rawUsers
     .map((u) => ({
@@ -1696,6 +1802,25 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     auditLogs,
     staffUsers,
   };
+}
+
+export async function fetchAdminActionLogs(): Promise<AuditLog[]> {
+  try {
+    const q = query(collection(db, 'adminAudit', 'painel', 'logs'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as Omit<AuditLog, 'id'>),
+      sourceSubcollection: 'adminAudit/painel/logs' as const,
+    }));
+  } catch (err) {
+    reportAppError(err, {
+      source: 'admin-audit-logs',
+      path: 'adminAudit/painel/logs',
+      operation: OperationType.LIST,
+    });
+    return [];
+  }
 }
 
 export async function fetchClientPortalData(clientId: string): Promise<{
@@ -1941,25 +2066,34 @@ export async function fetchMediaAssetsStaff(): Promise<MediaAsset[]> {
 
 export async function saveMediaAssetAdmin(asset: MediaAsset, role: UserRole): Promise<void> {
   if (role !== 'admin') throw new Error('Apenas administradores podem gerenciar a biblioteca de mídias.');
-  await setDoc(doc(db, 'mediaAssets', asset.id), stripUndefined(asset));
-  await registrarAuditoria('Criar', 'mediaAssets', asset.id, 'midia_importada', null, { nome: asset.nome, categoria: asset.categoria, tamanhoBytes: asset.tamanhoBytes }, role);
+  const payload = normalizeCollectionWritePayload(
+    'mediaAssets',
+    asset.id,
+    stripUndefined(asset as unknown as Record<string, unknown>),
+  );
+  await executeValidatedAdminWrite(`mediaAssets/${asset.id}`, OperationType.CREATE, async () => {
+    await setDoc(doc(db, 'mediaAssets', asset.id), payload);
+    await registrarAuditoria('Criar', 'mediaAssets', asset.id, 'midia_importada', null, { nome: asset.nome, categoria: asset.categoria, tamanhoBytes: asset.tamanhoBytes }, role);
+  });
 }
 
 export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): Promise<void> {
   if (role !== 'admin') throw new Error('Apenas administradores podem excluir mídias.');
-  await deleteDoc(doc(db, 'mediaAssets', asset.id));
-  if (asset.url.startsWith('/uploads/')) {
-    const user = auth.currentUser;
-    if (user) {
-      const token = await user.getIdToken();
-      const filename = asset.url.replace('/uploads/', '');
-      await fetch(`/api/media/${encodeURIComponent(filename)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+  await executeValidatedAdminWrite(`mediaAssets/${asset.id}`, OperationType.DELETE, async () => {
+    await deleteDoc(doc(db, 'mediaAssets', asset.id));
+    if (asset.url.startsWith('/uploads/')) {
+      const user = auth.currentUser;
+      if (user) {
+        const token = await user.getIdToken();
+        const filename = asset.url.replace('/uploads/', '');
+        await fetch(`/api/media/${encodeURIComponent(filename)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
     }
-  }
-  await registrarAuditoria('Excluir', 'mediaAssets', asset.id, 'midia_excluida', { nome: asset.nome, categoria: asset.categoria }, null, role);
+    await registrarAuditoria('Excluir', 'mediaAssets', asset.id, 'midia_excluida', { nome: asset.nome, categoria: asset.categoria }, null, role);
+  });
 }
 
 export interface CallAiOptions {

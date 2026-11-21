@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="D&amp;M Integra Chile">
+  <defs>
+    <linearGradient id="dmFavGold" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F2DA8B"/>
+      <stop offset="100%" stop-color="#B88E26"/>
+    </linearGradient>
+    <linearGradient id="dmFavBg" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#143252"/>
+      <stop offset="100%" stop-color="#081626"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#dmFavBg)"/>
+  <rect x="5" y="5" width="54" height="54" rx="11" stroke="url(#dmFavGold)" stroke-width="1.8"/>
+  <path d="M49 12L50.5 16L54.5 17.5L50.5 19L49 23L47.5 19L43.5 17.5L47.5 16L49 12Z" fill="#F2DA8B"/>
+  <text x="32" y="40" text-anchor="middle" fill="#FFFFFF" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="19.5">D&amp;M</text>
+  <line x1="15" y1="48" x2="49" y2="48" stroke="url(#dmFavGold)" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

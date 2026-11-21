@@ -575,7 +575,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                 <ArrowRight className="w-3 h-3" />
               </button>
             )}
-            {role === 'admin' && onDeleteLead && (
+            {(role === 'admin' || role === 'consultor') && onDeleteLead && (
               <button
                 type="button"
                 onClick={() => onDeleteLead(l)}

@@ -713,15 +713,19 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
           <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
             <BrandLogo
-              src={activeLogoUrl}
+              src={sidebarCollapsed ? empresa.faviconUrl : activeLogoUrl}
               alt={empresa.nome_empresa}
               brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-              imgClassName={sidebarCollapsed ? 'h-7 w-7 object-contain shrink-0' : 'h-7 max-w-[116px] object-contain shrink-0'}
-              fallbackNode={
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
-                  {sidebarCollapsed ? 'D&M' : empresa.nome_empresa.split('–')[0].trim()}
-                </span>
+              variant={
+                sidebarCollapsed
+                  ? panelTheme === 'dark'
+                    ? 'emblem-dark'
+                    : 'emblem'
+                  : panelTheme === 'dark'
+                    ? 'dark'
+                    : 'light'
               }
+              imgClassName={sidebarCollapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-8 w-auto max-w-[164px] object-contain shrink-0'}
             />
           </button>
           <button

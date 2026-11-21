@@ -1815,44 +1815,82 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                             </button>
                           </td>
                           <td className="py-3 px-4">
-                            <button
-                              type="button"
-                              disabled={savingVisaId === v.id}
-                              onClick={async () => {
-                                setSavingVisaId(v.id);
-                                setErrorMsg(null);
-                                try {
-                                  const nextStatus = v.statusVerificacao === 'Verificado' ? 'A verificar' : 'Verificado';
-                                  await saveDocumentAudited(
-                                    'visaCategories',
-                                    v.id,
-                                    {
-                                      ...v,
-                                      statusVerificacao: nextStatus,
-                                      ultimaVerificacao: toIsoDate(new Date()),
-                                    },
-                                    false,
-                                    role,
-                                    'verificacao_visto',
-                                  );
-                                  setFeedback(`Subcategoria "${v.nomePortugues}" marcada como ${nextStatus}.`);
-                                  await onRefreshPublic();
-                                } catch (err) {
-                                  setErrorMsg(
-                                    err instanceof Error ? err.message : 'Falha ao atualizar verificação da subcategoria SERMIG.',
-                                  );
-                                } finally {
-                                  setSavingVisaId(null);
-                                }
-                              }}
-                              className={`px-2.5 py-1 rounded border text-xs font-semibold disabled:opacity-50 ${
-                                v.statusVerificacao === 'Verificado'
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
-                                  : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300'
-                              }`}
-                            >
-                              {savingVisaId === v.id ? 'Salvando...' : v.statusVerificacao}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={savingVisaId === v.id}
+                                onClick={async () => {
+                                  setSavingVisaId(v.id);
+                                  setErrorMsg(null);
+                                  try {
+                                    const nextStatus = v.statusVerificacao === 'Verificado' ? 'A verificar' : 'Verificado';
+                                    await saveDocumentAudited(
+                                      'visaCategories',
+                                      v.id,
+                                      {
+                                        ...v,
+                                        statusVerificacao: nextStatus,
+                                        ultimaVerificacao: toIsoDate(new Date()),
+                                      },
+                                      false,
+                                      role,
+                                      'verificacao_visto',
+                                    );
+                                    setFeedback(`Subcategoria "${v.nomePortugues}" marcada como ${nextStatus}.`);
+                                    await onRefreshPublic();
+                                  } catch (err) {
+                                    setErrorMsg(
+                                      err instanceof Error ? err.message : 'Falha ao atualizar verificação da subcategoria SERMIG.',
+                                    );
+                                  } finally {
+                                    setSavingVisaId(null);
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded border text-xs font-semibold disabled:opacity-50 whitespace-nowrap shrink-0 ${
+                                  v.statusVerificacao === 'Verificado'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
+                                    : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300'
+                                }`}
+                              >
+                                {savingVisaId === v.id ? 'Salvando...' : v.statusVerificacao}
+                              </button>
+                              {(role === 'admin' || role === 'consultor') && (
+                                <button
+                                  type="button"
+                                  title="Excluir subcategoria SERMIG"
+                                  aria-label={`Excluir subcategoria ${v.nomePortugues}`}
+                                  onClick={() =>
+                                    setConfirmModal({
+                                      title: 'Excluir subcategoria de visto',
+                                      description: `Tem certeza que deseja excluir a subcategoria SERMIG Cód. ${v.codigo} — "${v.nomePortugues}"?`,
+                                      details:
+                                        reqs.length > 0
+                                          ? [
+                                              `${reqs.length} requisito(s) vinculado(s) também serão removidos.`,
+                                              'A exclusão será registrada na subcoleção de auditoria.',
+                                            ]
+                                          : ['A exclusão será registrada na subcoleção de auditoria.'],
+                                      confirmLabel: 'Excluir subcategoria',
+                                      tone: 'danger',
+                                      onConfirm: async () => {
+                                        for (const reqItem of reqs) {
+                                          await deleteDocumentAudited('visaRequirements', reqItem.id, role, reqItem);
+                                        }
+                                        await deleteDocumentAudited('visaCategories', v.id, role, v);
+                                        if (expandedVisaId === v.id) setExpandedVisaId(null);
+                                        setConfirmModal(null);
+                                        setFeedback(`Subcategoria "${v.nomePortugues}" excluída com auditoria.`);
+                                        await onRefreshPublic();
+                                      },
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-red-200 dark:border-red-900/60 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-semibold whitespace-nowrap shrink-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Excluir
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {isExpanded && (
@@ -1893,9 +1931,36 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                                     >
                                       <div className="flex items-start justify-between gap-2">
                                         <p className="font-semibold text-slate-900 dark:text-slate-100">{r.nomeDocumento}</p>
-                                        <span className="text-[11px] font-semibold tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
-                                          {r.obrigatorio ? 'Obrigatório' : 'Opcional'} · Peso {r.peso}
-                                        </span>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className="text-[11px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+                                            {r.obrigatorio ? 'Obrigatório' : 'Opcional'} · Peso {r.peso}
+                                          </span>
+                                          {(role === 'admin' || role === 'consultor') && (
+                                            <button
+                                              type="button"
+                                              title="Excluir requisito"
+                                              aria-label={`Excluir requisito ${r.nomeDocumento}`}
+                                              onClick={() =>
+                                                setConfirmModal({
+                                                  title: 'Excluir requisito documental',
+                                                  description: `Tem certeza que deseja excluir o requisito "${r.nomeDocumento}" da subcategoria Cód. ${v.codigo}?`,
+                                                  details: ['A exclusão será registrada na subcoleção de auditoria.'],
+                                                  confirmLabel: 'Excluir requisito',
+                                                  tone: 'danger',
+                                                  onConfirm: async () => {
+                                                    await deleteDocumentAudited('visaRequirements', r.id, role, r);
+                                                    setConfirmModal(null);
+                                                    setFeedback(`Requisito "${r.nomeDocumento}" excluído com auditoria.`);
+                                                    await onRefreshPublic();
+                                                  },
+                                                })
+                                              }
+                                              className="p-1 rounded border border-red-200 dark:border-red-900/60 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
                                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                         {r.categoriaDoc}

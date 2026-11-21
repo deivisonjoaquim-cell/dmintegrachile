@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
 import { buildUpdatedLeadFromPatch, type LeadQuickEditPatch } from '../../utils/leadKanban';
 import {
@@ -333,12 +334,29 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     });
   };
 
-  const handleDelete = async (lead: Lead) => {
-    if (role !== 'admin') return;
-    if (!window.confirm(`Excluir o lead "${lead.nome}"? Esta ação será auditada e atende solicitação LGPD.`)) return;
-    await deleteDocumentAudited('leads', lead.id, role, lead);
-    setFeedback('Lead excluído com auditoria.');
-    await onRefresh();
+  const [deleteTargetLead, setDeleteTargetLead] = useState<Lead | null>(null);
+  const [deletingLead, setDeletingLead] = useState(false);
+
+  const canDeleteLead = role === 'admin' || role === 'consultor';
+
+  const requestDeleteLead = (lead: Lead) => {
+    if (!canDeleteLead) return;
+    setDeleteTargetLead(lead);
+  };
+
+  const confirmDeleteLead = async () => {
+    if (!deleteTargetLead || !canDeleteLead) return;
+    setDeletingLead(true);
+    try {
+      await deleteDocumentAudited('leads', deleteTargetLead.id, role, deleteTargetLead);
+      if (editingLead?.id === deleteTargetLead.id) setEditingLead(null);
+      if (inspectingLead?.id === deleteTargetLead.id) setInspectingLead(null);
+      setDeleteTargetLead(null);
+      setFeedback(`Lead "${deleteTargetLead.nome}" excluído com registro na subcoleção de auditoria.`);
+      await onRefresh();
+    } finally {
+      setDeletingLead(false);
+    }
   };
 
   const handleExportLeadLgpd = (lead: Lead) => {
@@ -968,11 +986,12 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          {role === 'admin' && (
+                          {canDeleteLead && (
                             <button
                               type="button"
-                              onClick={() => void handleDelete(l)}
+                              onClick={() => requestDeleteLead(l)}
                               aria-label={`Excluir ${l.nome}`}
+                              title={`Excluir lead ${l.nome}`}
                               className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -999,6 +1018,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               onQuickUpdateLead={handleQuickUpdateLead}
               onInspectLead={openInspectModal}
               onEditLead={setEditingLead}
+              onDeleteLead={canDeleteLead ? requestDeleteLead : undefined}
               onSendWhatsApp={handleSendTemplate}
               onConvertLead={handleConvert}
               onOpenCase={onOpenCase}
@@ -1130,13 +1150,25 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               />
             </div>
             <div className="flex flex-wrap justify-between items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleExportLeadLgpd(editingLead)}
-                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                Exportar LGPD
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleExportLeadLgpd(editingLead)}
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
+                >
+                  Exportar LGPD
+                </button>
+                {canDeleteLead && (
+                  <button
+                    type="button"
+                    onClick={() => requestDeleteLead(editingLead)}
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/70 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 whitespace-nowrap"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir Lead
+                  </button>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1157,6 +1189,22 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           </form>
         </div>
       )}
+
+      <ConfirmActionModal
+        open={Boolean(deleteTargetLead)}
+        title="Excluir lead permanentemente"
+        description={
+          deleteTargetLead
+            ? `Tem certeza que deseja excluir o lead "${deleteTargetLead.nome}" (${deleteTargetLead.email})? A exclusão é registrada na subcoleção de auditoria e atende solicitações LGPD.`
+            : ''
+        }
+        confirmLabel="Excluir lead"
+        tone="danger"
+        onClose={() => {
+          if (!deletingLead) setDeleteTargetLead(null);
+        }}
+        onConfirm={confirmDeleteLead}
+      />
     </div>
   );
 };

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 72" fill="none" role="img" aria-label="D&amp;M Integra Chile">
+  <defs>
+    <linearGradient id="dmGoldLight" x1="6" y1="6" x2="62" y2="66" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D9B650"/>
+      <stop offset="55%" stop-color="#B88E26"/>
+      <stop offset="100%" stop-color="#9A7318"/>
+    </linearGradient>
+    <linearGradient id="dmNavyLight" x1="6" y1="6" x2="62" y2="66" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#132D49"/>
+      <stop offset="100%" stop-color="#081626"/>
+    </linearGradient>
+  </defs>
+  <!-- Crest Emblem -->
+  <rect x="4" y="6" width="60" height="60" rx="14" fill="url(#dmNavyLight)"/>
+  <rect x="7" y="9" width="54" height="54" rx="11" stroke="url(#dmGoldLight)" stroke-width="1.5" stroke-opacity="0.85"/>
+  <!-- Andean Star / Compass Accent -->
+  <path d="M51 16L52.6 20.4L57 22L52.6 23.6L51 28L49.4 23.6L45 22L49.4 20.4L51 16Z" fill="#E5C76B"/>
+  <!-- Monogram D&M -->
+  <text x="34" y="45" text-anchor="middle" fill="#FFFFFF" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="20" letter-spacing="0.5">D&amp;M</text>
+  <line x1="17" y1="52" x2="51" y2="52" stroke="url(#dmGoldLight)" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Wordmark -->
+  <text x="78" y="34" fill="#0B1F33" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="22" letter-spacing="0.4">D&amp;M Integra Chile</text>
+  <text x="79" y="53" fill="#8C6B18" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="10.5" letter-spacing="2.4">RELOCATION &amp; ASSESSORIA</text>
+</svg>

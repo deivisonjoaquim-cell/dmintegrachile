@@ -125,6 +125,29 @@
       },
       "required": ["actorUid", "acao", "entidade", "entidadeId"]
     },
+    "AdminActionLog": {
+      "title": "AdminActionLog",
+      "description": "Registro imutável da subcoleção logs para ações administrativas (criação, edição, deleção, permissões e dados sensíveis).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorNome": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "enum": ["admin", "consultor", "assistente", "cliente", "usuario"] },
+        "acao": { "type": "string", "maxLength": 100 },
+        "tipoOperacao": { "type": "string", "enum": ["create", "update", "delete", "permission", "sensitive"] },
+        "sensivel": { "type": "boolean" },
+        "entidade": { "type": "string", "maxLength": 100 },
+        "entidadeId": { "type": "string", "maxLength": 128 },
+        "campo": { "type": "string", "maxLength": 120 },
+        "resumo": { "type": "string", "maxLength": 500 },
+        "antes": { "type": "string", "maxLength": 4000 },
+        "depois": { "type": "string", "maxLength": 4000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actorUid", "actorRole", "acao", "tipoOperacao", "sensivel", "entidade", "entidadeId", "createdAt"]
+    },
     "PartnerProposal": {
       "title": "PartnerProposal",
       "description": "Proposta pública enviada no formulário Seja um Parceiro.",
@@ -608,6 +631,7 @@
     "/siteContent/{sectionId}": { "schema": { "$ref": "#/entities/SiteContent" }, "description": "Conteúdo CMS do site público" },
     "/mediaAssets/{assetId}": { "schema": { "$ref": "#/entities/MediaAsset" }, "description": "Biblioteca institucional de mídias, logos e banners" },
     "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Trilha de auditoria append-only" },
+    "/adminAudit/{scope}/logs/{logId}": { "schema": { "$ref": "#/entities/AdminActionLog" }, "description": "Subcoleção logs imutável para rastreabilidade de ações administrativas, permissões e alterações em dados sensíveis no Painel de Consultoria" },
     "/partnerProposals/{proposalId}": { "schema": { "$ref": "#/entities/PartnerProposal" }, "description": "Propostas enviadas no formulário Seja um Parceiro" },
     "/partners/{partnerId}": { "schema": { "$ref": "#/entities/Partner" }, "description": "Cadastro interno de parceiros com comissões" },
     "/partnersPublic/{partnerId}": { "schema": { "$ref": "#/entities/PartnerPublic" }, "description": "Projeção pública de parceiros indicados sem comissões" },

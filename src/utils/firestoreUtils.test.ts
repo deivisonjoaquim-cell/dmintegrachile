@@ -74,7 +74,9 @@ describe('firestoreUtils — Sanitization & Config Collection Validation', () =>
     assert.equal(result.bloqueioProtocoloMinimo, 100);
     assert.equal(result.diasAlertaRevisaoLegal, 1);
     assert.equal('siteDraft' in result, false);
-    assert.equal('logoDarkUrl' in result, false);
+    assert.equal(result.logoUrl, '/logo-dm-integra.svg');
+    assert.equal(result.logoDarkUrl, '/logo-dm-integra-dark.svg');
+    assert.equal(result.faviconUrl, '/favicon-dm-integra.svg');
     assert.ok(typeof result.updatedAt === 'string' && result.updatedAt.length > 0);
   });
 

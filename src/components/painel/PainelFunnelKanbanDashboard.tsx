@@ -7,11 +7,13 @@ import {
   BellRing,
   ExternalLink,
   Plus,
+  Trash2,
   X,
 } from 'lucide-react';
 import { reportAppError } from '../../services/errorService';
-import { saveDocumentAudited } from '../../services/firestoreService';
+import { deleteCaseCascadeAudited, deleteDocumentAudited, saveDocumentAudited } from '../../services/firestoreService';
 import { notifyClientProcessUpdate } from '../../services/notificationService';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import type {
   Case,
   CaseDocument,
@@ -96,7 +98,44 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
     onAction?: () => void;
   } | null>(null);
 
+  const [deleteTargetCard, setDeleteTargetCard] = useState<FunnelKanbanCard | null>(null);
+  const [deletingCard, setDeletingCard] = useState(false);
+
   const canConvertLead = role === 'admin' || role === 'consultor';
+  const canDeleteCards = role === 'admin' || role === 'consultor';
+
+  const handleConfirmDeleteCard = async () => {
+    if (!deleteTargetCard || !canDeleteCards) return;
+    setDeletingCard(true);
+    setNotice(null);
+    try {
+      if (deleteTargetCard.kind === 'lead' && deleteTargetCard.lead) {
+        await deleteDocumentAudited('leads', deleteTargetCard.lead.id, role, deleteTargetCard.lead);
+        setNotice({
+          tone: 'success',
+          message: `Lead "${deleteTargetCard.clientName}" excluído com auditoria registrada.`,
+        });
+      } else if (deleteTargetCard.kind === 'case' && deleteTargetCard.caseRecord) {
+        const removed = await deleteCaseCascadeAudited({
+          caseItem: deleteTargetCard.caseRecord,
+          caseDocuments: docs,
+          tasks,
+          deadlines,
+          role,
+        });
+        setNotice({
+          tone: 'success',
+          message: `Processo "${deleteTargetCard.title}" excluído (${removed} registro(s) vinculado(s) removido(s)) com auditoria.`,
+        });
+      }
+      setDeleteTargetCard(null);
+      await onRefresh();
+    } catch (err) {
+      reportAppError(err, { source: 'funnel-kanban-delete-card' });
+    } finally {
+      setDeletingCard(false);
+    }
+  };
 
   const minProtocolScore = empresa.bloqueioProtocoloMinimo ?? 100;
 
@@ -738,6 +777,18 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                                 <ArrowRight className="w-3 h-3" />
                               </button>
                             )}
+                            {canDeleteCards && (
+                              <button
+                                type="button"
+                                disabled={isMoving}
+                                onClick={() => setDeleteTargetCard(card)}
+                                title={`Excluir ${card.kind === 'lead' ? 'lead' : 'processo'} ${card.clientName}`}
+                                aria-label={`Excluir ${card.kind === 'lead' ? 'lead' : 'processo'} ${card.clientName}`}
+                                className="p-1 rounded border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </article>
@@ -749,6 +800,24 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
           );
         })}
       </div>
+
+      <ConfirmActionModal
+        open={Boolean(deleteTargetCard)}
+        title={deleteTargetCard?.kind === 'lead' ? 'Excluir lead desta etapa' : 'Excluir processo desta etapa'}
+        description={
+          deleteTargetCard
+            ? deleteTargetCard.kind === 'lead'
+              ? `Confirma a exclusão permanente do lead "${deleteTargetCard.clientName}" na etapa atual? A ação será gravada na trilha de auditoria.`
+              : `Confirma a exclusão permanente do processo "${deleteTargetCard.title}" (${deleteTargetCard.clientName}) e seus documentos/tarefas/prazos vinculados? A ação será gravada na trilha de auditoria.`
+            : ''
+        }
+        confirmLabel={deleteTargetCard?.kind === 'lead' ? 'Excluir lead' : 'Excluir processo'}
+        tone="danger"
+        onClose={() => {
+          if (!deletingCard) setDeleteTargetCard(null);
+        }}
+        onConfirm={handleConfirmDeleteCard}
+      />
     </div>
   );
 };

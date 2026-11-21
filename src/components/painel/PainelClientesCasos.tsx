@@ -23,7 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { LegalBaseModal } from '../LegalBaseModal';
-import { UiButton } from '../ui/DesignSystem';
+import { ConfirmActionModal, UiButton } from '../ui/DesignSystem';
 import { ClientDossierModal } from './ClientDossierModal';
 import { ContractGeneratorModal } from './ContractGeneratorModal';
 import {
@@ -36,6 +36,9 @@ import {
 import { CASE_TEMPLATES, PIPELINE_STAGES } from '../../data/seeds';
 import {
   callAiEndpoint,
+  deleteCaseCascadeAudited,
+  deleteCaseDocumentAudited,
+  deleteClientCascadeAudited,
   deleteDocumentAudited,
   logSensitiveDocumentAccess,
   makeId,
@@ -410,6 +413,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [finContractMoeda, setFinContractMoeda] = useState<CurrencyCode>('BRL');
   const [finContractLiberado, setFinContractLiberado] = useState(false);
 
+  // Modal unificado de confirmação para exclusões em todas as etapas/abas
+  type DeleteTarget =
+    | { kind: 'case'; item: Case; label: string }
+    | { kind: 'client'; item: Client; label: string }
+    | { kind: 'dependent'; item: Dependent; label: string }
+    | { kind: 'document'; item: CaseDocument; label: string }
+    | { kind: 'assessment'; item: ViabilityAssessment; label: string }
+    | { kind: 'budget'; item: Budget; label: string }
+    | { kind: 'financialRecord'; item: FinancialRecord; label: string }
+    | { kind: 'task'; item: Task; label: string }
+    | { kind: 'deadline'; item: Deadline; label: string }
+    | { kind: 'appointment'; item: Appointment; label: string }
+    | { kind: 'communication'; item: CommunicationLog; label: string };
+
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
   const dossierClient = useMemo(
     () => clients.find((c) => c.id === dossierClientId) || null,
@@ -417,6 +436,116 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   );
   const activeCase = useMemo(() => cases.find((c) => c.id === selectedCaseId) || null, [cases, selectedCaseId]);
   const activeClient = useMemo(() => (activeCase ? clientMap.get(activeCase.clientId) || null : null), [activeCase, clientMap]);
+
+  const handleConfirmDeleteTarget = async () => {
+    if (!deleteTarget) return;
+    setErrorMsg(null);
+    try {
+      switch (deleteTarget.kind) {
+        case 'case': {
+          const removed = await deleteCaseCascadeAudited({
+            caseItem: deleteTarget.item,
+            caseFinancials,
+            caseDocuments: docs,
+            tasks,
+            deadlines,
+            appointments,
+            communicationLogs,
+            viabilityAssessments,
+            budgets,
+            financialRecords,
+            generatedDocuments,
+            role,
+          });
+          if (selectedCaseId === deleteTarget.item.id) {
+            onSelectCase(null);
+          }
+          setFeedback(`Processo "${deleteTarget.label}" excluído (${removed} registro(s) vinculado(s) removido(s)) com auditoria.`);
+          break;
+        }
+        case 'client': {
+          const removed = await deleteClientCascadeAudited({
+            client: deleteTarget.item,
+            dependents,
+            cases,
+            caseFinancials,
+            caseDocuments: docs,
+            tasks,
+            deadlines,
+            appointments,
+            communicationLogs,
+            viabilityAssessments,
+            budgets,
+            financialRecords,
+            generatedDocuments: generatedDocuments || [],
+            role,
+          });
+          if (activeCase?.clientId === deleteTarget.item.id) {
+            onSelectCase(null);
+          }
+          if (dossierClientId === deleteTarget.item.id) {
+            setDossierClientId(null);
+          }
+          setFeedback(`Cliente "${deleteTarget.label}" excluído (${removed} registro(s) vinculado(s) removido(s)) com auditoria.`);
+          break;
+        }
+        case 'dependent': {
+          await deleteDocumentAudited('dependents', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Dependente "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+        case 'document': {
+          await deleteCaseDocumentAudited(deleteTarget.item, role);
+          setFeedback(`Documento "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+        case 'assessment': {
+          await deleteDocumentAudited('viabilityAssessments', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Parecer "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+        case 'budget': {
+          await deleteDocumentAudited('budgets', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Orçamento "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+        case 'financialRecord': {
+          await deleteDocumentAudited('financialRecords', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Lançamento "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+        case 'task': {
+          await deleteDocumentAudited('tasks', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Tarefa "${deleteTarget.label}" excluída com auditoria.`);
+          break;
+        }
+        case 'deadline': {
+          await deleteDocumentAudited('deadlines', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Prazo "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+        case 'appointment': {
+          await deleteDocumentAudited('appointments', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Reunião "${deleteTarget.label}" excluída com auditoria.`);
+          break;
+        }
+        case 'communication': {
+          await deleteDocumentAudited('communicationLogs', deleteTarget.item.id, role, deleteTarget.item);
+          setFeedback(`Registro de comunicação "${deleteTarget.label}" excluído com auditoria.`);
+          break;
+        }
+      }
+      setDeleteTarget(null);
+      await onRefresh();
+    } catch (err) {
+      throw new Error(
+        translateAppError(err, {
+          source: 'painel-clientes-delete',
+          operation: 'delete',
+        }).message,
+      );
+    }
+  };
 
   const filteredClients = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2018,12 +2147,28 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               <button
                 type="button"
                 onClick={() => void handleSaveCaseField({ relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado }, 'relatorioViabilidadeLiberado')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap shrink-0 ${
                   activeCase.relatorioViabilidadeLiberado ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-300 text-slate-700'
                 }`}
               >
                 {activeCase.relatorioViabilidadeLiberado ? 'Parecer Visível ao Cliente' : 'Liberar Parecer ao Cliente'}
               </button>
+              {canManageClients && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDeleteTarget({
+                      kind: 'case',
+                      item: activeCase,
+                      label: activeCase.titulo,
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-[#C82333] bg-white hover:bg-red-50 whitespace-nowrap shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir Processo
+                </button>
+              )}
             </div>
           </div>
 
@@ -2403,13 +2548,32 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       <p className="text-xs font-semibold text-slate-700">Versões Salvas:</p>
                       {caseAssessments.map((va) => (
                         <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="font-bold text-slate-900">
                               Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
                             </span>
-                            <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
-                              {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
+                                {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
+                              </span>
+                              {canManageClients && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      kind: 'assessment',
+                                      item: va,
+                                      label: `Versão ${va.versao}`,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50 text-[11px] font-semibold whitespace-nowrap shrink-0"
+                                  aria-label={`Excluir parecer versão ${va.versao}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Excluir
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <p className="text-slate-700 whitespace-pre-wrap">{va.enquadramentoLegal}</p>
                           <p className="text-slate-600 whitespace-pre-wrap">{va.recomendacoes}</p>
@@ -2543,14 +2707,18 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           {canManageClients && (
                             <button
                               type="button"
-                              onClick={async () => {
-                                await deleteDocumentAudited('dependents', dep.id, role, dep);
-                                await onRefresh();
-                              }}
-                              className="p-1.5 rounded-lg border border-red-200 text-[#C82333] hover:bg-red-50"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  kind: 'dependent',
+                                  item: dep,
+                                  label: dep.nomeCompleto,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-[#C82333] hover:bg-red-50 text-xs font-semibold whitespace-nowrap shrink-0"
                               aria-label={`Remover ${dep.nomeCompleto}`}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
+                              Excluir
                             </button>
                           )}
                         </div>
@@ -3057,6 +3225,23 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                             />
                             Traduzido{d.exigeTraducao && !d.traduzido ? ' (obrig.)' : ''}
                           </label>
+                          {canManageClients && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  kind: 'document',
+                                  item: d,
+                                  label: `${d.nomeDocumento} (${d.pessoa})`,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-[#C82333] bg-white hover:bg-red-50 font-semibold whitespace-nowrap shrink-0"
+                              aria-label={`Excluir documento ${d.nomeDocumento}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Excluir
+                            </button>
+                          )}
                         </div>
 
                         {d.status === 'Reprovado' && (
@@ -3258,12 +3443,30 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <p className="text-xs text-slate-500">Crie ou envie orçamentos na aba Financeiro do menu lateral.</p>
                   ) : (
                     caseBudgets.map((b) => (
-                      <div key={b.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex justify-between">
+                      <div key={b.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2">
                         <div>
                           <p className="font-semibold text-slate-900">{b.titulo}</p>
                           <p className="text-slate-500">Nº {b.numeroOrcamento} · {b.status}</p>
                         </div>
-                        <span className="font-bold tabular-nums">{formatCurrency(b.totalGeral, b.moedaPrincipal)}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-bold tabular-nums">{formatCurrency(b.totalGeral, b.moedaPrincipal)}</span>
+                          {canManageClients && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  kind: 'budget',
+                                  item: b,
+                                  label: `${b.titulo} (Nº ${b.numeroOrcamento})`,
+                                })
+                              }
+                              aria-label={`Excluir orçamento ${b.titulo}`}
+                              className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -3275,12 +3478,30 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <p className="text-xs text-slate-500">Nenhum lançamento financeiro vinculado.</p>
                   ) : (
                     caseFinRecords.map((f) => (
-                      <div key={f.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex justify-between">
+                      <div key={f.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2">
                         <div>
                           <p className="font-semibold text-slate-900">{f.descricao}</p>
                           <p className="text-slate-500">Venc. {formatDateBR(f.vencimento)} · {f.status}</p>
                         </div>
-                        <span className="font-bold tabular-nums">{formatCurrency(f.valor, f.moeda)}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-bold tabular-nums">{formatCurrency(f.valor, f.moeda)}</span>
+                          {canManageClients && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  kind: 'financialRecord',
+                                  item: f,
+                                  label: f.descricao,
+                                })
+                              }
+                              aria-label={`Excluir lançamento ${f.descricao}`}
+                              className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -3317,27 +3538,43 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <div className="space-y-2">
                   {caseTasks.map((t) => (
                     <div key={t.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <p className={t.status === 'Concluída' ? 'line-through text-slate-400' : 'font-semibold text-slate-800'}>{t.titulo}</p>
                         {t.prazo && <p className="text-[11px] text-slate-500">Prazo: {formatDateBR(t.prazo)}</p>}
                       </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await saveDocumentAudited(
-                            'tasks',
-                            t.id,
-                            { ...t, status: t.status === 'Concluída' ? 'Pendente' : 'Concluída' },
-                            false,
-                            role,
-                            'status_tarefa',
-                          );
-                          await onRefresh();
-                        }}
-                        className="px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-medium"
-                      >
-                        {t.status === 'Concluída' ? 'Reabrir' : 'Concluir'}
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await saveDocumentAudited(
+                              'tasks',
+                              t.id,
+                              { ...t, status: t.status === 'Concluída' ? 'Pendente' : 'Concluída' },
+                              false,
+                              role,
+                              'status_tarefa',
+                            );
+                            await onRefresh();
+                          }}
+                          className="px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-medium"
+                        >
+                          {t.status === 'Concluída' ? 'Reabrir' : 'Concluir'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeleteTarget({
+                              kind: 'task',
+                              item: t,
+                              label: t.titulo,
+                            })
+                          }
+                          aria-label={`Excluir tarefa ${t.titulo}`}
+                          className="p-1 rounded border border-red-200 text-[#C82333] bg-white hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3384,23 +3621,40 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       <p className="text-[11px] text-slate-500">
                         {dl.tipo} · {formatDateBR(dl.dataLimite)}
                       </p>
-                      <div className="flex gap-2 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
+                            className="text-[11px] underline text-[var(--color-primary)]"
+                          >
+                            Baixar .ics
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await saveDocumentAudited('deadlines', dl.id, { ...dl, concluido: !dl.concluido }, false, role, 'prazo');
+                              await onRefresh();
+                            }}
+                            className="text-[11px] underline text-slate-600"
+                          >
+                            {dl.concluido ? 'Concluído' : 'Marcar concluído'}
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
-                          className="text-[11px] underline text-[var(--color-primary)]"
+                          onClick={() =>
+                            setDeleteTarget({
+                              kind: 'deadline',
+                              item: dl,
+                              label: dl.titulo,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C82333] hover:underline"
+                          aria-label={`Excluir prazo ${dl.titulo}`}
                         >
-                          Baixar .ics
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await saveDocumentAudited('deadlines', dl.id, { ...dl, concluido: !dl.concluido }, false, role, 'prazo');
-                            await onRefresh();
-                          }}
-                          className="text-[11px] underline text-slate-600"
-                        >
-                          {dl.concluido ? 'Concluído' : 'Marcar concluído'}
+                          <Trash2 className="w-3 h-3" />
+                          Excluir
                         </button>
                       </div>
                     </div>
@@ -3445,21 +3699,38 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <div key={apt.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                       <p className="font-semibold text-slate-900">{apt.titulo}</p>
                       <p className="text-[11px] text-slate-500">{formatDateTimeBR(apt.dataHoraInicio)} · {apt.status}</p>
-                      <div className="flex gap-2 pt-1">
-                        <a
-                          href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] underline text-[var(--color-primary)]"
-                        >
-                          Google Agenda
-                        </a>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="flex gap-2">
+                          <a
+                            href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] underline text-[var(--color-primary)]"
+                          >
+                            Google Agenda
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => downloadIcsFile({ title: apt.titulo, startIso: apt.dataHoraInicio })}
+                            className="text-[11px] underline text-slate-600"
+                          >
+                            Baixar .ics
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => downloadIcsFile({ title: apt.titulo, startIso: apt.dataHoraInicio })}
-                          className="text-[11px] underline text-slate-600"
+                          onClick={() =>
+                            setDeleteTarget({
+                              kind: 'appointment',
+                              item: apt,
+                              label: apt.titulo,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C82333] hover:underline"
+                          aria-label={`Excluir reunião ${apt.titulo}`}
                         >
-                          Baixar .ics
+                          <Trash2 className="w-3 h-3" />
+                          Excluir
                         </button>
                       </div>
                     </div>
@@ -3510,7 +3781,26 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                             <span className="font-bold text-slate-900">
                               {isClientMsg ? `Cliente · ${msg.autorNome || activeClient?.nomeCompleto || 'Cliente'}` : `Equipe · ${msg.autorNome}`}
                             </span>
-                            <span className="tabular-nums">{formatDateTimeBR(msg.createdAt)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="tabular-nums">{formatDateTimeBR(msg.createdAt)}</span>
+                              {canManageClients && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      kind: 'communication',
+                                      item: msg,
+                                      label: msg.assunto || 'Mensagem do chat',
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C82333] hover:underline"
+                                  aria-label="Excluir mensagem do chat"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Excluir
+                                </button>
+                              )}
+                            </div>
                           </div>
                           {msg.documentNome && (
                             <p className="text-[11px] font-semibold text-[var(--color-primary)]">
@@ -3740,14 +4030,33 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <h4 className="text-xs font-bold text-slate-700">Histórico Completo de Comunicações ({caseComms.length})</h4>
                 {caseComms.map((log) => (
                   <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs space-y-1">
-                    <div className="flex flex-wrap justify-between gap-2 text-slate-500">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-slate-500">
                       <span className="font-semibold text-slate-800">
                         {log.canal === 'Chat Portal'
                           ? `Chat Portal (${log.origem === 'cliente' ? 'Cliente' : 'Equipe'})`
                           : log.canal}{' '}
                         · {log.assunto}
                       </span>
-                      <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.autorNome}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.autorNome}</span>
+                        {canManageClients && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteTarget({
+                                kind: 'communication',
+                                item: log,
+                                label: log.assunto || log.canal,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C82333] hover:underline"
+                            aria-label={`Excluir comunicação ${log.assunto}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Excluir
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {log.documentNome && (
                       <p className="text-[11px] font-semibold text-[var(--color-primary)]">
@@ -3782,27 +4091,43 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 {caseTasks
                   .filter((t) => t.titulo.startsWith('[Relocation]'))
                   .map((t) => (
-                    <div key={t.id} className="p-3 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
+                    <div key={t.id} className="p-3 rounded-lg border border-slate-200 flex items-center justify-between gap-2 text-xs">
                       <span className={t.status === 'Concluída' ? 'line-through text-slate-400' : 'font-medium text-slate-800'}>
                         {t.titulo.replace('[Relocation] ', '')}
                       </span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await saveDocumentAudited(
-                            'tasks',
-                            t.id,
-                            { ...t, status: t.status === 'Concluída' ? 'Pendente' : 'Concluída' },
-                            false,
-                            role,
-                            'relocation_status',
-                          );
-                          await onRefresh();
-                        }}
-                        className="px-3 py-1 rounded-lg border border-slate-300 bg-white font-semibold"
-                      >
-                        {t.status === 'Concluída' ? 'Concluído' : 'Concluir'}
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await saveDocumentAudited(
+                              'tasks',
+                              t.id,
+                              { ...t, status: t.status === 'Concluída' ? 'Pendente' : 'Concluída' },
+                              false,
+                              role,
+                              'relocation_status',
+                            );
+                            await onRefresh();
+                          }}
+                          className="px-3 py-1 rounded-lg border border-slate-300 bg-white font-semibold"
+                        >
+                          {t.status === 'Concluída' ? 'Concluído' : 'Concluir'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeleteTarget({
+                              kind: 'task',
+                              item: t,
+                              label: t.titulo.replace('[Relocation] ', ''),
+                            })
+                          }
+                          aria-label={`Excluir etapa relocation ${t.titulo}`}
+                          className="p-1.5 rounded-lg border border-red-200 text-[#C82333] bg-white hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
               </div>
@@ -4454,6 +4779,21 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           >
                             {cl.portalLiberado ? 'Bloquear' : 'Liberar'}
                           </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteTarget({
+                                kind: 'client',
+                                item: cl,
+                                label: cl.nomeCompleto,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap shrink-0"
+                            aria-label={`Excluir cliente ${cl.nomeCompleto}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Excluir
+                          </button>
                         </>
                       )}
                     </td>
@@ -4527,7 +4867,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           {cFin ? formatCurrency(cFin.valorContrato, cFin.moeda) : '—'}
                         </td>
                       )}
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => onSelectCase(c.id)}
@@ -4536,6 +4876,23 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         >
                           Abrir Ficha (8 Abas)
                         </button>
+                        {canManageClients && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteTarget({
+                                kind: 'case',
+                                item: c,
+                                label: c.titulo,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap shrink-0"
+                            aria-label={`Excluir processo ${c.titulo}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Excluir
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -4628,53 +4985,72 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                                 {nextDl ? ` · Próx. ${formatDateBR(nextDl.dataLimite)}` : ''}
                                 {!isAssistente && cFin ? ` · ${formatCurrency(cFin.valorContrato, cFin.moeda)}` : ''}
                               </p>
-                              {nextMacro && (
-                                <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => onSelectCase(c.id)}
-                                    className="text-[10px] font-semibold text-slate-600 hover:text-slate-900"
-                                  >
-                                    Abrir ficha
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      if (blockedForTramite) {
-                                        onSelectCase(c.id);
-                                        return;
+                              <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectCase(c.id)}
+                                  className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 whitespace-nowrap"
+                                >
+                                  Abrir ficha
+                                </button>
+                                <div className="flex items-center gap-1">
+                                  {nextMacro && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (blockedForTramite) {
+                                          onSelectCase(c.id);
+                                          return;
+                                        }
+                                        const targetStep = resolveTargetPipelineStep(nextMacro.id, c.etapaPipeline);
+                                        try {
+                                          await saveDocumentAudited(
+                                            'cases',
+                                            c.id,
+                                            { ...c, etapaPipeline: targetStep },
+                                            false,
+                                            role,
+                                            `avanco_funil_${nextMacro.id}`,
+                                            { etapaPipeline: c.etapaPipeline },
+                                          );
+                                          await onRefresh();
+                                        } catch (err) {
+                                          reportAppError(err, { source: 'case-kanban-advance', path: `cases/${c.id}` });
+                                        }
+                                      }}
+                                      title={
+                                        blockedForTramite
+                                          ? `Termômetro em ${t.notaGeral}%. Abra a ficha para conferir pendências ou aplicar override.`
+                                          : `Avançar caso para ${nextMacro.nome}`
                                       }
-                                      const targetStep = resolveTargetPipelineStep(nextMacro.id, c.etapaPipeline);
-                                      try {
-                                        await saveDocumentAudited(
-                                          'cases',
-                                          c.id,
-                                          { ...c, etapaPipeline: targetStep },
-                                          false,
-                                          role,
-                                          `avanco_funil_${nextMacro.id}`,
-                                          { etapaPipeline: c.etapaPipeline },
-                                        );
-                                        await onRefresh();
-                                      } catch (err) {
-                                        reportAppError(err, { source: 'case-kanban-advance', path: `cases/${c.id}` });
+                                      className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors whitespace-nowrap ${
+                                        blockedForTramite
+                                          ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                                          : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      {blockedForTramite ? 'Validar p/ Trâmite' : `→ ${nextMacro.nomeCurto}`}
+                                    </button>
+                                  )}
+                                  {canManageClients && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setDeleteTarget({
+                                          kind: 'case',
+                                          item: c,
+                                          label: c.titulo,
+                                        })
                                       }
-                                    }}
-                                    title={
-                                      blockedForTramite
-                                        ? `Termômetro em ${t.notaGeral}%. Abra a ficha para conferir pendências ou aplicar override.`
-                                        : `Avançar caso para ${nextMacro.nome}`
-                                    }
-                                    className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors ${
-                                      blockedForTramite
-                                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                                        : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                    }`}
-                                  >
-                                    {blockedForTramite ? 'Validar p/ Trâmite' : `→ ${nextMacro.nomeCurto}`}
-                                  </button>
+                                      title="Excluir processo desta etapa"
+                                      aria-label={`Excluir processo ${c.titulo}`}
+                                      className="p-1 rounded border border-red-200 text-[#C82333] bg-white hover:bg-red-50 shrink-0"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
                                 </div>
-                              )}
+                              </div>
                             </div>
                           );
                         })}
@@ -5015,6 +5391,31 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         initialCaseId={contractModalInit.caseId}
         onRefresh={onRefresh}
         onLogWhatsApp={onLogWhatsApp}
+      />
+
+      <ConfirmActionModal
+        open={Boolean(deleteTarget)}
+        title={
+          deleteTarget?.kind === 'case'
+            ? 'Excluir processo permanentemente'
+            : deleteTarget?.kind === 'client'
+              ? 'Excluir cliente permanentemente'
+              : 'Confirmar exclusão'
+        }
+        description={
+          deleteTarget
+            ? deleteTarget.kind === 'case'
+              ? `Tem certeza que deseja excluir o processo "${deleteTarget.label}"? Todos os documentos, tarefas, prazos, pareceres e comunicações vinculados também serão removidos.`
+              : deleteTarget.kind === 'client'
+                ? `Tem certeza que deseja excluir o cliente "${deleteTarget.label}" e todos os processos, dependentes e documentos vinculados?`
+                : `Tem certeza que deseja excluir permanentemente "${deleteTarget.label}"? Esta ação não pode ser desfeita.`
+            : ''
+        }
+        details={['A exclusão é gravada na subcoleção imutável de auditoria (adminAudit/painel/logs).']}
+        confirmLabel="Excluir permanentemente"
+        tone="danger"
+        onConfirm={handleConfirmDeleteTarget}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );

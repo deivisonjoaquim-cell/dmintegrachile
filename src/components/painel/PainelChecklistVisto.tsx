@@ -12,9 +12,11 @@ import {
   ListChecks,
   Loader2,
   Search,
+  Trash2,
 } from 'lucide-react';
-import { makeId, saveDocumentAudited } from '../../services/firestoreService';
+import { deleteCaseDocumentAudited, makeId, saveDocumentAudited } from '../../services/firestoreService';
 import { notifyClientProcessUpdate } from '../../services/notificationService';
+import { ConfirmActionModal } from '../ui/DesignSystem';
 import type {
   Case,
   CaseDocument,
@@ -130,6 +132,27 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [previewStatusMap, setPreviewStatusMap] = useState<Record<string, boolean>>({});
+  const [deleteTargetDoc, setDeleteTargetDoc] = useState<CaseDocument | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
+
+  const canDeleteChecklistDoc = role === 'admin' || role === 'consultor';
+
+  const handleConfirmDeleteDoc = async () => {
+    if (!deleteTargetDoc || !canDeleteChecklistDoc) return;
+    setDeletingDoc(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      await deleteCaseDocumentAudited(deleteTargetDoc, role);
+      setDeleteTargetDoc(null);
+      setFeedback(`Documento "${deleteTargetDoc.nomeDocumento}" excluído do dossiê com auditoria.`);
+      await onRefresh();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível excluir o documento do checklist.');
+    } finally {
+      setDeletingDoc(false);
+    }
+  };
 
   const caseDependents = useMemo(() => {
     if (!activeCase) return [];
@@ -1069,6 +1092,20 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </button>
                       )}
+
+                      {canPersistToCase && canDeleteChecklistDoc && entry.document && (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => setDeleteTargetDoc(entry.document!)}
+                          title={`Excluir "${entry.nomeDocumento}" do dossiê do caso`}
+                          aria-label={`Excluir "${entry.nomeDocumento}" do dossiê`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-white text-xs font-semibold text-[#C82333] hover:bg-red-50 disabled:opacity-50 whitespace-nowrap"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Excluir</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1112,6 +1149,22 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
           </div>
         )}
       </section>
+
+      <ConfirmActionModal
+        open={Boolean(deleteTargetDoc)}
+        title="Excluir documento do checklist"
+        description={
+          deleteTargetDoc
+            ? `Tem certeza que deseja excluir o documento "${deleteTargetDoc.nomeDocumento}" (${deleteTargetDoc.pessoa}) do dossiê deste caso? A exclusão será registrada na auditoria.`
+            : ''
+        }
+        confirmLabel="Excluir documento"
+        tone="danger"
+        onClose={() => {
+          if (!deletingDoc) setDeleteTargetDoc(null);
+        }}
+        onConfirm={handleConfirmDeleteDoc}
+      />
     </div>
   );
 };

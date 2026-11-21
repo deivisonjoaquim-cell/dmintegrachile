@@ -248,10 +248,77 @@ export async function verifyAndEnsureAdminAccess(
 }
 
 /**
+ * Verifica no Firestore (`users/{uid}`) se a conta autenticada possui um dos papéis permitidos
+ * (`admin`, `consultor`, `assistente`, `cliente`) e status ativo (ou admin principal bootstrapado).
+ */
+export async function verifyStaffRoleAccess(
+  allowedRoles: UserRole[] = ['admin', 'consultor', 'assistente'],
+  fbUser: User | null = auth.currentUser,
+  options?: { force?: boolean },
+): Promise<AdminSecurityVerificationResult> {
+  if (!fbUser) {
+    return evaluateValidatedAdminRecord({
+      uid: null,
+      email: null,
+      emailVerified: false,
+      userDoc: null,
+    });
+  }
+
+  const normalizedEmail = normalizeEmail(fbUser.email);
+  const isPrimary = isPrimaryAdminEmail(normalizedEmail);
+
+  if (isPrimary && allowedRoles.includes('admin')) {
+    return verifyAndEnsureAdminAccess(fbUser, options);
+  }
+
+  if (!fbUser.emailVerified) {
+    return {
+      authorized: false,
+      uid: fbUser.uid,
+      email: normalizedEmail,
+      emailVerified: false,
+      role: null,
+      status: null,
+      isPrimaryAdmin: isPrimary,
+      repairedUserDoc: false,
+      reason: 'O e-mail da conta autenticada não está verificado.',
+    };
+  }
+
+  let existingData: Partial<UserProfile> | null = null;
+  try {
+    const snap = await getDoc(doc(db, 'users', fbUser.uid));
+    existingData = snap.exists() ? (snap.data() as Partial<UserProfile>) : null;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.GET, `users/${fbUser.uid}`);
+  }
+
+  const role = (existingData?.role as UserRole) || null;
+  const status = (existingData?.status as UserStatus) || (role && role !== 'cliente' ? 'ativo' : null);
+  const authorized = Boolean(role && allowedRoles.includes(role) && status === 'ativo');
+
+  return {
+    authorized,
+    uid: fbUser.uid,
+    email: normalizedEmail,
+    emailVerified: true,
+    role,
+    status,
+    isPrimaryAdmin: isPrimary,
+    repairedUserDoc: false,
+    profile: existingData as UserProfile | undefined,
+    reason: authorized
+      ? undefined
+      : `Permissão insuficiente no Firestore (papel atual: ${role || 'não definido'}, status: ${status || 'não definido'}).`,
+  };
+}
+
+/**
  * Executa uma operação de escrita administrativa no Firestore (ex.: `config/empresa`, `config/bancario`)
  * após validar no Firestore que o usuário é um administrador ativo.
- * Caso ocorra erro de permissão com `deivisonjoaquim@gmail.com` por token desatualizado ou documento recém-sincronizado,
- * renova o ID Token + sincroniza `users/{uid}` e tenta a gravação novamente uma vez.
+ * Caso ocorra erro de permissão por token desatualizado ou documento recém-sincronizado,
+ * renova o ID Token + revalida `users/{uid}` e tenta a gravação novamente uma vez.
  */
 export async function executeValidatedAdminWrite<T>(
   targetPath: string,
@@ -281,12 +348,14 @@ export async function executeValidatedAdminWrite<T>(
       rawMsg.includes('missing or insufficient permissions') ||
       rawMsg.includes('insufficient permissions');
 
-    if (isPermError && isPrimaryAdminEmail(currentUser.email)) {
+    if (isPermError) {
       try {
         await currentUser.getIdToken(true);
         clearAdminVerificationCache();
-        await verifyAndEnsureAdminAccess(currentUser, { force: true });
-        return await writeFn();
+        const recheck = await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        if (recheck.authorized) {
+          return await writeFn();
+        }
       } catch (retryErr) {
         handleFirestoreError(retryErr, operation, targetPath);
       }

@@ -63,6 +63,11 @@ import type {
 import { runDiagnosticEngine } from '../../utils/diagnosticEngine';
 import { DIAGNOSTIC_TEST_PROFILES } from '../../utils/diagnosticProfiles';
 import { exportToCSV, formatDateBR, formatDateTimeBR } from '../../utils/formatters';
+import {
+  classifyAdminAuditAction,
+  formatEntityLabel,
+  type AdminLogOperationType,
+} from '../../utils/auditClassification';
 import { HomeSectionsView } from '../HomeSectionsView';
 import { ConfirmActionModal } from '../ui/DesignSystem';
 import { MediaAssetPicker } from './MediaAssetPicker';
@@ -241,10 +246,10 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [editingMember, setEditingMember] = useState<UserProfile | null>(null);
   const [adminDeleteTarget, setAdminDeleteTarget] = useState<{
-    kind: 'user' | 'ruleVersion';
+    kind: 'user' | 'ruleVersion' | 'cmsSection';
     id: string;
     label: string;
-    item: UserProfile | DiagnosticRuleVersion;
+    item: UserProfile | DiagnosticRuleVersion | SiteContent;
   } | null>(null);
 
   // Studio CMS (Rascunho separado de Publicado)
@@ -278,8 +283,11 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
     { id: number; nome: string; pass: boolean; esperado: string; obtido: string; detalhe: string }[] | null
   >(null);
 
-  // Auditoria filter
+  // Auditoria filter & inspection
   const [auditFilter, setAuditFilter] = useState('');
+  const [auditOpFilter, setAuditOpFilter] = useState<'all' | AdminLogOperationType | 'sensitive_all'>('all');
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+  const [refreshingAudit, setRefreshingAudit] = useState(false);
 
   // Sincronização assíncrona caso empresa / siteContent / regras atualizem do servidor
   useEffect(() => {
@@ -354,16 +362,70 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
     };
   }, [activeDiagnosticRules, draftRules, visaCategories, visaRequirements, legalSources, empresa.custosPadrao]);
 
+  const enrichedAuditLogs = useMemo(() => {
+    return auditLogs.map((l) => {
+      const fallback = classifyAdminAuditAction({
+        acao: l.acao,
+        entidade: l.entidade,
+        entidadeId: l.entidadeId,
+        campo: l.campo,
+      });
+      return {
+        ...l,
+        resolvedOp: l.tipoOperacao || fallback.tipoOperacao,
+        resolvedSensitive: typeof l.sensivel === 'boolean' ? l.sensivel : fallback.sensivel,
+        resolvedResumo: l.resumo || fallback.resumo,
+      };
+    });
+  }, [auditLogs]);
+
+  const auditStats = useMemo(() => {
+    let creates = 0;
+    let updates = 0;
+    let deletes = 0;
+    let permissionsOrSensitive = 0;
+    let fromLogsSubcollection = 0;
+    for (const l of enrichedAuditLogs) {
+      if (l.resolvedOp === 'create') creates += 1;
+      else if (l.resolvedOp === 'delete') deletes += 1;
+      else if (l.resolvedOp === 'permission' || l.resolvedOp === 'sensitive') permissionsOrSensitive += 1;
+      else updates += 1;
+      if (l.resolvedSensitive && l.resolvedOp !== 'permission' && l.resolvedOp !== 'sensitive') {
+        permissionsOrSensitive += 1;
+      }
+      if (l.sourceSubcollection) fromLogsSubcollection += 1;
+    }
+    return {
+      total: enrichedAuditLogs.length,
+      creates,
+      updates,
+      deletes,
+      permissionsOrSensitive,
+      fromLogsSubcollection,
+    };
+  }, [enrichedAuditLogs]);
+
   const filteredLogs = useMemo(() => {
-    if (!auditFilter.trim()) return auditLogs;
-    const q = auditFilter.toLowerCase();
-    return auditLogs.filter(
-      (l) =>
+    const q = auditFilter.trim().toLowerCase();
+    return enrichedAuditLogs.filter((l) => {
+      if (auditOpFilter === 'sensitive_all') {
+        if (!l.resolvedSensitive && l.resolvedOp !== 'permission' && l.resolvedOp !== 'sensitive') return false;
+      } else if (auditOpFilter !== 'all' && l.resolvedOp !== auditOpFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
         l.acao.toLowerCase().includes(q) ||
         l.entidade.toLowerCase().includes(q) ||
-        l.actorEmail.toLowerCase().includes(q),
-    );
-  }, [auditLogs, auditFilter]);
+        formatEntityLabel(l.entidade).toLowerCase().includes(q) ||
+        l.entidadeId.toLowerCase().includes(q) ||
+        l.actorEmail.toLowerCase().includes(q) ||
+        (l.actorNome || '').toLowerCase().includes(q) ||
+        (l.campo || '').toLowerCase().includes(q) ||
+        l.resolvedResumo.toLowerCase().includes(q)
+      );
+    });
+  }, [enrichedAuditLogs, auditFilter, auditOpFilter]);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -608,8 +670,11 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       };
       const nextHistorico = [prevSnapshot, ...(cfg.siteHistorico || [])].slice(0, 10);
 
-      await Promise.all(
-        siteDraft.map((sec) =>
+      const draftIds = new Set(siteDraft.map((s) => s.id));
+      const removedSections = siteContent.filter((existing) => !draftIds.has(existing.id));
+
+      await Promise.all([
+        ...siteDraft.map((sec) =>
           saveDocumentAudited(
             'siteContent',
             sec.id,
@@ -619,7 +684,10 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
             `publicar_cms_${sec.secao}`,
           ),
         ),
-      );
+        ...removedSections.map((removed) =>
+          deleteDocumentAudited('siteContent', removed.id, role, removed),
+        ),
+      ]);
 
       const nextCfg: EmpresaConfig = {
         ...cfg,
@@ -1905,14 +1973,22 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           <Copy className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {sec.secao === 'bloco_livre' && (
+                      {sec.secao !== 'rodape' && (
                         <button
                           type="button"
-                          onClick={() => handleDeleteCustomSection(sec.id)}
-                          title="Excluir bloco personalizado"
-                          className="p-1.5 rounded-lg border border-red-200 text-[#C82333] hover:bg-red-50"
+                          onClick={() =>
+                            setAdminDeleteTarget({
+                              kind: 'cmsSection',
+                              id: sec.id,
+                              label: `seção "${sec.titulo}" (${sec.secao})`,
+                              item: sec,
+                            })
+                          }
+                          title="Excluir seção do rascunho"
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-red-200 text-[#C82333] hover:bg-red-50 text-xs font-semibold"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
+                          Excluir
                         </button>
                       )}
                       <button
@@ -2229,7 +2305,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           const nextRole = e.target.value as UserRole;
                           setErrorMsg(null);
                           try {
-                            await saveDocumentAudited('users', u.uid, { ...u, role: nextRole }, false, role, 'alterar_papel_usuario');
+                            await saveDocumentAudited('users', u.uid, { ...u, role: nextRole }, false, role, 'alterar_permissao_role', {
+                              role: u.role,
+                            });
                             await loadUsers();
                             setFeedback(`Papel de ${u.email} alterado para ${nextRole}.`);
                           } catch (err) {
@@ -2254,7 +2332,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           const nextStatus = e.target.value as UserProfile['status'];
                           setErrorMsg(null);
                           try {
-                            await saveDocumentAudited('users', u.uid, { ...u, status: nextStatus }, false, role, 'alterar_status_usuario');
+                            await saveDocumentAudited('users', u.uid, { ...u, status: nextStatus }, false, role, 'alterar_status_usuario', {
+                              status: u.status,
+                            });
                             await loadUsers();
                             setFeedback(`Status de ${u.email} atualizado para ${nextStatus}.`);
                           } catch (err) {
@@ -2305,53 +2385,204 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
         </div>
       )}
 
-      {/* AUDITORIA GLOBAL */}
+      {/* AUDITORIA GLOBAL (SUBCOLEÇÃO FIRESTORE adminAudit/painel/logs) */}
       {tab === 'auditoria' && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 justify-between">
-            <input
-              value={auditFilter}
-              onChange={(e) => setAuditFilter(e.target.value)}
-              placeholder="Filtrar auditoria por ação, entidade ou usuário..."
-              className="flex-1 min-w-[240px] px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
-            />
-            <button
-              type="button"
-              onClick={() =>
-                exportToCSV(
-                  'auditoria-dm-integra',
-                  ['Data', 'Ator', 'Papel', 'Ação', 'Entidade', 'ID', 'Campo'],
-                  filteredLogs.map((l) => [
-                    formatDateTimeBR(l.createdAt),
-                    l.actorEmail,
-                    l.actorRole,
-                    l.acao,
-                    l.entidade,
-                    l.entidadeId,
-                    l.campo || '',
-                  ]),
-                )
-              }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Exportar CSV
-            </button>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-200">
-            {filteredLogs.slice(0, 80).map((l) => (
-              <div key={l.id} className="p-3.5 text-xs flex flex-wrap justify-between gap-2">
-                <div>
-                  <span className="font-bold text-slate-900">
-                    {l.acao} · {l.entidade}
-                  </span>{' '}
-                  <span className="text-slate-500">({l.entidadeId})</span>
-                </div>
-                <div className="text-slate-500">
-                  {l.actorEmail} ({l.actorRole}) · {formatDateTimeBR(l.createdAt)}
-                </div>
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[var(--color-primary)]" />
+                  Trilha Imutável de Auditoria Administrativa
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Registra criações, edições, exclusões e alterações de permissões/dados sensíveis na subcoleção Firestore{' '}
+                  <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px]">adminAudit/painel/logs</code>.
+                </p>
               </div>
-            ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={refreshingAudit}
+                  onClick={async () => {
+                    setRefreshingAudit(true);
+                    try {
+                      await onRefresh();
+                    } finally {
+                      setRefreshingAudit(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  {refreshingAudit ? 'Atualizando...' : 'Atualizar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportToCSV(
+                      'auditoria-dm-integra',
+                      ['Data', 'Tipo', 'Sensível', 'Ator', 'Papel', 'Ação', 'Entidade', 'ID', 'Campo', 'Resumo'],
+                      filteredLogs.map((l) => [
+                        formatDateTimeBR(l.createdAt),
+                        l.resolvedOp,
+                        l.resolvedSensitive ? 'Sim' : 'Não',
+                        l.actorEmail,
+                        l.actorRole,
+                        l.acao,
+                        formatEntityLabel(l.entidade),
+                        l.entidadeId,
+                        l.campo || '',
+                        l.resolvedResumo,
+                      ]),
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-[11px] font-medium text-slate-500">Total de registros</p>
+                <p className="text-lg font-bold tabular-nums text-slate-900">{auditStats.total}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-[11px] font-medium text-slate-500">Permissões &amp; Sensíveis</p>
+                <p className="text-lg font-bold tabular-nums text-amber-800">{auditStats.permissionsOrSensitive}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-[11px] font-medium text-slate-500">Exclusões registradas</p>
+                <p className="text-lg font-bold tabular-nums text-[#C82333]">{auditStats.deletes}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-[11px] font-medium text-slate-500">Subcoleção logs</p>
+                <p className="text-lg font-bold tabular-nums text-[var(--color-primary)]">{auditStats.fromLogsSubcollection}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <input
+                value={auditFilter}
+                onChange={(e) => setAuditFilter(e.target.value)}
+                placeholder="Buscar por usuário, entidade, ID, ação ou resumo..."
+                className="flex-1 min-w-[220px] px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              />
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(
+                  [
+                    { id: 'all', label: 'Todos' },
+                    { id: 'create', label: 'Criação' },
+                    { id: 'update', label: 'Edição' },
+                    { id: 'delete', label: 'Exclusão' },
+                    { id: 'sensitive_all', label: 'Permissões & Sensíveis' },
+                  ] as const
+                ).map((op) => (
+                  <button
+                    key={op.id}
+                    type="button"
+                    onClick={() => setAuditOpFilter(op.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap shrink-0 transition-colors ${
+                      auditOpFilter === op.id
+                        ? 'border-[var(--color-primary)] bg-slate-900 text-white'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-200 overflow-hidden">
+            {filteredLogs.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-500">
+                Nenhum registro de auditoria encontrado para os filtros atuais.
+              </div>
+            ) : (
+              filteredLogs.slice(0, 120).map((l) => {
+                const isExpanded = expandedAuditId === l.id;
+                const opLabel =
+                  l.resolvedOp === 'create'
+                    ? 'CRIAÇÃO'
+                    : l.resolvedOp === 'delete'
+                      ? 'EXCLUSÃO'
+                      : l.resolvedOp === 'permission'
+                        ? 'PERMISSÃO'
+                        : l.resolvedOp === 'sensitive'
+                          ? 'SENSÍVEL'
+                          : 'EDIÇÃO';
+                const opTone =
+                  l.resolvedOp === 'delete'
+                    ? 'text-[#C82333]'
+                    : l.resolvedOp === 'permission' || l.resolvedOp === 'sensitive'
+                      ? 'text-amber-800'
+                      : l.resolvedOp === 'create'
+                        ? 'text-emerald-800'
+                        : 'text-slate-700';
+                const hasDiff = l.antes !== undefined || l.depois !== undefined;
+                return (
+                  <div key={l.id} className="p-3.5 text-xs space-y-2 hover:bg-slate-50/60 transition-colors">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className={`font-bold tracking-wide text-[11px] ${opTone}`}>{opLabel}</span>
+                          {l.resolvedSensitive && (
+                            <span className="text-[11px] font-semibold text-amber-800">· Dado sensível</span>
+                          )}
+                          <span className="font-bold text-slate-900">
+                            {formatEntityLabel(l.entidade)}
+                          </span>
+                          <span className="text-slate-500 font-mono text-[11px]">({l.entidadeId})</span>
+                        </div>
+                        <p className="text-slate-700">{l.resolvedResumo}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right text-slate-500">
+                          <p className="font-medium text-slate-700">
+                            {l.actorNome ? `${l.actorNome} · ` : ''}
+                            {l.actorEmail} ({l.actorRole})
+                          </p>
+                          <p className="text-[11px] tabular-nums">
+                            {formatDateTimeBR(l.createdAt)}
+                            {l.sourceSubcollection ? ' · logs' : ''}
+                          </p>
+                        </div>
+                        {hasDiff && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedAuditId(isExpanded ? null : l.id)}
+                            className="px-2.5 py-1 rounded border border-slate-300 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+                          >
+                            {isExpanded ? 'Ocultar detalhes' : 'Ver detalhes'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {isExpanded && hasDiff && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 overflow-x-auto">
+                          <p className="text-[11px] font-bold text-slate-600 mb-1">Antes</p>
+                          <pre className="text-[11px] text-slate-700 whitespace-pre-wrap break-all font-mono">
+                            {l.antes !== undefined ? JSON.stringify(l.antes, null, 2) : '— (novo registro)'}
+                          </pre>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 overflow-x-auto">
+                          <p className="text-[11px] font-bold text-slate-600 mb-1">Depois</p>
+                          <pre className="text-[11px] text-slate-700 whitespace-pre-wrap break-all font-mono">
+                            {l.depois !== undefined ? JSON.stringify(l.depois, null, 2) : '— (registro excluído)'}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -3326,8 +3557,14 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
 
       <ConfirmActionModal
         open={Boolean(adminDeleteTarget)}
-        title={adminDeleteTarget?.kind === 'user' ? 'Excluir Usuário' : 'Excluir Versão de Regras'}
-        description={`Tem certeza que deseja excluir permanentemente ${adminDeleteTarget?.label || 'este item'}? Esta ação é registrada na auditoria.`}
+        title={
+          adminDeleteTarget?.kind === 'user'
+            ? 'Excluir Usuário'
+            : adminDeleteTarget?.kind === 'cmsSection'
+              ? 'Excluir Seção do Site'
+              : 'Excluir Versão de Regras'
+        }
+        description={`Tem certeza que deseja excluir permanentemente ${adminDeleteTarget?.label || 'este item'}? Esta ação é registrada na subcoleção de auditoria.`}
         confirmLabel="Excluir Permanentemente"
         tone="danger"
         onConfirm={async () => {
@@ -3337,13 +3574,20 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
             if (adminDeleteTarget.kind === 'user') {
               await deleteDocumentAudited('users', adminDeleteTarget.id, role, adminDeleteTarget.item);
               await loadUsers();
+              await onRefresh();
+            } else if (adminDeleteTarget.kind === 'cmsSection') {
+              handleDeleteCustomSection(adminDeleteTarget.id);
+              if (siteContent.some((s) => s.id === adminDeleteTarget.id)) {
+                await deleteDocumentAudited('siteContent', adminDeleteTarget.id, role, adminDeleteTarget.item);
+                await Promise.all([onRefresh(), onRefreshPublic()]);
+              }
             } else {
               await deleteDocumentAudited('diagnosticRuleVersions', adminDeleteTarget.id, role, adminDeleteTarget.item);
               await loadRuleVersions();
+              await onRefresh();
             }
             setFeedback(`Exclusão realizada (${adminDeleteTarget.label}).`);
             setAdminDeleteTarget(null);
-            await onRefresh();
           } catch (err) {
             throw new Error(formatActionError(err, 'Não foi possível concluir a exclusão.'));
           }

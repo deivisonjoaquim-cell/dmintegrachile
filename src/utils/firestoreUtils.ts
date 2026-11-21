@@ -138,9 +138,18 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     ),
     endereco_cidade: clampString(merged.endereco_cidade, 300, DEFAULT_EMPRESA_CONFIG.endereco_cidade),
     foro_comarca: clampString(merged.foro_comarca, 300, DEFAULT_EMPRESA_CONFIG.foro_comarca),
-    logoUrl: clampString(merged.logoUrl, 800000, ''),
-    logoDarkUrl: clampOptionalString(merged.logoDarkUrl, 800000),
-    faviconUrl: clampOptionalString(merged.faviconUrl, 800000),
+    logoUrl:
+      merged.logoUrl && !String(merged.logoUrl).trim().startsWith('/uploads/')
+        ? clampString(merged.logoUrl, 800000, DEFAULT_EMPRESA_CONFIG.logoUrl)
+        : DEFAULT_EMPRESA_CONFIG.logoUrl,
+    logoDarkUrl:
+      merged.logoDarkUrl && !String(merged.logoDarkUrl).trim().startsWith('/uploads/')
+        ? clampString(merged.logoDarkUrl, 800000, DEFAULT_EMPRESA_CONFIG.logoDarkUrl || '/logo-dm-integra-dark.svg')
+        : DEFAULT_EMPRESA_CONFIG.logoDarkUrl || '/logo-dm-integra-dark.svg',
+    faviconUrl:
+      merged.faviconUrl && !String(merged.faviconUrl).trim().startsWith('/uploads/')
+        ? clampString(merged.faviconUrl, 800000, DEFAULT_EMPRESA_CONFIG.faviconUrl || '/favicon-dm-integra.svg')
+        : DEFAULT_EMPRESA_CONFIG.faviconUrl || '/favicon-dm-integra.svg',
     corPrimaria: sanitizeColorHex(merged.corPrimaria, DEFAULT_EMPRESA_CONFIG.corPrimaria),
     corDestaque: sanitizeColorHex(merged.corDestaque, DEFAULT_EMPRESA_CONFIG.corDestaque),
     corFundo: sanitizeColorHex(merged.corFundo, DEFAULT_EMPRESA_CONFIG.corFundo),
@@ -281,6 +290,14 @@ export function normalizeCollectionWritePayload(
       delete base.modalidadeInteresse;
     }
     if (typeof base.lgpdAceito !== 'boolean') base.lgpdAceito = Boolean(base.lgpdAceito);
+    const validOrigens = ['Instagram', 'Indicação', 'Site', 'Parceiro', 'Outro'];
+    if (typeof base.origem !== 'string' || !validOrigens.includes(base.origem)) {
+      base.origem = 'Site';
+    }
+    const validFunil = ['Novo', 'Contatado', 'Diagnóstico Agendado', 'Orçamento Enviado', 'Fechado', 'Perdido'];
+    if (typeof base.statusFunil !== 'string' || !validFunil.includes(base.statusFunil)) {
+      base.statusFunil = 'Novo';
+    }
   } else if (collectionName === 'siteContent') {
     if (typeof base.secao === 'string') base.secao = base.secao.trim().slice(0, 64);
     if (typeof base.titulo === 'string') base.titulo = (base.titulo.trim() || 'Seção').slice(0, 300);
@@ -293,6 +310,14 @@ export function normalizeCollectionWritePayload(
     base.uid = typeof base.uid === 'string' && base.uid.trim() ? base.uid.trim().slice(0, 128) : docId;
     if (typeof base.nome === 'string') base.nome = (base.nome.trim() || 'Usuário').slice(0, 200);
     if (typeof base.email === 'string') base.email = base.email.trim().toLowerCase().slice(0, 200);
+    const validRoles = ['admin', 'consultor', 'assistente', 'cliente'];
+    if (typeof base.role !== 'string' || !validRoles.includes(base.role)) {
+      base.role = 'cliente';
+    }
+    const validUserStatuses = ['ativo', 'pendente', 'inativo'];
+    if (typeof base.status !== 'string' || !validUserStatuses.includes(base.status)) {
+      base.status = 'ativo';
+    }
     if (typeof base.fotoUrl === 'string') base.fotoUrl = base.fotoUrl.slice(0, 2000);
     if (typeof base.quemSomosBio === 'string') base.quemSomosBio = base.quemSomosBio.slice(0, 5000);
     if (typeof base.quemSomosFormacao === 'string') base.quemSomosFormacao = base.quemSomosFormacao.slice(0, 2000);
@@ -315,6 +340,40 @@ export function normalizeCollectionWritePayload(
         .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
         .map((t) => t.trim().slice(0, 80))
         .slice(0, 20);
+    }
+  } else if (collectionName === 'communicationLogs') {
+    const allowedCommKeys = new Set([
+      'id', 'canal', 'assunto', 'mensagem', 'clientId', 'caseId', 'leadId',
+      'autorNome', 'origem', 'remetenteUid', 'documentId', 'documentNome',
+      'lidaPelaEquipe', 'lidaPeloCliente', 'createdAt', 'updatedAt',
+    ]);
+    for (const k of Object.keys(base)) {
+      if (!allowedCommKeys.has(k)) delete base[k];
+    }
+    const validCanais = ['WhatsApp', 'E-mail', 'Ligação', 'Sistema', 'Chat Portal'];
+    if (typeof base.canal !== 'string' || !validCanais.includes(base.canal)) {
+      base.canal = 'Sistema';
+    }
+    base.assunto = (typeof base.assunto === 'string' ? base.assunto.trim() : '') || 'Registro de contato';
+    base.assunto = String(base.assunto).slice(0, 250);
+    if (typeof base.mensagem === 'string') base.mensagem = base.mensagem.slice(0, 5000);
+    if (base.origem !== 'cliente' && base.origem !== 'equipe') {
+      delete base.origem;
+    }
+  } else if (collectionName === 'mediaAssets') {
+    base.id = typeof base.id === 'string' && base.id.trim() ? base.id.trim().slice(0, 128) : docId;
+    base.nome = (typeof base.nome === 'string' ? base.nome.trim() : '') || 'Mídia';
+    base.nome = String(base.nome).slice(0, 200);
+    const validCats = ['logo', 'favicon', 'banner', 'equipe', 'geral'];
+    if (typeof base.categoria !== 'string' || !validCats.includes(base.categoria)) {
+      base.categoria = 'geral';
+    }
+    base.mimeType = (typeof base.mimeType === 'string' ? base.mimeType.trim() : '') || 'image/png';
+    base.mimeType = String(base.mimeType).slice(0, 100);
+    if (typeof base.url === 'string') base.url = base.url.slice(0, 500000);
+    base.tamanhoBytes = Number.isFinite(Number(base.tamanhoBytes)) ? Math.max(0, Number(base.tamanhoBytes)) : 0;
+    if (typeof base.createdAt !== 'string' || base.createdAt.length < 10) {
+      base.createdAt = new Date().toISOString();
     }
   }
 
