@@ -433,8 +433,12 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
     });
   }, [enrichedAuditLogs, auditFilter, auditOpFilter]);
 
+  const isSuperAdminAccount =
+    isPrimaryAdminEmail(userProfile.email) || isPrimaryAdminEmail(auth.currentUser?.email);
+  const effectiveRole: UserRole = isSuperAdminAccount ? 'admin' : role;
+
   useEffect(() => {
-    if (role !== 'admin') return;
+    if (effectiveRole !== 'admin') return;
     if (sectionGroup === 'site') {
       setTab((prev) => (prev === 'aparencia' || prev === 'cms' ? prev : 'aparencia'));
     } else if (sectionGroup === 'regras') {
@@ -460,9 +464,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
         });
       }
     }
-  }, [sectionGroup, role, rulesLoaded, usersLoaded, bancario]);
+  }, [sectionGroup, effectiveRole, rulesLoaded, usersLoaded, bancario]);
 
-  if (role !== 'admin') {
+  if (effectiveRole !== 'admin') {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-600">
         Área exclusiva de Administradores.
@@ -2311,6 +2315,30 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       {/* EQUIPE & QUEM SOMOS */}
       {tab === 'equipe' && (
         <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-[var(--color-primary)]" />
+                Administrador Principal (Acesso Total):{' '}
+                <span className="font-mono text-[var(--color-primary)]">deivisonjoaquim@gmail.com</span>
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Sessão Google ativa:{' '}
+                <strong className="text-slate-800">{auth.currentUser?.email || userProfile.email}</strong>
+                {' · '}Papel: <strong className="text-slate-800">{effectiveRole}</strong>
+                {' · '}Status: <strong className="text-emerald-700">{userProfile.status}</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={syncingPermissions}
+              onClick={() => void handleResyncAdminPermissions()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              {syncingPermissions ? 'Sincronizando...' : 'Sincronizar permissões'}
+            </button>
+          </div>
           <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>

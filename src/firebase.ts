@@ -97,13 +97,15 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  reportAppError(error, {
+  const serialized = JSON.stringify(errInfo);
+  console.error('Firestore Error: ', serialized);
+  const enrichedError = new Error(serialized);
+  reportAppError(enrichedError, {
     source: 'firestore',
     operation: operationType,
     path,
   });
-  throw new Error(JSON.stringify(errInfo));
+  throw enrichedError;
 }
 
 export async function testConnection(): Promise<boolean> {

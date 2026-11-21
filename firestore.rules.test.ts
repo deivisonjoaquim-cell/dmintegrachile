@@ -38,10 +38,13 @@ test('rules isolate financial collections from assistente role', () => {
   assert.match(caseFinBlock, /isAdminOrConsultor\(\)/);
 });
 
-test('rules isolate bancario config strictly to validated admin and enforce Pillar 4.10 order', () => {
+test('rules isolate bancario config strictly to validated admin and grant super-admin access to deivisonjoaquim@gmail.com', () => {
   const cfgBlock = rulesText.slice(rulesText.indexOf('match /config/{docId}'), rulesText.indexOf('match /siteContent/{sectionId}'));
   assert.match(cfgBlock, /docId == 'bancario' && isValidatedAdmin\(\)/);
-  assert.match(cfgBlock, /allow create, update:\s*if isSignedIn\(\) && isValidId\(docId\) && \(\s*\(docId == 'empresa' && isValidEmpresaConfig\(incoming\(\)\)\) \|\|\s*\(docId == 'bancario' && isValidBancarioConfig\(incoming\(\)\)\)\s*\) && isValidatedAdmin\(\);/);
+  assert.match(cfgBlock, /isBootstrappedAdmin\(\)/);
+  assert.match(cfgBlock, /docId == 'empresa' && isValidEmpresaConfig\(incoming\(\)\)/);
+  assert.match(cfgBlock, /docId == 'bancario' && isValidBancarioConfig\(incoming\(\)\)/);
+  assert.match(cfgBlock, /isValidatedAdmin\(\)/);
 });
 
 test('rules enforce immutable auditLogs (no update or delete)', () => {
@@ -64,7 +67,8 @@ test('rules isolate diagnosticSessions list to staff and enforce token length + 
 
 test('rules restrict diagnosticRuleVersions writes strictly to validated admin', () => {
   const rvBlock = rulesText.slice(rulesText.indexOf('match /diagnosticRuleVersions/{versionId}'), rulesText.indexOf('match /clients/{clientId}'));
-  assert.match(rvBlock, /allow create, update:\s*if isSignedIn\(\) && isValidId\(versionId\) && isValidDiagnosticRuleVersion\(incoming\(\)\) && isValidatedAdmin\(\);/);
+  assert.match(rvBlock, /isBootstrappedAdmin\(\)/);
+  assert.match(rvBlock, /isValidDiagnosticRuleVersion\(incoming\(\)\) && isValidatedAdmin\(\)/);
   assert.match(rvBlock, /existing\(\)\.ativa == true \|\| isStaff\(\)/);
 });
 
@@ -78,7 +82,7 @@ test('rules guard public lead updates with matching sessionToken and immutable s
 test('rules restrict generatedDocuments client confirmation/signature updates and block assistente from financial docs', () => {
   const genBlock = rulesText.slice(rulesText.indexOf('match /generatedDocuments/{genDocId}'), rulesText.indexOf('match /fcmTokens/{tokenId}'));
   assert.match(genBlock, /isAssistente\(\) && \(!\('financeiro' in existing\(\)\) \|\| existing\(\)\.financeiro == false\)/);
-  assert.match(genBlock, /allow create: if isAdminOrConsultor\(\)/);
+  assert.match(genBlock, /isAdminOrConsultor\(\) && isValidGeneratedDocument\(incoming\(\)\)/);
   assert.match(genBlock, /affectedKeys\(\)\.hasOnly\(\['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt'\]\)/);
   assert.match(genBlock, /existing\(\)\.liberadoAoCliente == true/);
 });
@@ -86,16 +90,16 @@ test('rules restrict generatedDocuments client confirmation/signature updates an
 test('rules restrict mediaAssets reads to staff and writes strictly to validated admin', () => {
   const mediaBlock = rulesText.slice(rulesText.indexOf('match /mediaAssets/{assetId}'), rulesText.indexOf('match /auditLogs/{logId}'));
   assert.match(mediaBlock, /allow get, list:\s*if isStaff\(\);/);
-  assert.match(mediaBlock, /allow create, update:\s*if isSignedIn\(\) && isValidId\(assetId\) && isValidMediaAsset\(incoming\(\)\) && isValidatedAdmin\(\);/);
+  assert.match(mediaBlock, /isValidMediaAsset\(incoming\(\)\) && isValidatedAdmin\(\)/);
   assert.match(mediaBlock, /allow delete:\s*if isSignedIn\(\) && isValidId\(assetId\) && isValidatedAdmin\(\);/);
-  assert.match(rulesText, /isOptString\(data, 'logoUrl', 500000\)/);
+  assert.match(rulesText, /isOptString\(data, 'logoUrl', 800000\)/);
   assert.match(rulesText, /'DM Sans'/);
 });
 
 test('rules recognize primary admin deivisonjoaquim@gmail.com case-insensitively and block downgrade or deletion', () => {
   assert.match(rulesText, /function isPrimaryAdminEmail\(email\) \{\s*return email is string && email\.lower\(\) == 'deivisonjoaquim@gmail\.com';/);
-  assert.match(rulesText, /function isValidatedAdmin\(\) \{\s*return isBootstrappedAdmin\(\)\s*\|\| \(isActiveUser\(\) && 'role' in userDoc\(\) && userDoc\(\)\.role == 'admin'\);/);
-  assert.match(rulesText, /!\('email' in existing\(\)\) \|\| !isPrimaryAdminEmail\(existing\(\)\.email\) \|\| \(incoming\(\)\.role == 'admin' && incoming\(\)\.status == 'ativo' && incoming\(\)\.uid == existing\(\)\.uid\)/);
+  assert.match(rulesText, /function isValidatedAdmin\(\) \{\s*return isBootstrappedAdmin\(\) \|\| hasUserRole\(\['admin'\]\);/);
+  assert.match(rulesText, /!\('email' in existing\(\)\) \|\| !isPrimaryAdminEmail\(existing\(\)\.email\) \|\| \(incoming\(\)\.role == 'admin' && incoming\(\)\.status == 'ativo' && incoming\(\)\.uid == uid\)/);
   assert.match(rulesText, /allow delete:\s*if isSignedIn\(\) && isValidId\(uid\) && isValidatedAdmin\(\) && \(!\('email' in existing\(\)\) \|\| !isPrimaryAdminEmail\(existing\(\)\.email\)\);/);
   assert.match(rulesText, /function isOptBool\(data, field\) \{\s*return !\(field in data\) \|\| data\[field\] == null \|\| data\[field\] is bool;/);
   assert.match(rulesText, /function isOptNum\(data, field\) \{\s*return !\(field in data\) \|\| data\[field\] == null \|\| data\[field\] is number;/);

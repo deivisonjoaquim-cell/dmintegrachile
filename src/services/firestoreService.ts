@@ -98,6 +98,10 @@ function stripUndefined<T>(val: T): T {
   return sanitizeFirestoreData(val);
 }
 
+function isEffectiveAdmin(role?: UserRole): boolean {
+  return role === 'admin' || isPrimaryAdminEmail(auth.currentUser?.email);
+}
+
 // =============================================================================
 // Public Readers (Safe without login)
 // =============================================================================
@@ -353,8 +357,13 @@ export async function publishDiagnosticRuleVersion(
   previousActiveVersion: DiagnosticRuleVersion | null,
   role: UserRole,
 ): Promise<void> {
-  if (role !== 'admin') throw new Error('Somente administradores podem publicar versões de regras.');
+  if (!isEffectiveAdmin(role)) throw new Error('Somente administradores podem publicar versões de regras.');
   const now = new Date().toISOString();
+  const payload: DiagnosticRuleVersion = sanitizeFirestoreData({
+    ...nextVersion,
+    ativa: true,
+    createdAt: nextVersion.createdAt || now,
+  });
   await executeValidatedAdminWrite(`diagnosticRuleVersions/${nextVersion.id}`, OperationType.WRITE, async () => {
     const existingVersions = await fetchAllDiagnosticRuleVersions().catch(() => []);
     await Promise.all(
@@ -364,29 +373,24 @@ export async function publishDiagnosticRuleVersion(
           setDoc(doc(db, 'diagnosticRuleVersions', v.id), sanitizeFirestoreData({ ...v, ativa: false }), { merge: true }),
         ),
     );
-    const payload: DiagnosticRuleVersion = sanitizeFirestoreData({
-      ...nextVersion,
-      ativa: true,
-      createdAt: nextVersion.createdAt || now,
-    });
     await setDoc(doc(db, 'diagnosticRuleVersions', nextVersion.id), payload);
-    await registrarAuditoria(
-      'Publicar Versão Regras',
-      'diagnosticRuleVersions',
-      nextVersion.id,
-      'versao_regras',
-      previousActiveVersion ? { versao: previousActiveVersion.versao, regrasCount: previousActiveVersion.regras.length } : null,
-      { versao: payload.versao, resumoMudanca: payload.resumoMudanca, publicadoPor: payload.publicadoPor },
-      role,
-    );
   });
+  await registrarAuditoria(
+    'Publicar Versão Regras',
+    'diagnosticRuleVersions',
+    nextVersion.id,
+    'versao_regras',
+    previousActiveVersion ? { versao: previousActiveVersion.versao, regrasCount: previousActiveVersion.regras.length } : null,
+    { versao: payload.versao, resumoMudanca: payload.resumoMudanca, publicadoPor: payload.publicadoPor },
+    'admin',
+  );
 }
 
 // =============================================================================
 // Idempotent Admin Seed & Auto-repair Cód. 15
 // =============================================================================
 export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
-  if (role !== 'admin') return;
+  if (!isEffectiveAdmin(role)) return;
   try {
     const cfgRef = doc(db, 'config', 'empresa');
     const cfgSnap = await getDoc(cfgRef);
@@ -2082,7 +2086,7 @@ export async function fetchMediaAssetsStaff(): Promise<MediaAsset[]> {
 }
 
 export async function saveMediaAssetAdmin(asset: MediaAsset, role: UserRole): Promise<void> {
-  if (role !== 'admin') throw new Error('Apenas administradores podem gerenciar a biblioteca de mídias.');
+  if (!isEffectiveAdmin(role)) throw new Error('Apenas administradores podem gerenciar a biblioteca de mídias.');
   const payload = normalizeCollectionWritePayload(
     'mediaAssets',
     asset.id,
@@ -2090,12 +2094,12 @@ export async function saveMediaAssetAdmin(asset: MediaAsset, role: UserRole): Pr
   );
   await executeValidatedAdminWrite(`mediaAssets/${asset.id}`, OperationType.CREATE, async () => {
     await setDoc(doc(db, 'mediaAssets', asset.id), payload);
-    await registrarAuditoria('Criar', 'mediaAssets', asset.id, 'midia_importada', null, { nome: asset.nome, categoria: asset.categoria, tamanhoBytes: asset.tamanhoBytes }, role);
   });
+  await registrarAuditoria('Criar', 'mediaAssets', asset.id, 'midia_importada', null, { nome: asset.nome, categoria: asset.categoria, tamanhoBytes: asset.tamanhoBytes }, 'admin');
 }
 
 export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): Promise<void> {
-  if (role !== 'admin') throw new Error('Apenas administradores podem excluir mídias.');
+  if (!isEffectiveAdmin(role)) throw new Error('Apenas administradores podem excluir mídias.');
   await executeValidatedAdminWrite(`mediaAssets/${asset.id}`, OperationType.DELETE, async () => {
     await deleteDoc(doc(db, 'mediaAssets', asset.id));
     if (asset.url.startsWith('/uploads/')) {
@@ -2109,8 +2113,8 @@ export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): 
         }).catch(() => {});
       }
     }
-    await registrarAuditoria('Excluir', 'mediaAssets', asset.id, 'midia_excluida', { nome: asset.nome, categoria: asset.categoria }, null, role);
   });
+  await registrarAuditoria('Excluir', 'mediaAssets', asset.id, 'midia_excluida', { nome: asset.nome, categoria: asset.categoria }, null, 'admin');
 }
 
 export interface CallAiOptions {

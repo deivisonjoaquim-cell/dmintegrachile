@@ -623,23 +623,28 @@ service cloud.firestore {
     match /users/{uid} {
       allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isValidatedAdmin() || isConsultor());
       allow list: if isValidatedAdmin() || isConsultor();
-      allow create: if isSignedIn() && isValidId(uid) && request.auth.uid == uid && isValidUser(incoming()) && (
-        (isBootstrappedAdmin() && incoming().role == 'admin' && incoming().status == 'ativo' && isPrimaryAdminEmail(incoming().email)) ||
-        (incoming().role == 'cliente' && incoming().uid == request.auth.uid && matchesSignedInEmail(incoming().email) && (
-          incoming().status == 'pendente' ||
-          (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId))
+      allow create: if isSignedIn() && isValidId(uid) && (
+        isBootstrappedAdmin() ||
+        (request.auth.uid == uid && isValidUser(incoming()) && (
+          incoming().role == 'cliente' && incoming().uid == request.auth.uid && matchesSignedInEmail(incoming().email) && (
+            incoming().status == 'pendente' ||
+            (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId))
+          )
         ))
       );
-      allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
+      allow update: if isSignedIn() && isValidId(uid) && (
         // Protect primary bootstrapped admin document from accidental downgrade or deactivation
         (!('email' in existing()) || !isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == uid))
       ) && (
-        isValidatedAdmin() ||
-        (isConsultor() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
-        (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
-        (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && existing().status != 'inativo' && incoming().uid == uid && incoming().email == existing().email && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'nome', 'fotoUrl', 'updatedAt']) && (
-          (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
-          incoming().status == 'pendente'
+        isBootstrappedAdmin() ||
+        (isValidUser(incoming()) && (
+          isValidatedAdmin() ||
+          (isConsultor() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
+          (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
+          (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && existing().status != 'inativo' && incoming().uid == uid && incoming().email == existing().email && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'nome', 'fotoUrl', 'updatedAt']) && (
+            (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
+            incoming().status == 'pendente'
+          ))
         ))
       );
       allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
@@ -648,91 +653,134 @@ service cloud.firestore {
     match /config/{docId} {
       allow get: if isValidId(docId) && (
         (docId == 'empresa') ||
-        (docId == 'bancario' && isValidatedAdmin())
+        (docId == 'bancario' && isValidatedAdmin()) ||
+        isBootstrappedAdmin()
       );
       allow list: if isValidatedAdmin();
       allow create, update: if isSignedIn() && isValidId(docId) && (
-        (docId == 'empresa' && isValidEmpresaConfig(incoming())) ||
-        (docId == 'bancario' && isValidBancarioConfig(incoming()))
-      ) && isValidatedAdmin();
+        isBootstrappedAdmin() ||
+        (
+          (
+            (docId == 'empresa' && isValidEmpresaConfig(incoming())) ||
+            (docId == 'bancario' && isValidBancarioConfig(incoming()))
+          ) && isValidatedAdmin()
+        )
+      );
       allow delete: if false;
     }
 
     match /siteContent/{sectionId} {
       allow get: if isValidId(sectionId) && (existing().ativo == true || isStaff());
       allow list: if existing().ativo == true || isStaff();
-      allow create, update: if isSignedIn() && isValidId(sectionId) && isValidSiteContent(incoming()) && isValidatedAdmin();
+      allow create, update: if isSignedIn() && isValidId(sectionId) && (
+        isBootstrappedAdmin() ||
+        (isValidSiteContent(incoming()) && isValidatedAdmin())
+      );
       allow delete: if isSignedIn() && isValidId(sectionId) && isValidatedAdmin();
     }
 
     match /mediaAssets/{assetId} {
       allow get, list: if isStaff();
-      allow create, update: if isSignedIn() && isValidId(assetId) && isValidMediaAsset(incoming()) && isValidatedAdmin();
+      allow create, update: if isSignedIn() && isValidId(assetId) && (
+        isBootstrappedAdmin() ||
+        (isValidMediaAsset(incoming()) && isValidatedAdmin())
+      );
       allow delete: if isSignedIn() && isValidId(assetId) && isValidatedAdmin();
     }
 
     match /auditLogs/{logId} {
       allow get: if isValidId(logId) && isStaff();
       allow list: if isStaff();
-      allow create: if isSignedIn() && isValidId(logId) && isValidAuditLog(incoming());
+      allow create: if isSignedIn() && isValidId(logId) && (isBootstrappedAdmin() || isValidAuditLog(incoming()));
       allow update, delete: if false;
     }
 
     match /adminAudit/{scope}/logs/{logId} {
       allow get: if isValidId(scope) && isValidId(logId) && isAdminOrConsultor();
       allow list: if isValidId(scope) && isAdminOrConsultor();
-      allow create: if isSignedIn() && isValidId(scope) && isValidId(logId) && isStaff() && isValidAdminActionLog(incoming()) && incoming().id == logId;
+      allow create: if isSignedIn() && isValidId(scope) && isValidId(logId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidAdminActionLog(incoming()) && incoming().id == logId)
+      );
       allow update, delete: if false;
     }
 
     match /partnerProposals/{proposalId} {
       allow get, list: if isAdminOrConsultor();
-      allow create: if isValidId(proposalId) && isValidPartnerProposal(incoming()) && incoming().status == 'Nova';
-      allow update: if isAdminOrConsultor() && isValidId(proposalId) && isValidPartnerProposal(incoming());
+      allow create: if isValidId(proposalId) && (
+        isBootstrappedAdmin() ||
+        (isValidPartnerProposal(incoming()) && incoming().status == 'Nova')
+      );
+      allow update: if isValidId(proposalId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidPartnerProposal(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(proposalId);
     }
 
     match /partners/{partnerId} {
       allow get, list: if isAdminOrConsultor();
-      allow create, update: if isAdminOrConsultor() && isValidId(partnerId) && isValidPartner(incoming());
+      allow create, update: if isValidId(partnerId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidPartner(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(partnerId);
     }
 
     match /partnersPublic/{partnerId} {
       allow get: if isValidId(partnerId) && ((existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado') || isAdminOrConsultor());
       allow list: if (existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado') || isAdminOrConsultor();
-      allow create, update: if isAdminOrConsultor() && isValidId(partnerId) && isValidPartnerPublic(incoming());
+      allow create, update: if isValidId(partnerId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidPartnerPublic(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(partnerId);
     }
 
     match /legalSources/{sourceId} {
       allow get: if isValidId(sourceId) && (existing().statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar'] || isStaff());
       allow list: if existing().statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar'] || isStaff();
-      allow create, update: if isAdminOrConsultor() && isValidId(sourceId) && isValidLegalSource(incoming());
+      allow create, update: if isValidId(sourceId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidLegalSource(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(sourceId);
     }
 
     match /visaCategories/{categoryId} {
       allow get: if isValidId(categoryId) && (existing().ativo == true || isStaff());
       allow list: if existing().ativo == true || isStaff();
-      allow create, update: if isAdminOrConsultor() && isValidId(categoryId) && isValidVisaCategory(incoming());
+      allow create, update: if isValidId(categoryId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidVisaCategory(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(categoryId);
     }
 
     match /visaRequirements/{reqId} {
       allow get: if isValidId(reqId) && (existing().peso >= 1 || isStaff());
       allow list: if existing().peso >= 1 || isStaff();
-      allow create, update: if isAdminOrConsultor() && isValidId(reqId) && isValidVisaRequirement(incoming());
+      allow create, update: if isValidId(reqId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidVisaRequirement(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(reqId);
     }
 
     match /leads/{leadId} {
       allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email)));
       allow list: if isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email));
-      allow create: if isValidId(leadId) && isValidLead(incoming()) && isReqString(incoming(), 'whatsapp', 6, 40) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
-      allow update: if isValidId(leadId) && isValidLead(incoming()) && (
-        isStaff() ||
-        (existing().sessionToken is string && existing().sessionToken.size() >= 20 && incoming().sessionToken == existing().sessionToken && existing().statusFunil == 'Novo' && incoming().statusFunil == 'Novo' && incoming().createdAt == existing().createdAt && !('notas' in incoming().diff(existing()).affectedKeys()))
+      allow create: if isValidId(leadId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidLead(incoming())) ||
+        (isValidLead(incoming()) && isReqString(incoming(), 'whatsapp', 6, 40) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true))
+      );
+      allow update: if isValidId(leadId) && (
+        isBootstrappedAdmin() ||
+        (isValidLead(incoming()) && (
+          isStaff() ||
+          (existing().sessionToken is string && existing().sessionToken.size() >= 20 && incoming().sessionToken == existing().sessionToken && existing().statusFunil == 'Novo' && incoming().statusFunil == 'Novo' && incoming().createdAt == existing().createdAt && !('notas' in incoming().diff(existing()).affectedKeys()))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(leadId);
     }
@@ -740,7 +788,10 @@ service cloud.firestore {
     match /diagnosticSessions/{token} {
       allow get: if isStaff() || (isValidId(token) && token.size() >= 20 && existing().expiraEmMs is number && existing().expiraEmMs > request.time.toMillis());
       allow list: if isStaff();
-      allow create: if isValidId(token) && token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token;
+      allow create: if isValidId(token) && (
+        isBootstrappedAdmin() ||
+        (token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token)
+      );
       allow update: if isStaff() || (isValidId(token) && token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token && incoming().createdAt == existing().createdAt);
       allow delete: if isAdminOrConsultor() && isValidId(token);
     }
@@ -748,149 +799,197 @@ service cloud.firestore {
     match /diagnosticRuleVersions/{versionId} {
       allow get: if isValidId(versionId) && (existing().ativa == true || isStaff());
       allow list: if existing().ativa == true || isStaff();
-      allow create, update: if isSignedIn() && isValidId(versionId) && isValidDiagnosticRuleVersion(incoming()) && isValidatedAdmin();
+      allow create, update: if isSignedIn() && isValidId(versionId) && (
+        isBootstrappedAdmin() ||
+        (isValidDiagnosticRuleVersion(incoming()) && isValidatedAdmin())
+      );
       allow delete: if isSignedIn() && isValidId(versionId) && isValidatedAdmin();
     }
 
     match /clients/{clientId} {
       allow get: if isValidId(clientId) && (isStaff() || (isSignedIn() && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))));
       allow list: if isStaff() || (isSignedIn() && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email)));
-      allow create: if isAdminOrConsultor() && isValidId(clientId) && isValidClient(incoming());
-      allow update: if isValidId(clientId) && isValidClient(incoming()) && (
-        isAdminOrConsultor() ||
-        (isSignedIn()
-          && matchesSignedInEmail(existing().email)
-          && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
-          && incoming().userId == request.auth.uid
-          && incoming().portalLiberado == existing().portalLiberado
-          && incoming().statusAcessoPortal == existing().statusAcessoPortal
-          && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
-          && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
-        (isCliente()
-          && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))
-          && incoming().portalLiberado == existing().portalLiberado
-          && incoming().statusAcessoPortal == existing().statusAcessoPortal
-          && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
-          && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
+      allow create: if isValidId(clientId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidClient(incoming()))
+      );
+      allow update: if isValidId(clientId) && (
+        isBootstrappedAdmin() ||
+        (isValidClient(incoming()) && (
+          isAdminOrConsultor() ||
+          (isSignedIn()
+            && matchesSignedInEmail(existing().email)
+            && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
+            && incoming().userId == request.auth.uid
+            && incoming().portalLiberado == existing().portalLiberado
+            && incoming().statusAcessoPortal == existing().statusAcessoPortal
+            && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
+          (isCliente()
+            && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))
+            && incoming().portalLiberado == existing().portalLiberado
+            && incoming().statusAcessoPortal == existing().statusAcessoPortal
+            && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(clientId);
     }
 
     match /dependents/{dependentId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create, update: if isValidId(dependentId) && isValidDependent(incoming()) && (
-        isAdminOrConsultor() ||
-        (isCliente() && incoming().clientId == userClientId())
+      allow create, update: if isValidId(dependentId) && (
+        isBootstrappedAdmin() ||
+        (isValidDependent(incoming()) && (
+          isAdminOrConsultor() ||
+          (isCliente() && incoming().clientId == userClientId())
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(dependentId);
     }
 
     match /cases/{caseId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create, update: if isStaff() && isValidId(caseId) && isValidCase(incoming());
+      allow create, update: if isValidId(caseId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidCase(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(caseId);
     }
 
     match /caseFinancials/{caseId} {
       allow get, list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
-      allow create, update: if isAdminOrConsultor() && isValidId(caseId) && isValidCaseFinancial(incoming());
+      allow create, update: if isValidId(caseId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidCaseFinancial(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(caseId);
     }
 
     match /caseDocuments/{docId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create: if isValidId(docId) && isValidCaseDocument(incoming()) && (
-        isStaff() || (isCliente() && incoming().clientId == userClientId())
+      allow create: if isValidId(docId) && (
+        isBootstrappedAdmin() ||
+        (isValidCaseDocument(incoming()) && (
+          isStaff() || (isCliente() && incoming().clientId == userClientId())
+        ))
       );
-      allow update: if isValidId(docId) && isValidCaseDocument(incoming()) && (
-        isStaff() ||
-        (isCliente()
-          && existing().clientId == userClientId()
-          && incoming().clientId == existing().clientId
-          && incoming().status in ['Enviado', 'Pendente']
-          && (!('enviadoPorUid' in incoming()) || incoming().enviadoPorUid == request.auth.uid)
-          && incoming().diff(existing()).affectedKeys().hasOnly([
-            'arquivoUrl',
-            'arquivoNome',
-            'storagePath',
-            'arquivoMimeType',
-            'arquivoTamanhoBytes',
-            'storageBackend',
-            'metadataTags',
-            'reviewMetadata',
-            'enviadoPorUid',
-            'enviadoEm',
-            'status',
-            'etapaEsteira',
-            'dataEmissao',
-            'dataValidadeCalculada',
-            'versao',
-            'historicoVersoes',
-            'updatedAt'
-          ]))
+      allow update: if isValidId(docId) && (
+        isBootstrappedAdmin() ||
+        (isValidCaseDocument(incoming()) && (
+          isStaff() ||
+          (isCliente()
+            && existing().clientId == userClientId()
+            && incoming().clientId == existing().clientId
+            && incoming().status in ['Enviado', 'Pendente']
+            && (!('enviadoPorUid' in incoming()) || incoming().enviadoPorUid == request.auth.uid)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'arquivoUrl',
+              'arquivoNome',
+              'storagePath',
+              'arquivoMimeType',
+              'arquivoTamanhoBytes',
+              'storageBackend',
+              'metadataTags',
+              'reviewMetadata',
+              'enviadoPorUid',
+              'enviadoEm',
+              'status',
+              'etapaEsteira',
+              'dataEmissao',
+              'dataValidadeCalculada',
+              'versao',
+              'historicoVersoes',
+              'updatedAt'
+            ]))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(docId);
     }
 
     match /tasks/{taskId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create: if isValidId(taskId) && isValidTask(incoming()) && (isStaff() || (isCliente() && incoming().clientId == userClientId()));
-      allow update: if isStaff() && isValidId(taskId) && isValidTask(incoming());
+      allow create: if isValidId(taskId) && (
+        isBootstrappedAdmin() ||
+        (isValidTask(incoming()) && (isStaff() || (isCliente() && incoming().clientId == userClientId())))
+      );
+      allow update: if isValidId(taskId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidTask(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(taskId);
     }
 
     match /deadlines/{deadlineId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create, update: if isStaff() && isValidId(deadlineId) && isValidDeadline(incoming());
+      allow create, update: if isValidId(deadlineId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidDeadline(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(deadlineId);
     }
 
     match /appointments/{appointmentId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create: if isValidId(appointmentId) && isValidAppointment(incoming()) && (isStaff() || (isCliente() && incoming().clientId == userClientId()));
-      allow update: if isStaff() && isValidId(appointmentId) && isValidAppointment(incoming());
+      allow create: if isValidId(appointmentId) && (
+        isBootstrappedAdmin() ||
+        (isValidAppointment(incoming()) && (isStaff() || (isCliente() && incoming().clientId == userClientId())))
+      );
+      allow update: if isValidId(appointmentId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidAppointment(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(appointmentId);
     }
 
     match /communicationLogs/{logId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().canal == 'Chat Portal');
-      allow create: if isValidId(logId) && isValidCommunicationLog(incoming()) && (
-        isStaff() ||
-        (isCliente()
-          && incoming().id == logId
-          && incoming().canal == 'Chat Portal'
-          && incoming().origem == 'cliente'
-          && incoming().clientId == userClientId()
-          && incoming().remetenteUid == request.auth.uid
-          && isReqString(incoming(), 'mensagem', 1, 5000)
-          && isReqString(incoming(), 'createdAt', 10, 64)
-          && (!('lidaPelaEquipe' in incoming()) || incoming().lidaPelaEquipe == false))
+      allow create: if isValidId(logId) && (
+        isBootstrappedAdmin() ||
+        (isValidCommunicationLog(incoming()) && (
+          isStaff() ||
+          (isCliente()
+            && incoming().id == logId
+            && incoming().canal == 'Chat Portal'
+            && incoming().origem == 'cliente'
+            && incoming().clientId == userClientId()
+            && incoming().remetenteUid == request.auth.uid
+            && isReqString(incoming(), 'mensagem', 1, 5000)
+            && isReqString(incoming(), 'createdAt', 10, 64)
+            && (!('lidaPelaEquipe' in incoming()) || incoming().lidaPelaEquipe == false))
+        ))
       );
-      allow update: if isValidId(logId) && isValidCommunicationLog(incoming()) && (
-        isAdmin() ||
-        (isStaff()
-          && existing().canal == 'Chat Portal'
-          && incoming().canal == 'Chat Portal'
-          && incoming().clientId == existing().clientId
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPelaEquipe', 'updatedAt'])) ||
-        (isCliente()
-          && existing().clientId == userClientId()
-          && existing().canal == 'Chat Portal'
-          && incoming().canal == 'Chat Portal'
-          && incoming().clientId == existing().clientId
-          && incoming().origem == existing().origem
-          && incoming().assunto == existing().assunto
-          && incoming().mensagem == existing().mensagem
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPeloCliente', 'updatedAt']))
+      allow update: if isValidId(logId) && (
+        isBootstrappedAdmin() ||
+        (isValidCommunicationLog(incoming()) && (
+          isAdmin() ||
+          (isStaff()
+            && existing().canal == 'Chat Portal'
+            && incoming().canal == 'Chat Portal'
+            && incoming().clientId == existing().clientId
+            && incoming().createdAt == existing().createdAt
+            && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPelaEquipe', 'updatedAt'])) ||
+          (isCliente()
+            && existing().clientId == userClientId()
+            && existing().canal == 'Chat Portal'
+            && incoming().canal == 'Chat Portal'
+            && incoming().clientId == existing().clientId
+            && incoming().origem == existing().origem
+            && incoming().assunto == existing().assunto
+            && incoming().mensagem == existing().mensagem
+            && incoming().createdAt == existing().createdAt
+            && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPeloCliente', 'updatedAt']))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(logId);
     }
 
     match /viabilityAssessments/{assessmentId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
-      allow create, update: if isAdminOrConsultor() && isValidId(assessmentId) && isValidViabilityAssessment(incoming());
+      allow create, update: if isValidId(assessmentId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidViabilityAssessment(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(assessmentId);
     }
 
@@ -901,33 +1000,51 @@ service cloud.firestore {
         (isCliente() && existing().clientId == userClientId() && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'])
       );
       allow list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado']);
-      allow create: if isAdminOrConsultor() && isValidId(budgetId) && isValidBudget(incoming());
-      allow update: if isValidId(budgetId) && isValidBudget(incoming()) && (
-        isAdminOrConsultor() ||
-        (isCliente() && existing().clientId == userClientId() && existing().status == 'Enviado ao Cliente' && incoming().status in ['Aprovado', 'Recusado'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'aprovadoEm', 'updatedAt']))
+      allow create: if isValidId(budgetId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidBudget(incoming()))
+      );
+      allow update: if isValidId(budgetId) && (
+        isBootstrappedAdmin() ||
+        (isValidBudget(incoming()) && (
+          isAdminOrConsultor() ||
+          (isCliente() && existing().clientId == userClientId() && existing().status == 'Enviado ao Cliente' && incoming().status in ['Aprovado', 'Recusado'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'aprovadoEm', 'updatedAt']))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(budgetId);
     }
 
     match /financialRecords/{recordId} {
       allow get, list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId());
-      allow create: if isAdminOrConsultor() && isValidId(recordId) && isValidFinancialRecord(incoming());
-      allow update: if isValidId(recordId) && isValidFinancialRecord(incoming()) && (
-        isAdminOrConsultor() ||
-        (isCliente() && existing().clientId == userClientId() && incoming().diff(existing()).affectedKeys().hasOnly(['comprovanteUrl', 'updatedAt']))
+      allow create: if isValidId(recordId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidFinancialRecord(incoming()))
+      );
+      allow update: if isValidId(recordId) && (
+        isBootstrappedAdmin() ||
+        (isValidFinancialRecord(incoming()) && (
+          isAdminOrConsultor() ||
+          (isCliente() && existing().clientId == userClientId() && incoming().diff(existing()).affectedKeys().hasOnly(['comprovanteUrl', 'updatedAt']))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(recordId);
     }
 
     match /messageTemplates/{templateId} {
       allow get, list: if isStaff();
-      allow create, update: if isAdminOrConsultor() && isValidId(templateId) && isValidMessageTemplate(incoming());
+      allow create, update: if isValidId(templateId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidMessageTemplate(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(templateId);
     }
 
     match /documentTemplates/{templateId} {
       allow get, list: if isStaff();
-      allow create, update: if isAdminOrConsultor() && isValidId(templateId) && isValidDocumentTemplate(incoming());
+      allow create, update: if isValidId(templateId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidDocumentTemplate(incoming()))
+      );
       allow delete: if isAdminOrConsultor() && isValidId(templateId);
     }
 
@@ -938,19 +1055,25 @@ service cloud.firestore {
         (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true)
       );
       allow list: if isAdminOrConsultor() || (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
-      allow create: if isAdminOrConsultor() && isValidId(genDocId) && isValidGeneratedDocument(incoming());
-      allow update: if isValidId(genDocId) && isValidGeneratedDocument(incoming()) && (
-        isAdminOrConsultor() ||
-        (isCliente()
-          && existing().clientId == userClientId()
-          && existing().liberadoAoCliente == true
-          && (!('canceladoEm' in existing()) || existing().canceladoEm == null || existing().canceladoEm == '')
-          && (!('motivoCancelamento' in existing()) || existing().motivoCancelamento == null || existing().motivoCancelamento == '')
-          && incoming().clientId == existing().clientId
-          && incoming().liberadoAoCliente == existing().liberadoAoCliente
-          && incoming().financeiro == existing().financeiro
-          && incoming().conteudoHtml == existing().conteudoHtml
-          && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt']))
+      allow create: if isValidId(genDocId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidGeneratedDocument(incoming()))
+      );
+      allow update: if isValidId(genDocId) && (
+        isBootstrappedAdmin() ||
+        (isValidGeneratedDocument(incoming()) && (
+          isAdminOrConsultor() ||
+          (isCliente()
+            && existing().clientId == userClientId()
+            && existing().liberadoAoCliente == true
+            && (!('canceladoEm' in existing()) || existing().canceladoEm == null || existing().canceladoEm == '')
+            && (!('motivoCancelamento' in existing()) || existing().motivoCancelamento == null || existing().motivoCancelamento == '')
+            && incoming().clientId == existing().clientId
+            && incoming().liberadoAoCliente == existing().liberadoAoCliente
+            && incoming().financeiro == existing().financeiro
+            && incoming().conteudoHtml == existing().conteudoHtml
+            && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt']))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(genDocId);
     }
@@ -958,17 +1081,29 @@ service cloud.firestore {
     match /fcmTokens/{tokenId} {
       allow get: if isSignedIn() && isValidId(tokenId) && (existing().uid == request.auth.uid || isStaff());
       allow list: if isStaff() || (isSignedIn() && existing().uid == request.auth.uid);
-      allow create: if isSignedIn() && isValidId(tokenId) && isValidFcmToken(incoming()) && incoming().uid == request.auth.uid && incoming().id == tokenId && (!isCliente() || incoming().clientId == userClientId());
-      allow update: if isSignedIn() && isValidId(tokenId) && isValidFcmToken(incoming()) && existing().uid == request.auth.uid && incoming().uid == existing().uid && incoming().clientId == existing().clientId && incoming().createdAt == existing().createdAt;
+      allow create: if isSignedIn() && isValidId(tokenId) && (
+        isBootstrappedAdmin() ||
+        (isValidFcmToken(incoming()) && incoming().uid == request.auth.uid && incoming().id == tokenId && (!isCliente() || incoming().clientId == userClientId()))
+      );
+      allow update: if isSignedIn() && isValidId(tokenId) && (
+        isBootstrappedAdmin() ||
+        (isValidFcmToken(incoming()) && existing().uid == request.auth.uid && incoming().uid == existing().uid && incoming().clientId == existing().clientId && incoming().createdAt == existing().createdAt)
+      );
       allow delete: if isSignedIn() && isValidId(tokenId) && (existing().uid == request.auth.uid || isAdminOrConsultor());
     }
 
     match /clientNotifications/{notifId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create: if isStaff() && isValidId(notifId) && isValidClientNotification(incoming()) && incoming().id == notifId;
-      allow update: if isValidId(notifId) && isValidClientNotification(incoming()) && (
-        isStaff() ||
-        (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().titulo == existing().titulo && incoming().mensagem == existing().mensagem && incoming().tipo == existing().tipo && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['lida', 'lidaEm', 'updatedAt']))
+      allow create: if isValidId(notifId) && (
+        isBootstrappedAdmin() ||
+        (isStaff() && isValidClientNotification(incoming()) && incoming().id == notifId)
+      );
+      allow update: if isValidId(notifId) && (
+        isBootstrappedAdmin() ||
+        (isValidClientNotification(incoming()) && (
+          isStaff() ||
+          (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().titulo == existing().titulo && incoming().mensagem == existing().mensagem && incoming().tipo == existing().tipo && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['lida', 'lidaEm', 'updatedAt']))
+        ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(notifId);
     }

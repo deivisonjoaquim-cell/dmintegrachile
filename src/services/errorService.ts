@@ -172,6 +172,13 @@ export function translateAppError(
       (rootCollection && resourceMap[rootCollection]) ||
       null;
 
+    const emailVerifiedFlag = parsedJson?.authInfo?.emailVerified;
+    const accountDetail = activeEmail
+      ? emailVerifiedFlag === false
+        ? `Conta ativa: ${activeEmail} (e-mail não verificado).`
+        : `Conta ativa: ${activeEmail}.`
+      : 'Nenhuma conta Google ativa detectada na sessão.';
+
     return {
       category: 'firebase-permission',
       level: 'warning',
@@ -180,8 +187,8 @@ export function translateAppError(
         ? `Sua conta atual não tem permissão para concluir esta ação em "${resourceLabel}".`
         : 'Sua conta atual não tem permissão para concluir esta ação ou acessar este recurso.',
       actionHint: activeEmail
-        ? `Conta ativa: ${activeEmail}. Verifique se ela possui papel de administrador/consultor ativo ou clique em "Sincronizar permissões".`
-        : 'Verifique se você está autenticado com a conta de administrador/consultor correta ou solicite acesso ao administrador.',
+        ? `${accountDetail} Confirme que está logado como administrador principal (deivisonjoaquim@gmail.com) ou com um perfil ativo, e clique em "Sincronizar permissões".`
+        : `${accountDetail} Entre com a conta de administrador (deivisonjoaquim@gmail.com) e tente novamente.`,
       path: effectivePath,
       operation: effectiveOp,
       rawError: effectiveRaw,

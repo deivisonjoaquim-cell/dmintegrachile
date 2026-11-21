@@ -211,7 +211,25 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     updatedAt: new Date().toISOString(),
   };
 
-  return sanitizeFirestoreData(payload);
+  const cleaned = sanitizeFirestoreData(payload);
+
+  // Proteção contra o limite de 1 MiB por documento do Firestore (caso siteHistorico cresça com snapshots antigos)
+  if (Array.isArray(cleaned.siteHistorico) && cleaned.siteHistorico.length > 0) {
+    try {
+      let serializedLen = JSON.stringify(cleaned).length;
+      while (serializedLen > 850_000 && cleaned.siteHistorico.length > 1) {
+        cleaned.siteHistorico = cleaned.siteHistorico.slice(0, -1);
+        serializedLen = JSON.stringify(cleaned).length;
+      }
+      if (serializedLen > 920_000) {
+        cleaned.siteHistorico = [];
+      }
+    } catch {
+      // ignore serialization check failure
+    }
+  }
+
+  return cleaned;
 }
 
 /**
