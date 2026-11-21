@@ -10,19 +10,27 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import {
-  getMessaging,
   getToken,
   isSupported,
   onMessage,
   type MessagePayload,
 } from 'firebase/messaging';
-import { app, auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, getFirebaseMessagingSafe, handleFirestoreError, OperationType } from '../firebase';
 import type {
   ClientNotification,
   ClientNotificationType,
   EmpresaConfig,
   FcmTokenRecord,
+  PushNotificationPreferences,
 } from '../types/domain';
+import {
+  buildNotificationTargetUrl,
+  DEFAULT_PUSH_PREFERENCES,
+  normalizePushPreferences,
+  resolveVapidConfig,
+  validateVapidPublicKey,
+  type ResolvedVapidConfig,
+} from '../utils/pushNotifications';
 import { makeId } from './firestoreService';
 
 export interface BrowserPushSupport {
@@ -38,12 +46,25 @@ export interface EnableClientPushResult {
   token?: string;
   docId?: string;
   note?: string;
+  preferencias: PushNotificationPreferences;
+}
+
+export interface UserPushState {
+  active: boolean;
+  mode: PushActivationMode | 'inactive';
+  hasActiveFcmToken: boolean;
+  realtimeOptedIn: boolean;
+  preferencias: PushNotificationPreferences;
 }
 
 const shownBrowserNotificationIds = new Set<string>();
 
 function getRealtimePushStorageKey(uid: string): string {
   return `dm_browser_push_optin_${uid}`;
+}
+
+function getPushPrefsStorageKey(uid: string): string {
+  return `dm_browser_push_prefs_${uid}`;
 }
 
 export function isBrowserRealtimePushOptedIn(uid: string): boolean {
@@ -66,6 +87,31 @@ export function setBrowserRealtimePushOptedIn(uid: string, enabled: boolean): vo
   } catch {
     // ignore storage errors
   }
+}
+
+export function getLocalPushPreferences(uid: string): PushNotificationPreferences {
+  if (!uid || typeof window === 'undefined') return { ...DEFAULT_PUSH_PREFERENCES };
+  try {
+    const raw = window.localStorage.getItem(getPushPrefsStorageKey(uid));
+    if (!raw) return { ...DEFAULT_PUSH_PREFERENCES };
+    return normalizePushPreferences(JSON.parse(raw) as Partial<PushNotificationPreferences>);
+  } catch {
+    return { ...DEFAULT_PUSH_PREFERENCES };
+  }
+}
+
+export function saveLocalPushPreferences(
+  uid: string,
+  prefs: Partial<PushNotificationPreferences>,
+): PushNotificationPreferences {
+  const normalized = normalizePushPreferences(prefs);
+  if (!uid || typeof window === 'undefined') return normalized;
+  try {
+    window.localStorage.setItem(getPushPrefsStorageKey(uid), JSON.stringify(normalized));
+  } catch {
+    // ignore storage errors
+  }
+  return normalized;
 }
 
 export async function showBrowserProcessNotification(params: {
@@ -115,11 +161,17 @@ export async function showBrowserProcessNotification(params: {
     notif.onclick = () => {
       try {
         window.focus();
-        if (targetUrl && window.location.pathname !== targetUrl) {
-          window.history.pushState({}, '', targetUrl);
+        if (targetUrl) {
+          const target = new URL(targetUrl, window.location.origin);
+          if (
+            target.pathname !== window.location.pathname ||
+            target.search !== window.location.search
+          ) {
+            window.location.assign(target.pathname + target.search);
+          }
         }
       } catch {
-        // ignore focus errors
+        // ignore focus/navigation errors
       }
       notif.close();
     };
@@ -133,7 +185,7 @@ export async function sendTestBrowserNotification(empresaNome?: string): Promise
   return showBrowserProcessNotification({
     title: `${empresaNome || 'Portal do Cliente'} · Alertas ativos`,
     body: 'As notificações de atualização do seu processo de imigração estão funcionando neste navegador.',
-    url: '/portal',
+    url: '/portal?tab=processo',
   });
 }
 
@@ -184,10 +236,18 @@ function stripUndefinedFields<T extends Record<string, unknown>>(obj: T): T {
   return out as T;
 }
 
-export function getEffectiveVapidKey(empresa?: Pick<EmpresaConfig, 'fcmVapidPublicKey'> | null): string {
+export function getEffectiveVapidConfig(
+  empresa?: Pick<EmpresaConfig, 'fcmVapidPublicKey'> | null,
+): ResolvedVapidConfig {
   const envKey = (import.meta.env.VITE_FIREBASE_VAPID_KEY || '').trim();
-  if (envKey) return envKey;
-  return (empresa?.fcmVapidPublicKey || '').trim();
+  const adminKey = (empresa?.fcmVapidPublicKey || '').trim();
+  return resolveVapidConfig(envKey, adminKey);
+}
+
+export function getEffectiveVapidKey(
+  empresa?: Pick<EmpresaConfig, 'fcmVapidPublicKey'> | null,
+): string {
+  return getEffectiveVapidConfig(empresa).key;
 }
 
 export async function getBrowserPushSupport(): Promise<BrowserPushSupport> {
@@ -218,16 +278,120 @@ export async function hasActivePushTokenForUser(uid: string): Promise<boolean> {
   }
 }
 
+export async function fetchUserPushState(uid: string): Promise<UserPushState> {
+  const localPrefs = getLocalPushPreferences(uid);
+  const realtimeOptedIn = isBrowserRealtimePushOptedIn(uid);
+  const hasGranted =
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    Notification.permission === 'granted';
+
+  if (!uid) {
+    return {
+      active: false,
+      mode: 'inactive',
+      hasActiveFcmToken: false,
+      realtimeOptedIn: false,
+      preferencias: localPrefs,
+    };
+  }
+
+  let hasActiveFcmToken = false;
+  let resolvedPrefs = localPrefs;
+
+  try {
+    const q = query(
+      collection(db, 'fcmTokens'),
+      where('uid', '==', uid),
+      where('ativo', '==', true),
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      hasActiveFcmToken = true;
+      const latestDoc = snap.docs
+        .map((d) => d.data() as Partial<FcmTokenRecord>)
+        .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0];
+      if (latestDoc?.preferencias) {
+        resolvedPrefs = saveLocalPushPreferences(uid, latestDoc.preferencias);
+      }
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'fcmTokens');
+  }
+
+  if (hasGranted && hasActiveFcmToken) {
+    return {
+      active: true,
+      mode: 'fcm',
+      hasActiveFcmToken: true,
+      realtimeOptedIn,
+      preferencias: resolvedPrefs,
+    };
+  }
+
+  if (hasGranted && realtimeOptedIn) {
+    return {
+      active: true,
+      mode: 'browser_realtime',
+      hasActiveFcmToken: false,
+      realtimeOptedIn: true,
+      preferencias: resolvedPrefs,
+    };
+  }
+
+  return {
+    active: false,
+    mode: 'inactive',
+    hasActiveFcmToken,
+    realtimeOptedIn,
+    preferencias: resolvedPrefs,
+  };
+}
+
+export async function updateUserPushPreferences(
+  uid: string,
+  preferencias: Partial<PushNotificationPreferences>,
+): Promise<PushNotificationPreferences> {
+  const normalized = saveLocalPushPreferences(uid, preferencias);
+  if (!uid) return normalized;
+
+  try {
+    const q = query(
+      collection(db, 'fcmTokens'),
+      where('uid', '==', uid),
+      where('ativo', '==', true),
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const nowIso = new Date().toISOString();
+      await Promise.all(
+        snap.docs.map((d) =>
+          updateDoc(doc(db, 'fcmTokens', d.id), {
+            preferencias: normalized,
+            updatedAt: nowIso,
+          }),
+        ),
+      );
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, 'fcmTokens');
+  }
+
+  return normalized;
+}
+
 export async function registerClientPushToken(params: {
   uid: string;
   clientId: string;
   vapidKey: string;
-}): Promise<{ token: string; docId: string }> {
+  preferencias?: Partial<PushNotificationPreferences>;
+}): Promise<{ token: string; docId: string; preferencias: PushNotificationPreferences }> {
   const { uid, clientId, vapidKey } = params;
-  const cleanVapid = vapidKey.trim();
-  if (!cleanVapid) {
+  const vapidCheck = validateVapidPublicKey(vapidKey);
+  if (!vapidCheck.valid) {
     throw new Error(
-      'Chave pública Web Push (VAPID) ainda não configurada. Solicite ao administrador configurar em Site & Configurações.',
+      vapidCheck.error ||
+        'Chave pública Web Push (VAPID) ainda não configurada. Solicite ao administrador configurar em Site & Configurações.',
     );
   }
 
@@ -256,9 +420,13 @@ export async function registerClientPushToken(params: {
   });
   await navigator.serviceWorker.ready;
 
-  const messaging = getMessaging(app);
+  const messaging = await getFirebaseMessagingSafe();
+  if (!messaging) {
+    throw new Error('Firebase Cloud Messaging indisponível neste navegador.');
+  }
+
   const fcmToken = await getToken(messaging, {
-    vapidKey: cleanVapid,
+    vapidKey: vapidCheck.normalized,
     serviceWorkerRegistration: registration,
   });
 
@@ -268,6 +436,10 @@ export async function registerClientPushToken(params: {
     );
   }
 
+  const normalizedPrefs = saveLocalPushPreferences(
+    uid,
+    params.preferencias ?? getLocalPushPreferences(uid),
+  );
   const docId = `fcm_${uid.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32)}_${hashTokenShort(fcmToken)}`;
   const nowIso = new Date().toISOString();
   const payload: FcmTokenRecord = {
@@ -278,6 +450,7 @@ export async function registerClientPushToken(params: {
     plataforma: 'web',
     userAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : '').slice(0, 240),
     ativo: true,
+    preferencias: normalizedPrefs,
     createdAt: nowIso,
     updatedAt: nowIso,
   };
@@ -288,18 +461,19 @@ export async function registerClientPushToken(params: {
     handleFirestoreError(err, OperationType.WRITE, `fcmTokens/${docId}`);
   }
 
-  return { token: fcmToken, docId };
+  return { token: fcmToken, docId, preferencias: normalizedPrefs };
 }
 
 /**
  * Ativa notificações push no navegador do cliente:
- * 1) Quando a chave VAPID e o Firebase Cloud Messaging estão disponíveis, registra o token FCM completo (inclusive segundo plano).
+ * 1) Quando a chave VAPID válida e o Firebase Cloud Messaging estão disponíveis, registra o token FCM completo (inclusive segundo plano).
  * 2) Caso contrário, solicita permissão nativa do navegador e ativa alertas instantâneos em tempo real via Firestore.
  */
 export async function enableClientBrowserNotifications(params: {
   uid: string;
   clientId: string;
   vapidKey?: string;
+  preferencias?: Partial<PushNotificationPreferences>;
 }): Promise<EnableClientPushResult> {
   const { uid, clientId, vapidKey = '' } = params;
   const support = await getBrowserPushSupport();
@@ -320,24 +494,32 @@ export async function enableClientBrowserNotifications(params: {
     );
   }
 
-  const cleanVapid = vapidKey.trim();
-  if (cleanVapid && support.fcmSupported) {
+  const normalizedPrefs = saveLocalPushPreferences(
+    uid,
+    params.preferencias ?? getLocalPushPreferences(uid),
+  );
+  const vapidCheck = validateVapidPublicKey(vapidKey);
+
+  if (vapidCheck.valid && support.fcmSupported) {
     try {
       const { token, docId } = await registerClientPushToken({
         uid,
         clientId,
-        vapidKey: cleanVapid,
+        vapidKey: vapidCheck.normalized,
+        preferencias: normalizedPrefs,
       });
       setBrowserRealtimePushOptedIn(uid, true);
       return {
         mode: 'fcm',
         token,
         docId,
+        preferencias: normalizedPrefs,
       };
     } catch (fcmErr) {
       setBrowserRealtimePushOptedIn(uid, true);
       return {
         mode: 'browser_realtime',
+        preferencias: normalizedPrefs,
         note:
           fcmErr instanceof Error
             ? `Alertas em tempo real ativados no navegador (FCM em segundo plano indisponível: ${fcmErr.message}).`
@@ -349,7 +531,10 @@ export async function enableClientBrowserNotifications(params: {
   setBrowserRealtimePushOptedIn(uid, true);
   return {
     mode: 'browser_realtime',
-    note: 'Alertas instantâneos do navegador ativados! Você receberá avisos nativos sempre que seu processo for atualizado.',
+    preferencias: normalizedPrefs,
+    note: vapidKey.trim() && !vapidCheck.valid
+      ? `Alertas em tempo real ativados no navegador (chave VAPID pendente de ajuste pelo administrador).`
+      : 'Alertas instantâneos do navegador ativados! Você receberá avisos nativos sempre que seu processo for atualizado.',
   };
 }
 
@@ -384,10 +569,11 @@ export function subscribeForegroundFcm(
   let active = true;
   let unsubscribeFn: (() => void) | null = null;
 
-  void getBrowserPushSupport().then((support) => {
+  void getBrowserPushSupport().then(async (support) => {
     if (!active || !support.fcmSupported || Notification.permission !== 'granted') return;
     try {
-      const messaging = getMessaging(app);
+      const messaging = await getFirebaseMessagingSafe();
+      if (!active || !messaging) return;
       unsubscribeFn = onMessage(messaging, (payload) => {
         if (active) onPayload(payload);
       });
@@ -473,6 +659,7 @@ export async function notifyClientProcessUpdate(
 ): Promise<NotifyClientResult> {
   const notifId = makeId('notif');
   const nowIso = new Date().toISOString();
+  const targetUrl = buildNotificationTargetUrl(input.tipo, input.linkDestino);
 
   const notification: ClientNotification = stripUndefinedFields({
     id: notifId,
@@ -483,7 +670,7 @@ export async function notifyClientProcessUpdate(
     tipo: input.tipo,
     etapaPipeline: input.etapaPipeline,
     statusSermig: input.statusSermig,
-    linkDestino: input.linkDestino || '/portal',
+    linkDestino: targetUrl,
     lida: false,
     pushEnviado: false,
     pushEnviadosQtd: 0,
@@ -526,7 +713,7 @@ export async function notifyClientProcessUpdate(
           mensagem: notification.mensagem,
           etapaPipeline: input.etapaPipeline,
           statusSermig: input.statusSermig,
-          targetUrl: input.linkDestino || '/portal',
+          targetUrl,
         }),
       });
       if (resp.ok) {

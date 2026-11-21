@@ -401,6 +401,9 @@ export interface DiagnosticAnswers {
   localizacao: DiagnosticLocation;
   faixaEtaria?: 'maior_18' | 'menor_18_com_pais' | 'menor_18_desacompanhado';
   mesesResidenciaChile?: number;
+  residenteSubcategoriaAtual?: string;
+  residenteVenceEmDias?: 'mais_90' | 'entre_90_e_10' | 'menos_10' | 'vencida';
+  residenteMesesForaUltimoAno?: number;
   entradaRecenteChileTurista?: boolean | null;
   nacionalidadeBrasileira: boolean | null;
   possuiSegundaNacionalidade: boolean | null;
@@ -410,16 +413,28 @@ export interface DiagnosticAnswers {
   // Etapa 3
   vinculoFamiliarChile: boolean | null;
   vinculoTipo?: 'Cônjuge/União Civil' | 'Filho(a) chileno(a)' | 'Pais/Dependente' | 'Outro';
+  familiarStatusChile?: 'chileno' | 'residente_definitivo' | 'residente_temporal';
   vinculoFormalizado: boolean | null;
   composicaoFamiliar?: 'individual' | 'casal' | 'familia_com_filhos';
   pessoasFamilia?: DiagnosticFamilyMemberInput[];
   // Etapa 4
   objetivo: DiagnosticObjective | '';
   possuiOfertaTrabalhoFormal: boolean | null;
+  contratoNotariadoEmpresaChilena?: boolean | null;
   possuiMatriculaReconhecida: boolean | null;
   possuiRendaPassiva: boolean | null;
   faixaRendaMensalUsd?: 'abaixo_1000' | '1000_2500' | 'acima_2500';
   possuiCapitalComprovadoOrigem: boolean | null;
+  investimentoAcima500kUsd?: boolean | null;
+  possuiCertificadoMedicoChile?: boolean | null;
+  possuiRespaldoEntidadeReligiosa?: boolean | null;
+  possuiContratoSazonal?: boolean | null;
+  motivoHumanitarioTipo?:
+    | 'gestante'
+    | 'violencia_domestica'
+    | 'menor_desacompanhado'
+    | 'refugio_asilo'
+    | 'outro';
   titularTemResidenciaChile: boolean | null;
   // Etapa 5 (Riscos independentes)
   overstay: boolean | null;
@@ -908,6 +923,12 @@ export interface GeneratedDocument {
   updatedAt?: string;
 }
 
+export interface PushNotificationPreferences {
+  statusProcesso: boolean;
+  documentos: boolean;
+  mensagensEquipe: boolean;
+}
+
 export interface FcmTokenRecord {
   id: string;
   uid: string;
@@ -916,6 +937,7 @@ export interface FcmTokenRecord {
   plataforma: 'web' | 'android' | 'ios';
   userAgent?: string;
   ativo: boolean;
+  preferencias?: PushNotificationPreferences;
   createdAt: string;
   updatedAt: string;
 }
@@ -924,6 +946,7 @@ export type ClientNotificationType =
   | 'etapa_pipeline'
   | 'status_sermig'
   | 'documento'
+  | 'mensagem_equipe'
   | 'parecer'
   | 'prazo'
   | 'geral';

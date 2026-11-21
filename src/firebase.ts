@@ -1,15 +1,39 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
+import { getMessaging, isSupported as isMessagingSupported, type Messaging } from 'firebase/messaging';
 import firebaseConfig from '../firebase-applet-config.json';
 import { reportAppError } from './services/errorService';
 
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const firebaseProjectId = firebaseConfig.projectId;
 export const firebaseDatabaseId = firebaseConfig.firestoreDatabaseId;
+export const firebaseConfigSummary = {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+  messagingSenderId: firebaseConfig.messagingSenderId,
+  appId: firebaseConfig.appId,
+} as const;
+
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 auth.languageCode = 'pt-BR';
+
+let cachedMessaging: Messaging | null = null;
+
+/**
+ * Lazily resolves Firebase Cloud Messaging only in browsers that support Web Push & Service Workers.
+ */
+export async function getFirebaseMessagingSafe(): Promise<Messaging | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
+  const supported = await isMessagingSupported().catch(() => false);
+  if (!supported) return null;
+  if (!cachedMessaging) {
+    cachedMessaging = getMessaging(app);
+  }
+  return cachedMessaging;
+}
 
 if (typeof window !== 'undefined') {
   void setPersistence(auth, browserLocalPersistence).catch(() => {

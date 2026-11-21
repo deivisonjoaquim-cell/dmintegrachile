@@ -24,12 +24,13 @@ import {
   UploadCloud,
   XCircle,
 } from 'lucide-react';
-import { auth } from '../../firebase';
+import { auth, firebaseConfigSummary } from '../../firebase';
 import { BrandLogo } from '../BrandLogo';
 import { BrandLogoDownloadKit } from '../BrandLogoDownloadKit';
 import { isPrimaryAdminEmail } from '../../services/adminSecurityService';
 import { translateAppError } from '../../services/errorService';
-import { getEffectiveVapidKey } from '../../services/notificationService';
+import { getEffectiveVapidConfig } from '../../services/notificationService';
+import { validateVapidPublicKey } from '../../utils/pushNotifications';
 import {
   deleteDocumentAudited,
   fetchAllDiagnosticRuleVersions,
@@ -461,9 +462,22 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
     e.preventDefault();
     setErrorMsg(null);
     setFeedback(null);
+    const trimmedVapid = (cfg.fcmVapidPublicKey || '').trim();
+    if (trimmedVapid) {
+      const vapidCheck = validateVapidPublicKey(trimmedVapid);
+      if (!vapidCheck.valid) {
+        setErrorMsg(vapidCheck.error || 'Chave pública Web Push (VAPID) em formato inválido.');
+        return;
+      }
+    }
     setSavingEmpresa(true);
     try {
-      await saveEmpresaConfigAdmin(cfg, empresa);
+      const normalizedCfg: EmpresaConfig = {
+        ...cfg,
+        fcmVapidPublicKey: trimmedVapid,
+      };
+      setCfg(normalizedCfg);
+      await saveEmpresaConfigAdmin(normalizedCfg, empresa);
       setFeedback('Identidade visual, logos, layout e configurações salvos e aplicados ao site!');
       await onRefreshPublic();
     } catch (err) {
@@ -1412,71 +1426,128 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
             </div>
 
             {/* Notificações Push (Firebase Cloud Messaging — Web Push) */}
-            <div className="pt-4 border-t border-slate-200 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <Bell className="w-4 h-4 text-[var(--color-primary)]" />
-                    Notificações Push para Clientes (Firebase Cloud Messaging)
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Cole a chave pública do par de certificados Web Push obtida em Firebase Console → Configurações do projeto → Cloud Messaging.
-                  </p>
+            {(() => {
+              const effectiveVapid = getEffectiveVapidConfig(cfg);
+              const trimmedAdminVapid = (cfg.fcmVapidPublicKey || '').trim();
+              const adminVapidCheck = trimmedAdminVapid
+                ? validateVapidPublicKey(trimmedAdminVapid)
+                : null;
+              return (
+                <div className="pt-4 border-t border-slate-200 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <Bell className="w-4 h-4 text-[var(--color-primary)]" />
+                        Notificações Push para Clientes (Firebase Cloud Messaging)
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Configure via variável de ambiente <code className="font-mono text-slate-700">VITE_FIREBASE_VAPID_KEY</code> na Vercel (prioridade) ou preencha a chave pública Web Push abaixo.
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Firebase conectado: <span className="font-mono text-slate-700">{firebaseConfigSummary.projectId}</span>
+                        {' · '}Banco Firestore: <span className="font-mono text-slate-700">{firebaseConfigSummary.firestoreDatabaseId}</span>
+                        {' · '}Origem VAPID ativa:{' '}
+                        <span className="font-semibold text-slate-800">
+                          {effectiveVapid.source === 'env'
+                            ? 'Variável de Ambiente (VITE_FIREBASE_VAPID_KEY)'
+                            : effectiveVapid.source === 'admin'
+                              ? 'Painel Admin (Firestore)'
+                              : 'Não configurada (modo tempo real no navegador)'}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={fcmChecking}
+                      onClick={async () => {
+                        setFcmChecking(true);
+                        setFcmHealthMsg(null);
+                        const currentVapid = getEffectiveVapidConfig(cfg);
+                        try {
+                          const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+                          const resp = await fetch('/api/notifications/health', {
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                          });
+                          const contentType = resp.headers.get('content-type') || '';
+                          if (resp.ok && contentType.includes('application/json')) {
+                            const data = (await resp.json()) as {
+                              ok?: boolean;
+                              vapidEnvConfigured?: boolean;
+                              error?: string;
+                            };
+                            if (data.ok) {
+                              setFcmHealthMsg(
+                                currentVapid.valid
+                                  ? `Serviço FCM ativo (${currentVapid.source === 'env' ? 'via Vercel Env' : 'via Painel Admin'}) e chave pública VAPID validada.`
+                                  : currentVapid.key
+                                    ? `Servidor pronto para FCM, mas a chave VAPID atual é inválida: ${currentVapid.error}`
+                                    : 'Servidor pronto para FCM. Configure VITE_FIREBASE_VAPID_KEY na Vercel ou preencha a Chave Pública VAPID abaixo e salve.',
+                              );
+                            } else {
+                              setFcmHealthMsg(data.error || 'Não foi possível verificar o endpoint FCM.');
+                            }
+                          } else {
+                            setFcmHealthMsg(
+                              currentVapid.valid
+                                ? `Firebase (${firebaseConfigSummary.projectId}) e chave VAPID (${currentVapid.source === 'env' ? 'Vercel Env' : 'Painel Admin'}) validados no navegador. Em hospedagem estática (Vercel Free), alertas em tempo real via Firestore e registro de token Web Push operam diretamente no cliente.`
+                                : 'Hospedagem estática detectada: Firebase Auth e Firestore ativos. Preencha uma chave pública VAPID válida (ou defina VITE_FIREBASE_VAPID_KEY na Vercel) para habilitar o registro Web Push FCM.',
+                            );
+                          }
+                        } catch {
+                          setFcmHealthMsg(
+                            currentVapid.valid
+                              ? `Firebase (${firebaseConfigSummary.projectId}) e chave VAPID (${currentVapid.source === 'env' ? 'Vercel Env' : 'Painel Admin'}) validados no cliente.`
+                              : 'Firebase Auth e Firestore conectados. Defina VITE_FIREBASE_VAPID_KEY ou informe a Chave Pública Web Push abaixo para ativar o FCM em segundo plano.',
+                          );
+                        } finally {
+                          setFcmChecking(false);
+                        }
+                      }}
+                      className="px-3 py-2 min-h-[38px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                    >
+                      {fcmChecking ? 'Verificando...' : 'Verificar Status FCM'}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Chave Pública Web Push (VAPID Key — Painel Admin / Fallback)
+                    </label>
+                    <input
+                      value={cfg.fcmVapidPublicKey || ''}
+                      onChange={(e) => setCfg({ ...cfg, fcmVapidPublicKey: e.target.value })}
+                      placeholder="Ex.: BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8"
+                      className={`w-full px-3 py-2 rounded-lg border text-xs font-mono ${
+                        adminVapidCheck && !adminVapidCheck.valid
+                          ? 'border-rose-400 bg-rose-50/40 text-rose-900'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                    {effectiveVapid.source === 'env' && (
+                      <p className="text-[11px] text-slate-600 mt-1">
+                        A variável de ambiente <code className="font-mono">VITE_FIREBASE_VAPID_KEY</code> está ativa e tem prioridade sobre este campo.
+                      </p>
+                    )}
+                    {adminVapidCheck && !adminVapidCheck.valid && (
+                      <p className="text-[11px] font-medium text-rose-700 mt-1">
+                        {adminVapidCheck.error}
+                      </p>
+                    )}
+                    {adminVapidCheck && adminVapidCheck.valid && (
+                      <p className="text-[11px] font-medium text-emerald-700 mt-1">
+                        Formato de chave pública VAPID válido ({adminVapidCheck.normalized.length} caracteres Base64URL).
+                      </p>
+                    )}
+                  </div>
+
+                  {fcmHealthMsg && (
+                    <p className="text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                      {fcmHealthMsg}
+                    </p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  disabled={fcmChecking}
-                  onClick={async () => {
-                    setFcmChecking(true);
-                    setFcmHealthMsg(null);
-                    try {
-                      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-                      const resp = await fetch('/api/notifications/health', {
-                        headers: token ? { Authorization: `Bearer ${token}` } : {},
-                      });
-                      const data = (await resp.json()) as {
-                        ok?: boolean;
-                        vapidEnvConfigured?: boolean;
-                        error?: string;
-                      };
-                      const hasEffectiveVapid = Boolean(getEffectiveVapidKey(cfg));
-                      if (resp.ok && data.ok) {
-                        setFcmHealthMsg(
-                          hasEffectiveVapid
-                            ? 'Serviço FCM ativo e chave pública Web Push (VAPID) configurada.'
-                            : 'Servidor pronto para FCM. Falta preencher a Chave Pública Web Push (VAPID) abaixo e salvar.',
-                        );
-                      } else {
-                        setFcmHealthMsg(data.error || 'Não foi possível verificar o endpoint FCM.');
-                      }
-                    } catch (err) {
-                      setFcmHealthMsg(err instanceof Error ? err.message : 'Erro ao verificar FCM.');
-                    } finally {
-                      setFcmChecking(false);
-                    }
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {fcmChecking ? 'Verificando...' : 'Verificar Status FCM'}
-                </button>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Chave Pública Web Push (VAPID Key — FCM)
-                </label>
-                <input
-                  value={cfg.fcmVapidPublicKey || ''}
-                  onChange={(e) => setCfg({ ...cfg, fcmVapidPublicKey: e.target.value })}
-                  placeholder="Ex.: BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono"
-                />
-              </div>
-              {fcmHealthMsg && (
-                <p className="text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                  {fcmHealthMsg}
-                </p>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Textos-Base Editáveis com Versionamento & Vigência */}
             <div className="pt-4 border-t border-slate-200 space-y-3">

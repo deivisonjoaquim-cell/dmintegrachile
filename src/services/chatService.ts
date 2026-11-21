@@ -221,12 +221,12 @@ export async function sendStaffDocumentChatReply(params: {
     await notifyClientProcessUpdate({
       clientId: params.clientId,
       caseId: params.caseId,
-      tipo: 'documento',
+      tipo: 'mensagem_equipe',
       titulo: payload.documentNome
-        ? `Resposta sobre documento: ${payload.documentNome}`.slice(0, 190)
-        : 'Nova resposta no Chat do Portal',
+        ? `Mensagem da equipe sobre: ${payload.documentNome}`.slice(0, 190)
+        : 'Nova mensagem da equipe no Portal',
       mensagem: payload.mensagem.slice(0, 300),
-      linkDestino: '/portal',
+      linkDestino: payload.documentId ? '/portal?tab=documentos' : '/portal?tab=suporte',
       criadoPorUid: params.remetenteUid,
       criadoPorNome: params.autorNome,
     }).catch(() => undefined);

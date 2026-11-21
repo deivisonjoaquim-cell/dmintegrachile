@@ -510,9 +510,17 @@ service cloud.firestore {
         && data.liberadoAoCliente is bool;
     }
 
+    function isValidPushPreferences(prefs) {
+      return prefs is map
+        && prefs.keys().hasOnly(['statusProcesso', 'documentos', 'mensagensEquipe'])
+        && (!('statusProcesso' in prefs) || prefs.statusProcesso is bool)
+        && (!('documentos' in prefs) || prefs.documentos is bool)
+        && (!('mensagensEquipe' in prefs) || prefs.mensagensEquipe is bool);
+    }
+
     function isValidFcmToken(data) {
       return data.keys().hasAll(['id', 'uid', 'clientId', 'token', 'ativo', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['id', 'uid', 'clientId', 'token', 'plataforma', 'userAgent', 'ativo', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'uid', 'clientId', 'token', 'plataforma', 'userAgent', 'ativo', 'preferencias', 'createdAt', 'updatedAt'])
         && isReqString(data, 'id', 1, 128)
         && data.id.matches('^[a-zA-Z0-9_\\-]+$')
         && isReqString(data, 'uid', 1, 128)
@@ -521,6 +529,7 @@ service cloud.firestore {
         && data.ativo is bool
         && (!('plataforma' in data) || data.plataforma in ['web', 'android', 'ios'])
         && isOptString(data, 'userAgent', 250)
+        && (!('preferencias' in data) || isValidPushPreferences(data.preferencias))
         && isReqString(data, 'createdAt', 10, 64)
         && isReqString(data, 'updatedAt', 10, 64);
     }
@@ -534,7 +543,7 @@ service cloud.firestore {
         && isOptString(data, 'caseId', 128)
         && isReqString(data, 'titulo', 1, 200)
         && isReqString(data, 'mensagem', 1, 1000)
-        && data.tipo in ['etapa_pipeline', 'status_sermig', 'documento', 'parecer', 'prazo', 'geral']
+        && data.tipo in ['etapa_pipeline', 'status_sermig', 'documento', 'mensagem_equipe', 'parecer', 'prazo', 'geral']
         && isOptNum(data, 'etapaPipeline')
         && isOptString(data, 'statusSermig', 80)
         && isOptString(data, 'linkDestino', 200)

@@ -550,7 +550,7 @@
     },
     "FcmTokenRecord": {
       "title": "FcmTokenRecord",
-      "description": "Token de dispositivo Web Push / Firebase Cloud Messaging vinculado a um usuário/cliente.",
+      "description": "Token de dispositivo Web Push / Firebase Cloud Messaging e preferências por categoria vinculados a um usuário/cliente.",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -560,6 +560,7 @@
         "plataforma": { "type": "string", "enum": ["web", "android", "ios"] },
         "userAgent": { "type": "string", "maxLength": 250 },
         "ativo": { "type": "boolean" },
+        "preferencias": { "type": "object", "description": "Preferências booleanas: statusProcesso, documentos, mensagensEquipe" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -575,7 +576,7 @@
         "caseId": { "type": "string", "maxLength": 128 },
         "titulo": { "type": "string", "minLength": 1, "maxLength": 200 },
         "mensagem": { "type": "string", "minLength": 1, "maxLength": 1000 },
-        "tipo": { "type": "string", "enum": ["etapa_pipeline", "status_sermig", "documento", "parecer", "prazo", "geral"] },
+        "tipo": { "type": "string", "enum": ["etapa_pipeline", "status_sermig", "documento", "mensagem_equipe", "parecer", "prazo", "geral"] },
         "etapaPipeline": { "type": "number" },
         "statusSermig": { "type": "string", "maxLength": 80 },
         "linkDestino": { "type": "string", "maxLength": 200 },

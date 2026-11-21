@@ -69,6 +69,13 @@ import {
   validateEmpresaConfigPayload,
 } from '../utils/firestoreUtils';
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
+import {
+  loadRuleEngineSnapshotSync,
+  saveRuleEngineSnapshot,
+  type CatalogSyncSource,
+  type PendingOfflineDiagnostic,
+  type RuleEngineDecisionLog,
+} from '../utils/offlineRuleEngineStore';
 import { reportAppError } from './errorService';
 
 export function makeId(prefix: string): string {
@@ -2087,4 +2094,165 @@ export async function syncOfficialLegalCatalog(
     updatedVisas: visasToUpsert.length,
   };
 }
+
+export async function cleanupServerUploadUrl(fileUrl?: string | null): Promise<void> {
+  if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
+  const filename = fileUrl.split('/').pop();
+  if (!filename) return;
+  try {
+    const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+    if (!idToken) return;
+    await fetch(`/api/uploads/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+  } catch {
+    // Non-blocking on static Vercel Free hosting
+  }
+}
+
+export async function deleteCaseDocumentAudited(
+  docItem: CaseDocument,
+  role: UserRole,
+): Promise<void> {
+  if (docItem.arquivoUrl) {
+    await cleanupServerUploadUrl(docItem.arquivoUrl);
+  }
+  await deleteDocumentAudited(
+    'caseDocuments',
+    docItem.id,
+    role,
+    docItem,
+  );
+}
+
+export async function rejectPartnerProposalAudited(
+  prop: PartnerProposal,
+  _motivo: string,
+  role: UserRole,
+): Promise<void> {
+  const updated: PartnerProposal = {
+    ...prop,
+    status: 'Recusada',
+  };
+  await saveDocumentAudited(
+    'partnerProposals',
+    prop.id,
+    updated as unknown as Record<string, unknown>,
+    false,
+    role,
+    'status_proposta',
+    prop.status,
+  );
+}
+
+export async function deletePartnerProposalAudited(
+  prop: PartnerProposal,
+  role: UserRole,
+): Promise<void> {
+  await deleteDocumentAudited(
+    'partnerProposals',
+    prop.id,
+    role,
+    prop,
+  );
+}
+
+export async function deletePartnerAndPublicAudited(
+  partner: Partner,
+  role: UserRole,
+  _proposals?: PartnerProposal[],
+): Promise<void> {
+  await deleteDocumentAudited(
+    'partners',
+    partner.id,
+    role,
+    partner,
+  );
+  try {
+    await deleteDoc(doc(db, 'partnersPublic', partner.id));
+  } catch {
+    // Ignore if partner was not publicly listed
+  }
+}
+
+export async function fetchRuleEngineBundleWithSync(): Promise<{
+  empresa: EmpresaConfig;
+  siteContent: SiteContent[];
+  partnersPublic: PartnerPublic[];
+  visaCategories: VisaCategory[];
+  visaRequirements: VisaRequirement[];
+  legalSources: LegalSource[];
+  activeDiagnosticRules: DiagnosticRuleVersion;
+  source: CatalogSyncSource;
+  savedAt?: string;
+  fromCloud: boolean;
+}> {
+  try {
+    const [empresa, siteContent, partnersPublic, catalog, activeDiagnosticRules] =
+      await Promise.all([
+        fetchEmpresaConfig(),
+        fetchSiteContentPublic(),
+        fetchPartnersPublic(),
+        fetchVisaCatalogPublic(),
+        fetchActiveDiagnosticRules(),
+      ]);
+
+    const snapshot = {
+      empresa,
+      siteContent,
+      partnersPublic,
+      visaCategories: catalog.categories,
+      visaRequirements: catalog.requirements,
+      legalSources: catalog.legalSources,
+      activeDiagnosticRules,
+      source: 'nuvem' as const,
+    };
+    const savedAt = saveRuleEngineSnapshot(snapshot);
+    return { ...snapshot, savedAt, fromCloud: true };
+  } catch {
+    const fallback = loadRuleEngineSnapshotSync();
+    return { ...fallback, fromCloud: false };
+  }
+}
+
+export async function syncPendingOfflineDiagnosticToFirestore(
+  item: PendingOfflineDiagnostic,
+): Promise<void> {
+  const leadPayload = item.leadPayload as unknown as Omit<Lead, 'id' | 'createdAt'>;
+  await submitDiagnosticLeadPublic(
+    leadPayload,
+    item.existingLeadId ? { existingLeadId: item.existingLeadId } : undefined,
+  );
+  if (item.sessionToken && item.sessionPayload) {
+    await saveDiagnosticSession(
+      item.sessionToken,
+      item.sessionPayload as unknown as Omit<DiagnosticSession, 'id' | 'createdAt' | 'updatedAt'>,
+      true,
+    ).catch(() => undefined);
+  }
+}
+
+export async function syncRuleEngineDecisionLogToFirestore(
+  log: RuleEngineDecisionLog,
+  role?: UserRole,
+): Promise<void> {
+  await registrarAuditoria(
+    'Decisão Motor de Regras',
+    'diagnosticSessions',
+    log.sessionToken || log.id,
+    'motor_regras_offline',
+    undefined,
+    {
+      mode: log.mode,
+      origin: log.origin,
+      ruleVersion: log.ruleVersion,
+      subcategoriaRecomendada: log.subcategoriaRecomendada,
+      notaViabilidade: log.notaViabilidade,
+      confianca: log.confianca,
+    },
+    role || 'cliente',
+  );
+}
+
 

@@ -9,9 +9,26 @@ export type ProcessNotificationType =
   | 'etapa_pipeline'
   | 'status_sermig'
   | 'documento'
+  | 'mensagem_equipe'
   | 'parecer'
   | 'prazo'
   | 'geral';
+
+interface StoredPushPreferences {
+  statusProcesso?: boolean;
+  documentos?: boolean;
+  mensagensEquipe?: boolean;
+}
+
+export function isTokenSubscribedToType(
+  tipo: ProcessNotificationType,
+  preferencias?: StoredPushPreferences | null,
+): boolean {
+  if (!preferencias || typeof preferencias !== 'object') return true;
+  if (tipo === 'documento') return preferencias.documentos !== false;
+  if (tipo === 'mensagem_equipe') return preferencias.mensagensEquipe !== false;
+  return preferencias.statusProcesso !== false;
+}
 
 export interface ProcessPushRequest {
   clientId: string;
@@ -165,13 +182,21 @@ export async function dispatchProcessPushNotification(
 
     const tokenDocs = tokenSnap.docs
       .map((docSnap) => {
-        const data = docSnap.data() as { token?: string };
+        const data = docSnap.data() as {
+          token?: string;
+          preferencias?: StoredPushPreferences;
+        };
         return {
           docId: docSnap.id,
           token: typeof data.token === 'string' ? data.token.trim() : '',
+          preferencias: data.preferencias,
         };
       })
-      .filter((item) => item.token.length >= 20);
+      .filter(
+        (item) =>
+          item.token.length >= 20 &&
+          isTokenSubscribedToType(input.tipo, item.preferencias),
+      );
 
     if (tokenDocs.length === 0) {
       return {
@@ -180,6 +205,8 @@ export async function dispatchProcessPushNotification(
         failedCount: 0,
         totalTokens: 0,
         deactivatedTokens: 0,
+        warning:
+          'Cliente optou por não receber alertas push desta categoria; aviso registrado no Portal do Cliente.',
       };
     }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -46,15 +46,19 @@ import {
 import { reportAppError } from '../services/errorService';
 import {
   deactivateUserPushTokens,
+  enableClientBrowserNotifications,
+  fetchUserPushState,
   getBrowserPushSupport,
-  getEffectiveVapidKey,
-  hasActivePushTokenForUser,
+  getEffectiveVapidConfig,
   markAllClientNotificationsRead,
   markClientNotificationRead,
-  registerClientPushToken,
+  sendTestBrowserNotification,
+  showBrowserProcessNotification,
   subscribeClientNotifications,
   subscribeForegroundFcm,
+  updateUserPushPreferences,
   type BrowserPushSupport,
+  type PushActivationMode,
 } from '../services/notificationService';
 import type {
   Appointment,
@@ -68,8 +72,15 @@ import type {
   FinancialRecord,
   GeneratedDocument,
   Lead,
+  PushNotificationPreferences,
   ViabilityAssessment,
 } from '../types/domain';
+import {
+  DEFAULT_PUSH_PREFERENCES,
+  getNotificationTypeLabel,
+  getPortalTabForNotification,
+  shouldDeliverNotificationForPreferences,
+} from '../utils/pushNotifications';
 import { calcularTermometroDocumentos } from '../utils/caseMetrics';
 import { resolveDocumentExpiration } from '../utils/documentExpiration';
 import {
@@ -97,9 +108,18 @@ interface PortalClientePageProps {
 
 type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
 
+const ALLOWED_PORTAL_TABS: PortalTab[] = ['processo', 'documentos', 'biblioteca', 'financeiro', 'suporte', 'dados'];
+
+function readInitialPortalTab(): PortalTab {
+  if (typeof window === 'undefined') return 'processo';
+  const param = new URLSearchParams(window.location.search).get('tab') as PortalTab | null;
+  if (param && ALLOWED_PORTAL_TABS.includes(param)) return param;
+  return 'processo';
+}
+
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
   const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
-  const [tab, setTab] = useState<PortalTab>('processo');
+  const [tab, setTab] = useState<PortalTab>(readInitialPortalTab);
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
   const [dependents, setDependents] = useState<Dependent[]>([]);
@@ -126,10 +146,26 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   const [notifications, setNotifications] = useState<ClientNotification[]>([]);
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
-  const [pushSupport, setPushSupport] = useState<BrowserPushSupport>({ supported: false, permission: 'unsupported' });
+  const [pushSupport, setPushSupport] = useState<BrowserPushSupport>({
+    supported: false,
+    fcmSupported: false,
+    permission: 'unsupported',
+  });
   const [pushActive, setPushActive] = useState(false);
+  const [pushMode, setPushMode] = useState<PushActivationMode | 'inactive'>('inactive');
+  const [pushPrefs, setPushPrefs] = useState<PushNotificationPreferences>({ ...DEFAULT_PUSH_PREFERENCES });
+  const [pushPrefsBusy, setPushPrefsBusy] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const [pushToast, setPushToast] = useState<{ title: string; body: string } | null>(null);
+  const [testNotifBusy, setTestNotifBusy] = useState(false);
+  const [pushToast, setPushToast] = useState<{ title: string; body: string; tab?: PortalTab } | null>(null);
+
+  const pushActiveRef = useRef(false);
+  const pushPrefsRef = useRef<PushNotificationPreferences>({ ...DEFAULT_PUSH_PREFERENCES });
+  const initialNotifLoadedRef = useRef(false);
+  const seenNotifIdsRef = useRef<Set<string>>(new Set());
+
+  pushActiveRef.current = pushActive;
+  pushPrefsRef.current = pushPrefs;
 
   // Edição de dados próprios e dependentes
   const [editNome, setEditNome] = useState('');
@@ -176,28 +212,78 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   useEffect(() => {
     if (!userProfile?.clientId || !userProfile?.uid) return;
     let active = true;
+    initialNotifLoadedRef.current = false;
+    seenNotifIdsRef.current = new Set();
 
     void getBrowserPushSupport().then((support) => {
       if (active) setPushSupport(support);
     });
-    void hasActivePushTokenForUser(userProfile.uid)
-      .then((hasTok) => {
-        if (active) setPushActive(hasTok && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+    void fetchUserPushState(userProfile.uid)
+      .then((state) => {
+        if (!active) return;
+        setPushActive(state.active);
+        setPushMode(state.mode);
+        setPushPrefs(state.preferencias);
       })
       .catch(() => undefined);
 
     const unsubNotifs = subscribeClientNotifications(
       userProfile.clientId,
       (list) => {
-        if (active) setNotifications(list);
+        if (!active) return;
+        setNotifications(list);
+
+        if (!initialNotifLoadedRef.current) {
+          list.forEach((n) => seenNotifIdsRef.current.add(n.id));
+          initialNotifLoadedRef.current = true;
+          return;
+        }
+
+        const freshUnread = list.filter((n) => !n.lida && !seenNotifIdsRef.current.has(n.id));
+        list.forEach((n) => seenNotifIdsRef.current.add(n.id));
+
+        if (freshUnread.length > 0) {
+          const latest = freshUnread[0];
+          if (shouldDeliverNotificationForPreferences(latest.tipo, pushPrefsRef.current)) {
+            const targetTab = getPortalTabForNotification(latest.tipo, latest.linkDestino);
+            setPushToast({ title: latest.titulo, body: latest.mensagem, tab: targetTab });
+            if (pushActiveRef.current) {
+              void showBrowserProcessNotification({
+                id: latest.id,
+                title: latest.titulo,
+                body: latest.mensagem,
+                url: latest.linkDestino || `/portal?tab=${targetTab}`,
+              });
+            }
+          }
+          void loadPortal();
+        }
       },
     );
 
     const unsubFcm = subscribeForegroundFcm((payload) => {
       if (!active) return;
+      const tipo = payload.data?.tipo;
+      if (!shouldDeliverNotificationForPreferences(tipo, pushPrefsRef.current)) {
+        void loadPortal();
+        return;
+      }
+      const notifId = payload.data?.notificationId;
+      if (notifId) {
+        seenNotifIdsRef.current.add(notifId);
+      }
       const title = payload.notification?.title || payload.data?.title || 'Atualização do Processo';
       const body = payload.notification?.body || payload.data?.body || 'Seu processo teve uma nova movimentação.';
-      setPushToast({ title, body });
+      const targetTab = getPortalTabForNotification(tipo, payload.data?.url);
+      setPushToast({ title, body, tab: targetTab });
+      if (pushActiveRef.current) {
+        void showBrowserProcessNotification({
+          id: notifId,
+          title,
+          body,
+          url: payload.data?.url || `/portal?tab=${targetTab}`,
+        });
+      }
       void loadPortal();
     });
 
@@ -272,21 +358,28 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const needsLgpdAccept =
     client && (!client.lgpdAceito || client.lgpdVersao !== (empresa.termoLgpdVersao || '1.0'));
   const unreadNotifCount = notifications.filter((n) => !n.lida).length;
-  const effectiveVapidKey = getEffectiveVapidKey(empresa);
+  const vapidConfig = getEffectiveVapidConfig(empresa);
 
   const handleEnablePush = async () => {
     if (!userProfile?.uid || !userProfile?.clientId || pushBusy) return;
     setPushBusy(true);
     setFeedbackMsg(null);
     try {
-      await registerClientPushToken({
+      const result = await enableClientBrowserNotifications({
         uid: userProfile.uid,
         clientId: userProfile.clientId,
-        vapidKey: effectiveVapidKey,
+        vapidKey: vapidConfig.valid ? vapidConfig.key : '',
+        preferencias: pushPrefs,
       });
       setPushActive(true);
+      setPushMode(result.mode);
+      setPushPrefs(result.preferencias);
       setPushSupport(await getBrowserPushSupport());
-      setFeedbackMsg('Notificações push ativadas! Você será alertado sobre mudanças no seu processo.');
+      setFeedbackMsg(
+        result.mode === 'fcm'
+          ? 'Notificações push em segundo plano (FCM) ativadas neste dispositivo!'
+          : result.note || 'Alertas instantâneos do navegador ativados!',
+      );
     } catch (err) {
       setPushSupport(await getBrowserPushSupport());
       setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível ativar as notificações push.');
@@ -302,11 +395,82 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     try {
       await deactivateUserPushTokens(userProfile.uid);
       setPushActive(false);
+      setPushMode('inactive');
       setFeedbackMsg('Notificações push desativadas neste dispositivo.');
     } catch (err) {
       setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível desativar as notificações push.');
     } finally {
       setPushBusy(false);
+    }
+  };
+
+  const handleTogglePushCategory = async (category: keyof PushNotificationPreferences) => {
+    if (!userProfile?.uid || pushPrefsBusy) return;
+    const nextPrefs: PushNotificationPreferences = {
+      ...pushPrefs,
+      [category]: !pushPrefs[category],
+    };
+    setPushPrefs(nextPrefs);
+    setPushPrefsBusy(true);
+    try {
+      const saved = await updateUserPushPreferences(userProfile.uid, nextPrefs);
+      setPushPrefs(saved);
+    } catch (err) {
+      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível atualizar as preferências de alertas.');
+    } finally {
+      setPushPrefsBusy(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    if (!userProfile?.uid || !userProfile?.clientId || testNotifBusy) return;
+    setTestNotifBusy(true);
+    setFeedbackMsg(null);
+    try {
+      const support = await getBrowserPushSupport();
+      setPushSupport(support);
+      if (!support.supported) {
+        setFeedbackMsg('Este navegador não suporta notificações nativas do sistema.');
+        return;
+      }
+      if (support.permission === 'denied') {
+        setFeedbackMsg(
+          'As notificações estão bloqueadas nas permissões do navegador. Libere no ícone de cadeado da barra de endereço.',
+        );
+        return;
+      }
+      if (!pushActive || support.permission !== 'granted') {
+        const result = await enableClientBrowserNotifications({
+          uid: userProfile.uid,
+          clientId: userProfile.clientId,
+          vapidKey: vapidConfig.valid ? vapidConfig.key : '',
+          preferencias: pushPrefs,
+        });
+        setPushActive(true);
+        setPushMode(result.mode);
+        setPushPrefs(result.preferencias);
+        setPushSupport(await getBrowserPushSupport());
+      }
+      const sent = await sendTestBrowserNotification(empresa.nome_empresa);
+      setFeedbackMsg(
+        sent
+          ? 'Notificação de teste disparada! Verifique o aviso exibido pelo seu navegador.'
+          : 'Permissão concedida, mas o navegador bloqueou a exibição do alerta de teste (verifique o modo Não Perturbe do sistema).',
+      );
+    } catch (err) {
+      setPushSupport(await getBrowserPushSupport());
+      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível enviar a notificação de teste.');
+    } finally {
+      setTestNotifBusy(false);
+    }
+  };
+
+  const handleOpenNotificationItem = async (notif: ClientNotification) => {
+    const targetTab = getPortalTabForNotification(notif.tipo, notif.linkDestino);
+    setTab(targetTab);
+    setNotifDrawerOpen(false);
+    if (!notif.lida) {
+      await markClientNotificationRead(notif.id).catch(() => undefined);
     }
   };
 
@@ -707,30 +871,44 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-8 space-y-6">
         {pushToast && (
-          <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-700 flex items-start justify-between gap-3 shadow-md">
-            <div className="flex items-start gap-3">
+          <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-700 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
               <BellRing className="w-5 h-5 text-[var(--color-accent)] shrink-0 mt-0.5" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-300">Nova atualização do processo</p>
                 <p className="text-sm font-semibold mt-0.5">{pushToast.title}</p>
                 <p className="text-xs text-slate-200 mt-0.5">{pushToast.body}</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setPushToast(null)}
-              className="p-1 rounded hover:bg-slate-800 text-slate-300 shrink-0"
-              aria-label="Fechar aviso"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {pushToast.tab && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pushToast.tab) setTab(pushToast.tab);
+                    setPushToast(null);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white whitespace-nowrap shrink-0"
+                >
+                  Abrir aba
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPushToast(null)}
+                className="p-1 rounded hover:bg-slate-800 text-slate-300 shrink-0"
+                aria-label="Fechar aviso"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
         {feedbackMsg && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900 flex items-center justify-between gap-2">
             <span>{feedbackMsg}</span>
-            <button type="button" onClick={() => setFeedbackMsg(null)} className="text-xs underline">
+            <button type="button" onClick={() => setFeedbackMsg(null)} className="text-xs underline shrink-0">
               Fechar
             </button>
           </div>
@@ -745,69 +923,161 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 1: PROCESSO & ETAPAS */}
             {tab === 'processo' && (
               <div className="space-y-6">
-                {/* Card de Notificações Push FCM & Últimos Alertas */}
-                <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                      {pushActive ? (
-                        <BellRing className="w-5 h-5 text-[#1E7E34]" />
-                      ) : (
-                        <Bell className="w-5 h-5 text-[var(--color-primary)]" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">
-                        Notificações em Tempo Real do Processo
-                        {pushActive ? ' · Push Ativo' : ''}
-                      </p>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        {!pushSupport.supported
-                          ? 'Alertas disponíveis na Central de Notificações do Portal (este navegador não suporta push em segundo plano).'
-                          : pushSupport.permission === 'denied'
-                            ? 'As notificações push estão bloqueadas nas permissões do navegador; libere no ícone de cadeado da barra de endereço.'
-                            : !effectiveVapidKey
-                              ? 'Alertas em tempo real ativos no Portal. Para push em segundo plano, aguarde a configuração da chave Web Push pelo administrador.'
+                {/* Banner de Notificações Push (Opt-in, Categorias & Botão de Teste) */}
+                <section
+                  aria-label="Preferências de notificações push do processo"
+                  className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 no-print"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                        {pushActive ? (
+                          <BellRing className="w-5 h-5 text-[#1E7E34]" />
+                        ) : (
+                          <Bell className="w-5 h-5 text-[var(--color-primary)]" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">
+                          Notificações do Processo
+                          <span className="font-semibold text-slate-500">
+                            {' · '}
+                            {!pushSupport.supported
+                              ? 'Somente no portal'
+                              : pushSupport.permission === 'denied'
+                                ? 'Bloqueado no navegador'
+                                : pushActive
+                                  ? pushMode === 'fcm'
+                                    ? 'Push em segundo plano (FCM)'
+                                    : 'Alertas em tempo real no navegador'
+                                  : 'Desativado'}
+                          </span>
+                        </p>
+                        <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                          {!pushSupport.supported
+                            ? 'Seu navegador não suporta notificações do sistema; todas as atualizações continuam disponíveis na Central de Alertas.'
+                            : pushSupport.permission === 'denied'
+                              ? 'As notificações estão bloqueadas nas permissões do navegador. Libere o acesso no ícone de cadeado da barra de endereço.'
                               : pushActive
-                                ? 'Você receberá alertas automáticos neste dispositivo quando houver mudança de etapa, status SERMIG ou documento analisado.'
-                                : 'Ative os alertas push para ser avisado imediatamente sobre atualizações de etapa, SERMIG e análise de documentos.'}
-                      </p>
+                                ? pushMode === 'fcm'
+                                  ? 'Você receberá alertas automáticos neste dispositivo (inclusive com o portal fechado) conforme as categorias selecionadas abaixo.'
+                                  : 'Alertas nativos ativos enquanto o portal estiver aberto. Assim que a chave VAPID for configurada, o push funcionará também em segundo plano.'
+                                : 'Ative os alertas no navegador para ser avisado imediatamente sobre mudanças de etapa, documentos analisados e mensagens da equipe.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {pushSupport.supported && pushSupport.permission !== 'denied' && (
+                        <>
+                          {pushActive ? (
+                            <button
+                              type="button"
+                              disabled={pushBusy}
+                              onClick={() => void handleDisablePush()}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                            >
+                              <BellOff className="w-3.5 h-3.5" />
+                              {pushBusy ? 'Atualizando...' : 'Desativar Push'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={pushBusy}
+                              onClick={() => void handleEnablePush()}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
+                              style={{ backgroundColor: 'var(--color-primary)' }}
+                            >
+                              <BellRing className="w-3.5 h-3.5" />
+                              {pushBusy ? 'Ativando...' : 'Ativar Alertas Push'}
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={testNotifBusy || pushBusy}
+                            onClick={() => void handleTestNotification()}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                          >
+                            <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            {testNotifBusy ? 'Enviando...' : 'Testar notificação'}
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setNotifDrawerOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 tabular-nums"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                        Ver histórico ({notifications.length})
+                      </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setNotifDrawerOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
-                    >
-                      <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                      Ver histórico ({notifications.length})
-                    </button>
-                    {pushSupport.supported && effectiveVapidKey && pushSupport.permission !== 'denied' && (
-                      pushActive ? (
-                        <button
-                          type="button"
-                          disabled={pushBusy}
-                          onClick={() => void handleDisablePush()}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap disabled:opacity-50"
-                        >
-                          <BellOff className="w-3.5 h-3.5" />
-                          {pushBusy ? 'Atualizando...' : 'Desativar Push'}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={pushBusy}
-                          onClick={() => void handleEnablePush()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap disabled:opacity-50"
-                          style={{ backgroundColor: 'var(--color-primary)' }}
-                        >
-                          <BellRing className="w-3.5 h-3.5" />
-                          {pushBusy ? 'Ativando...' : 'Ativar Alertas Push'}
-                        </button>
-                      )
-                    )}
+
+                  {/* Controles por categoria de evento */}
+                  <div className="pt-3.5 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2.5">
+                      Categorias de alerta no navegador
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {(
+                        [
+                          {
+                            key: 'statusProcesso' as const,
+                            label: 'Etapas e status SERMIG',
+                            desc: 'Mudanças de fase, prazos e pareceres',
+                          },
+                          {
+                            key: 'documentos' as const,
+                            label: 'Documentos e checklist',
+                            desc: 'Aprovações, pendências e solicitações',
+                          },
+                          {
+                            key: 'mensagensEquipe' as const,
+                            label: 'Mensagens da equipe',
+                            desc: 'Respostas do consultor no chat do portal',
+                          },
+                        ] as const
+                      ).map((cat) => {
+                        const checked = pushPrefs[cat.key];
+                        return (
+                          <button
+                            key={cat.key}
+                            type="button"
+                            role="switch"
+                            aria-checked={checked}
+                            disabled={pushPrefsBusy}
+                            onClick={() => void handleTogglePushCategory(cat.key)}
+                            className={`flex items-center justify-between gap-3 px-3.5 py-2.5 min-h-[44px] rounded-lg border text-left transition-colors disabled:opacity-60 ${
+                              checked
+                                ? 'border-slate-300 bg-slate-50/70'
+                                : 'border-slate-200 bg-white hover:bg-slate-50/40'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-900 truncate">{cat.label}</p>
+                              <p className="text-[11px] text-slate-500 truncate">{cat.desc}</p>
+                            </div>
+                            <span
+                              aria-hidden="true"
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                                checked ? 'bg-[var(--color-primary)]' : 'bg-slate-300'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                  checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                                }`}
+                              />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                </section>
                 <div className="bg-white border border-slate-200 rounded-xl p-6">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
                     <div>
@@ -1894,20 +2164,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-primary)]">
-                            {notif.tipo === 'etapa_pipeline'
-                              ? 'Etapa do Processo'
-                              : notif.tipo === 'status_sermig'
-                                ? 'Status SERMIG'
-                                : notif.tipo === 'documento'
-                                  ? 'Documento'
-                                  : notif.tipo === 'parecer'
-                                    ? 'Parecer Técnico'
-                                    : notif.tipo === 'prazo'
-                                      ? 'Prazo Legal'
-                                      : 'Comunicado'}
+                            {getNotificationTypeLabel(notif.tipo)}
                           </span>
                           <span className="text-[11px] text-slate-500 tabular-nums">
                             {formatDateTimeBR(notif.createdAt)}
@@ -1919,16 +2179,25 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         <p className="text-sm font-bold text-slate-900">{notif.titulo}</p>
                         <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{notif.mensagem}</p>
                       </div>
-                      {!notif.lida && (
+                      <div className="shrink-0 flex flex-col sm:flex-row items-end sm:items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => void markClientNotificationRead(notif.id)}
-                          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                          onClick={() => void handleOpenNotificationItem(notif)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
                         >
-                          <Check className="w-3 h-3" />
-                          Marcar lida
+                          Abrir aba
                         </button>
-                      )}
+                        {!notif.lida && (
+                          <button
+                            type="button"
+                            onClick={() => void markClientNotificationRead(notif.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                          >
+                            <Check className="w-3 h-3" />
+                            Marcar lida
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))
