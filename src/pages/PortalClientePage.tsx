@@ -40,6 +40,7 @@ import { useApp } from '../contexts/AppContext';
 import { PIPELINE_STAGES } from '../data/seeds';
 import {
   fetchClientPortalData,
+  fetchPortalClientsForStaff,
   makeId,
   saveDocumentAudited,
   uploadFileToServer,
@@ -91,9 +92,29 @@ interface PortalClientePageProps {
 
 type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
 
+function readClientIdFromUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const fromSearch = new URLSearchParams(window.location.search).get('clientId');
+  if (fromSearch) return fromSearch.trim();
+  const hashQuery = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+  const fromHash = hashQuery ? new URLSearchParams(hashQuery).get('clientId') : null;
+  return (fromHash || '').trim();
+}
+
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
   const { userProfile, authLoading, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
+  const isStaffPortalPreview = Boolean(
+    userProfile &&
+      userProfile.status === 'ativo' &&
+      (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente'),
+  );
   const isAdminPortal = Boolean(userProfile && userProfile.status === 'ativo' && userProfile.role === 'admin');
+  const [staffSelectedClientId, setStaffSelectedClientId] = useState<string>(() => readClientIdFromUrl());
+  const [staffClientsList, setStaffClientsList] = useState<Client[]>([]);
+  const [staffListLoading, setStaffListLoading] = useState(false);
+
+  const effectiveClientId = isStaffPortalPreview ? staffSelectedClientId : userProfile?.clientId || '';
+
   const [tab, setTab] = useState<PortalTab>('processo');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -134,14 +155,41 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const [npsNota, setNpsNota] = useState(5);
   const [npsComent, setNpsComent] = useState('');
 
+  useEffect(() => {
+    if (!isStaffPortalPreview) return;
+    const syncFromUrl = () => {
+      const nextId = readClientIdFromUrl();
+      if (nextId) setStaffSelectedClientId(nextId);
+    };
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, [isStaffPortalPreview]);
+
+  useEffect(() => {
+    if (!isStaffPortalPreview) return;
+    let active = true;
+    setStaffListLoading(true);
+    void fetchPortalClientsForStaff()
+      .then((list) => {
+        if (active) setStaffClientsList(list);
+      })
+      .finally(() => {
+        if (active) setStaffListLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isStaffPortalPreview]);
+
   const loadPortal = useCallback(async () => {
-    if (!userProfile?.clientId) {
+    if (!effectiveClientId) {
+      setClient(null);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchClientPortalData(userProfile.clientId);
+      const data = await fetchClientPortalData(effectiveClientId);
       setClient(data.client);
       setDependents(data.dependents);
       setCases(data.cases);
@@ -162,14 +210,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     } finally {
       setLoading(false);
     }
-  }, [userProfile?.clientId]);
+  }, [effectiveClientId]);
 
   useEffect(() => {
     void loadPortal();
   }, [loadPortal]);
 
   useEffect(() => {
-    if (!userProfile?.clientId || !userProfile?.uid) return;
+    if (!effectiveClientId || !userProfile?.uid) return;
     let active = true;
 
     void getBrowserPushSupport().then((support) => {
@@ -182,7 +230,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       .catch(() => undefined);
 
     const unsubNotifs = subscribeClientNotifications(
-      userProfile.clientId,
+      effectiveClientId,
       (list) => {
         if (active) setNotifications(list);
       },
@@ -201,7 +249,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       unsubNotifs();
       unsubFcm();
     };
-  }, [userProfile?.clientId, userProfile?.uid, loadPortal]);
+  }, [effectiveClientId, userProfile?.uid, loadPortal]);
 
   if (authLoading) {
     return (
@@ -211,7 +259,117 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     );
   }
 
-  if (!userProfile || userProfile.role !== 'cliente' || userProfile.status !== 'ativo' || !userProfile.clientId) {
+  if (isStaffPortalPreview && !effectiveClientId) {
+    const unlockedClients = staffClientsList.filter((c) => c.portalLiberado);
+    const pendingClients = staffClientsList.filter((c) => !c.portalLiberado);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 max-w-2xl w-full space-y-5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Visualização da Equipe</p>
+              <h1 className="text-xl font-bold text-slate-900 mt-0.5">Portal do Cliente</h1>
+              <p className="text-xs text-slate-600 mt-1">
+                Selecione um cliente abaixo para abrir e conferir exatamente o que ele vê no portal.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('/painel')}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              Voltar ao Painel
+            </button>
+          </div>
+
+          {staffListLoading ? (
+            <p className="text-sm text-slate-500 py-6 text-center">Carregando lista de clientes...</p>
+          ) : staffClientsList.length === 0 ? (
+            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-3">
+              <p className="text-sm text-slate-700 font-medium">Nenhum cliente cadastrado ainda.</p>
+              <button
+                type="button"
+                onClick={() => onNavigate('/painel')}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                Ir para Clientes no Painel
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {unlockedClients.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-[#1E7E34]">
+                    Portais Liberados ({unlockedClients.length})
+                  </p>
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                    {unlockedClients.map((cl) => (
+                      <div key={cl.id} className="p-3.5 bg-white flex items-center justify-between gap-3 hover:bg-slate-50/70">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{cl.nomeCompleto}</p>
+                          <p className="text-xs text-slate-500 truncate">{cl.email}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStaffSelectedClientId(cl.id);
+                            onNavigate(`/portal?clientId=${encodeURIComponent(cl.id)}`);
+                          }}
+                          className="px-3.5 py-2 rounded-lg text-xs font-semibold text-white shrink-0"
+                          style={{ backgroundColor: 'var(--color-primary)' }}
+                        >
+                          Abrir Portal
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pendingClients.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Aguardando liberação ({pendingClients.length})
+                  </p>
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                    {pendingClients.slice(0, 6).map((cl) => (
+                      <div key={cl.id} className="p-3 bg-slate-50/50 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-700 truncate">{cl.nomeCompleto}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{cl.email}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStaffSelectedClientId(cl.id);
+                            onNavigate(`/portal?clientId=${encodeURIComponent(cl.id)}`);
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 shrink-0"
+                        >
+                          Pré-visualizar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const isClientAuthorized = Boolean(
+    userProfile &&
+      userProfile.role === 'cliente' &&
+      userProfile.status === 'ativo' &&
+      userProfile.clientId &&
+      (!client || client.portalLiberado !== false),
+  );
+
+  if (!userProfile || (!isStaffPortalPreview && !isClientAuthorized)) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
         <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
@@ -595,6 +753,35 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
+      {isStaffPortalPreview && (
+        <div className="bg-[#0B1F33] text-white border-b border-white/10 px-4 sm:px-6 py-2.5 no-print">
+          <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-medium">
+              Visualizando Portal de <strong>{client?.nomeCompleto || 'Cliente'}</strong>
+              {client && !client.portalLiberado ? ' (ainda bloqueado para o cliente)' : ' · Acesso liberado'}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStaffSelectedClientId('');
+                  onNavigate('/portal');
+                }}
+                className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-semibold"
+              >
+                Trocar cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('/painel')}
+                className="px-2.5 py-1 rounded bg-white text-[#0B1F33] hover:bg-slate-100 font-semibold"
+              >
+                Voltar ao Painel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header do Portal padronizado pela identidade da logo */}
       <header className="bg-white border-b border-[#E5DFD2] sticky top-0 z-30">
         <BrandRibbon className="h-[3px] w-full no-print" />

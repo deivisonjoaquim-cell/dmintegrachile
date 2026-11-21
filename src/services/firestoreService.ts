@@ -89,12 +89,10 @@ import {
 import {
   buildAuditLogPayloadForRuleDecision,
   loadRuleEngineSnapshotAsync,
-  recordRuleEngineDecision,
   saveRuleEngineSnapshot,
   setLocalAiRuntimeNotice,
   type CatalogSyncSource,
   type PendingOfflineDiagnostic,
-  type RuleDecisionOrigin,
   type RuleEngineDecisionLog,
 } from '../utils/offlineRuleEngineStore';
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
@@ -2174,7 +2172,7 @@ export async function fetchClientPortalData(clientId: string): Promise<{
   const clientSnap = await getDoc(doc(db, 'clients', clientId)).catch(() => null);
   const client = clientSnap?.exists() ? ({ id: clientSnap.id, ...(clientSnap.data() as Omit<Client, 'id'>) }) : null;
 
-  const userEmail = auth.currentUser?.email || client?.email || '';
+  const userEmail = (client?.email || auth.currentUser?.email || '').trim().toLowerCase();
   const fetchClientLeads = userEmail
     ? getDocs(query(collection(db, 'leads'), where('email', '==', userEmail)))
         .then((snap) =>
@@ -2459,16 +2457,6 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
     }
   };
 
-  const routeOriginMap: Record<string, RuleDecisionOrigin> = {
-    '/api/ai/diagnostico': 'diagnostico_ia_regras',
-    '/api/ai/parecer': 'parecer_regras',
-    '/api/ai/custos': 'custos_regras',
-    '/api/ai/norma': 'norma_regras',
-    '/api/ai/norma-verificar': 'norma_regras',
-    '/api/ai/analisar-documento': 'documento_regras',
-    '/api/ai/proposta': 'proposta_regras',
-  };
-
   try {
     const result = await executeFetch(false, Boolean(options?.onProgress));
     const meta = result as {
@@ -2480,35 +2468,134 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
       riscos?: string[];
     };
     if (meta?.fallback || meta?.origem === 'regras') {
-      setLocalAiRuntimeNotice('local_rules', meta.mensagemUsuario);
-      const reqBody = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-      const subLabel =
-        typeof reqBody.subcategoriaRecomendada === 'string' && reqBody.subcategoriaRecomendada.trim()
-          ? reqBody.subcategoriaRecomendada.trim()
-          : endpoint.replace('/api/ai/', '').toUpperCase();
-      recordRuleEngineDecision({
-        mode: 'online_fallback_regras',
-        origin: routeOriginMap[endpoint] || 'diagnostico_ia_regras',
-        ruleVersion: 'regras-servidor',
-        subcategoriaRecomendada: subLabel,
-        regrasAcionadas: Array.isArray(reqBody.regrasAcionadas)
-          ? reqBody.regrasAcionadas.map((r) => String(r))
-          : meta.resumoExecutivo
-            ? [meta.resumoExecutivo]
-            : [`Execução via motor local inteligente em ${endpoint}`],
-        flagsRisco: Array.isArray(meta.riscos) ? meta.riscos.map((r) => String(r)) : [],
-        fontesLegaisCitadas: Array.isArray(meta.fontesCitadas) ? meta.fontesCitadas.map((f) => String(f)) : [],
-        motivoModoLocal: meta.mensagemUsuario || 'IA em nuvem indisponível; resposta gerada pelo motor local inteligente.',
-      });
+      setLocalAiRuntimeNotice('local_rules');
     } else if (meta?.origem === 'principal' || meta?.origem === 'reserva') {
       setLocalAiRuntimeNotice('cloud');
     }
     return result;
   } catch (err) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      setLocalAiRuntimeNotice('local_rules', 'Sem conexão de rede — operando no motor local persistido.');
+      setLocalAiRuntimeNotice('local_rules');
     }
     throw err;
+  }
+}
+
+export async function setClientPortalAccessAudited(params: {
+  client: Client;
+  clientCases?: Case[];
+  liberado: boolean;
+  role: UserRole;
+  conviteEnviadoEm?: string;
+}): Promise<Client> {
+  const { client, liberado, role, conviteEnviadoEm } = params;
+  const nowIso = new Date().toISOString();
+  const normalizedEmail = (client.email || '').trim().toLowerCase();
+
+  const updatedClient: Client = {
+    ...client,
+    email: normalizedEmail || client.email,
+    portalLiberado: liberado,
+    statusAcessoPortal: liberado ? 'Liberado' : 'Pendente liberação',
+    ...(conviteEnviadoEm ? { conviteEnviadoEm } : {}),
+    updatedAt: nowIso,
+  };
+
+  await saveDocumentAudited(
+    'clients',
+    client.id,
+    updatedClient as unknown as Record<string, unknown>,
+    false,
+    role,
+    'portalLiberado',
+    client.portalLiberado,
+  );
+
+  // Sincroniza TODOS os processos vinculados ao cliente para evitar divergência entre Cliente e Caso
+  let casesToSync = params.clientCases;
+  if (!casesToSync) {
+    const snap = await getDocs(query(collection(db, 'cases'), where('clientId', '==', client.id))).catch(() => null);
+    casesToSync = snap
+      ? snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Case, 'id'>) }))
+      : [];
+  }
+
+  for (const cs of casesToSync) {
+    if (Boolean(cs.portalLiberado) !== liberado) {
+      const nextCase: Case = { ...cs, portalLiberado: liberado, updatedAt: nowIso };
+      delete (nextCase as unknown as Record<string, unknown>).valorContrato;
+      await saveDocumentAudited(
+        'cases',
+        cs.id,
+        nextCase as unknown as Record<string, unknown>,
+        false,
+        role,
+        'portalLiberado',
+        cs.portalLiberado,
+      ).catch(() => {});
+    }
+  }
+
+  // Se o cliente já tiver conta Google registrada em users/{uid}, atualiza status/clientId imediatamente (admin)
+  if (role === 'admin') {
+    try {
+      const targetStatus: UserProfile['status'] = liberado ? 'ativo' : 'pendente';
+      const candidateUserDocs: Array<{ id: string; data: Partial<UserProfile> }> = [];
+      if (client.userId) {
+        const uSnap = await getDoc(doc(db, 'users', client.userId)).catch(() => null);
+        if (uSnap?.exists()) {
+          candidateUserDocs.push({ id: uSnap.id, data: uSnap.data() as Partial<UserProfile> });
+        }
+      }
+      if (candidateUserDocs.length === 0 && normalizedEmail) {
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', normalizedEmail))).catch(
+          () => null,
+        );
+        if (usersSnap && !usersSnap.empty) {
+          for (const d of usersSnap.docs) {
+            candidateUserDocs.push({ id: d.id, data: d.data() as Partial<UserProfile> });
+          }
+        }
+      }
+
+      for (const u of candidateUserDocs) {
+        if (u.data.role === 'cliente') {
+          await updateDoc(doc(db, 'users', u.id), {
+            clientId: client.id,
+            status: targetStatus,
+            updatedAt: nowIso,
+          }).catch(() => {});
+          if (liberado && updatedClient.userId !== u.id) {
+            await updateDoc(doc(db, 'clients', client.id), {
+              userId: u.id,
+              updatedAt: nowIso,
+            }).catch(() => {});
+            updatedClient.userId = u.id;
+          }
+        }
+      }
+    } catch {
+      // Non-blocking sync for user doc
+    }
+  }
+
+  return updatedClient;
+}
+
+export async function fetchPortalClientsForStaff(): Promise<Client[]> {
+  try {
+    const snap = await getDocs(collection(db, 'clients'));
+    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Client, 'id'>) }));
+    return list
+      .filter((c) => !c.arquivado)
+      .sort((a, b) => {
+        if (Boolean(b.portalLiberado) !== Boolean(a.portalLiberado)) {
+          return Number(Boolean(b.portalLiberado)) - Number(Boolean(a.portalLiberado));
+        }
+        return (a.nomeCompleto || '').localeCompare(b.nomeCompleto || '', 'pt-BR');
+      });
+  } catch {
+    return [];
   }
 }
 
@@ -2516,36 +2603,68 @@ export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<U
   if (user.role !== 'cliente') return user;
 
   const normalizedEmail = (user.email || '').trim().toLowerCase();
-  if (!normalizedEmail) return user;
+  if (!normalizedEmail && !user.clientId) return user;
 
   try {
-    let clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', normalizedEmail)));
-    if (clSnap.empty && user.email && user.email !== normalizedEmail) {
-      clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', user.email)));
+    let matchedId: string | null = null;
+    let clientData: Client | null = null;
+
+    // 1. Se já possui clientId vinculado, revalida diretamente pelo ID
+    if (user.clientId) {
+      const directSnap = await getDoc(doc(db, 'clients', user.clientId)).catch(() => null);
+      if (directSnap?.exists()) {
+        matchedId = directSnap.id;
+        clientData = { id: directSnap.id, ...(directSnap.data() as Omit<Client, 'id'>) };
+      }
     }
 
-    if (!clSnap.empty) {
-      const clDoc = clSnap.docs[0];
-      const clientData = clDoc.data() as Client;
+    // 2. Busca por userId já vinculado
+    if (!clientData) {
+      const byUidSnap = await getDocs(query(collection(db, 'clients'), where('userId', '==', user.uid))).catch(
+        () => null,
+      );
+      if (byUidSnap && !byUidSnap.empty) {
+        const docSnap = byUidSnap.docs[0];
+        matchedId = docSnap.id;
+        clientData = { id: docSnap.id, ...(docSnap.data() as Omit<Client, 'id'>) };
+      }
+    }
+
+    // 3. Busca por e-mail normalizado (e fallback para caixa original caso legado)
+    if (!clientData && normalizedEmail) {
+      let clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', normalizedEmail))).catch(
+        () => null,
+      );
+      if ((!clSnap || clSnap.empty) && user.email && user.email !== normalizedEmail) {
+        clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', user.email))).catch(() => null);
+      }
+      if (clSnap && !clSnap.empty) {
+        const docSnap = clSnap.docs[0];
+        matchedId = docSnap.id;
+        clientData = { id: docSnap.id, ...(docSnap.data() as Omit<Client, 'id'>) };
+      }
+    }
+
+    if (matchedId && clientData) {
       const nowIso = new Date().toISOString();
       const newStatus: UserProfile['status'] = clientData.portalLiberado ? 'ativo' : 'pendente';
 
       if (clientData.portalLiberado && clientData.userId !== user.uid) {
-        await updateDoc(doc(db, 'clients', clDoc.id), {
+        await updateDoc(doc(db, 'clients', matchedId), {
           userId: user.uid,
           updatedAt: nowIso,
         }).catch(() => {});
       }
 
-      if (user.clientId !== clDoc.id || user.status !== newStatus) {
+      if (user.clientId !== matchedId || user.status !== newStatus) {
         await updateDoc(doc(db, 'users', user.uid), {
-          clientId: clDoc.id,
+          clientId: matchedId,
           status: newStatus,
           updatedAt: nowIso,
         }).catch(() => {});
       }
 
-      return { ...user, clientId: clDoc.id, status: newStatus, updatedAt: nowIso };
+      return { ...user, clientId: matchedId, status: newStatus, updatedAt: nowIso };
     }
   } catch {
     // Fallback silencioso caso o cliente ainda não tenha cadastro vinculado

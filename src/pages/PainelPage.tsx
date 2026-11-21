@@ -21,7 +21,6 @@ import {
   X,
 } from 'lucide-react';
 import { BrandLogo, BrandRibbon, BrandWordmark } from '../components/BrandLogo';
-import { OfflineModeStatusBar } from '../components/OfflineModeStatusBar';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
@@ -31,7 +30,7 @@ import { PainelDocumentosExport } from '../components/painel/PainelDocumentosExp
 import { PainelFerramentas } from '../components/painel/PainelFerramentas';
 import { PainelFinanceiro } from '../components/painel/PainelFinanceiro';
 import { PainelFunnelKanbanDashboard } from '../components/painel/PainelFunnelKanbanDashboard';
-import { PainelLeads, type PainelLeadsViewId } from '../components/painel/PainelLeads';
+import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
@@ -148,10 +147,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   } | null>(null);
   const [requestedQuickAction, setRequestedQuickAction] = useState<{
     action: 'new_case' | 'new_client';
-    seq: number;
-  } | null>(null);
-  const [requestedLeadsView, setRequestedLeadsView] = useState<{
-    view: PainelLeadsViewId;
     seq: number;
   } | null>(null);
   const [requestedOpenLead, setRequestedOpenLead] = useState<{
@@ -1119,15 +1114,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             activeHub === 'leads' || activeHub === 'funil' ? 'max-w-[1600px]' : 'max-w-7xl'
           }`}
         >
-          <OfflineModeStatusBar
-            variant="panel"
-            isDark={isDark}
-            onOpenDecisionLogs={() => {
-              setActiveHub('leads');
-              setRequestedLeadsView({ view: 'motor_local', seq: Date.now() });
-            }}
-          />
-
           {firestore.error && (
             <div className="rounded-xl border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-xs text-red-800 dark:text-red-300 flex items-center justify-between gap-3">
               <span>{firestore.error}</span>
@@ -1291,7 +1277,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   clients={effectiveWorkspace.clients}
                   tasks={effectiveWorkspace.tasks}
                   auditLogs={effectiveWorkspace.auditLogs}
-                  requestedView={requestedLeadsView}
                   requestedOpenLead={requestedOpenLead}
                   requestedQuickLeadSeq={requestedQuickLeadSeq}
                   visaCategories={visaCategories}

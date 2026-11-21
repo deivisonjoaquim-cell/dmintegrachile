@@ -98,6 +98,16 @@ service cloud.firestore {
         && clientData.email.lower() == request.auth.token.email.lower();
     }
 
+    // Static-query-safe email match for allow list queries (Firestore cannot prove .lower() on resource.data in list queries)
+    function isClientEmailListMatch(clientData) {
+      return isSignedIn()
+        && 'email' in request.auth.token
+        && request.auth.token.email is string
+        && 'email' in clientData
+        && clientData.email is string
+        && (clientData.email == request.auth.token.email.lower() || clientData.email == request.auth.token.email);
+    }
+
     function canClientSelfLink(clientId, targetStatus) {
       let clientPath = /databases/$(database)/documents/clients/$(clientId);
       return isValidId(clientId)
@@ -612,7 +622,7 @@ service cloud.firestore {
 
     match /leads/{leadId} {
       allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower()));
-      allow list: if isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower());
+      allow list: if isStaff() || isClientEmailListMatch(existing());
       allow create: if isValidId(leadId) && isValidLead(incoming()) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
       allow update: if isValidId(leadId) && isValidLead(incoming()) && (
         isStaff() ||
@@ -640,11 +650,12 @@ service cloud.firestore {
       allow get: if isValidId(clientId) && (
         isStaff() ||
         (isCliente() && existing().userId == request.auth.uid) ||
+        (isCliente() && clientId == userClientId()) ||
         (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isVerifiedClientEmailMatch(existing()))
       );
       allow list: if isStaff() ||
         (isCliente() && existing().userId == request.auth.uid) ||
-        (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isVerifiedClientEmailMatch(existing()));
+        (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isClientEmailListMatch(existing()));
       allow create: if isAdminOrConsultor() && isValidId(clientId) && isValidClient(incoming());
       allow update: if isValidId(clientId) && isValidClient(incoming()) && (
         isAdminOrConsultor() ||
@@ -675,7 +686,11 @@ service cloud.firestore {
 
     match /cases/{caseId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create, update: if isStaff() && isValidId(caseId) && isValidCase(incoming());
+      allow create: if isStaff() && isValidId(caseId) && isValidCase(incoming());
+      allow update: if isValidId(caseId) && isValidCase(incoming()) && (
+        isStaff() ||
+        (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().diff(existing()).affectedKeys().hasOnly(['npsNota', 'npsComentario', 'updatedAt']))
+      );
       allow delete: if isAdmin() && isValidId(caseId);
     }
 

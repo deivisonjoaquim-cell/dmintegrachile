@@ -224,7 +224,7 @@ describe('Live Express API Integration (JWT RS256 + Role Guards + All 7 AI Route
     assert.equal(aiHealth.ok, true);
     assert.equal(aiHealth.geminiConfigured, false);
     assert.equal(aiHealth.mode, 'rules_live_hybrid');
-    assert.ok(aiHealth.activeEngine.toLowerCase().includes('motor local inteligente'));
+    assert.ok(aiHealth.activeEngine.toLowerCase().includes('regras sermig/bcn'));
 
     // Bootstrap check-admin
     const checkAdminResp = await originalFetch(`${baseUrl}/api/auth/check-admin`, {

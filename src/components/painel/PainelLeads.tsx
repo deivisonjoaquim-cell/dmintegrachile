@@ -20,7 +20,6 @@ import {
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
 import { ConfirmActionModal } from '../ui/DesignSystem';
-import { OfflineDecisionLogsPanel } from './OfflineDecisionLogsPanel';
 import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
 import { buildUpdatedLeadFromPatch, type LeadQuickEditPatch } from '../../utils/leadKanban';
 import {
@@ -63,15 +62,9 @@ import {
   sanitizeClientAiError,
   saveAiDraftCache,
 } from '../../utils/aiClient';
-import {
-  listRuleEngineDecisionLogs,
-  mergeLocalAndCloudRuleLogs,
-  parseRuleDecisionLogsFromAuditLogs,
-  subscribeOfflineEngineChanges,
-} from '../../utils/offlineRuleEngineStore';
 type PanelTheme = 'light' | 'dark';
 
-export type PainelLeadsViewId = 'lista' | 'kanban' | 'inteligencia' | 'motor_local';
+export type PainelLeadsViewId = 'lista' | 'kanban' | 'inteligencia';
 
 interface PainelLeadsProps {
   role: UserRole;
@@ -120,7 +113,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const [view, setView] = useState<PainelLeadsViewId>(() => {
     try {
       const saved = window.localStorage.getItem('dm_leads_view');
-      if (saved === 'lista' || saved === 'kanban' || saved === 'inteligencia' || saved === 'motor_local') return saved;
+      if (saved === 'lista' || saved === 'kanban' || saved === 'inteligencia') return saved;
     } catch {
       // ignore storage errors
     }
@@ -133,17 +126,6 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     }
   }, [requestedView]);
 
-  const [localDecisionTick, setLocalDecisionTick] = useState(0);
-  useEffect(() => subscribeOfflineEngineChanges(() => setLocalDecisionTick((n) => n + 1)), []);
-
-  const pendingOfflineReviewCount = useMemo(() => {
-    void localDecisionTick;
-    const merged = mergeLocalAndCloudRuleLogs(
-      listRuleEngineDecisionLogs(),
-      parseRuleDecisionLogsFromAuditLogs(auditLogs),
-    );
-    return merged.filter((l) => l.syncStatus !== 'revisado').length;
-  }, [auditLogs, localDecisionTick]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [smartFilter, setSmartFilter] = useState<
@@ -703,13 +685,6 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               { id: 'lista', label: 'Lista' },
               { id: 'kanban', label: 'Kanban' },
               { id: 'inteligencia', label: 'Métricas' },
-              {
-                id: 'motor_local',
-                label:
-                  pendingOfflineReviewCount > 0
-                    ? `Motor Local (${pendingOfflineReviewCount})`
-                    : 'Motor Local',
-              },
             ].map((t) => (
               <button
                 key={t.id}
@@ -784,16 +759,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         </div>
       )}
 
-      {/* LOG INTERNO DO MOTOR DE REGRAS OFFLINE / LOCAL */}
-      {view === 'motor_local' ? (
-        <OfflineDecisionLogsPanel
-          role={role}
-          userProfile={userProfile}
-          auditLogs={auditLogs}
-          isDark={panelTheme === 'dark'}
-          onRefreshWorkspace={onRefresh}
-        />
-      ) : view === 'inteligencia' ? (
+      {view === 'inteligencia' ? (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
             <div className="flex items-center gap-2">

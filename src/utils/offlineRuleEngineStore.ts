@@ -714,13 +714,13 @@ export function buildLocalDiagnosticSynthesis(
     rascunho: true,
     fallback: true,
     origem: 'regras',
-    origemLabel: 'Motor local inteligente + regras (execução offline/local)',
-    modeloUsado: 'motor_local_persistido',
+    origemLabel: 'Assistente de Regras SERMIG/BCN',
+    modeloUsado: 'regras_sermig',
     tentativas: 0,
     mensagemUsuario:
       reasonMessage ||
-      'Modo local ativo: síntese orientativa gerada diretamente a partir das regras migratórias persistidas no dispositivo. A decisão foi registrada no log interno para revisão da consultoria.',
-    resumoExecutivo: `Enquadramento local apontado pela versão ${result.versaoRegras.versao} do motor de regras: ${subLabel} (índice de viabilidade ${result.viabilidade.total}/100, confiança ${result.confianca}). Solicitante atualmente ${localText}. Rascunho determinístico gerado offline para revisão humana.`,
+      'Síntese orientativa estruturada pelas regras migratórias SERMIG/BCN.',
+    resumoExecutivo: `Enquadramento apontado pelas regras ${result.versaoRegras.versao}: ${subLabel} (viabilidade ${result.viabilidade.total}/100, confiança ${result.confianca}). Solicitante atualmente ${localText}.`,
     riscos: riscos.slice(0, 6),
     perguntasConsultor: [
       'Confirmar data prevista de embarque e validade atual do passaporte de todos os viajantes.',

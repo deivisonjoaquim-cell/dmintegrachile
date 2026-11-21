@@ -318,26 +318,29 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
   });
 
   it('does NOT retry on definitive errors (400/401/403/404) or safety-blocked responses and returns distinct Portuguese errors', async () => {
-    const cases: Array<{ code: number; expectedMessage: string }> = [
-      { code: 400, expectedMessage: MSG_AI_BAD_REQUEST },
-      { code: 401, expectedMessage: MSG_AI_INVALID_KEY },
-      { code: 403, expectedMessage: MSG_AI_INVALID_KEY },
-      { code: 404, expectedMessage: MSG_AI_MODEL_NOT_FOUND },
+    const cases: Array<{ code: number; expectedMessage: string; expectedAttempts: number }> = [
+      { code: 400, expectedMessage: MSG_AI_BAD_REQUEST, expectedAttempts: 1 },
+      { code: 401, expectedMessage: MSG_AI_INVALID_KEY, expectedAttempts: 1 },
+      { code: 403, expectedMessage: MSG_AI_INVALID_KEY, expectedAttempts: 1 },
+      { code: 404, expectedMessage: MSG_AI_MODEL_NOT_FOUND, expectedAttempts: 2 },
     ];
-    for (const { code, expectedMessage } of cases) {
+    for (const { code, expectedMessage, expectedAttempts } of cases) {
       let attempts = 0;
+      const modelsTried: string[] = [];
       const res = await chamarGemini({
         ...buildCustosSpec({}),
         configOverride: { apiKey: 'k', maxAttempts: 4, fallbackAttempts: 2, baseDelayMs: 0 },
         sleepFn: async () => {},
-        generateFn: async () => {
+        generateFn: async ({ model }) => {
           attempts += 1;
+          modelsTried.push(model);
           const err = new Error(`{"error":{"code":${code},"message":"Invalid request or API key"}}`) as Error & { status?: number };
           err.status = code;
           throw err;
         },
       });
-      assert.equal(attempts, 1, `HTTP ${code} must not retry`);
+      assert.equal(attempts, expectedAttempts, `HTTP ${code} attempt count mismatch`);
+      assert.equal(new Set(modelsTried).size, attempts, `HTTP ${code} must not retry the same model`);
       assert.equal(res.ok, false);
       assert.equal(res.statusCode, code);
       assert.equal(res.errorMessage, expectedMessage);

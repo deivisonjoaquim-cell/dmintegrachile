@@ -62,12 +62,12 @@ export function getAiEngineHealthStatus(): AiEngineHealthStatus {
         : 'local_rules';
 
   const activeEngine = geminiConfigured
-    ? `IA Gemini (${cfg.primaryModel} + reserva ${cfg.fallbackModel})${altProviders.length > 0 ? ` + failover ${altProviders.map((p) => p.label).join('/')}` : ''} com motor local`
+    ? `IA Gemini (${cfg.primaryModel})`
     : groqProvider
-      ? `IA Groq gratuita (${groqProvider.model}) com motor local`
+      ? `IA em nuvem (${groqProvider.model})`
       : openRouterProvider
-        ? `IA OpenRouter gratuita (${openRouterProvider.model}) com motor local`
-        : 'Motor Local Inteligente + Regras SERMIG/BCN (sem necessidade de chave)';
+        ? `IA em nuvem (${openRouterProvider.model})`
+        : 'Assistente de Regras SERMIG/BCN';
 
   return {
     ok: true,

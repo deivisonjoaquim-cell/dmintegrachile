@@ -20,7 +20,6 @@ import {
   SEED_SITE_CONTENT,
 } from '../data/seeds';
 import {
-  fetchAiHealthStatus,
   fetchRuleEngineBundleWithSync,
   linkGoogleUserToClientOrLead,
   runIdempotentSeedsIfAdmin,
@@ -37,7 +36,6 @@ import {
   loadRuleEngineSnapshotSync,
   markRuleEngineDecisionSynced,
   removePendingOfflineDiagnostic,
-  setLocalAiRuntimeNotice,
   subscribeOfflineEngineChanges,
   type CatalogSyncSource,
 } from '../utils/offlineRuleEngineStore';
@@ -263,26 +261,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const syncedCatalog = await refreshPublicDataWithStatus();
 
-      // Verifica saúde da IA em nuvem quando há equipe autenticada
-      if (
-        userProfile &&
-        userProfile.status === 'ativo' &&
-        (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente')
-      ) {
-        const aiHealth = await fetchAiHealthStatus();
-        if (aiHealth) {
-          const hasCloudAi = Boolean(aiHealth.cloudAiConfigured ?? aiHealth.geminiConfigured);
-          if (hasCloudAi) {
-            setLocalAiRuntimeNotice('cloud');
-          } else {
-            setLocalAiRuntimeNotice(
-              'local_rules',
-              'Motor Local Inteligente ativo (100% funcional sem chave). Para ativar IA em nuvem gratuita na Vercel, configure GEMINI_API_KEY, GROQ_API_KEY ou OPENROUTER_API_KEY.',
-            );
-          }
-        }
-      }
-
       let syncedLeads = 0;
       const pendingDiags = listPendingOfflineDiagnostics();
       for (const item of pendingDiags) {
@@ -356,32 +334,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('offline', handleOffline);
     };
   }, [forceSyncOfflineData]);
-
-  useEffect(() => {
-    if (
-      !userProfile ||
-      userProfile.status !== 'ativo' ||
-      (userProfile.role !== 'admin' && userProfile.role !== 'consultor' && userProfile.role !== 'assistente')
-    ) {
-      return;
-    }
-    let cancelled = false;
-    void fetchAiHealthStatus().then((health) => {
-      if (cancelled || !health) return;
-      const hasCloudAi = Boolean(health.cloudAiConfigured ?? health.geminiConfigured);
-      if (hasCloudAi) {
-        setLocalAiRuntimeNotice('cloud');
-      } else {
-        setLocalAiRuntimeNotice(
-          'local_rules',
-          'Motor Local Inteligente ativo (100% funcional sem chave). Para ativar IA em nuvem gratuita na Vercel, configure GEMINI_API_KEY, GROQ_API_KEY ou OPENROUTER_API_KEY.',
-        );
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [userProfile]);
 
   const inFlightSyncRef = React.useRef<Map<string, Promise<UserProfile>>>(new Map());
 

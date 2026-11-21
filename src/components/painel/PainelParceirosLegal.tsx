@@ -413,7 +413,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       );
       const prefixo =
         res.fallback || res.origem === 'regras'
-          ? `[${res.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}]\n`
+          ? `[${res.origemLabel || 'Assistente de Regras SERMIG/BCN'}]\n`
           : '';
       const parecer = `${prefixo}Nota ${res.nota}/100 · Sugestão: ${res.sugestaoDecisao}\nBase: ${res.baseAplicada}\nRiscos: ${(res.riscos || []).join('; ')}`;
       await saveDocumentAudited(
@@ -431,7 +431,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       );
       setFeedback(
         res.fallback || res.origem === 'regras'
-          ? `${res.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}. ${res.mensagemUsuario || ''}`
+          ? `${res.origemLabel || 'Assistente de Regras SERMIG/BCN'}. ${res.mensagemUsuario || ''}`
           : `Parecer gerado pela IA para "${prop.nome_empresa}". Revise antes de aprovar.`,
       );
       await onRefresh();

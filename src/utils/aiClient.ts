@@ -31,7 +31,9 @@ const SAFE_PT_MESSAGES = [
   'Dados do diagnóstico incompletos',
   'Limite temporário de requisições',
   'Já existe uma solicitação de IA em andamento',
+  'Rascunho estruturado pelas regras',
   'Modo de regras locais ativo',
+  'Não foi possível autenticar no serviço de IA',
   'Chave de IA inválida',
   'Modelo de IA indisponível',
   'Conteúdo bloqueado pelos filtros',
@@ -289,7 +291,11 @@ function isStaleMissingKeyFallback(data: unknown): boolean {
   const meta = data as AiResponseMeta;
   if (meta.fallback !== true) return false;
   const msg = typeof meta.mensagemUsuario === 'string' ? meta.mensagemUsuario.toLowerCase() : '';
-  return msg.includes('modo de regras locais ativo') || msg.includes('chave') && msg.includes('não está configurada');
+  return (
+    msg.includes('modo de regras locais ativo') ||
+    msg.includes('rascunho estruturado pelas regras') ||
+    (msg.includes('chave') && msg.includes('não está configurada'))
+  );
 }
 
 export function saveAiDraftCache<T>(key: string, data: T, ttlMs = DEFAULT_TTL_MS): void {

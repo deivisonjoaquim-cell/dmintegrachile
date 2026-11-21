@@ -1275,11 +1275,11 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               <div className="space-y-1">
                 {aiDraft.fallback || aiDraft.origem === 'regras' ? (
                   <>
-                    <span className="inline-block px-2.5 py-1 rounded-md bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-950">
-                      {aiDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
+                    <span className="inline-block px-2.5 py-1 rounded-md bg-slate-200/80 border border-slate-300 text-[11px] font-semibold text-slate-800">
+                      {aiDraft.origemLabel || 'Assistente de Regras SERMIG/BCN'}
                     </span>
                     {aiDraft.mensagemUsuario && (
-                      <p className="text-xs text-amber-900">{aiDraft.mensagemUsuario}</p>
+                      <p className="text-xs text-slate-600">{aiDraft.mensagemUsuario}</p>
                     )}
                   </>
                 ) : (

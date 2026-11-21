@@ -841,11 +841,11 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                 <div className="space-y-1">
                   {custosDraft.fallback || custosDraft.origem === 'regras' ? (
                     <>
-                      <span className="inline-block px-2.5 py-0.5 rounded bg-amber-100 border border-amber-300 font-bold text-amber-950">
-                        {custosDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
+                      <span className="inline-block px-2.5 py-0.5 rounded bg-slate-200/80 border border-slate-300 font-semibold text-slate-800">
+                        {custosDraft.origemLabel || 'Assistente de Regras SERMIG/BCN'}
                       </span>
                       {custosDraft.mensagemUsuario && (
-                        <p className="text-amber-900">{custosDraft.mensagemUsuario}</p>
+                        <p className="text-slate-700">{custosDraft.mensagemUsuario}</p>
                       )}
                     </>
                   ) : (

@@ -5,15 +5,15 @@ export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-4-hydrogen';
 export const DEFAULT_GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 
 export const MSG_AI_HIGH_DEMAND =
-  'O serviço de IA está com alta demanda. Tentamos novamente automaticamente; se não responder, geramos um rascunho pelas regras. Você pode tentar de novo em instantes.';
+  'Rascunho estruturado pelas regras SERMIG/BCN enquanto a IA está com alta demanda. Você pode tentar novamente em instantes.';
 export const MSG_AI_OTHER_ERROR =
   'Não foi possível gerar o rascunho agora. Seus dados foram mantidos.';
 export const MSG_AI_MISSING_KEY =
-  'Modo de regras locais ativo: a chave GEMINI_API_KEY não está configurada no ambiente do servidor (verifique Settings > Secrets no AI Studio ou Environment Variables na Vercel).';
+  'Rascunho estruturado pelas regras migratórias SERMIG/BCN. Revise e edite livremente antes de aprovar.';
 export const MSG_AI_INVALID_KEY =
-  'Chave de IA inválida ou sem permissão de acesso no servidor. Verifique GEMINI_API_KEY em Settings > Secrets.';
+  'Não foi possível autenticar no serviço de IA. Revise os dados ou utilize o assistente de regras.';
 export const MSG_AI_MODEL_NOT_FOUND =
-  'Modelo de IA indisponível ou não encontrado na configuração atual do servidor.';
+  'Modelo de IA indisponível na configuração atual do servidor.';
 export const MSG_AI_BLOCKED =
   'Conteúdo bloqueado pelos filtros de segurança da IA. Ajuste o texto e tente novamente.';
 export const MSG_AI_BAD_REQUEST =
@@ -980,7 +980,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       },
     };
   }
-  if (primaryOutcome.fatal) {
+  if (primaryOutcome.fatal && primaryOutcome.fatal.statusCode !== 404) {
     return {
       ok: false,
       statusCode: primaryOutcome.fatal.statusCode || 400,
@@ -1000,7 +1000,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   const remainingBeforeBackup = runtime.maxWallClockMs - (Date.now() - startedAtMs);
   if (
     runtime.fallbackModel &&
-    runtime.fallbackModel !== runtime.primaryModel &&
+    runtime.fallbackModel !== effectivePrimaryModel &&
     !sawMalformedJson &&
     remainingBeforeBackup >= 2500
   ) {
@@ -1042,6 +1042,20 @@ export async function chamarGemini<T extends Record<string, unknown>>(
         },
       };
     }
+  } else if (primaryOutcome.fatal) {
+    return {
+      ok: false,
+      statusCode: primaryOutcome.fatal.statusCode || 400,
+      errorMessage: formatFatalAiErrorMessage(primaryOutcome.fatal),
+      audit: {
+        rota: params.route,
+        modeloTipo: 'principal',
+        modeloNome: effectivePrimaryModel,
+        tentativas: totalAttempts,
+        resultado: 'erro_definitivo',
+        statusMotivo: primaryOutcome.fatal.safeReason,
+      },
+    };
   }
 
   // Phase 2.5: Alternative free-tier cloud providers (Groq / OpenRouter) if Gemini had transient failure

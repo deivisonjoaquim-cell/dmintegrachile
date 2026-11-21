@@ -42,6 +42,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
   } = useApp();
   const [signingIn, setSigningIn] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
+  const [checkNotice, setCheckNotice] = useState<string | null>(null);
 
   const isStaffActive =
     Boolean(userProfile) &&
@@ -65,12 +66,13 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     } else if (mode === 'cliente' && isClientActive) {
       onNavigate('/portal');
     } else if (mode === 'cliente' && isStaffActive) {
-      onNavigate('/painel');
+      onNavigate('/portal');
     }
   }, [authLoading, userProfile, mode, isStaffActive, isClientActive, onNavigate]);
 
   const handleLogin = async () => {
     setSigningIn(true);
+    setCheckNotice(null);
     try {
       const profile = await loginWithGoogle();
       if (!profile) return;
@@ -79,7 +81,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
         (profile.role === 'admin' || profile.role === 'consultor' || profile.role === 'assistente');
       const client = profile.role === 'cliente' && profile.status === 'ativo' && Boolean(profile.clientId);
       if (staff) {
-        onNavigate('/painel');
+        onNavigate(mode === 'cliente' ? '/portal' : '/painel');
       } else if (client && mode === 'cliente') {
         onNavigate('/portal');
       }
@@ -90,8 +92,12 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
 
   const handleCheckAccess = async () => {
     setCheckingAccess(true);
+    setCheckNotice(null);
     try {
       await refreshUserProfile();
+      setCheckNotice(
+        'Verificação concluída. Se o consultor já liberou seu acesso, confira se o e-mail cadastrado no processo é exatamente o mesmo desta conta Google.',
+      );
     } finally {
       setCheckingAccess(false);
     }
@@ -224,6 +230,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                   <p className="text-xs mt-1 leading-relaxed">
                     Olá, <strong>{userProfile.nome}</strong> ({userProfile.email}). Sua conta Google foi autenticada com sucesso; o acesso completo ao Portal do Cliente é liberado pela equipe após o diagnóstico ou a contratação da assessoria.
                   </p>
+                  {checkNotice && <p className="text-xs mt-2 font-medium text-amber-900">{checkNotice}</p>}
                 </div>
               </div>
               <div className="flex flex-wrap justify-center gap-2.5">

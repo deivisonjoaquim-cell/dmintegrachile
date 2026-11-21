@@ -7,7 +7,7 @@ import { checkOfficialLegalSourceUrl, type FetchLike } from './sermigLegalServic
  * provided legalSources, verified official HTTP probes, or literally writes "fonte a cadastrar".
  */
 
-export const AI_FALLBACK_LABEL = 'Motor local inteligente + regras — IA em nuvem indisponível no momento';
+export const AI_FALLBACK_LABEL = 'Assistente de Regras SERMIG/BCN';
 
 export interface LegalSourceInput {
   id?: string;

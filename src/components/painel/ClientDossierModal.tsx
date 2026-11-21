@@ -25,6 +25,7 @@ import {
   makeId,
   mergeClientsAudited,
   saveDocumentAudited,
+  setClientPortalAccessAudited,
   uploadFileToServer,
 } from '../../services/firestoreService';
 import type {
@@ -267,19 +268,19 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
 
   const handleSendInvite = async () => {
     const portalUrl = `${window.location.origin}/acompanhar`;
-    const msg = `Olá, ${form.nomeCompleto}! Seu Portal do Cliente D&M Integra Chile está pronto. Acesse em ${portalUrl} usando seu e-mail Google (${form.email}) para acompanhar etapas, prazos e enviar documentos.`;
+    const cleanEmail = (form.email || '').trim().toLowerCase();
+    const msg = `Olá, ${form.nomeCompleto}! Seu Portal do Cliente D&M Integra Chile está pronto. Acesse em ${portalUrl} usando seu e-mail Google (${cleanEmail}) para acompanhar etapas, prazos e enviar documentos.`;
     window.open(buildWhatsAppUrl(form.whatsapp, msg), '_blank', 'noopener,noreferrer');
     const now = new Date().toISOString();
-    await saveDocumentAudited(
-      'clients',
-      client.id,
-      { ...form, conviteEnviadoEm: now, portalLiberado: true, statusAcessoPortal: 'Liberado' },
-      false,
+    const updated = await setClientPortalAccessAudited({
+      client: form,
+      clientCases,
+      liberado: true,
       role,
-      'enviar_convite_portal',
-    );
+      conviteEnviadoEm: now,
+    });
     await onLogWhatsApp(client.id, clientCases[0]?.id, 'Convite Portal do Cliente', msg);
-    setForm((prev) => (prev ? { ...prev, conviteEnviadoEm: now, portalLiberado: true, statusAcessoPortal: 'Liberado' } : prev));
+    setForm(updated);
     setFeedback('Convite enviado via WhatsApp e acesso ao Portal liberado!');
     await onRefresh();
   };
@@ -938,19 +939,38 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                         <Send className="w-3.5 h-3.5" />
                         Enviar Convite WhatsApp &amp; Liberar
                       </UiButton>
+                      {form.portalLiberado && (
+                        <UiButton
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const targetUrl = `/portal?clientId=${encodeURIComponent(client.id)}`;
+                            window.history.pushState({}, '', targetUrl);
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                          }}
+                        >
+                          Ver Portal do Cliente
+                        </UiButton>
+                      )}
                       <UiButton
                         type="button"
                         size="sm"
                         variant="outline"
                         onClick={async () => {
                           const nextLib = !form.portalLiberado;
-                          const nextClient: Client = {
-                            ...form,
-                            portalLiberado: nextLib,
-                            statusAcessoPortal: nextLib ? 'Liberado' : 'Pendente liberação',
-                          };
-                          await saveDocumentAudited('clients', client.id, nextClient as unknown as Record<string, unknown>, false, role, 'portalLiberado');
-                          setForm(nextClient);
+                          const updated = await setClientPortalAccessAudited({
+                            client: form,
+                            clientCases,
+                            liberado: nextLib,
+                            role,
+                          });
+                          setForm(updated);
+                          setFeedback(
+                            nextLib
+                              ? 'Acesso ao Portal do Cliente liberado com sucesso.'
+                              : 'Acesso ao Portal do Cliente bloqueado.',
+                          );
                           await onRefresh();
                         }}
                       >

@@ -3,7 +3,6 @@ import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
 import { BrandLogo, BrandRibbon, BrandWordmark } from './BrandLogo';
-import { OfflineModeStatusBar } from './OfflineModeStatusBar';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -99,11 +98,13 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           <nav className="hidden lg:flex items-center gap-7" aria-label="Navegação principal">
             {navItems.map((item) => {
               const active = currentPath === item.path;
+              const isStaffActive =
+                userProfile?.status === 'ativo' &&
+                (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente');
+              const isClientActive =
+                userProfile?.role === 'cliente' && userProfile.status === 'ativo' && Boolean(userProfile.clientId);
               const resolvedPath =
-                item.path === '/acompanhar' &&
-                userProfile?.role === 'cliente' &&
-                userProfile.status === 'ativo' &&
-                Boolean(userProfile.clientId)
+                item.path === '/acompanhar' && (isClientActive || isStaffActive)
                   ? '/portal'
                   : item.path;
               return (
@@ -149,22 +150,31 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-[#E5DFD2] px-4 py-3 space-y-1 shadow-lg">
-            {navItems.map((item) => (
-              <a
-                key={item.path}
-                href={`#${item.path}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMobileMenuOpen(false);
-                  onNavigate(item.path);
-                }}
-                className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
-                  currentPath === item.path ? 'bg-[#F7F5F0] text-[#0B1F33] font-semibold' : 'text-slate-700 hover:bg-[#F7F5F0]/70'
-                }`}
-              >
-                {item.label}
-              </a>
-            ))}
+            {navItems.map((item) => {
+              const isStaffActive =
+                userProfile?.status === 'ativo' &&
+                (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente');
+              const isClientActive =
+                userProfile?.role === 'cliente' && userProfile.status === 'ativo' && Boolean(userProfile.clientId);
+              const resolvedPath =
+                item.path === '/acompanhar' && (isClientActive || isStaffActive) ? '/portal' : item.path;
+              return (
+                <a
+                  key={item.path}
+                  href={`#${resolvedPath}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMobileMenuOpen(false);
+                    onNavigate(resolvedPath);
+                  }}
+                  className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
+                    currentPath === item.path ? 'bg-[#F7F5F0] text-[#0B1F33] font-semibold' : 'text-slate-700 hover:bg-[#F7F5F0]/70'
+                  }`}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
             <button
               type="button"
               onClick={handleHeaderCtaClick}
@@ -176,8 +186,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           </div>
         )}
       </header>
-
-      <OfflineModeStatusBar variant="public" />
 
       <main className={`flex-1 ${showMobileCtaBar ? 'pb-16 md:pb-0' : ''}`}>{children}</main>
 
@@ -209,20 +217,29 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 Navegação
               </p>
               <ul className="space-y-2.5 text-sm">
-                {navItems.map((item) => (
-                  <li key={item.path}>
-                    <a
-                      href={`#${item.path}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onNavigate(item.path);
-                      }}
-                      className="text-slate-300 hover:text-white transition-colors"
-                    >
-                      {item.label}
-                    </a>
-                  </li>
-                ))}
+                {navItems.map((item) => {
+                  const isStaffActive =
+                    userProfile?.status === 'ativo' &&
+                    (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente');
+                  const isClientActive =
+                    userProfile?.role === 'cliente' && userProfile.status === 'ativo' && Boolean(userProfile.clientId);
+                  const resolvedPath =
+                    item.path === '/acompanhar' && (isClientActive || isStaffActive) ? '/portal' : item.path;
+                  return (
+                    <li key={item.path}>
+                      <a
+                        href={`#${resolvedPath}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onNavigate(resolvedPath);
+                        }}
+                        className="text-slate-300 hover:text-white transition-colors"
+                      >
+                        {item.label}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
             <div className="md:col-span-4">

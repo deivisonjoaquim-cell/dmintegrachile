@@ -52,6 +52,7 @@ import {
   logSensitiveDocumentAccess,
   makeId,
   saveDocumentAudited,
+  setClientPortalAccessAudited,
   uploadFileToServer,
 } from '../../services/firestoreService';
 import { markStaffChatQuestionsRead, sendStaffDocumentChatReply } from '../../services/chatService';
@@ -568,50 +569,66 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       createdAt: editingClient.createdAt || new Date().toISOString(),
     };
     await saveDocumentAudited('clients', payload.id, payload as unknown as Record<string, unknown>, isNew, role, 'cliente');
+    if (!isNew) {
+      const clientCases = cases.filter((c) => c.clientId === payload.id);
+      if (clientCases.some((c) => Boolean(c.portalLiberado) !== Boolean(payload.portalLiberado))) {
+        await setClientPortalAccessAudited({
+          client: payload,
+          clientCases,
+          liberado: Boolean(payload.portalLiberado),
+          role,
+        });
+      }
+    }
     setClientModalOpen(false);
     setEditingClient(null);
     setFeedback(`Cliente "${payload.nomeCompleto}" salvo com sucesso.`);
     await onRefresh();
   };
 
+  const openClientPortalPreview = (clientId: string) => {
+    const targetUrl = `/portal?clientId=${encodeURIComponent(clientId)}`;
+    window.history.pushState({}, '', targetUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const handleTogglePortalCliente = async (cl: Client) => {
     if (!canManageClients) return;
     const nextLib = !cl.portalLiberado;
-    await saveDocumentAudited(
-      'clients',
-      cl.id,
-      {
-        ...cl,
-        portalLiberado: nextLib,
-        statusAcessoPortal: nextLib ? 'Liberado' : 'Pendente liberação',
-      },
-      false,
+    const clientCases = cases.filter((c) => c.clientId === cl.id);
+    await setClientPortalAccessAudited({
+      client: cl,
+      clientCases,
+      liberado: nextLib,
       role,
-      'portalLiberado',
-      cl.portalLiberado,
+    });
+    setFeedback(
+      nextLib
+        ? `Portal do Cliente liberado para ${cl.nomeCompleto} (${cl.email.trim().toLowerCase()}).`
+        : `Acesso ao Portal bloqueado para ${cl.nomeCompleto}.`,
     );
-    setFeedback(`Acesso ao Portal para ${cl.nomeCompleto}: ${nextLib ? 'Liberado' : 'Bloqueado/Pendente'}.`);
     await onRefresh();
   };
 
   const handleSendPortalInvite = async (cl: Client) => {
     const portalUrl = `${window.location.origin}/acompanhar`;
-    const msg = `Olá, ${cl.nomeCompleto}! Seu acesso ao Portal do Cliente D&M Integra Chile está disponível. Acesse com o e-mail ${cl.email} em: ${portalUrl}`;
+    const cleanEmail = (cl.email || '').trim().toLowerCase();
+    const msg = `Olá, ${cl.nomeCompleto}! Seu acesso ao Portal do Cliente D&M Integra Chile está disponível. Acesse com o e-mail ${cleanEmail} em: ${portalUrl}`;
     if (cl.whatsapp) {
       window.open(buildWhatsAppUrl(cl.whatsapp, msg), '_blank', 'noopener,noreferrer');
     }
     const nowIso = new Date().toISOString();
-    await saveDocumentAudited(
-      'clients',
-      cl.id,
-      { ...cl, conviteEnviadoEm: nowIso },
-      false,
+    const clientCases = cases.filter((c) => c.clientId === cl.id);
+    await setClientPortalAccessAudited({
+      client: cl,
+      clientCases,
+      liberado: true,
       role,
-      'conviteEnviadoEm',
-      cl.conviteEnviadoEm,
-    );
-    await onLogWhatsApp(cl.id, undefined, 'Convite Portal do Cliente', msg);
-    setFeedback(`Convite enviado e registrado para ${cl.nomeCompleto}.`);
+      conviteEnviadoEm: nowIso,
+    });
+    await onLogWhatsApp(cl.id, clientCases[0]?.id, 'Convite Portal do Cliente', msg);
+    setFeedback(`Portal liberado e convite registrado para ${cl.nomeCompleto}.`);
+    await onRefresh();
   };
 
   // CSV Import Parsing & Bulk Creation
@@ -1772,13 +1789,13 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       );
       const tag =
         resp.fallback || resp.origem === 'regras'
-          ? `[${resp.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'} · Sugestão: ${resp.sugestao}]`
+          ? `[${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'} · Sugestão: ${resp.sugestao}]`
           : `[Sugestão IA: ${resp.sugestao}]`;
       const resumo = `${tag} Órgão: ${resp.orgaoEmissor} · Emissão: ${resp.dataEmissao} · Apostila: ${resp.possuiApostila ? 'Sim' : 'Não'} · ${resp.justificativa}`;
       await handleUpdateDoc(docItem, { analiseIaSugestao: resumo });
       setFeedback(
         resp.fallback || resp.origem === 'regras'
-          ? `${resp.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
+          ? `${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
           : 'Pré-análise sugestiva da IA concluída. A decisão final permanece com o analista.',
       );
     } catch (err) {
@@ -2174,15 +2191,44 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               )}
               <button
                 type="button"
-                onClick={() => void handleSaveCaseField({ portalLiberado: !activeCase.portalLiberado }, 'portalLiberado')}
+                onClick={() => {
+                  const nextLib = !(activeClient?.portalLiberado ?? activeCase.portalLiberado);
+                  if (activeClient) {
+                    void setClientPortalAccessAudited({
+                      client: activeClient,
+                      clientCases: cases.filter((c) => c.clientId === activeClient.id),
+                      liberado: nextLib,
+                      role,
+                    }).then(async () => {
+                      setFeedback(
+                        nextLib
+                          ? `Portal do Cliente liberado para ${activeClient.nomeCompleto}.`
+                          : `Portal do Cliente bloqueado para ${activeClient.nomeCompleto}.`,
+                      );
+                      await onRefresh();
+                    });
+                  } else {
+                    void handleSaveCaseField({ portalLiberado: nextLib }, 'portalLiberado');
+                  }
+                }}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                  activeCase.portalLiberado
+                  (activeClient?.portalLiberado ?? activeCase.portalLiberado)
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                {activeCase.portalLiberado ? 'Portal Liberado' : 'Liberar Portal'}
+                {(activeClient?.portalLiberado ?? activeCase.portalLiberado) ? 'Portal Liberado' : 'Liberar Portal'}
               </button>
+              {activeClient && (activeClient.portalLiberado || activeCase.portalLiberado) && (
+                <button
+                  type="button"
+                  onClick={() => openClientPortalPreview(activeClient.id)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-white text-xs font-semibold text-[#1E7E34] hover:bg-emerald-50 whitespace-nowrap"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Ver Portal
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -2709,7 +2755,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                               {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
                                 <>
                                   <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
-                                    {parecerDraft.origemLabel || 'Rascunho gerado por regras — serviço indisponível no momento'}
+                                    {parecerDraft.origemLabel || 'Assistente de Regras SERMIG/BCN'}
                                   </p>
                                   {parecerDraft.mensagemUsuario && (
                                     <p className="text-xs text-amber-900">{parecerDraft.mensagemUsuario}</p>
@@ -5165,6 +5211,15 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           >
                             Enviar Convite
                           </button>
+                          {cl.portalLiberado && (
+                            <button
+                              type="button"
+                              onClick={() => openClientPortalPreview(cl.id)}
+                              className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 text-xs font-semibold text-[#1E7E34] hover:bg-emerald-100"
+                            >
+                              Ver Portal
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => void handleTogglePortalCliente(cl)}
