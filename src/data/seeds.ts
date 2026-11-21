@@ -1,3 +1,4 @@
+import { BRAND_ASSETS } from '../constants/brandAssets';
 import type {
   DiagnosticRuleVersion,
   DocumentTemplate,
@@ -61,9 +62,9 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   responsavel_tecnico: 'Titular / Responsável — D&M Integra Chile (Pessoa Física)',
   endereco_cidade: 'Brasil · Atendimento para todo o Chile',
   foro_comarca: 'Comarca da Capital do Estado do Rio de Janeiro – RJ',
-  logoUrl: '/logo-dm-integra.svg',
-  logoDarkUrl: '/logo-dm-integra-dark.svg',
-  faviconUrl: '/favicon-dm-integra.svg',
+  logoUrl: BRAND_ASSETS.logoLightPng,
+  logoDarkUrl: BRAND_ASSETS.logoDarkPng,
+  faviconUrl: BRAND_ASSETS.emblemLightSvg,
   corPrimaria: '#0B1F33',
   corDestaque: '#C8A236',
   corFundo: '#F7F5F0',
@@ -73,8 +74,8 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   fontePrincipal: 'Plus Jakarta Sans',
   fonteDisplay: 'Playfair Display',
   layoutConfig: {
-    logoAlturaPx: 42,
-    mostrarNomeComLogo: true,
+    logoAlturaPx: 46,
+    mostrarNomeComLogo: false,
     raioBordas: 'editorial',
     densidadeSecoes: 'equilibrada',
     estiloCabecalho: 'sticky_vidro',

@@ -66,6 +66,10 @@ interface ParsedFirestoreJson {
   error?: string;
   operationType?: string;
   path?: string | null;
+  authInfo?: {
+    email?: string | null;
+    emailVerified?: boolean | null;
+  };
 }
 
 function tryParseFirestoreJson(raw: string): ParsedFirestoreJson | null {
@@ -100,6 +104,7 @@ export function translateAppError(
   const effectiveRaw = parsedJson?.error || initialMessage;
   const effectivePath = context?.path ?? parsedJson?.path ?? null;
   const effectiveOp = context?.operation ?? parsedJson?.operationType;
+  const activeEmail = parsedJson?.authInfo?.email || null;
   const lower = `${errorCode} ${effectiveRaw}`.toLowerCase();
 
   // 1. Firestore: campo undefined / argumento inválido
@@ -174,8 +179,9 @@ export function translateAppError(
       message: resourceLabel
         ? `Sua conta atual não tem permissão para concluir esta ação em "${resourceLabel}".`
         : 'Sua conta atual não tem permissão para concluir esta ação ou acessar este recurso.',
-      actionHint:
-        'Verifique se você está autenticado com a conta de administrador/consultor correta ou solicite acesso ao administrador.',
+      actionHint: activeEmail
+        ? `Conta ativa: ${activeEmail}. Verifique se ela possui papel de administrador/consultor ativo ou clique em "Sincronizar permissões".`
+        : 'Verifique se você está autenticado com a conta de administrador/consultor correta ou solicite acesso ao administrador.',
       path: effectivePath,
       operation: effectiveOp,
       rawError: effectiveRaw,

@@ -46,6 +46,7 @@ import type {
   PartnerPublic,
   SiteContent,
   UserProfile,
+  UserRole,
   VisaCategory,
   VisaRequirement,
 } from '../types/domain';
@@ -386,16 +387,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await setDoc(userRef, sanitizeFirestoreData(profile));
     } else {
       const existingData = snap.data() as Partial<UserProfile>;
+      const rawRole = typeof existingData.role === 'string' ? existingData.role.trim().toLowerCase() : '';
+      const resolvedRole: UserRole =
+        rawRole === 'admin' || rawRole === 'consultor' || rawRole === 'assistente' || rawRole === 'cliente'
+          ? rawRole
+          : isAdminEmail
+            ? 'admin'
+            : 'cliente';
+      const rawStatus = typeof existingData.status === 'string' ? existingData.status.trim().toLowerCase() : '';
+      const resolvedStatus: UserProfile['status'] =
+        rawStatus === 'ativo' || rawStatus === 'pendente' || rawStatus === 'inativo'
+          ? rawStatus
+          : resolvedRole === 'admin' || resolvedRole === 'consultor' || resolvedRole === 'assistente' || isAdminEmail
+            ? 'ativo'
+            : 'pendente';
+
       profile = {
+        ...existingData,
         uid: existingData.uid || fbUser.uid,
         nome: existingData.nome || fbUser.displayName || normalizedEmail.split('@')[0] || 'Usuário',
         email: (existingData.email || normalizedEmail).toLowerCase(),
         fotoUrl: existingData.fotoUrl ?? fbUser.photoURL ?? '',
-        role: existingData.role || (isAdminEmail ? 'admin' : 'cliente'),
-        status: existingData.status || (isAdminEmail ? 'ativo' : 'pendente'),
+        role: resolvedRole,
+        status: resolvedStatus,
         createdAt: existingData.createdAt || now,
         updatedAt: existingData.updatedAt || now,
-        ...existingData,
       } as UserProfile;
 
       if (isAdminEmail && (profile.role !== 'admin' || profile.status !== 'ativo' || !existingData.uid)) {

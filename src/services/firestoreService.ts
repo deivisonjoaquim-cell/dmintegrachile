@@ -18,6 +18,11 @@ import {
   isPrimaryAdminEmail,
   verifyAndEnsureAdminAccess,
 } from './adminSecurityService';
+import {
+  BRAND_ASSETS,
+  isLegacyOrBrokenBrandUrl,
+  resolveOfficialBrandUrl,
+} from '../constants/brandAssets';
 import { sanitizeClientAiError } from '../utils/aiClient';
 import {
   DEFAULT_CONTRATO_TEMPLATE,
@@ -134,18 +139,12 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
       ? data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE)
       : data.termoLgpd || DEFAULT_EMPRESA_CONFIG.termoLgpd;
 
-  const safeBrandUrl = (val: unknown, fallback: string) => {
-    const str = typeof val === 'string' ? val.trim() : '';
-    if (!str || str.startsWith('/uploads/')) return fallback;
-    return str;
-  };
-
   const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
-    logoUrl: safeBrandUrl(data.logoUrl, DEFAULT_EMPRESA_CONFIG.logoUrl),
-    logoDarkUrl: safeBrandUrl(data.logoDarkUrl, DEFAULT_EMPRESA_CONFIG.logoDarkUrl || '/logo-dm-integra-dark.svg'),
-    faviconUrl: safeBrandUrl(data.faviconUrl, DEFAULT_EMPRESA_CONFIG.faviconUrl || '/favicon-dm-integra.svg'),
+    logoUrl: resolveOfficialBrandUrl(data.logoUrl, 'light'),
+    logoDarkUrl: resolveOfficialBrandUrl(data.logoDarkUrl, 'dark'),
+    faviconUrl: resolveOfficialBrandUrl(data.faviconUrl, 'favicon'),
     razao_social_cnpj_rut:
       !data.razao_social_cnpj_rut || data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL
         ? DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut
@@ -411,12 +410,30 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
       if (typeof data.termoLgpd === 'string' && data.termoLgpd.includes(LEGACY_TERMO_LGPD_LINE)) {
         cfgPatch.termoLgpd = data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE);
       }
+      if (isLegacyOrBrokenBrandUrl(data.logoUrl)) {
+        cfgPatch.logoUrl = BRAND_ASSETS.logoLightPng;
+        cfgPatch.layoutConfig = {
+          ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
+          ...(data.layoutConfig || {}),
+          logoAlturaPx: Math.max(44, Number(data.layoutConfig?.logoAlturaPx || 46)),
+          mostrarNomeComLogo: false,
+        };
+      }
+      if (isLegacyOrBrokenBrandUrl(data.logoDarkUrl)) {
+        cfgPatch.logoDarkUrl = BRAND_ASSETS.logoDarkPng;
+      }
+      if (isLegacyOrBrokenBrandUrl(data.faviconUrl)) {
+        cfgPatch.faviconUrl = BRAND_ASSETS.emblemLightSvg;
+      }
       if (Array.isArray(data.siteDraft) && data.siteDraft.some((s) => s?.imagemUrl && Boolean(LEGACY_IMAGE_REPLACEMENTS[s.imagemUrl]))) {
         cfgPatch.siteDraft = normalizeSiteContentAssets(data.siteDraft);
       }
       if (Object.keys(cfgPatch).length > 0) {
-        cfgPatch.updatedAt = new Date().toISOString();
-        await updateDoc(cfgRef, sanitizeFirestoreData(cfgPatch));
+        const mergedValidated = validateEmpresaConfigPayload({
+          ...data,
+          ...cfgPatch,
+        } as Partial<EmpresaConfig>);
+        await setDoc(cfgRef, mergedValidated);
       }
     }
 
@@ -1625,16 +1642,16 @@ export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: Banca
   const validated = validateBancarioConfigPayload(data);
   await executeValidatedAdminWrite('config/bancario', OperationType.WRITE, async () => {
     await setDoc(doc(db, 'config', 'bancario'), validated);
-    await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, validated, 'admin');
   });
+  await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, validated, 'admin');
 }
 
 export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
   const validated = validateEmpresaConfigPayload(data);
   await executeValidatedAdminWrite('config/empresa', OperationType.WRITE, async () => {
     await setDoc(doc(db, 'config', 'empresa'), validated);
-    await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
   });
+  await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
 }
 
 export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {
@@ -2271,10 +2288,20 @@ export async function syncOfficialLegalCatalog(
   ]);
 
   if (role === 'admin' && (sourcesToUpsert.length > 0 || visasToUpsert.length > 0)) {
-    await updateDoc(doc(db, 'config', 'empresa'), {
-      ultimaRevisaoNormativa: todayIso,
-      updatedAt: nowIso,
-    }).catch(() => {});
+    try {
+      const cfgRef = doc(db, 'config', 'empresa');
+      const cfgSnap = await getDoc(cfgRef);
+      const currentCfg = cfgSnap.exists() ? (cfgSnap.data() as Partial<EmpresaConfig>) : DEFAULT_EMPRESA_CONFIG;
+      await setDoc(
+        cfgRef,
+        validateEmpresaConfigPayload({
+          ...currentCfg,
+          ultimaRevisaoNormativa: todayIso,
+        }),
+      );
+    } catch {
+      // non-blocking metadata timestamp update
+    }
   }
 
   await registrarAuditoria(

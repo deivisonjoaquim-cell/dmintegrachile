@@ -9,6 +9,7 @@ import {
   updateDoc,
   type QueryConstraint,
 } from 'firebase/firestore';
+import { resolveOfficialBrandUrl } from '../constants/brandAssets';
 import { DEFAULT_EMPRESA_CONFIG } from '../data/seeds';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { reportAppError } from '../services/errorService';
@@ -138,18 +139,17 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     ),
     endereco_cidade: clampString(merged.endereco_cidade, 300, DEFAULT_EMPRESA_CONFIG.endereco_cidade),
     foro_comarca: clampString(merged.foro_comarca, 300, DEFAULT_EMPRESA_CONFIG.foro_comarca),
-    logoUrl:
-      merged.logoUrl && !String(merged.logoUrl).trim().startsWith('/uploads/')
-        ? clampString(merged.logoUrl, 800000, DEFAULT_EMPRESA_CONFIG.logoUrl)
-        : DEFAULT_EMPRESA_CONFIG.logoUrl,
-    logoDarkUrl:
-      merged.logoDarkUrl && !String(merged.logoDarkUrl).trim().startsWith('/uploads/')
-        ? clampString(merged.logoDarkUrl, 800000, DEFAULT_EMPRESA_CONFIG.logoDarkUrl || '/logo-dm-integra-dark.svg')
-        : DEFAULT_EMPRESA_CONFIG.logoDarkUrl || '/logo-dm-integra-dark.svg',
-    faviconUrl:
-      merged.faviconUrl && !String(merged.faviconUrl).trim().startsWith('/uploads/')
-        ? clampString(merged.faviconUrl, 800000, DEFAULT_EMPRESA_CONFIG.faviconUrl || '/favicon-dm-integra.svg')
-        : DEFAULT_EMPRESA_CONFIG.faviconUrl || '/favicon-dm-integra.svg',
+    logoUrl: clampString(resolveOfficialBrandUrl(merged.logoUrl, 'light'), 800000, DEFAULT_EMPRESA_CONFIG.logoUrl),
+    logoDarkUrl: clampString(
+      resolveOfficialBrandUrl(merged.logoDarkUrl, 'dark'),
+      800000,
+      DEFAULT_EMPRESA_CONFIG.logoDarkUrl || DEFAULT_EMPRESA_CONFIG.logoUrl,
+    ),
+    faviconUrl: clampString(
+      resolveOfficialBrandUrl(merged.faviconUrl, 'favicon'),
+      800000,
+      DEFAULT_EMPRESA_CONFIG.faviconUrl || DEFAULT_EMPRESA_CONFIG.logoUrl,
+    ),
     corPrimaria: sanitizeColorHex(merged.corPrimaria, DEFAULT_EMPRESA_CONFIG.corPrimaria),
     corDestaque: sanitizeColorHex(merged.corDestaque, DEFAULT_EMPRESA_CONFIG.corDestaque),
     corFundo: sanitizeColorHex(merged.corFundo, DEFAULT_EMPRESA_CONFIG.corFundo),
@@ -164,7 +164,7 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
       : undefined,
     fontePrincipal,
     fonteDisplay,
-    whatsapp: clampString(merged.whatsapp, 40, DEFAULT_EMPRESA_CONFIG.whatsapp),
+    whatsapp: clampString(merged.whatsapp, 80, DEFAULT_EMPRESA_CONFIG.whatsapp),
     email: clampString(merged.email, 200, DEFAULT_EMPRESA_CONFIG.email),
     siteInstagram: clampString(merged.siteInstagram, 300, DEFAULT_EMPRESA_CONFIG.siteInstagram),
     siteLinkedIn: clampOptionalString(merged.siteLinkedIn, 300),

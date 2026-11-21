@@ -237,7 +237,8 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
             src={empresa.logoUrl}
             alt={empresa.nome_empresa}
             brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-            imgClassName="h-11 w-auto max-w-[180px] object-contain mx-auto"
+            variant="light"
+            imgClassName="h-14 w-auto max-w-[260px] object-contain mx-auto"
             fallbackNode={
               <div
                 className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white"

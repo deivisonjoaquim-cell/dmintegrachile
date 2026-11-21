@@ -27,7 +27,12 @@ import {
 import { auth, firebaseConfigSummary } from '../../firebase';
 import { BrandLogo } from '../BrandLogo';
 import { BrandLogoDownloadKit } from '../BrandLogoDownloadKit';
-import { isPrimaryAdminEmail } from '../../services/adminSecurityService';
+import { isCompleteHorizontalBrandLogo } from '../../constants/brandAssets';
+import {
+  clearAdminVerificationCache,
+  isPrimaryAdminEmail,
+  verifyAndEnsureAdminAccess,
+} from '../../services/adminSecurityService';
 import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidConfig } from '../../services/notificationService';
 import { validateVapidPublicKey } from '../../utils/pushNotifications';
@@ -231,6 +236,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savingEmpresa, setSavingEmpresa] = useState(false);
+  const [syncingPermissions, setSyncingPermissions] = useState(false);
   const [fcmHealthMsg, setFcmHealthMsg] = useState<string | null>(null);
   const [fcmChecking, setFcmChecking] = useState(false);
 
@@ -518,6 +524,35 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const formatActionError = (err: unknown, fallback: string) => {
     const friendly = translateAppError(err);
     return friendly.actionHint ? `${friendly.title}: ${friendly.message} ${friendly.actionHint}` : friendly.message || fallback;
+  };
+
+  const handleResyncAdminPermissions = async () => {
+    setSyncingPermissions(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const fbUser = auth.currentUser;
+      if (!fbUser) {
+        setErrorMsg('Nenhuma conta Google autenticada no momento. Faça login novamente na Área da Equipe.');
+        return;
+      }
+      await fbUser.getIdToken(true);
+      clearAdminVerificationCache();
+      const check = await verifyAndEnsureAdminAccess(fbUser, { force: true });
+      if (check.authorized) {
+        setFeedback(
+          `Permissões validadas com sucesso para ${check.email} (papel: ${check.role}, status: ${check.status}). Tente salvar novamente agora.`,
+        );
+      } else {
+        setErrorMsg(
+          `Conta autenticada: ${check.email || fbUser.email || 'não identificada'} · Papel no Firestore: ${check.role || 'não definido'} · Status: ${check.status || 'não definido'}. ${check.reason || ''}`,
+        );
+      }
+    } catch (err) {
+      setErrorMsg(formatActionError(err, 'Não foi possível sincronizar suas permissões agora.'));
+    } finally {
+      setSyncingPermissions(false);
+    }
   };
 
   const handleSaveEmpresa = async (e: React.FormEvent) => {
@@ -911,8 +946,17 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium">
-          {errorMsg}
+        <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium flex flex-wrap items-center justify-between gap-3">
+          <span className="leading-relaxed">{errorMsg}</span>
+          <button
+            type="button"
+            disabled={syncingPermissions}
+            onClick={() => void handleResyncAdminPermissions()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-red-300 bg-white text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-60 whitespace-nowrap shrink-0"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            {syncingPermissions ? 'Sincronizando...' : 'Sincronizar permissões'}
+          </button>
         </div>
       )}
 
@@ -1840,11 +1884,11 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     <BrandLogo
                       src={cfg.logoUrl}
                       alt={cfg.nome_empresa}
-                      variant="emblem"
-                      style={{ height: `${Math.min(40, Math.max(26, layoutCfg.logoAlturaPx || 36))}px` }}
-                      className="w-auto object-contain shrink-0"
+                      variant="light"
+                      imgStyle={{ height: `${Math.min(46, Math.max(32, layoutCfg.logoAlturaPx || 44))}px` }}
+                      imgClassName="w-auto max-w-[190px] object-contain shrink-0"
                     />
-                    {(layoutCfg.mostrarNomeComLogo !== false || !cfg.logoUrl) && (
+                    {(!isCompleteHorizontalBrandLogo(cfg.logoUrl) && (layoutCfg.mostrarNomeComLogo !== false || !cfg.logoUrl)) && (
                       <span className="text-xs font-bold truncate" style={{ color: cfg.corTexto || '#0F172A' }}>
                         {cfg.nome_empresa.split('–')[0].trim()}
                       </span>
@@ -1885,10 +1929,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                       <BrandLogo
                         src={cfg.logoDarkUrl || cfg.logoUrl}
                         alt={cfg.nome_empresa}
-                        variant="emblem-dark"
-                        className="h-7 w-7 object-contain shrink-0"
+                        variant="dark"
+                        imgClassName="h-9 w-auto max-w-[180px] object-contain shrink-0"
                       />
-                      <span className="font-semibold text-white">{cfg.nome_empresa}</span>
                     </div>
                     <span className="text-[11px] text-slate-400">
                       © {new Date().getFullYear()} · {layoutCfg.rodapeCopyright || 'Todos os direitos reservados.'}

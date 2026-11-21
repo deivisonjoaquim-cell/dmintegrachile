@@ -44,7 +44,7 @@
         "corRodapeBg": { "type": "string", "maxLength": 20 },
         "fontePrincipal": { "type": "string", "enum": ["Plus Jakarta Sans", "DM Sans", "Manrope", "Public Sans", "Montserrat", "Merriweather", "Inter"] },
         "fonteDisplay": { "type": "string", "enum": ["Plus Jakarta Sans", "Outfit", "Manrope", "Playfair Display", "Montserrat", "DM Sans", "Public Sans", "Merriweather", "Inter"] },
-        "whatsapp": { "type": "string", "maxLength": 40 },
+        "whatsapp": { "type": "string", "maxLength": 80 },
         "email": { "type": "string", "maxLength": 200 },
         "siteInstagram": { "type": "string", "maxLength": 300 },
         "siteLinkedIn": { "type": "string", "maxLength": 300 },

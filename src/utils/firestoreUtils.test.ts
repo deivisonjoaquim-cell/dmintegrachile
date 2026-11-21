@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { BRAND_ASSETS } from '../constants/brandAssets';
 import {
   prepareFirestoreWritePayload,
   sanitizeFirestoreData,
@@ -53,7 +54,7 @@ describe('firestoreUtils — Sanitization & Config Collection Validation', () =>
     assert.deepEqual(nested.arr, [1, { a: 'ok' }, 0]);
   });
 
-  it('validates config/empresa payload, strips undefined siteDraft/optionals, clamps fields and colors', () => {
+  it('validates config/empresa payload, upgrades legacy brand URLs to official uploaded logos, strips undefined optionals, clamps fields and colors', () => {
     const result = validateEmpresaConfigPayload({
       nome_empresa: '  D&M Integra Chile  ',
       corPrimaria: 'not-a-hex',
@@ -62,7 +63,9 @@ describe('firestoreUtils — Sanitization & Config Collection Validation', () =>
       bloqueioProtocoloMinimo: 250,
       diasAlertaRevisaoLegal: -10,
       siteDraft: undefined,
-      logoDarkUrl: undefined,
+      logoUrl: '/logo-dm-integra.svg',
+      logoDarkUrl: '/logo-dm-integra-dark.svg',
+      faviconUrl: '/favicon-dm-integra.svg',
       fcmVapidPublicKey: undefined,
     });
 
@@ -74,10 +77,39 @@ describe('firestoreUtils — Sanitization & Config Collection Validation', () =>
     assert.equal(result.bloqueioProtocoloMinimo, 100);
     assert.equal(result.diasAlertaRevisaoLegal, 1);
     assert.equal('siteDraft' in result, false);
-    assert.equal(result.logoUrl, '/logo-dm-integra.svg');
-    assert.equal(result.logoDarkUrl, '/logo-dm-integra-dark.svg');
-    assert.equal(result.faviconUrl, '/favicon-dm-integra.svg');
+    assert.equal(result.logoUrl, BRAND_ASSETS.logoLightPng);
+    assert.equal(result.logoDarkUrl, BRAND_ASSETS.logoDarkPng);
+    assert.equal(result.faviconUrl, BRAND_ASSETS.emblemLightSvg);
     assert.ok(typeof result.updatedAt === 'string' && result.updatedAt.length > 0);
+  });
+
+  it('satisfies every constraint of firestore.rules isValidEmpresaConfig on full form edits', () => {
+    const result = validateEmpresaConfigPayload({
+      nome_empresa: 'D&M Integra Chile – Relocation & Assessoria',
+      foro_comarca: 'Comarca da Capital do Estado do Rio de Janeiro – RJ',
+      corPrimaria: '#0B1F33',
+      corDestaque: '#C8A236',
+      corFundo: '#F7F5F0',
+      corSuperficie: '',
+      corTexto: '#0B1523',
+      corRodapeBg: '#081726',
+      fontePrincipal: 'Plus Jakarta Sans',
+      fonteDisplay: 'Playfair Display',
+      whatsapp: '+55 (21) 99999-0000 / +56 9 1234 5678',
+      taxaCambioBrlClp: '' as unknown as number,
+      honorariosPadraoMinBrl: Number.NaN,
+    });
+
+    assertNoUndefinedDeep(result);
+    assert.ok(result.nome_empresa.length >= 1 && result.nome_empresa.length <= 200);
+    assert.ok(result.foro_comarca.length >= 1 && result.foro_comarca.length <= 300);
+    assert.ok(result.corPrimaria.length >= 4 && result.corPrimaria.length <= 20);
+    assert.ok(result.corDestaque.length >= 4 && result.corDestaque.length <= 20);
+    assert.ok(result.corFundo.length >= 4 && result.corFundo.length <= 20);
+    assert.ok((result.whatsapp || '').length <= 80);
+    assert.equal('corSuperficie' in result, false);
+    assert.equal('taxaCambioBrlClp' in result, false);
+    assert.equal('honorariosPadraoMinBrl' in result, false);
   });
 
   it('validates config/bancario payload with clamped fields and zero undefined keys', () => {

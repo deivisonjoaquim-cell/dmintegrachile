@@ -22,7 +22,9 @@ service cloud.firestore {
     }
 
     function isSignedIn() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null
+        && 'email_verified' in request.auth.token
+        && request.auth.token.email_verified == true;
     }
 
     function isPrimaryAdminEmail(email) {
@@ -30,7 +32,9 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isSignedIn() && isPrimaryAdminEmail(request.auth.token.email);
+      return isSignedIn()
+        && 'email' in request.auth.token
+        && isPrimaryAdminEmail(request.auth.token.email);
     }
 
     function userPath() {
@@ -46,12 +50,12 @@ service cloud.firestore {
     }
 
     function isValidRoleValue(role) {
-      return role is string && role in ['admin', 'consultor', 'assistente', 'cliente'];
+      return role is string && role.lower() in ['admin', 'consultor', 'assistente', 'cliente'];
     }
 
     function userRole() {
       return hasUserDoc() && 'role' in userDoc() && isValidRoleValue(userDoc().role)
-        ? userDoc().role
+        ? userDoc().role.lower()
         : '';
     }
 
@@ -59,8 +63,8 @@ service cloud.firestore {
       return isSignedIn()
         && hasUserDoc()
         && (
-          ('status' in userDoc() && userDoc().status == 'ativo')
-          || (!('status' in userDoc()) && userRole() in ['admin', 'consultor', 'assistente'])
+          ('status' in userDoc() && userDoc().status is string && userDoc().status.lower() == 'ativo')
+          || ((!('status' in userDoc()) || userDoc().status == null || userDoc().status == '') && userRole() in ['admin', 'consultor', 'assistente'])
         );
     }
 
@@ -94,6 +98,7 @@ service cloud.firestore {
 
     function matchesSignedInEmail(email) {
       return isSignedIn()
+        && 'email' in request.auth.token
         && request.auth.token.email is string
         && email is string
         && email.lower() == request.auth.token.email.lower();
@@ -183,7 +188,7 @@ service cloud.firestore {
         && isOptString(data, 'corSuperficie', 20)
         && isOptString(data, 'corTexto', 20)
         && isOptString(data, 'corRodapeBg', 20)
-        && isOptString(data, 'whatsapp', 40)
+        && isOptString(data, 'whatsapp', 80)
         && isOptString(data, 'email', 200)
         && isOptString(data, 'siteInstagram', 300)
         && isOptString(data, 'siteLinkedIn', 300)
@@ -722,8 +727,8 @@ service cloud.firestore {
     }
 
     match /leads/{leadId} {
-      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower()));
-      allow list: if isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower());
+      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email)));
+      allow list: if isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email));
       allow create: if isValidId(leadId) && isValidLead(incoming()) && isReqString(incoming(), 'whatsapp', 6, 40) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
       allow update: if isValidId(leadId) && isValidLead(incoming()) && (
         isStaff() ||

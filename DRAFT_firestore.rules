@@ -49,16 +49,31 @@ service cloud.firestore {
       return get(userPath()).data;
     }
 
+    function isValidRoleValue(role) {
+      return role is string && role.lower() in ['admin', 'consultor', 'assistente', 'cliente'];
+    }
+
+    function userRole() {
+      return hasUserDoc() && 'role' in userDoc() && isValidRoleValue(userDoc().role)
+        ? userDoc().role.lower()
+        : '';
+    }
+
     function isActiveUser() {
       return isSignedIn()
         && hasUserDoc()
-        && 'status' in userDoc()
-        && userDoc().status == 'ativo';
+        && (
+          ('status' in userDoc() && userDoc().status is string && userDoc().status.lower() == 'ativo')
+          || ((!('status' in userDoc()) || userDoc().status == null || userDoc().status == '') && userRole() in ['admin', 'consultor', 'assistente'])
+        );
+    }
+
+    function hasUserRole(allowedRoles) {
+      return isActiveUser() && userRole() in allowedRoles;
     }
 
     function isValidatedAdmin() {
-      return isBootstrappedAdmin()
-        || (isActiveUser() && 'role' in userDoc() && userDoc().role == 'admin');
+      return isBootstrappedAdmin() || hasUserRole(['admin']);
     }
 
     function isAdmin() {
@@ -66,57 +81,55 @@ service cloud.firestore {
     }
 
     function isConsultor() {
-      return isActiveUser() && 'role' in userDoc() && userDoc().role == 'consultor';
+      return hasUserRole(['consultor']);
     }
 
     function isAssistente() {
-      return isActiveUser() && 'role' in userDoc() && userDoc().role == 'assistente';
+      return hasUserRole(['assistente']);
     }
 
     function isStaff() {
-      return isAdmin() || isConsultor() || isAssistente();
+      return isAdmin() || hasUserRole(['consultor', 'assistente']);
     }
 
     function isAdminOrConsultor() {
       return isAdmin() || isConsultor();
     }
 
+    function matchesSignedInEmail(email) {
+      return isSignedIn()
+        && 'email' in request.auth.token
+        && request.auth.token.email is string
+        && email is string
+        && email.lower() == request.auth.token.email.lower();
+    }
+
+    function hasUnlockedClientRecord(clientId) {
+      return isSignedIn()
+        && clientId is string
+        && isValidId(clientId)
+        && exists(/databases/$(database)/documents/clients/$(clientId))
+        && get(/databases/$(database)/documents/clients/$(clientId)).data.portalLiberado == true
+        && (!('arquivado' in get(/databases/$(database)/documents/clients/$(clientId)).data) || get(/databases/$(database)/documents/clients/$(clientId)).data.arquivado != true)
+        && matchesSignedInEmail(get(/databases/$(database)/documents/clients/$(clientId)).data.email);
+    }
+
+    function hasUnlockedClientPortal() {
+      return hasUserDoc()
+        && 'clientId' in userDoc()
+        && userDoc().clientId is string
+        && isValidId(userDoc().clientId)
+        && exists(/databases/$(database)/documents/clients/$(userDoc().clientId))
+        && get(/databases/$(database)/documents/clients/$(userDoc().clientId)).data.portalLiberado == true
+        && (!('arquivado' in get(/databases/$(database)/documents/clients/$(userDoc().clientId)).data) || get(/databases/$(database)/documents/clients/$(userDoc().clientId)).data.arquivado != true);
+    }
+
     function isCliente() {
-      return isActiveUser() && 'role' in userDoc() && userDoc().role == 'cliente';
+      return hasUserRole(['cliente']) && hasUnlockedClientPortal();
     }
 
     function userClientId() {
-      return 'clientId' in userDoc() ? userDoc().clientId : '';
-    }
-
-    function isVerifiedClientEmailMatch(clientData) {
-      return isSignedIn()
-        && 'email' in request.auth.token
-        && request.auth.token.email is string
-        && 'email' in clientData
-        && clientData.email is string
-        && clientData.email.lower() == request.auth.token.email.lower();
-    }
-
-    // Static-query-safe email match for allow list queries (Firestore cannot prove .lower() on resource.data in list queries)
-    function isClientEmailListMatch(clientData) {
-      return isSignedIn()
-        && 'email' in request.auth.token
-        && request.auth.token.email is string
-        && 'email' in clientData
-        && clientData.email is string
-        && (clientData.email == request.auth.token.email.lower() || clientData.email == request.auth.token.email);
-    }
-
-    function canClientSelfLink(clientId, targetStatus) {
-      let clientPath = /databases/$(database)/documents/clients/$(clientId);
-      return isValidId(clientId)
-        && exists(clientPath)
-        && isVerifiedClientEmailMatch(get(clientPath).data)
-        && (
-          (get(clientPath).data.portalLiberado == true && targetStatus == 'ativo') ||
-          (get(clientPath).data.portalLiberado == false && targetStatus == 'pendente')
-        );
+      return userDoc().clientId;
     }
 
     function isOptString(data, field, maxLen) {
@@ -145,38 +158,68 @@ service cloud.firestore {
         && isReqString(data, 'email', 3, 200)
         && data.role in ['admin', 'consultor', 'assistente', 'cliente']
         && data.status in ['ativo', 'pendente', 'inativo']
-        && isOptString(data, 'fotoUrl', 1000)
+        && isOptString(data, 'fotoUrl', 2000)
         && isOptString(data, 'clientId', 128)
         && isOptString(data, 'quemSomosBio', 5000)
         && isOptString(data, 'quemSomosFormacao', 2000)
         && isOptString(data, 'quemSomosExperiencia', 2000)
         && isOptString(data, 'quemSomosMissao', 2000)
         && isOptString(data, 'quemSomosCredenciais', 2000)
-        && isOptString(data, 'quemSomosFotoUrl', 500000)
+        && isOptString(data, 'quemSomosFotoUrl', 800000)
         && isOptString(data, 'createdAt', 64)
         && isOptString(data, 'updatedAt', 64);
     }
 
     function isValidEmpresaConfig(data) {
       return data.keys().hasAll(['nome_empresa', 'foro_comarca', 'corPrimaria', 'corDestaque', 'corFundo', 'fontePrincipal'])
-        && data.nome_empresa is string && data.nome_empresa.size() >= 1 && data.nome_empresa.size() <= 200
-        && data.foro_comarca is string && data.foro_comarca.size() >= 1 && data.foro_comarca.size() <= 300
-        && data.corPrimaria is string && data.corPrimaria.size() >= 4 && data.corPrimaria.size() <= 20
-        && data.corDestaque is string && data.corDestaque.size() >= 4 && data.corDestaque.size() <= 20
-        && data.corFundo is string && data.corFundo.size() >= 4 && data.corFundo.size() <= 20
+        && isReqString(data, 'nome_empresa', 1, 200)
+        && isReqString(data, 'foro_comarca', 1, 300)
+        && isReqString(data, 'corPrimaria', 4, 20)
+        && isReqString(data, 'corDestaque', 4, 20)
+        && isReqString(data, 'corFundo', 4, 20)
         && data.fontePrincipal in ['Plus Jakarta Sans', 'DM Sans', 'Manrope', 'Public Sans', 'Montserrat', 'Merriweather', 'Inter']
         && (!('fonteDisplay' in data) || data.fonteDisplay == null || data.fonteDisplay == '' || data.fonteDisplay in ['Plus Jakarta Sans', 'Outfit', 'Manrope', 'Playfair Display', 'Montserrat', 'DM Sans', 'Public Sans', 'Merriweather', 'Inter'])
-        && isOptString(data, 'logoUrl', 500000)
-        && isOptString(data, 'logoDarkUrl', 500000)
-        && isOptString(data, 'faviconUrl', 500000)
-        && isOptString(data, 'whatsapp', 40)
+        && isOptString(data, 'razao_social_cnpj_rut', 200)
+        && isOptString(data, 'responsavel_tecnico', 200)
+        && isOptString(data, 'endereco_cidade', 300)
+        && isOptString(data, 'logoUrl', 800000)
+        && isOptString(data, 'logoDarkUrl', 800000)
+        && isOptString(data, 'faviconUrl', 800000)
+        && isOptString(data, 'corSuperficie', 20)
+        && isOptString(data, 'corTexto', 20)
+        && isOptString(data, 'corRodapeBg', 20)
+        && isOptString(data, 'whatsapp', 80)
         && isOptString(data, 'email', 200)
-        && isOptString(data, 'textoContratoPadrao', 20000)
-        && isOptString(data, 'textoReciboPadrao', 5000)
-        && isOptString(data, 'termoLgpd', 15000)
-        && isOptString(data, 'avisoLegal', 1000)
+        && isOptString(data, 'siteInstagram', 300)
+        && isOptString(data, 'siteLinkedIn', 300)
+        && isOptString(data, 'linkCalendly', 500)
+        && isOptString(data, 'emailGoogleAgenda', 200)
+        && isOptString(data, 'chavePix', 200)
+        && isOptString(data, 'linkPagamentoCartao', 500)
+        && isOptString(data, 'textoContratoPadrao', 40000)
+        && isOptString(data, 'textoReciboPadrao', 10000)
+        && isOptString(data, 'termoLgpd', 25000)
+        && isOptString(data, 'termoLgpdVersao', 30)
+        && isOptString(data, 'avisoLegal', 2500)
         && isOptNum(data, 'bloqueioProtocoloMinimo')
         && isOptNum(data, 'diasAlertaRevisaoLegal')
+        && isOptNum(data, 'diasExpiracaoLinkDiagnostico')
+        && isOptNum(data, 'honorariosPadraoMinBrl')
+        && isOptNum(data, 'honorariosPadraoMaxBrl')
+        && isOptNum(data, 'taxaCambioBrlClp')
+        && isOptNum(data, 'taxaCambioUsdBrl')
+        && isOptNum(data, 'retencaoDadosDias')
+        && isOptString(data, 'seoTituloPadrao', 200)
+        && isOptString(data, 'seoDescricaoPadrao', 1000)
+        && isOptString(data, 'ultimaRevisaoNormativa', 64)
+        && isOptString(data, 'textoContratoVersao', 30)
+        && isOptString(data, 'textoContratoVigencia', 64)
+        && isOptString(data, 'textoReciboVersao', 30)
+        && isOptString(data, 'textoReciboVigencia', 64)
+        && isOptString(data, 'termoLgpdVigencia', 64)
+        && isOptString(data, 'fcmVapidPublicKey', 300)
+        && isOptString(data, 'siteVersaoAtual', 40)
+        && isOptString(data, 'sitePublicadoEm', 64)
         && isOptString(data, 'updatedAt', 64);
     }
 
@@ -193,9 +236,9 @@ service cloud.firestore {
         && isReqString(data, 'titulo', 1, 300)
         && data.ordem is number
         && data.ativo is bool
-        && isOptString(data, 'subtitulo', 600)
-        && isOptString(data, 'conteudoHtml', 20000)
-        && isOptString(data, 'imagemUrl', 500000)
+        && isOptString(data, 'subtitulo', 1500)
+        && isOptString(data, 'conteudoHtml', 60000)
+        && isOptString(data, 'imagemUrl', 800000)
         && isOptString(data, 'updatedAt', 64);
     }
 
@@ -227,6 +270,32 @@ service cloud.firestore {
         && isOptString(data, 'antes', 4000)
         && isOptString(data, 'depois', 4000)
         && isOptString(data, 'createdAt', 64);
+    }
+
+    function isValidAdminActionLog(data) {
+      return data.keys().hasAll(['id', 'actorUid', 'actorRole', 'acao', 'tipoOperacao', 'sensivel', 'entidade', 'entidadeId', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'actorUid', 'actorEmail', 'actorNome', 'actorRole',
+          'acao', 'tipoOperacao', 'sensivel', 'entidade', 'entidadeId',
+          'campo', 'resumo', 'antes', 'depois', 'createdAt'
+        ])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'actorUid', 1, 128)
+        && data.actorUid == request.auth.uid
+        && isOptString(data, 'actorEmail', 200)
+        && isOptString(data, 'actorNome', 200)
+        && data.actorRole in ['admin', 'consultor', 'assistente', 'cliente', 'usuario']
+        && isReqString(data, 'acao', 1, 100)
+        && data.tipoOperacao in ['create', 'update', 'delete', 'permission', 'sensitive']
+        && data.sensivel is bool
+        && isReqString(data, 'entidade', 1, 100)
+        && isReqString(data, 'entidadeId', 1, 128)
+        && isOptString(data, 'campo', 120)
+        && isOptString(data, 'resumo', 500)
+        && isOptString(data, 'antes', 4000)
+        && isOptString(data, 'depois', 4000)
+        && isReqString(data, 'createdAt', 10, 64);
     }
 
     function isValidPartnerProposal(data) {
@@ -273,9 +342,9 @@ service cloud.firestore {
         && isReqString(data, 'tipo', 1, 60)
         && data.pais in ['Chile', 'Brasil', 'Mercosul']
         && data.statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar']
-        && isOptString(data, 'resumoPortugues', 5000)
-        && isOptString(data, 'explicacaoCliente', 5000)
-        && isOptString(data, 'textoIntegral', 50000);
+        && isOptString(data, 'resumoPortugues', 10000)
+        && isOptString(data, 'explicacaoCliente', 10000)
+        && isOptString(data, 'textoIntegral', 80000);
     }
 
     function isValidVisaCategory(data) {
@@ -297,27 +366,28 @@ service cloud.firestore {
     }
 
     function isValidLead(data) {
-      return data.keys().hasAll(['nome', 'whatsapp', 'email', 'origem', 'statusFunil', 'lgpdAceito'])
+      return data.keys().hasAll(['nome', 'email', 'origem', 'statusFunil', 'lgpdAceito'])
         && isReqString(data, 'nome', 2, 200)
-        && isReqString(data, 'whatsapp', 6, 40)
-        && isReqString(data, 'email', 5, 200)
+        && isOptString(data, 'whatsapp', 40)
+        && isReqString(data, 'email', 3, 200)
         && data.origem in ['Instagram', 'Indicação', 'Site', 'Parceiro', 'Outro']
         && data.statusFunil in ['Novo', 'Contatado', 'Diagnóstico Agendado', 'Orçamento Enviado', 'Fechado', 'Perdido']
         && data.lgpdAceito is bool
         && isOptString(data, 'cidadeUf', 150)
         && isOptString(data, 'subcategoriaSugerida', 200)
-        && isOptString(data, 'notas', 4000)
+        && isOptString(data, 'notas', 6000)
         && isOptNum(data, 'notaViabilidade')
-        && (!('confianca' in data) || data.confianca in ['Alta', 'Média', 'Baixa'])
-        && (!('temperatura' in data) || data.temperatura in ['Quente', 'Morno', 'Frio'])
+        && (!('confianca' in data) || data.confianca == null || data.confianca == '' || data.confianca in ['Alta', 'Média', 'Baixa'])
+        && (!('temperatura' in data) || data.temperatura == null || data.temperatura == '' || data.temperatura in ['Quente', 'Morno', 'Frio'])
         && isOptString(data, 'versaoRegras', 80)
         && isOptString(data, 'sessionToken', 128)
-        && (!('statusConclusao' in data) || data.statusConclusao in ['Em andamento', 'Concluído', 'Abandonado'])
+        && (!('statusConclusao' in data) || data.statusConclusao == null || data.statusConclusao == '' || data.statusConclusao in ['Em andamento', 'Concluído', 'Abandonado'])
         && isOptNum(data, 'etapaAtual')
         && isOptString(data, 'utmSource', 120)
         && isOptString(data, 'utmMedium', 120)
         && isOptString(data, 'utmCampaign', 120)
         && isOptString(data, 'primeiroContatoEm', 64)
+        && (!('modalidadeInteresse' in data) || data.modalidadeInteresse == null || data.modalidadeInteresse == '' || data.modalidadeInteresse in ['orientativa', 'completa'])
         && (!('honeypot' in data) || data.honeypot == '');
     }
 
@@ -347,15 +417,16 @@ service cloud.firestore {
     }
 
     function isValidClient(data) {
-      return data.keys().hasAll(['nomeCompleto', 'email', 'whatsapp', 'portalLiberado', 'statusAcessoPortal'])
+      return data.keys().hasAll(['nomeCompleto', 'email', 'portalLiberado', 'statusAcessoPortal'])
         && isReqString(data, 'nomeCompleto', 2, 200)
-        && isReqString(data, 'email', 5, 200)
-        && isReqString(data, 'whatsapp', 6, 40)
+        && isReqString(data, 'email', 3, 200)
+        && isOptString(data, 'whatsapp', 40)
         && data.portalLiberado is bool
         && data.statusAcessoPortal in ['Não solicitado', 'Pendente liberação', 'Liberado']
+        && (!('modalidadeConsultoria' in data) || data.modalidadeConsultoria == null || data.modalidadeConsultoria == '' || data.modalidadeConsultoria in ['orientativa', 'completa'])
         && isOptString(data, 'cpf', 20)
         && isOptString(data, 'userId', 128)
-        && isOptString(data, 'observacoes', 5000);
+        && isOptString(data, 'observacoes', 10000);
     }
 
     function isValidDependent(data) {
@@ -372,6 +443,7 @@ service cloud.firestore {
         && isReqString(data, 'tipoServico', 1, 100)
         && data.etapaPipeline is number
         && isReqString(data, 'statusSermig', 1, 80)
+        && (!('modalidadeConsultoria' in data) || data.modalidadeConsultoria == null || data.modalidadeConsultoria == '' || data.modalidadeConsultoria in ['orientativa', 'completa'])
         && !('valorContrato' in data);
     }
 
@@ -391,7 +463,17 @@ service cloud.firestore {
         && isReqString(data, 'pessoa', 1, 120)
         && isReqString(data, 'nomeDocumento', 1, 250)
         && data.status in ['Pendente', 'Enviado', 'Em análise', 'Aprovado', 'Reprovado', 'Vencido']
-        && data.versao is number;
+        && data.versao is number
+        && isOptString(data, 'arquivoUrl', 800000)
+        && isOptString(data, 'arquivoNome', 250)
+        && isOptString(data, 'storagePath', 500)
+        && isOptString(data, 'arquivoMimeType', 100)
+        && isOptNum(data, 'arquivoTamanhoBytes')
+        && (!('storageBackend' in data) || data.storageBackend == null || data.storageBackend in ['firebase_storage', 'server_upload', 'inline_data_url'])
+        && (!('metadataTags' in data) || data.metadataTags == null || (data.metadataTags is list && data.metadataTags.size() <= 20 && (data.metadataTags.size() == 0 || data.metadataTags[0] is string)))
+        && (!('reviewMetadata' in data) || data.reviewMetadata == null || data.reviewMetadata is map)
+        && isOptString(data, 'enviadoPorUid', 128)
+        && isOptString(data, 'enviadoEm', 64);
     }
 
     function isValidTask(data) {
@@ -453,7 +535,8 @@ service cloud.firestore {
         && isReqString(data, 'numeroOrcamento', 1, 40)
         && isReqString(data, 'titulo', 1, 250)
         && data.moedaPrincipal in ['BRL', 'CLP', 'USD']
-        && data.status in ['Rascunho', 'Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'];
+        && data.status in ['Rascunho', 'Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado']
+        && (!('modalidadeConsultoria' in data) || data.modalidadeConsultoria == null || data.modalidadeConsultoria in ['orientativa', 'completa']);
     }
 
     function isValidFinancialRecord(data) {
@@ -487,9 +570,17 @@ service cloud.firestore {
         && data.liberadoAoCliente is bool;
     }
 
+    function isValidPushPreferences(prefs) {
+      return prefs is map
+        && prefs.keys().hasOnly(['statusProcesso', 'documentos', 'mensagensEquipe'])
+        && (!('statusProcesso' in prefs) || prefs.statusProcesso is bool)
+        && (!('documentos' in prefs) || prefs.documentos is bool)
+        && (!('mensagensEquipe' in prefs) || prefs.mensagensEquipe is bool);
+    }
+
     function isValidFcmToken(data) {
       return data.keys().hasAll(['id', 'uid', 'clientId', 'token', 'ativo', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['id', 'uid', 'clientId', 'token', 'plataforma', 'userAgent', 'ativo', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'uid', 'clientId', 'token', 'plataforma', 'userAgent', 'ativo', 'preferencias', 'createdAt', 'updatedAt'])
         && isReqString(data, 'id', 1, 128)
         && data.id.matches('^[a-zA-Z0-9_\\-]+$')
         && isReqString(data, 'uid', 1, 128)
@@ -498,6 +589,7 @@ service cloud.firestore {
         && data.ativo is bool
         && (!('plataforma' in data) || data.plataforma in ['web', 'android', 'ios'])
         && isOptString(data, 'userAgent', 250)
+        && (!('preferencias' in data) || isValidPushPreferences(data.preferencias))
         && isReqString(data, 'createdAt', 10, 64)
         && isReqString(data, 'updatedAt', 10, 64);
     }
@@ -511,7 +603,7 @@ service cloud.firestore {
         && isOptString(data, 'caseId', 128)
         && isReqString(data, 'titulo', 1, 200)
         && isReqString(data, 'mensagem', 1, 1000)
-        && data.tipo in ['etapa_pipeline', 'status_sermig', 'documento', 'parecer', 'prazo', 'geral']
+        && data.tipo in ['etapa_pipeline', 'status_sermig', 'documento', 'mensagem_equipe', 'parecer', 'prazo', 'geral']
         && isOptNum(data, 'etapaPipeline')
         && isOptString(data, 'statusSermig', 80)
         && isOptString(data, 'linkDestino', 200)
@@ -533,15 +625,22 @@ service cloud.firestore {
       allow list: if isValidatedAdmin() || isConsultor();
       allow create: if isSignedIn() && isValidId(uid) && request.auth.uid == uid && isValidUser(incoming()) && (
         (isBootstrappedAdmin() && incoming().role == 'admin' && incoming().status == 'ativo' && isPrimaryAdminEmail(incoming().email)) ||
-        (incoming().role == 'cliente' && incoming().status == 'pendente' && incoming().uid == request.auth.uid && 'email' in request.auth.token && request.auth.token.email is string && incoming().email.lower() == request.auth.token.email.lower())
+        (incoming().role == 'cliente' && incoming().uid == request.auth.uid && matchesSignedInEmail(incoming().email) && (
+          incoming().status == 'pendente' ||
+          (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId))
+        ))
       );
       allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
         // Protect primary bootstrapped admin document from accidental downgrade or deactivation
-        (!('email' in existing()) || !isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == existing().uid))
+        (!('email' in existing()) || !isPrimaryAdminEmail(existing().email) || (incoming().role == 'admin' && incoming().status == 'ativo' && incoming().uid == uid))
       ) && (
         isValidatedAdmin() ||
-        (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
-        (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == existing().uid && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt']) && 'clientId' in incoming() && incoming().clientId is string && canClientSelfLink(incoming().clientId, incoming().status))
+        (isConsultor() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
+        (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
+        (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && existing().status != 'inativo' && incoming().uid == uid && incoming().email == existing().email && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'nome', 'fotoUrl', 'updatedAt']) && (
+          (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
+          incoming().status == 'pendente'
+        ))
       );
       allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
     }
@@ -579,17 +678,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /adminAudit/{scope}/logs/{logId} {
+      allow get: if isValidId(scope) && isValidId(logId) && isAdminOrConsultor();
+      allow list: if isValidId(scope) && isAdminOrConsultor();
+      allow create: if isSignedIn() && isValidId(scope) && isValidId(logId) && isStaff() && isValidAdminActionLog(incoming()) && incoming().id == logId;
+      allow update, delete: if false;
+    }
+
     match /partnerProposals/{proposalId} {
       allow get, list: if isAdminOrConsultor();
       allow create: if isValidId(proposalId) && isValidPartnerProposal(incoming()) && incoming().status == 'Nova';
       allow update: if isAdminOrConsultor() && isValidId(proposalId) && isValidPartnerProposal(incoming());
-      allow delete: if isAdmin() && isValidId(proposalId);
+      allow delete: if isAdminOrConsultor() && isValidId(proposalId);
     }
 
     match /partners/{partnerId} {
       allow get, list: if isAdminOrConsultor();
       allow create, update: if isAdminOrConsultor() && isValidId(partnerId) && isValidPartner(incoming());
-      allow delete: if isAdmin() && isValidId(partnerId);
+      allow delete: if isAdminOrConsultor() && isValidId(partnerId);
     }
 
     match /partnersPublic/{partnerId} {
@@ -603,32 +709,32 @@ service cloud.firestore {
       allow get: if isValidId(sourceId) && (existing().statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar'] || isStaff());
       allow list: if existing().statusVigencia in ['Vigente', 'Alterada', 'Revogada', 'A verificar'] || isStaff();
       allow create, update: if isAdminOrConsultor() && isValidId(sourceId) && isValidLegalSource(incoming());
-      allow delete: if isAdmin() && isValidId(sourceId);
+      allow delete: if isAdminOrConsultor() && isValidId(sourceId);
     }
 
     match /visaCategories/{categoryId} {
       allow get: if isValidId(categoryId) && (existing().ativo == true || isStaff());
       allow list: if existing().ativo == true || isStaff();
       allow create, update: if isAdminOrConsultor() && isValidId(categoryId) && isValidVisaCategory(incoming());
-      allow delete: if isAdmin() && isValidId(categoryId);
+      allow delete: if isAdminOrConsultor() && isValidId(categoryId);
     }
 
     match /visaRequirements/{reqId} {
       allow get: if isValidId(reqId) && (existing().peso >= 1 || isStaff());
       allow list: if existing().peso >= 1 || isStaff();
       allow create, update: if isAdminOrConsultor() && isValidId(reqId) && isValidVisaRequirement(incoming());
-      allow delete: if isAdmin() && isValidId(reqId);
+      allow delete: if isAdminOrConsultor() && isValidId(reqId);
     }
 
     match /leads/{leadId} {
-      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && request.auth.token.email is string && existing().email is string && existing().email.lower() == request.auth.token.email.lower()));
-      allow list: if isStaff() || isClientEmailListMatch(existing());
-      allow create: if isValidId(leadId) && isValidLead(incoming()) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
+      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email)));
+      allow list: if isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email));
+      allow create: if isValidId(leadId) && isValidLead(incoming()) && isReqString(incoming(), 'whatsapp', 6, 40) && incoming().statusFunil == 'Novo' && (!('statusConclusao' in incoming()) || incoming().statusConclusao != 'Concluído' || incoming().lgpdAceito == true);
       allow update: if isValidId(leadId) && isValidLead(incoming()) && (
         isStaff() ||
         (existing().sessionToken is string && existing().sessionToken.size() >= 20 && incoming().sessionToken == existing().sessionToken && existing().statusFunil == 'Novo' && incoming().statusFunil == 'Novo' && incoming().createdAt == existing().createdAt && !('notas' in incoming().diff(existing()).affectedKeys()))
       );
-      allow delete: if isAdmin() && isValidId(leadId);
+      allow delete: if isAdminOrConsultor() && isValidId(leadId);
     }
 
     match /diagnosticSessions/{token} {
@@ -636,7 +742,7 @@ service cloud.firestore {
       allow list: if isStaff();
       allow create: if isValidId(token) && token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token;
       allow update: if isStaff() || (isValidId(token) && token.size() >= 20 && isValidDiagnosticSession(incoming()) && incoming().id == token && incoming().createdAt == existing().createdAt);
-      allow delete: if isAdmin() && isValidId(token);
+      allow delete: if isAdminOrConsultor() && isValidId(token);
     }
 
     match /diagnosticRuleVersions/{versionId} {
@@ -647,32 +753,27 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      allow get: if isValidId(clientId) && (
-        isStaff() ||
-        (isCliente() && existing().userId == request.auth.uid) ||
-        (isCliente() && clientId == userClientId()) ||
-        (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isVerifiedClientEmailMatch(existing()))
-      );
-      allow list: if isStaff() ||
-        (isCliente() && existing().userId == request.auth.uid) ||
-        (isSignedIn() && hasUserDoc() && 'role' in userDoc() && userDoc().role == 'cliente' && isClientEmailListMatch(existing()));
+      allow get: if isValidId(clientId) && (isStaff() || (isSignedIn() && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))));
+      allow list: if isStaff() || (isSignedIn() && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email)));
       allow create: if isAdminOrConsultor() && isValidId(clientId) && isValidClient(incoming());
       allow update: if isValidId(clientId) && isValidClient(incoming()) && (
         isAdminOrConsultor() ||
         (isSignedIn()
-          && hasUserDoc()
-          && 'role' in userDoc()
-          && userDoc().role == 'cliente'
-          && isVerifiedClientEmailMatch(existing())
-          && existing().portalLiberado == true
-          && incoming().portalLiberado == existing().portalLiberado
-          && incoming().statusAcessoPortal == existing().statusAcessoPortal
+          && matchesSignedInEmail(existing().email)
           && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
           && incoming().userId == request.auth.uid
+          && incoming().portalLiberado == existing().portalLiberado
+          && incoming().statusAcessoPortal == existing().statusAcessoPortal
+          && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
           && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
-        (isCliente() && existing().userId == request.auth.uid && incoming().portalLiberado == existing().portalLiberado && incoming().statusAcessoPortal == existing().statusAcessoPortal && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
+        (isCliente()
+          && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))
+          && incoming().portalLiberado == existing().portalLiberado
+          && incoming().statusAcessoPortal == existing().statusAcessoPortal
+          && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(clientId);
+      allow delete: if isAdminOrConsultor() && isValidId(clientId);
     }
 
     match /dependents/{dependentId} {
@@ -686,18 +787,14 @@ service cloud.firestore {
 
     match /cases/{caseId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId());
-      allow create: if isStaff() && isValidId(caseId) && isValidCase(incoming());
-      allow update: if isValidId(caseId) && isValidCase(incoming()) && (
-        isStaff() ||
-        (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().diff(existing()).affectedKeys().hasOnly(['npsNota', 'npsComentario', 'updatedAt']))
-      );
-      allow delete: if isAdmin() && isValidId(caseId);
+      allow create, update: if isStaff() && isValidId(caseId) && isValidCase(incoming());
+      allow delete: if isAdminOrConsultor() && isValidId(caseId);
     }
 
     match /caseFinancials/{caseId} {
       allow get, list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
       allow create, update: if isAdminOrConsultor() && isValidId(caseId) && isValidCaseFinancial(incoming());
-      allow delete: if isAdmin() && isValidId(caseId);
+      allow delete: if isAdminOrConsultor() && isValidId(caseId);
     }
 
     match /caseDocuments/{docId} {
@@ -707,7 +804,30 @@ service cloud.firestore {
       );
       allow update: if isValidId(docId) && isValidCaseDocument(incoming()) && (
         isStaff() ||
-        (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().diff(existing()).affectedKeys().hasOnly(['arquivoUrl', 'status', 'etapaEsteira', 'dataEmissao', 'dataValidadeCalculada', 'versao', 'historicoVersoes', 'updatedAt']))
+        (isCliente()
+          && existing().clientId == userClientId()
+          && incoming().clientId == existing().clientId
+          && incoming().status in ['Enviado', 'Pendente']
+          && (!('enviadoPorUid' in incoming()) || incoming().enviadoPorUid == request.auth.uid)
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'arquivoUrl',
+            'arquivoNome',
+            'storagePath',
+            'arquivoMimeType',
+            'arquivoTamanhoBytes',
+            'storageBackend',
+            'metadataTags',
+            'reviewMetadata',
+            'enviadoPorUid',
+            'enviadoEm',
+            'status',
+            'etapaEsteira',
+            'dataEmissao',
+            'dataValidadeCalculada',
+            'versao',
+            'historicoVersoes',
+            'updatedAt'
+          ]))
       );
       allow delete: if isAdminOrConsultor() && isValidId(docId);
     }
@@ -765,13 +885,13 @@ service cloud.firestore {
           && incoming().createdAt == existing().createdAt
           && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPeloCliente', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(logId);
+      allow delete: if isAdminOrConsultor() && isValidId(logId);
     }
 
     match /viabilityAssessments/{assessmentId} {
       allow get, list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
       allow create, update: if isAdminOrConsultor() && isValidId(assessmentId) && isValidViabilityAssessment(incoming());
-      allow delete: if isAdmin() && isValidId(assessmentId);
+      allow delete: if isAdminOrConsultor() && isValidId(assessmentId);
     }
 
     // Strict financial isolation: assistente NEVER accesses budgets or financialRecords
@@ -786,7 +906,7 @@ service cloud.firestore {
         isAdminOrConsultor() ||
         (isCliente() && existing().clientId == userClientId() && existing().status == 'Enviado ao Cliente' && incoming().status in ['Aprovado', 'Recusado'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'aprovadoEm', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(budgetId);
+      allow delete: if isAdminOrConsultor() && isValidId(budgetId);
     }
 
     match /financialRecords/{recordId} {
@@ -796,19 +916,19 @@ service cloud.firestore {
         isAdminOrConsultor() ||
         (isCliente() && existing().clientId == userClientId() && incoming().diff(existing()).affectedKeys().hasOnly(['comprovanteUrl', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(recordId);
+      allow delete: if isAdminOrConsultor() && isValidId(recordId);
     }
 
     match /messageTemplates/{templateId} {
       allow get, list: if isStaff();
       allow create, update: if isAdminOrConsultor() && isValidId(templateId) && isValidMessageTemplate(incoming());
-      allow delete: if isAdmin() && isValidId(templateId);
+      allow delete: if isAdminOrConsultor() && isValidId(templateId);
     }
 
     match /documentTemplates/{templateId} {
       allow get, list: if isStaff();
       allow create, update: if isAdminOrConsultor() && isValidId(templateId) && isValidDocumentTemplate(incoming());
-      allow delete: if isAdmin() && isValidId(templateId);
+      allow delete: if isAdminOrConsultor() && isValidId(templateId);
     }
 
     match /generatedDocuments/{genDocId} {
@@ -832,7 +952,7 @@ service cloud.firestore {
           && incoming().conteudoHtml == existing().conteudoHtml
           && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(genDocId);
+      allow delete: if isAdminOrConsultor() && isValidId(genDocId);
     }
 
     match /fcmTokens/{tokenId} {
@@ -840,7 +960,7 @@ service cloud.firestore {
       allow list: if isStaff() || (isSignedIn() && existing().uid == request.auth.uid);
       allow create: if isSignedIn() && isValidId(tokenId) && isValidFcmToken(incoming()) && incoming().uid == request.auth.uid && incoming().id == tokenId && (!isCliente() || incoming().clientId == userClientId());
       allow update: if isSignedIn() && isValidId(tokenId) && isValidFcmToken(incoming()) && existing().uid == request.auth.uid && incoming().uid == existing().uid && incoming().clientId == existing().clientId && incoming().createdAt == existing().createdAt;
-      allow delete: if isSignedIn() && isValidId(tokenId) && (existing().uid == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && isValidId(tokenId) && (existing().uid == request.auth.uid || isAdminOrConsultor());
     }
 
     match /clientNotifications/{notifId} {
@@ -850,7 +970,7 @@ service cloud.firestore {
         isStaff() ||
         (isCliente() && existing().clientId == userClientId() && incoming().clientId == existing().clientId && incoming().titulo == existing().titulo && incoming().mensagem == existing().mensagem && incoming().tipo == existing().tipo && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['lida', 'lidaEm', 'updatedAt']))
       );
-      allow delete: if isAdmin() && isValidId(notifId);
+      allow delete: if isAdminOrConsultor() && isValidId(notifId);
     }
   }
 }

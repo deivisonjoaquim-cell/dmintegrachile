@@ -461,8 +461,24 @@ export function MediaAssetPicker({
                             selected ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20' : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
-                          <div className="h-24 w-full bg-slate-100 overflow-hidden">
-                            <img src={item.url} alt={item.nome} className="h-full w-full object-cover" />
+                          <div
+                            className={`h-24 w-full overflow-hidden flex items-center justify-center ${
+                              item.categoria === 'logo' || item.categoria === 'favicon'
+                                ? item.id.includes('escur')
+                                  ? 'bg-[#081726]'
+                                  : 'bg-[#F7F5F0]'
+                                : 'bg-slate-100'
+                            }`}
+                          >
+                            <img
+                              src={item.url}
+                              alt={item.nome}
+                              className={
+                                item.categoria === 'logo' || item.categoria === 'favicon'
+                                  ? 'max-h-full max-w-full object-contain p-2.5'
+                                  : 'h-full w-full object-cover'
+                              }
+                            />
                           </div>
                           <div className="p-2 flex items-center justify-between gap-1">
                             <span className="truncate text-xs font-medium text-slate-800">{item.nome}</span>

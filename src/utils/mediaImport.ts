@@ -1,3 +1,4 @@
+import { BRAND_ASSETS } from '../constants/brandAssets';
 import { uploadFileToServer } from '../services/firestoreService';
 
 export type MediaAssetPreset = 'logo' | 'favicon' | 'banner' | 'equipe' | 'geral';
@@ -13,6 +14,36 @@ export interface ProcessedMediaResult {
 }
 
 export const BUILT_IN_MEDIA_GALLERY: { id: string; nome: string; categoria: MediaAssetPreset; url: string }[] = [
+  {
+    id: 'builtin_logo_completa_clara',
+    nome: 'Logo Oficial Completa — Fundo Claro (PNG)',
+    categoria: 'logo',
+    url: BRAND_ASSETS.logoLightPng,
+  },
+  {
+    id: 'builtin_logo_completa_escura',
+    nome: 'Logo Oficial Completa — Fundo Escuro (PNG)',
+    categoria: 'logo',
+    url: BRAND_ASSETS.logoDarkPng,
+  },
+  {
+    id: 'builtin_logo_emblema_claro',
+    nome: 'Emblema Oficial — Fundo Claro (SVG)',
+    categoria: 'favicon',
+    url: BRAND_ASSETS.emblemLightSvg,
+  },
+  {
+    id: 'builtin_logo_emblema_escuro',
+    nome: 'Emblema Oficial — Fundo Escuro (SVG)',
+    categoria: 'logo',
+    url: BRAND_ASSETS.emblemDarkSvg,
+  },
+  {
+    id: 'builtin_logo_avatar_social',
+    nome: 'Avatar Oficial WhatsApp & Instagram (PNG)',
+    categoria: 'favicon',
+    url: BRAND_ASSETS.avatarPng,
+  },
   {
     id: 'builtin_hero_santiago',
     nome: 'Santiago & Cordilheira dos Andes (Hero)',

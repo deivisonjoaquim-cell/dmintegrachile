@@ -761,7 +761,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               alt={empresa.nome_empresa}
               brandShortName={empresa.nome_empresa.split('–')[0].trim()}
               variant="light"
-              imgClassName="h-9 w-auto max-w-[175px] object-contain shrink-0"
+              imgClassName="h-10 w-auto max-w-[210px] object-contain shrink-0"
             />
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-900 truncate">

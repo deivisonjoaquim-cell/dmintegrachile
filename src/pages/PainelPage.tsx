@@ -725,7 +725,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     ? 'dark'
                     : 'light'
               }
-              imgClassName={sidebarCollapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-8 w-auto max-w-[164px] object-contain shrink-0'}
+              imgClassName={sidebarCollapsed ? 'h-9 w-9 object-contain shrink-0' : 'h-9 w-auto max-w-[175px] object-contain shrink-0'}
             />
           </button>
           <button

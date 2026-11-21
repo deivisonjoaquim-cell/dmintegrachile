@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
+import { isCompleteHorizontalBrandLogo } from '../constants/brandAssets';
 import { useApp } from '../contexts/AppContext';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
 import { BrandLogo } from './BrandLogo';
@@ -26,8 +27,9 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   const navItems = (lc.linksNavegacao && lc.linksNavegacao.length > 0 ? lc.linksNavegacao : DEFAULT_NAV_LINKS).filter(
     (item) => item.visivel !== false,
   );
-  const logoHeight = Math.min(64, Math.max(24, Number(lc.logoAlturaPx || 36)));
-  const showBrandText = lc.mostrarNomeComLogo !== false || !empresa.logoUrl;
+  const logoHeight = Math.min(64, Math.max(38, Number(lc.logoAlturaPx || 46)));
+  const isCompleteLogo = isCompleteHorizontalBrandLogo(empresa.logoUrl);
+  const showBrandText = !isCompleteLogo && (lc.mostrarNomeComLogo !== false || !empresa.logoUrl);
   const headerStyle = lc.estiloCabecalho || 'sticky_vidro';
   const headerCtaLabel = lc.textoCtaCabecalho || 'Área da equipe';
   const headerCtaDest = lc.destinoCtaCabecalho || '/entrar-equipe';
@@ -91,8 +93,9 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               src={empresa.logoUrl}
               alt={empresa.nome_empresa}
               brandShortName={brandShortName}
+              variant="light"
               imgStyle={{ height: `${logoHeight}px` }}
-              imgClassName="w-auto max-w-[160px] object-contain shrink-0"
+              imgClassName="w-auto max-w-[230px] object-contain shrink-0"
             />
             {showBrandText && (
               <span className="text-base sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap truncate">
@@ -194,9 +197,11 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 alt={empresa.nome_empresa}
                 brandShortName={brandShortName}
                 variant="dark"
-                imgClassName="h-10 w-auto max-w-[220px] object-contain"
+                imgClassName="h-12 w-auto max-w-[260px] object-contain"
               />
-              <p className="text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
+              {!isCompleteHorizontalBrandLogo(footerLogoSrc) && (
+                <p className="text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
+              )}
               {lc.rodapeSubtitulo && (
                 <p className="text-sm text-slate-300 leading-relaxed max-w-md">{lc.rodapeSubtitulo}</p>
               )}
