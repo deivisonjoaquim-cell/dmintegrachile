@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -11,7 +12,12 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { executeValidatedAdminWrite } from './adminSecurityService';
+import {
+  clearAdminVerificationCache,
+  executeValidatedAdminWrite,
+  isPrimaryAdminEmail,
+  verifyAndEnsureAdminAccess,
+} from './adminSecurityService';
 import { sanitizeClientAiError } from '../utils/aiClient';
 import {
   DEFAULT_CONTRATO_TEMPLATE,
@@ -64,6 +70,7 @@ import type {
 import { registrarAuditoria } from '../utils/audit';
 import { computeLeadPriorityAndTemperature, runDiagnosticEngine } from '../utils/diagnosticEngine';
 import {
+  normalizeCollectionWritePayload,
   sanitizeFirestoreData,
   validateBancarioConfigPayload,
   validateEmpresaConfigPayload,
@@ -1014,6 +1021,15 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
 // =============================================================================
 // Generic Audited CRUD Helpers
 // =============================================================================
+function isFirestorePermissionError(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return (
+    raw.includes('permission-denied') ||
+    raw.includes('missing or insufficient permissions') ||
+    raw.includes('insufficient permissions')
+  );
+}
+
 export async function saveDocumentAudited<T extends Record<string, unknown>>(
   collectionName: string,
   id: string,
@@ -1024,19 +1040,52 @@ export async function saveDocumentAudited<T extends Record<string, unknown>>(
   antes?: unknown,
 ): Promise<void> {
   const pathStr = `${collectionName}/${id}`;
-  try {
-    const cleanData = stripUndefined({ ...data, id, updatedAt: new Date().toISOString() });
-    await setDoc(doc(db, collectionName, id), cleanData, { merge: !isNew });
+  const normalized = normalizeCollectionWritePayload(collectionName, id, {
+    ...data,
+    id,
+    updatedAt: new Date().toISOString(),
+  });
+
+  // For `cases`, legacy documents may contain `valorContrato`, which `firestore.rules` forbids.
+  // Explicitly pass `deleteField()` on merge updates so Firestore purges any legacy key.
+  const writePayload: Record<string, unknown> =
+    collectionName === 'cases' && !isNew
+      ? { ...normalized, valorContrato: deleteField() }
+      : normalized;
+
+  const performWrite = async () => {
+    const useMerge = !isNew && collectionName !== 'config';
+    if (useMerge) {
+      await setDoc(doc(db, collectionName, id), writePayload, { merge: true });
+    } else {
+      await setDoc(doc(db, collectionName, id), normalized);
+    }
     await registrarAuditoria(
       isNew ? 'Criar' : 'Atualizar',
       collectionName,
       id,
       campoLabel,
       antes ?? null,
-      cleanData,
+      normalized,
       actorRole,
     );
+  };
+
+  try {
+    await performWrite();
   } catch (err) {
+    const currentUser = auth.currentUser;
+    if (isFirestorePermissionError(err) && currentUser && isPrimaryAdminEmail(currentUser.email)) {
+      try {
+        await currentUser.getIdToken(true);
+        clearAdminVerificationCache();
+        await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        await performWrite();
+        return;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, isNew ? OperationType.CREATE : OperationType.UPDATE, pathStr);
+      }
+    }
     handleFirestoreError(err, isNew ? OperationType.CREATE : OperationType.UPDATE, pathStr);
   }
 }
@@ -1048,10 +1097,25 @@ export async function deleteDocumentAudited(
   antes?: unknown,
 ): Promise<void> {
   const pathStr = `${collectionName}/${id}`;
-  try {
+  const performDelete = async () => {
     await deleteDoc(doc(db, collectionName, id));
     await registrarAuditoria('Excluir', collectionName, id, 'registro', antes ?? id, null, actorRole);
+  };
+  try {
+    await performDelete();
   } catch (err) {
+    const currentUser = auth.currentUser;
+    if (isFirestorePermissionError(err) && currentUser && isPrimaryAdminEmail(currentUser.email)) {
+      try {
+        await currentUser.getIdToken(true);
+        clearAdminVerificationCache();
+        await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        await performDelete();
+        return;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.DELETE, pathStr);
+      }
+    }
     handleFirestoreError(err, OperationType.DELETE, pathStr);
   }
 }
@@ -1469,7 +1533,7 @@ export async function fetchBancarioConfigAdmin(): Promise<BancarioConfig> {
 export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: BancarioConfig): Promise<void> {
   const validated = validateBancarioConfigPayload(data);
   await executeValidatedAdminWrite('config/bancario', OperationType.WRITE, async () => {
-    await setDoc(doc(db, 'config', 'bancario'), validated, { merge: true });
+    await setDoc(doc(db, 'config', 'bancario'), validated);
     await registrarAuditoria('Atualizar', 'config', 'bancario', 'dados_bancarios', antes, validated, 'admin');
   });
 }
@@ -1477,7 +1541,7 @@ export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: Banca
 export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
   const validated = validateEmpresaConfigPayload(data);
   await executeValidatedAdminWrite('config/empresa', OperationType.WRITE, async () => {
-    await setDoc(doc(db, 'config', 'empresa'), validated, { merge: true });
+    await setDoc(doc(db, 'config', 'empresa'), validated);
     await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
   });
 }

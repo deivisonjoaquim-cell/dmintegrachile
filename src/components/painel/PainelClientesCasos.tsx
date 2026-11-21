@@ -44,6 +44,8 @@ import {
   uploadFileToServer,
 } from '../../services/firestoreService';
 import { CONSULTANCY_PLANS, normalizePaidModality } from '../../utils/portalAccess';
+import { translateAppError } from '../../services/errorService';
+import { formatFileSizeBytes, formatReviewTagLabel } from '../../utils/documentUploadMetadata';
 import { markStaffChatQuestionsRead, sendStaffDocumentChatReply } from '../../services/chatService';
 import { notifyClientProcessUpdate } from '../../services/notificationService';
 import type {
@@ -507,6 +509,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     e.preventDefault();
     if (!editingClient || !canManageClients) return;
     setErrorMsg(null);
+    const trimmedName = (editingClient.nomeCompleto || '').trim();
+    const trimmedEmail = (editingClient.email || '').trim().toLowerCase();
+    if (trimmedName.length < 2) {
+      setErrorMsg('Informe o nome completo do cliente (mínimo 2 caracteres).');
+      return;
+    }
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setErrorMsg('Informe um e-mail válido para o cliente.');
+      return;
+    }
     const cpfDigits = normalizeDigits(editingClient.cpf);
     if (cpfDigits && !isValidCPF(cpfDigits)) {
       setErrorMsg('CPF inválido pelos dígitos verificadores. Corrija ou deixe em branco.');
@@ -516,10 +528,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     const chosenModality: PaidConsultancyModality = normalizePaidModality(editingClient.modalidadeConsultoria);
     const payload: Client = {
       id: editingClient.id || makeId('cli'),
-      nomeCompleto: (editingClient.nomeCompleto || '').trim(),
+      nomeCompleto: trimmedName,
       cpf: editingClient.cpf || '',
-      email: (editingClient.email || '').trim().toLowerCase(),
-      whatsapp: editingClient.whatsapp || '',
+      email: trimmedEmail,
+      whatsapp: (editingClient.whatsapp || '').trim(),
       nacionalidade: editingClient.nacionalidade || 'Brasileira',
       profissao: editingClient.profissao || '',
       enderecoCompleto: editingClient.enderecoCompleto || '',
@@ -531,25 +543,34 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       observacoes: editingClient.observacoes || '',
       createdAt: editingClient.createdAt || new Date().toISOString(),
     };
-    await saveDocumentAudited('clients', payload.id, payload as unknown as Record<string, unknown>, isNew, role, 'cliente');
-    const syncRes = await setClientPortalAccessAudited({
-      client: payload,
-      portalLiberado: payload.portalLiberado,
-      modalidadeConsultoria: chosenModality,
-      role,
-    });
-    setClientModalOpen(false);
-    setEditingClient(null);
-    setFeedback(
-      `Cliente "${payload.nomeCompleto}" salvo (${CONSULTANCY_PLANS[chosenModality].nome}). ${
-        payload.portalLiberado
-          ? syncRes.userLinked
-            ? 'Portal liberado e conta Google sincronizada!'
-            : 'Portal liberado! Ativará automaticamente no 1º login com o e-mail Google cadastrado.'
-          : 'Portal mantido como pendente.'
-      }`,
-    );
-    await onRefresh();
+    try {
+      await saveDocumentAudited('clients', payload.id, payload as unknown as Record<string, unknown>, isNew, role, 'cliente');
+      const syncRes = await setClientPortalAccessAudited({
+        client: payload,
+        portalLiberado: payload.portalLiberado,
+        modalidadeConsultoria: chosenModality,
+        role,
+      });
+      setClientModalOpen(false);
+      setEditingClient(null);
+      setFeedback(
+        `Cliente "${payload.nomeCompleto}" salvo (${CONSULTANCY_PLANS[chosenModality].nome}). ${
+          payload.portalLiberado
+            ? syncRes.userLinked
+              ? 'Portal liberado e conta Google sincronizada!'
+              : 'Portal liberado! Ativará automaticamente no 1º login com o e-mail Google cadastrado.'
+            : 'Portal mantido como pendente.'
+        }`,
+      );
+      await onRefresh();
+    } catch (err) {
+      const translated = translateAppError(err, { path: `clients/${payload.id}` });
+      setErrorMsg(
+        translated.actionHint
+          ? `${translated.title}: ${translated.message} ${translated.actionHint}`
+          : translated.message,
+      );
+    }
   };
 
   const handleTogglePortalCliente = async (cl: Client) => {
@@ -2878,7 +2899,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                                 {(d.anexos?.length || 0) > 1 && (
                                   <span className="text-slate-500">{d.anexos!.length} anexo(s)</span>
                                 )}
+                                {d.arquivoTamanhoBytes && (
+                                  <span className="text-slate-500 tabular-nums">
+                                    {formatFileSizeBytes(d.arquivoTamanhoBytes)}
+                                  </span>
+                                )}
+                                {d.storageBackend === 'firebase_storage' && (
+                                  <span className="text-emerald-700 font-medium">Firebase Storage</span>
+                                )}
                               </div>
+                              {d.metadataTags && d.metadataTags.length > 0 && (
+                                <p className="text-[11px] text-slate-600 mt-1">
+                                  <span className="font-semibold text-slate-700">Triagem automática:</span>{' '}
+                                  {d.metadataTags.map((tag) => formatReviewTagLabel(tag)).join(' · ')}
+                                  {d.reviewMetadata?.uploadedByEmail ? ` · Enviado por ${d.reviewMetadata.uploadedByEmail}` : ''}
+                                </p>
+                              )}
                               {d.analiseIaSugestao && (
                                 <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1.5">
                                   {d.analiseIaSugestao}

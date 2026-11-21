@@ -33,7 +33,9 @@ import { CalendlyModal } from '../components/CalendlyModal';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
+import { ImmigrationStatusTimeline } from '../components/portal/ImmigrationStatusTimeline';
 import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
+import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { PIPELINE_STAGES } from '../data/seeds';
@@ -82,7 +84,6 @@ import {
   shouldDeliverNotificationForPreferences,
 } from '../utils/pushNotifications';
 import { calcularTermometroDocumentos } from '../utils/caseMetrics';
-import { resolveDocumentExpiration } from '../utils/documentExpiration';
 import {
   buildGoogleCalendarUrl,
   buildWhatsAppUrl,
@@ -90,14 +91,11 @@ import {
   formatCurrency,
   formatDateBR,
   formatDateTimeBR,
-  formatStandardDocFilename,
   maskPhoneBR,
   sanitizeHtml,
 } from '../utils/formatters';
 import {
   CONSULTANCY_PLANS,
-  mapPipelineStepToOrientativaStep,
-  ORIENTATIVA_STAGES,
   resolveClientPortalAccess,
 } from '../utils/portalAccess';
 import { BrandLogo } from '../components/BrandLogo';
@@ -137,7 +135,6 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const [lawOpen, setLawOpen] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
-  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState<'diagnostico' | 'progresso' | 'preview' | null>(null);
   const [pdfPreview, setPdfPreview] = useState<{ title: string; filename: string; blobUrl: string } | null>(null);
   const [viewingGenDoc, setViewingGenDoc] = useState<GeneratedDocument | null>(null);
@@ -349,7 +346,6 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const paidModality = accessResolution.kind === 'active_paid' ? accessResolution.modality : 'completa';
   const planSpec = CONSULTANCY_PLANS[paidModality];
   const isOrientativa = paidModality === 'orientativa';
-  const orientativaCurrentStep = mapPipelineStepToOrientativaStep(activeCase?.etapaPipeline || 1);
 
   const activeDocs = activeCase ? docs.filter((d) => d.caseId === activeCase.id) : docs;
   const primaryLead = clientLeads[0] || null;
@@ -588,41 +584,6 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       client.lgpdAceito,
     );
     await loadPortal();
-  };
-
-  const handleUploadDoc = async (docItem: CaseDocument, file: File) => {
-    setUploadingDocId(docItem.id);
-    setFeedbackMsg(null);
-    try {
-      const uploaded = await uploadFileToServer(file);
-      const prevHist = docItem.historicoVersoes || [];
-      const nextHist = docItem.arquivoUrl
-        ? [...prevHist, { versao: docItem.versao, arquivoUrl: docItem.arquivoUrl, data: new Date().toISOString() }]
-        : prevHist;
-      await saveDocumentAudited(
-        'caseDocuments',
-        docItem.id,
-        {
-          ...docItem,
-          arquivoUrl: uploaded.url,
-          arquivoNome: uploaded.filename,
-          status: 'Enviado',
-          etapaEsteira: '2 Recebido/Triagem',
-          versao: docItem.arquivoUrl ? docItem.versao + 1 : docItem.versao,
-          historicoVersoes: nextHist,
-        },
-        false,
-        'cliente',
-        'arquivoUrl',
-        docItem.arquivoUrl,
-      );
-      setFeedbackMsg(`Documento "${docItem.nomeDocumento}" enviado com sucesso!`);
-      await loadPortal();
-    } catch (err) {
-      setFeedbackMsg(err instanceof Error ? err.message : 'Falha no envio do documento.');
-    } finally {
-      setUploadingDocId(null);
-    }
   };
 
   const handleBudgetDecision = async (b: Budget, decision: 'Aprovado' | 'Recusado') => {
@@ -1178,85 +1139,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </div>
                   </div>
 
-                  {/* Linha do tempo diferenciada por modalidade */}
-                  {isOrientativa ? (
-                    <>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <h2 className="text-sm font-semibold text-slate-900">
-                          Roteiro da Consultoria Orientativa (6 Etapas)
-                        </h2>
-                        <span className="text-xs text-slate-500 tabular-nums">
-                          Etapa atual: {orientativaCurrentStep}/6
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {ORIENTATIVA_STAGES.map((st) => {
-                          const done = st.numero < orientativaCurrentStep;
-                          const active = st.numero === orientativaCurrentStep;
-                          return (
-                            <div
-                              key={st.numero}
-                              className={`p-4 rounded-xl border text-xs space-y-1.5 ${
-                                active
-                                  ? 'border-[var(--color-primary)] bg-slate-900 text-white'
-                                  : done
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
-                                    : 'border-slate-200 bg-white text-slate-600'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-bold tabular-nums">Etapa {st.numero}</span>
-                                <span
-                                  className={`text-[10px] font-semibold uppercase tracking-wider ${
-                                    active ? 'text-amber-300' : done ? 'text-emerald-700' : 'text-slate-400'
-                                  }`}
-                                >
-                                  {st.responsavel}
-                                </span>
-                              </div>
-                              <p className={`font-semibold ${active ? 'text-white' : 'text-slate-900'}`}>{st.nome}</p>
-                              <p className={`leading-relaxed ${active ? 'text-slate-300' : 'text-slate-600'}`}>
-                                {st.descricao}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <h2 className="text-sm font-semibold text-slate-900">
-                          Linha do tempo — Consultoria Completa (15 Etapas)
-                        </h2>
-                        <span className="text-xs text-slate-500 tabular-nums">
-                          Etapa atual: {activeCase?.etapaPipeline || 1}/15
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                        {PIPELINE_STAGES.map((st) => {
-                          const current = activeCase?.etapaPipeline || 1;
-                          const done = st.numero < current;
-                          const active = st.numero === current;
-                          return (
-                            <div
-                              key={st.numero}
-                              className={`p-3 rounded-lg border text-xs ${
-                                active
-                                  ? 'border-[var(--color-primary)] bg-slate-900 text-white'
-                                  : done
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                                    : 'border-slate-200 bg-white text-slate-500'
-                              }`}
-                            >
-                              <p className="font-bold tabular-nums">Etapa {st.numero}</p>
-                              <p className="mt-0.5 leading-snug">{st.nome}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
+                  {/* Linha do tempo visual conectada ao Firestore em tempo real */}
+                  <ImmigrationStatusTimeline
+                    clientId={client?.id}
+                    activeCase={activeCase}
+                    modality={paidModality}
+                    initialDocs={activeDocs}
+                    initialDeadlines={deadlines}
+                    initialNotifications={notifications}
+                    onNavigateTab={(target) => setTab(target)}
+                  />
                 </div>
 
                 {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
@@ -1433,156 +1325,21 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               </div>
             )}
 
-            {/* ABA 2: DOCUMENTOS & PRIORIDADES */}
+            {/* ABA 2: DOCUMENTOS & ENVIO SEGURO */}
             {tab === 'documentos' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Relação Priorizada de Documentos</h2>
-                    <p className="text-xs text-slate-500">
-                      Envie PDF, JPG ou PNG de até 10 MB respeitando a ordem sugerida para preservar validades curtas (ex.: Antecedentes 60 dias).
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 no-print">
-                    <button
-                      type="button"
-                      disabled={pdfBusy !== null}
-                      onClick={() => void handleExportProgressoPdf()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                    >
-                      <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                      {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Relatório (PDF)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTab('biblioteca')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
-                    >
-                      <Scale className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                      Biblioteca Legal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLawOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
-                    >
-                      <BookOpen className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                      Entenda a Lei
-                    </button>
-                  </div>
-                </div>
-
-                {activeDocs.length === 0 ? (
-                  <p className="text-sm text-slate-600 py-6 text-center">Nenhum item documental gerado ainda para este processo.</p>
-                ) : (
-                  (() => {
-                    const sortedDocs = [...activeDocs].sort((a, b) => a.ordemEmissao - b.ordemEmissao);
-                    const evalByDocId = new Map(
-                      sortedDocs.map((d) => [
-                        d.id,
-                        resolveDocumentExpiration({
-                          doc: d,
-                          visaRequirements,
-                          client: client || undefined,
-                          dependents,
-                        }),
-                      ]),
-                    );
-                    const expiringClientDocs = sortedDocs.filter(
-                      (d) => evalByDocId.get(d.id)?.isExpiringUnder30Days,
-                    );
-
-                    return (
-                      <>
-                        {expiringClientDocs.length > 0 && (
-                          <div
-                            role="region"
-                            aria-label="Lembretes de vencimento dos documentos"
-                            className="rounded-xl border border-amber-200 bg-amber-50/75 px-4 py-3 flex items-start gap-2.5"
-                          >
-                            <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" aria-hidden="true" />
-                            <div className="text-xs space-y-0.5">
-                              <p className="font-bold text-slate-900">
-                                Lembretes de Vencimento: {expiringClientDocs.length} documento(s) expira(m) em menos de 30 dias
-                              </p>
-                              <p className="text-slate-700">
-                                {expiringClientDocs
-                                  .map((d) => `${d.nomeDocumento} (${evalByDocId.get(d.id)?.statusLabel})`)
-                                  .join(' · ')}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        <div className="divide-y divide-slate-200">
-                          {sortedDocs.map((d) => {
-                            const expEval = evalByDocId.get(d.id);
-                            const isExpiring = Boolean(expEval?.isExpiringUnder30Days);
-                            const isCritical = expEval?.severity === 'vencido' || expEval?.severity === 'critico';
-                            const suggestedName = formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao, 'pdf');
-                            return (
-                              <div key={d.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                  <p className="text-xs text-slate-500">
-                                    Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
-                                    {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
-                                  </p>
-                                  <p className="text-sm font-semibold text-slate-900">{d.nomeDocumento}</p>
-                                  <p className="text-xs font-medium" style={{ color: d.status === 'Aprovado' ? '#1E7E34' : d.status === 'Reprovado' ? '#C82333' : '#0F2537' }}>
-                                    Status: {d.status} · Etapa: {d.etapaEsteira} · Versão {d.versao}
-                                  </p>
-                                  {isExpiring && expEval && (
-                                    <p
-                                      className="inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums"
-                                      style={{ color: isCritical ? '#DC2626' : '#D97706' }}
-                                    >
-                                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                                      <span>
-                                        {expEval.statusLabel}
-                                        {expEval.dataValidadeEfetiva ? ` (${expEval.dataValidadeBR})` : ''}
-                                      </span>
-                                    </p>
-                                  )}
-                                  <p className="text-[11px] text-slate-400">Nome sugerido do arquivo: {suggestedName}</p>
-                                  {d.motivoReprovacao && (
-                                    <p className="text-xs text-[#C82333]">Motivo da pendência: {d.motivoReprovacao}</p>
-                                  )}
-                                </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {d.arquivoUrl && (
-                                <a
-                                  href={d.arquivoUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                >
-                                  <FileText className="w-3.5 h-3.5" />
-                                  Ver enviado
-                                </a>
-                              )}
-                              <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ backgroundColor: 'var(--color-primary)' }}>
-                                <Upload className="w-3.5 h-3.5" />
-                                {uploadingDocId === d.id ? 'Enviando...' : d.arquivoUrl ? 'Reenviar' : 'Enviar arquivo'}
-                                <input
-                                  type="file"
-                                  accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                  className="hidden"
-                                  disabled={uploadingDocId === d.id}
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) void handleUploadDoc(d, f);
-                                  }}
-                                />
-                              </label>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                    );
-                  })()
-                )}
-              </div>
+              <SecureDocumentUploadSection
+                client={client}
+                activeCase={activeCase}
+                docs={activeDocs}
+                dependents={dependents}
+                visaRequirements={visaRequirements}
+                userProfile={userProfile}
+                onDocumentUploaded={loadPortal}
+                onOpenBiblioteca={() => setTab('biblioteca')}
+                onOpenLaw={() => setLawOpen(true)}
+                onExportPdf={handleExportProgressoPdf}
+                pdfBusy={pdfBusy}
+              />
             )}
 
             {/* ABA: BIBLIOTECA LEGAL */}

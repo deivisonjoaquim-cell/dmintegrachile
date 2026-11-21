@@ -213,7 +213,7 @@ export async function verifyAndEnsureAdminAccess(
     const { profile, needsWrite } = buildEnsuredPrimaryAdminProfile(fbUser, existingData);
     if (needsWrite) {
       try {
-        await setDoc(userRef, sanitizeFirestoreData(profile), { merge: Boolean(existingData) });
+        await setDoc(userRef, sanitizeFirestoreData(profile));
         repairedUserDoc = true;
         effectiveDoc = profile;
       } catch (err) {

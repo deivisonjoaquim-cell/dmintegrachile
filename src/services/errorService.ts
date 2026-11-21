@@ -141,12 +141,41 @@ export function translateAppError(
     lower.includes('missing or insufficient permissions') ||
     lower.includes('insufficient permissions')
   ) {
+    const resourceMap: Record<string, string> = {
+      'config/empresa': 'Configurações da empresa',
+      'config/bancario': 'Dados bancários',
+      users: 'Usuários e equipe',
+      clients: 'Cadastro de clientes',
+      cases: 'Casos e processos',
+      caseDocuments: 'Documentos do processo',
+      caseFinancials: 'Financeiro do caso',
+      leads: 'Leads e diagnósticos',
+      siteContent: 'Conteúdo do site (CMS)',
+      mediaAssets: 'Biblioteca de mídia',
+      partners: 'Parceiros',
+      partnersPublic: 'Parceiros públicos',
+      legalSources: 'Base normativa',
+      visaCategories: 'Subcategorias de visto',
+      visaRequirements: 'Requisitos documentais',
+      budgets: 'Orçamentos',
+      financialRecords: 'Lançamentos financeiros',
+      diagnosticRuleVersions: 'Versões de regras de diagnóstico',
+    };
+    const rootCollection = effectivePath ? effectivePath.split('/')[0] : '';
+    const resourceLabel =
+      (effectivePath && resourceMap[effectivePath]) ||
+      (rootCollection && resourceMap[rootCollection]) ||
+      null;
+
     return {
       category: 'firebase-permission',
       level: 'warning',
       title: 'Acesso restrito para esta operação',
-      message: 'Sua conta atual não tem permissão para concluir esta ação ou acessar este recurso.',
-      actionHint: 'Verifique se você está autenticado com a conta correta ou solicite acesso ao administrador.',
+      message: resourceLabel
+        ? `Sua conta atual não tem permissão para concluir esta ação em "${resourceLabel}".`
+        : 'Sua conta atual não tem permissão para concluir esta ação ou acessar este recurso.',
+      actionHint:
+        'Verifique se você está autenticado com a conta de administrador/consultor correta ou solicite acesso ao administrador.',
       path: effectivePath,
       operation: effectiveOp,
       rawError: effectiveRaw,

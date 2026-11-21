@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import { getMessaging, isSupported as isMessagingSupported, type Messaging } from 'firebase/messaging';
+import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 import { reportAppError } from './services/errorService';
 
@@ -12,12 +13,14 @@ export const firebaseConfigSummary = {
   projectId: firebaseConfig.projectId,
   authDomain: firebaseConfig.authDomain,
   firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+  storageBucket: firebaseConfig.storageBucket,
   messagingSenderId: firebaseConfig.messagingSenderId,
   appId: firebaseConfig.appId,
 } as const;
 
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 auth.languageCode = 'pt-BR';
 
 let cachedMessaging: Messaging | null = null;

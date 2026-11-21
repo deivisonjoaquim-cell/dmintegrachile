@@ -701,6 +701,36 @@ export type DocumentStep =
   | '5 Pronto para Apostila/Tradução'
   | '6 Aprovado para Protocolo';
 
+export type DocumentStorageBackend = 'firebase_storage' | 'server_upload' | 'inline_data_url';
+
+export type DocumentReviewPriority = 'alta' | 'media' | 'normal';
+
+export type DocumentInternalReviewStatus =
+  | 'pending_internal_review'
+  | 'in_review'
+  | 'approved'
+  | 'rejected';
+
+export interface CaseDocumentReviewMetadata {
+  reviewStatus: DocumentInternalReviewStatus;
+  reviewPriority: DocumentReviewPriority;
+  documentCategory: string;
+  person: string;
+  version: number;
+  requiresApostille: boolean;
+  requiresTranslation: boolean;
+  mandatory: boolean;
+  uploadedByUid: string;
+  uploadedByEmail: string;
+  uploadedAt: string;
+  originalFileName: string;
+  sanitizedFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  storagePath?: string;
+  expirationDays?: number;
+}
+
 export interface CaseDocument {
   id: string;
   caseId: string;
@@ -714,6 +744,14 @@ export interface CaseDocument {
   prazoSugeridoEmissao?: string;
   arquivoUrl?: string;
   arquivoNome?: string;
+  storagePath?: string;
+  arquivoMimeType?: string;
+  arquivoTamanhoBytes?: number;
+  storageBackend?: DocumentStorageBackend;
+  metadataTags?: string[];
+  reviewMetadata?: CaseDocumentReviewMetadata;
+  enviadoPorUid?: string;
+  enviadoEm?: string;
   anexos?: { nome: string; url: string; data: string; tamanhoBytes?: number }[];
   status: 'Pendente' | 'Enviado' | 'Em análise' | 'Aprovado' | 'Reprovado' | 'Vencido';
   dataEmissao?: string;

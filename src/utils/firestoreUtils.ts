@@ -138,9 +138,9 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     ),
     endereco_cidade: clampString(merged.endereco_cidade, 300, DEFAULT_EMPRESA_CONFIG.endereco_cidade),
     foro_comarca: clampString(merged.foro_comarca, 300, DEFAULT_EMPRESA_CONFIG.foro_comarca),
-    logoUrl: clampString(merged.logoUrl, 500000, ''),
-    logoDarkUrl: clampOptionalString(merged.logoDarkUrl, 500000),
-    faviconUrl: clampOptionalString(merged.faviconUrl, 500000),
+    logoUrl: clampString(merged.logoUrl, 800000, ''),
+    logoDarkUrl: clampOptionalString(merged.logoDarkUrl, 800000),
+    faviconUrl: clampOptionalString(merged.faviconUrl, 800000),
     corPrimaria: sanitizeColorHex(merged.corPrimaria, DEFAULT_EMPRESA_CONFIG.corPrimaria),
     corDestaque: sanitizeColorHex(merged.corDestaque, DEFAULT_EMPRESA_CONFIG.corDestaque),
     corFundo: sanitizeColorHex(merged.corFundo, DEFAULT_EMPRESA_CONFIG.corFundo),
@@ -165,17 +165,17 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     linkPagamentoCartao: clampString(merged.linkPagamentoCartao, 500, ''),
     textoContratoPadrao: clampString(
       merged.textoContratoPadrao,
-      20000,
+      40000,
       DEFAULT_EMPRESA_CONFIG.textoContratoPadrao,
     ),
     textoReciboPadrao: clampString(
       merged.textoReciboPadrao,
-      5000,
+      10000,
       DEFAULT_EMPRESA_CONFIG.textoReciboPadrao,
     ),
-    termoLgpd: clampString(merged.termoLgpd, 15000, DEFAULT_EMPRESA_CONFIG.termoLgpd),
+    termoLgpd: clampString(merged.termoLgpd, 25000, DEFAULT_EMPRESA_CONFIG.termoLgpd),
     termoLgpdVersao: clampString(merged.termoLgpdVersao, 30, DEFAULT_EMPRESA_CONFIG.termoLgpdVersao),
-    avisoLegal: clampString(merged.avisoLegal, 1000, DEFAULT_EMPRESA_CONFIG.avisoLegal),
+    avisoLegal: clampString(merged.avisoLegal, 2500, DEFAULT_EMPRESA_CONFIG.avisoLegal),
     bloqueioProtocoloMinimo:
       clampOptionalNumber(merged.bloqueioProtocoloMinimo, 0, 100) ??
       DEFAULT_EMPRESA_CONFIG.bloqueioProtocoloMinimo,
@@ -189,7 +189,7 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     taxaCambioUsdBrl: clampOptionalNumber(merged.taxaCambioUsdBrl, 0.1, 1000),
     retencaoDadosDias: clampOptionalNumber(merged.retencaoDadosDias, 1, 36500),
     seoTituloPadrao: clampOptionalString(merged.seoTituloPadrao, 200),
-    seoDescricaoPadrao: clampOptionalString(merged.seoDescricaoPadrao, 500),
+    seoDescricaoPadrao: clampOptionalString(merged.seoDescricaoPadrao, 1000),
     ultimaRevisaoNormativa: clampOptionalString(merged.ultimaRevisaoNormativa, 64),
     textoContratoVersao: clampOptionalString(merged.textoContratoVersao, 30),
     textoContratoVigencia: clampOptionalString(merged.textoContratoVigencia, 64),
@@ -218,6 +218,110 @@ export function validateBancarioConfigPayload(input: Partial<BancarioConfig>): B
 }
 
 /**
+ * Normaliza campos por coleção para garantir compatibilidade estrita com `firestore.rules`
+ * antes de escritas auditadas no painel (evitando `permission-denied` por limites/enums legados).
+ */
+export function normalizeCollectionWritePayload(
+  collectionName: string,
+  docId: string,
+  rawData: Record<string, unknown>,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { ...rawData };
+
+  if (collectionName === 'config' && docId === 'empresa') {
+    return validateEmpresaConfigPayload(base as Partial<EmpresaConfig>) as unknown as Record<string, unknown>;
+  }
+  if (collectionName === 'config' && docId === 'bancario') {
+    return validateBancarioConfigPayload(base as Partial<BancarioConfig>) as unknown as Record<string, unknown>;
+  }
+
+  if (collectionName === 'cases') {
+    delete base.valorContrato;
+    if (typeof base.titulo === 'string') base.titulo = base.titulo.trim().slice(0, 250);
+    if (typeof base.tipoServico === 'string') base.tipoServico = base.tipoServico.trim().slice(0, 100);
+    if (typeof base.statusSermig === 'string') base.statusSermig = base.statusSermig.trim().slice(0, 80);
+    if (base.etapaPipeline !== undefined) {
+      const n = Number(base.etapaPipeline);
+      base.etapaPipeline = Number.isFinite(n) ? Math.max(1, Math.min(15, Math.round(n))) : 1;
+    }
+    if (base.modalidadeConsultoria !== 'orientativa' && base.modalidadeConsultoria !== 'completa') {
+      delete base.modalidadeConsultoria;
+    }
+  } else if (collectionName === 'clients') {
+    if (typeof base.nomeCompleto === 'string') base.nomeCompleto = base.nomeCompleto.trim().slice(0, 200);
+    if (typeof base.email === 'string') base.email = base.email.trim().toLowerCase().slice(0, 200);
+    if (typeof base.whatsapp === 'string') base.whatsapp = base.whatsapp.trim().slice(0, 40);
+    if (typeof base.cpf === 'string') base.cpf = base.cpf.trim().slice(0, 20);
+    if (typeof base.observacoes === 'string') base.observacoes = base.observacoes.slice(0, 10000);
+    if (typeof base.portalLiberado !== 'boolean') base.portalLiberado = Boolean(base.portalLiberado);
+    const validStatus = ['Não solicitado', 'Pendente liberação', 'Liberado'];
+    if (typeof base.statusAcessoPortal !== 'string' || !validStatus.includes(base.statusAcessoPortal)) {
+      base.statusAcessoPortal = base.portalLiberado ? 'Liberado' : 'Não solicitado';
+    }
+    if (base.modalidadeConsultoria !== 'orientativa' && base.modalidadeConsultoria !== 'completa') {
+      delete base.modalidadeConsultoria;
+    }
+  } else if (collectionName === 'leads') {
+    if (typeof base.nome === 'string') base.nome = base.nome.trim().slice(0, 200);
+    if (typeof base.email === 'string') base.email = base.email.trim().toLowerCase().slice(0, 200);
+    if (typeof base.whatsapp === 'string') base.whatsapp = base.whatsapp.trim().slice(0, 40);
+    if (typeof base.cidadeUf === 'string') base.cidadeUf = base.cidadeUf.trim().slice(0, 150);
+    if (typeof base.subcategoriaSugerida === 'string') base.subcategoriaSugerida = base.subcategoriaSugerida.trim().slice(0, 200);
+    if (typeof base.notas === 'string') base.notas = base.notas.slice(0, 6000);
+    if (base.confianca !== 'Alta' && base.confianca !== 'Média' && base.confianca !== 'Baixa') {
+      delete base.confianca;
+    }
+    if (base.temperatura !== 'Quente' && base.temperatura !== 'Morno' && base.temperatura !== 'Frio') {
+      delete base.temperatura;
+    }
+    if (base.statusConclusao !== 'Em andamento' && base.statusConclusao !== 'Concluído' && base.statusConclusao !== 'Abandonado') {
+      delete base.statusConclusao;
+    }
+    if (base.modalidadeInteresse !== 'orientativa' && base.modalidadeInteresse !== 'completa') {
+      delete base.modalidadeInteresse;
+    }
+    if (typeof base.lgpdAceito !== 'boolean') base.lgpdAceito = Boolean(base.lgpdAceito);
+  } else if (collectionName === 'siteContent') {
+    if (typeof base.secao === 'string') base.secao = base.secao.trim().slice(0, 64);
+    if (typeof base.titulo === 'string') base.titulo = (base.titulo.trim() || 'Seção').slice(0, 300);
+    if (typeof base.subtitulo === 'string') base.subtitulo = base.subtitulo.slice(0, 1500);
+    if (typeof base.conteudoHtml === 'string') base.conteudoHtml = base.conteudoHtml.slice(0, 60000);
+    if (typeof base.imagemUrl === 'string') base.imagemUrl = base.imagemUrl.slice(0, 800000);
+    base.ordem = Number.isFinite(Number(base.ordem)) ? Number(base.ordem) : 1;
+    base.ativo = Boolean(base.ativo);
+  } else if (collectionName === 'users') {
+    base.uid = typeof base.uid === 'string' && base.uid.trim() ? base.uid.trim().slice(0, 128) : docId;
+    if (typeof base.nome === 'string') base.nome = (base.nome.trim() || 'Usuário').slice(0, 200);
+    if (typeof base.email === 'string') base.email = base.email.trim().toLowerCase().slice(0, 200);
+    if (typeof base.fotoUrl === 'string') base.fotoUrl = base.fotoUrl.slice(0, 2000);
+    if (typeof base.quemSomosBio === 'string') base.quemSomosBio = base.quemSomosBio.slice(0, 5000);
+    if (typeof base.quemSomosFormacao === 'string') base.quemSomosFormacao = base.quemSomosFormacao.slice(0, 2000);
+    if (typeof base.quemSomosExperiencia === 'string') base.quemSomosExperiencia = base.quemSomosExperiencia.slice(0, 2000);
+    if (typeof base.quemSomosMissao === 'string') base.quemSomosMissao = base.quemSomosMissao.slice(0, 2000);
+    if (typeof base.quemSomosCredenciais === 'string') base.quemSomosCredenciais = base.quemSomosCredenciais.slice(0, 2000);
+    if (typeof base.quemSomosFotoUrl === 'string') base.quemSomosFotoUrl = base.quemSomosFotoUrl.slice(0, 800000);
+  } else if (collectionName === 'legalSources') {
+    if (typeof base.titulo === 'string') base.titulo = base.titulo.trim().slice(0, 300);
+    if (typeof base.resumoPortugues === 'string') base.resumoPortugues = base.resumoPortugues.slice(0, 10000);
+    if (typeof base.explicacaoCliente === 'string') base.explicacaoCliente = base.explicacaoCliente.slice(0, 10000);
+    if (typeof base.textoIntegral === 'string') base.textoIntegral = base.textoIntegral.slice(0, 80000);
+  } else if (collectionName === 'caseDocuments') {
+    if (typeof base.arquivoUrl === 'string') base.arquivoUrl = base.arquivoUrl.slice(0, 800000);
+    if (typeof base.arquivoNome === 'string') base.arquivoNome = base.arquivoNome.trim().slice(0, 250);
+    if (typeof base.storagePath === 'string') base.storagePath = base.storagePath.trim().slice(0, 500);
+    if (typeof base.arquivoMimeType === 'string') base.arquivoMimeType = base.arquivoMimeType.trim().slice(0, 100);
+    if (Array.isArray(base.metadataTags)) {
+      base.metadataTags = base.metadataTags
+        .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+        .map((t) => t.trim().slice(0, 80))
+        .slice(0, 20);
+    }
+  }
+
+  return sanitizeFirestoreData(base);
+}
+
+/**
  * Aplica validação específica por coleção (com foco especial na coleção `config`)
  * e sanitização profunda de `undefined` antes de qualquer gravação no Firestore.
  */
@@ -226,13 +330,7 @@ export function prepareFirestoreWritePayload<T extends Record<string, unknown>>(
   docId: string,
   data: T,
 ): Record<string, unknown> {
-  if (collectionName === 'config' && docId === 'empresa') {
-    return validateEmpresaConfigPayload(data as Partial<EmpresaConfig>) as unknown as Record<string, unknown>;
-  }
-  if (collectionName === 'config' && docId === 'bancario') {
-    return validateBancarioConfigPayload(data as Partial<BancarioConfig>) as unknown as Record<string, unknown>;
-  }
-  return sanitizeFirestoreData(data);
+  return normalizeCollectionWritePayload(collectionName, docId, data);
 }
 
 /**
