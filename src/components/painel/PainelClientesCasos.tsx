@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  ArrowRight,
   Bell,
   BookOpen,
   Calendar,
   CheckSquare,
-  ChevronDown,
-  ChevronUp,
   Copy,
   Download,
   Eye,
@@ -19,7 +16,6 @@ import {
   Printer,
   RotateCcw,
   Send,
-  SlidersHorizontal,
   Sparkles,
   Trash2,
   Upload,
@@ -27,27 +23,19 @@ import {
   X,
 } from 'lucide-react';
 import { LegalBaseModal } from '../LegalBaseModal';
-import { ConfirmActionModal, ConfirmTypedModal, UiButton } from '../ui/DesignSystem';
+import { UiButton } from '../ui/DesignSystem';
 import { ClientDossierModal } from './ClientDossierModal';
 import { ContractGeneratorModal } from './ContractGeneratorModal';
 import {
   clearAiDraftCache,
-  compactCaseForAi,
-  compactClientForAi,
-  compactLegalSourcesForAi,
   loadAiDraftCache,
-  prepareAiAttachment,
   sanitizeClientAiError,
   saveAiDraftCache,
   type AiResponseMeta,
 } from '../../utils/aiClient';
 import { CASE_TEMPLATES, PIPELINE_STAGES } from '../../data/seeds';
 import {
-  archiveClientAudited,
   callAiEndpoint,
-  deleteCaseCascadeAudited,
-  deleteCaseDocumentAudited,
-  deleteClientCascadeAudited,
   deleteDocumentAudited,
   logSensitiveDocumentAccess,
   makeId,
@@ -55,6 +43,7 @@ import {
   setClientPortalAccessAudited,
   uploadFileToServer,
 } from '../../services/firestoreService';
+import { CONSULTANCY_PLANS, normalizePaidModality } from '../../utils/portalAccess';
 import { markStaffChatQuestionsRead, sendStaffDocumentChatReply } from '../../services/chatService';
 import { notifyClientProcessUpdate } from '../../services/notificationService';
 import type {
@@ -78,6 +67,7 @@ import type {
   GeneratedDocument,
   LegalSource,
   MessageTemplate,
+  PaidConsultancyModality,
   PartnerPublic,
   Task,
   UserProfile,
@@ -118,15 +108,8 @@ import {
   resolveTargetPipelineStep,
   type MacroFunnelStageId,
 } from '../../utils/funnelModel';
-import { reportAppError, translateAppError } from '../../services/errorService';
+import { reportAppError } from '../../services/errorService';
 import { buildZipBlob, type ZipEntryInput } from '../../utils/zipBuilder';
-import {
-  getCaseContextConfig,
-  getDocumentRowVisibility,
-  serviceNeedsCurrentResidencyExpiry,
-  serviceRequiresVisaCategory,
-  type DynamicCaseTabId,
-} from '../../utils/caseContextConfig';
 
 interface PainelClientesCasosProps {
   role: UserRole;
@@ -162,7 +145,7 @@ interface PainelClientesCasosProps {
   mode?: 'casos' | 'clientes' | 'ambos';
 }
 
-type CaseTab = DynamicCaseTabId;
+type CaseTab = 'resumo' | 'dependentes' | 'documentos' | 'financeiro' | 'agenda' | 'comunicacao' | 'relocation' | 'historico';
 
 const DOCUMENT_STEPS: DocumentStep[] = [
   '1 Aguardando Envio',
@@ -243,8 +226,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   }, [requestedCaseTab, selectedCaseId]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showDetailedSubStage, setShowDetailedSubStage] = useState(false);
-  const [approvingAllDocs, setApprovingAllDocs] = useState(false);
   const [pushTipo, setPushTipo] = useState<ClientNotificationType>('geral');
   const [pushTitle, setPushTitle] = useState('');
   const [pushMessage, setPushMessage] = useState('');
@@ -265,7 +246,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [caseSermigFilter, setCaseSermigFilter] = useState<string>('all');
   const [caseVisaFilter, setCaseVisaFilter] = useState<string>('all');
   const [caseCriticalOnly, setCaseCriticalOnly] = useState(false);
-  const [showMoreCaseFilters, setShowMoreCaseFilters] = useState(false);
 
   // Modais de criação e dossiê
   const [clientModalOpen, setClientModalOpen] = useState(false);
@@ -287,12 +267,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     visaCategoryId: 'visa_15_mercosul',
     prioridade: 'Alta' as Case['prioridade'],
     etapaInicial: 2,
-    dataVencimentoResidencia: '',
   });
-  const [showAllCaseFields, setShowAllCaseFields] = useState(false);
-  const [forcedOptionalTabs, setForcedOptionalTabs] = useState<Partial<Record<'dependentes' | 'relocation', boolean>>>({});
-  const [parecerExpanded, setParecerExpanded] = useState(true);
-  const [commSubView, setCommSubView] = useState<'atendimento' | 'auditoria'>('atendimento');
 
   useEffect(() => {
     if (!requestedMacroStageFilter) return;
@@ -361,18 +336,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [docModalOpen, setDocModalOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Partial<CaseDocument> | null>(null);
 
-  // Modais de exclusão auditada
-  const [confirmDeleteItem, setConfirmDeleteItem] = useState<{
-    kind: 'doc' | 'docs_batch' | 'dependent' | 'task' | 'deadline' | 'appointment' | 'viability' | 'comm';
-    title: string;
-    description: string;
-    confirmLabel: string;
-    item?: unknown;
-    docs?: CaseDocument[];
-  } | null>(null);
-  const [deleteClientTarget, setDeleteClientTarget] = useState<Client | null>(null);
-  const [deleteCaseTarget, setDeleteCaseTarget] = useState<Case | null>(null);
-
   useEffect(() => {
     if (!selectedCaseId) {
       setParecerDraft(null);
@@ -394,9 +357,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     setDocStatusFilter('Todos');
     setChatReplyMsg('');
     setChatReplyDocId('');
-    setShowAllCaseFields(false);
-    setForcedOptionalTabs({});
-    setCommSubView('atendimento');
   }, [selectedCaseId]);
 
   const updateParecerDraft = (
@@ -537,6 +497,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       enderecoCompleto: '',
       portalLiberado: false,
       statusAcessoPortal: 'Não solicitado',
+      modalidadeConsultoria: 'completa',
       createdAt: new Date().toISOString(),
     });
     setClientModalOpen(true);
@@ -552,6 +513,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       return;
     }
     const isNew = !clients.some((c) => c.id === editingClient.id);
+    const chosenModality: PaidConsultancyModality = normalizePaidModality(editingClient.modalidadeConsultoria);
     const payload: Client = {
       id: editingClient.id || makeId('cli'),
       nomeCompleto: (editingClient.nomeCompleto || '').trim(),
@@ -565,69 +527,82 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       objetivoChile: editingClient.objetivoChile || '',
       portalLiberado: Boolean(editingClient.portalLiberado),
       statusAcessoPortal: editingClient.portalLiberado ? 'Liberado' : editingClient.statusAcessoPortal || 'Não solicitado',
+      modalidadeConsultoria: chosenModality,
       observacoes: editingClient.observacoes || '',
       createdAt: editingClient.createdAt || new Date().toISOString(),
     };
     await saveDocumentAudited('clients', payload.id, payload as unknown as Record<string, unknown>, isNew, role, 'cliente');
-    if (!isNew) {
-      const clientCases = cases.filter((c) => c.clientId === payload.id);
-      if (clientCases.some((c) => Boolean(c.portalLiberado) !== Boolean(payload.portalLiberado))) {
-        await setClientPortalAccessAudited({
-          client: payload,
-          clientCases,
-          liberado: Boolean(payload.portalLiberado),
-          role,
-        });
-      }
-    }
+    const syncRes = await setClientPortalAccessAudited({
+      client: payload,
+      portalLiberado: payload.portalLiberado,
+      modalidadeConsultoria: chosenModality,
+      role,
+    });
     setClientModalOpen(false);
     setEditingClient(null);
-    setFeedback(`Cliente "${payload.nomeCompleto}" salvo com sucesso.`);
+    setFeedback(
+      `Cliente "${payload.nomeCompleto}" salvo (${CONSULTANCY_PLANS[chosenModality].nome}). ${
+        payload.portalLiberado
+          ? syncRes.userLinked
+            ? 'Portal liberado e conta Google sincronizada!'
+            : 'Portal liberado! Ativará automaticamente no 1º login com o e-mail Google cadastrado.'
+          : 'Portal mantido como pendente.'
+      }`,
+    );
     await onRefresh();
-  };
-
-  const openClientPortalPreview = (clientId: string) => {
-    const targetUrl = `/portal?clientId=${encodeURIComponent(clientId)}`;
-    window.history.pushState({}, '', targetUrl);
-    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
   const handleTogglePortalCliente = async (cl: Client) => {
     if (!canManageClients) return;
     const nextLib = !cl.portalLiberado;
-    const clientCases = cases.filter((c) => c.clientId === cl.id);
-    await setClientPortalAccessAudited({
+    const modality = normalizePaidModality(cl.modalidadeConsultoria);
+    const res = await setClientPortalAccessAudited({
       client: cl,
-      clientCases,
-      liberado: nextLib,
+      portalLiberado: nextLib,
+      modalidadeConsultoria: modality,
       role,
     });
     setFeedback(
       nextLib
-        ? `Portal do Cliente liberado para ${cl.nomeCompleto} (${cl.email.trim().toLowerCase()}).`
+        ? `Portal LIBERADO para ${cl.nomeCompleto} (${CONSULTANCY_PLANS[modality].nome}). ${
+            res.userLinked
+              ? 'Conta Google sincronizada imediatamente.'
+              : 'Será ativado automaticamente assim que o cliente entrar com o e-mail Google.'
+          }`
         : `Acesso ao Portal bloqueado para ${cl.nomeCompleto}.`,
     );
     await onRefresh();
   };
 
+  const handleChangeClientModality = async (cl: Client, nextModality: PaidConsultancyModality) => {
+    if (!canManageClients) return;
+    await setClientPortalAccessAudited({
+      client: cl,
+      portalLiberado: cl.portalLiberado,
+      modalidadeConsultoria: nextModality,
+      role,
+    });
+    setFeedback(`Modalidade de ${cl.nomeCompleto} alterada para ${CONSULTANCY_PLANS[nextModality].nome}.`);
+    await onRefresh();
+  };
+
   const handleSendPortalInvite = async (cl: Client) => {
     const portalUrl = `${window.location.origin}/acompanhar`;
-    const cleanEmail = (cl.email || '').trim().toLowerCase();
-    const msg = `Olá, ${cl.nomeCompleto}! Seu acesso ao Portal do Cliente D&M Integra Chile está disponível. Acesse com o e-mail ${cleanEmail} em: ${portalUrl}`;
+    const modality = normalizePaidModality(cl.modalidadeConsultoria);
+    const msg = `Olá, ${cl.nomeCompleto}! Seu acesso ao Portal do Cliente D&M Integra Chile (${CONSULTANCY_PLANS[modality].nome}) está liberado. Acesse com o e-mail Google ${cl.email} em: ${portalUrl}`;
     if (cl.whatsapp) {
       window.open(buildWhatsAppUrl(cl.whatsapp, msg), '_blank', 'noopener,noreferrer');
     }
     const nowIso = new Date().toISOString();
-    const clientCases = cases.filter((c) => c.clientId === cl.id);
     await setClientPortalAccessAudited({
       client: cl,
-      clientCases,
-      liberado: true,
+      portalLiberado: true,
+      modalidadeConsultoria: modality,
       role,
-      conviteEnviadoEm: nowIso,
+      extraClientFields: { conviteEnviadoEm: nowIso },
     });
-    await onLogWhatsApp(cl.id, clientCases[0]?.id, 'Convite Portal do Cliente', msg);
-    setFeedback(`Portal liberado e convite registrado para ${cl.nomeCompleto}.`);
+    await onLogWhatsApp(cl.id, undefined, 'Convite Portal do Cliente', msg);
+    setFeedback(`Convite enviado e Portal LIBERADO para ${cl.nomeCompleto} (${CONSULTANCY_PLANS[modality].nome}).`);
     await onRefresh();
   };
 
@@ -780,21 +755,15 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     }
     const tpl = CASE_TEMPLATES.find((t) => t.id === newCaseTemplateId);
     const id = makeId('case');
-    const requiresVisa = serviceRequiresVisaCategory(newCaseForm.tipoServico);
-    const needsResidencyExpiry = serviceNeedsCurrentResidencyExpiry(newCaseForm.tipoServico);
     const payload: Case = {
       id,
       titulo: newCaseForm.titulo.trim(),
       clientId: newCaseForm.clientId,
       consultorId: userProfile.uid,
       tipoServico: newCaseForm.tipoServico,
-      visaCategoryId: requiresVisa ? newCaseForm.visaCategoryId : undefined,
+      visaCategoryId: newCaseForm.visaCategoryId,
       etapaPipeline: newCaseForm.etapaInicial || tpl?.etapaInicial || 2,
       statusSermig: 'Não protocolado',
-      dataVencimentoResidencia:
-        needsResidencyExpiry && newCaseForm.dataVencimentoResidencia
-          ? newCaseForm.dataVencimentoResidencia
-          : undefined,
       portalLiberado: clientMap.get(newCaseForm.clientId)?.portalLiberado || false,
       relatorioViabilidadeLiberado: false,
       prioridade: newCaseForm.prioridade,
@@ -804,9 +773,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
 
     // Criar checklist documental padrão + tarefas iniciais + prazo sugerido do template
     if (tpl) {
-      if (requiresVisa && payload.visaCategoryId) {
-        await createChecklistForCase(id, payload.clientId, payload.visaCategoryId);
-      }
+      await createChecklistForCase(id, payload.clientId, payload.visaCategoryId || 'visa_15_mercosul');
       for (const tTitle of tpl.tarefasIniciais) {
         const tId = makeId('task');
         await saveDocumentAudited(
@@ -856,13 +823,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       visaCategoryId: 'visa_15_mercosul',
       prioridade: 'Alta',
       etapaInicial: 2,
-      dataVencimentoResidencia: '',
     });
-    setFeedback(
-      requiresVisa
-        ? 'Caso criado com checklist, tarefas iniciais e prazo sugerido!'
-        : 'Caso de Relocation criado com trilha inicial!',
-    );
+    setFeedback('Caso criado com checklist, tarefas iniciais e prazo sugerido!');
     await onRefresh();
     onSelectCase(id);
   };
@@ -1009,55 +971,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     [caseDocs, empresa.bloqueioProtocoloMinimo],
   );
 
-  const caseCtx = useMemo(() => {
-    if (!activeCase) return null;
-    const pendingDocsCount = caseDocs.filter((d) => d.status !== 'Aprovado').length;
-    const hasRelocationTasks = caseTasks.some((t) => t.titulo.startsWith('[Relocation]'));
-    return getCaseContextConfig({
-      caseObj: activeCase,
-      role,
-      dependentsCount: caseDependents.length,
-      docsCount: caseDocs.length,
-      pendingDocsCount,
-      docReadinessPct: thermo.notaGeral,
-      minProtocolReadinessPct: empresa.bloqueioProtocoloMinimo || 100,
-      unreadChatCount: caseUnreadChatCount,
-      hasRelocationTasks,
-      forceTabs: forcedOptionalTabs,
-      showAllFields: showAllCaseFields,
-    });
-  }, [
-    activeCase,
-    role,
-    caseDependents.length,
-    caseDocs,
-    caseTasks,
-    thermo.notaGeral,
-    empresa.bloqueioProtocoloMinimo,
-    caseUnreadChatCount,
-    forcedOptionalTabs,
-    showAllCaseFields,
-  ]);
-
-  useEffect(() => {
-    if (!caseCtx) return;
-    if (!caseCtx.visibleTabs.some((t) => t.id === caseTab)) {
-      setCaseTab('resumo');
-    }
-  }, [caseCtx, caseTab]);
-
-  useEffect(() => {
-    if (!caseCtx) return;
-    setParecerExpanded(caseCtx.fields.parecerExpandedByDefault || Boolean(parecerDraft));
-  }, [activeCase?.id, caseCtx?.fields.parecerExpandedByDefault]);
-
-  useEffect(() => {
-    if (!caseCtx) return;
-    if (!caseCtx.relevantDeadlineTypes.includes(newDeadlineTipo)) {
-      setNewDeadlineTipo(caseCtx.relevantDeadlineTypes[0] || 'Validade Documento');
-    }
-  }, [caseCtx, newDeadlineTipo]);
-
   const activeVisaCategory = useMemo(
     () => visaCategories.find((v) => v.id === activeCase?.visaCategoryId) || null,
     [visaCategories, activeCase],
@@ -1118,6 +1031,19 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       if (thermo.bloqueadoProtocolo) {
         reasons.push(`Termômetro documental em ${thermo.notaGeral}% (mínimo exigido: ${empresa.bloqueioProtocoloMinimo || 100}%).`);
       }
+      const hasSignedContract =
+        Boolean(activeCase.dataContrato) ||
+        generatedDocuments.some(
+          (g) =>
+            g.clientId === activeCase.clientId &&
+            (!g.caseId || g.caseId === activeCase.id) &&
+            (g.tipo === 'contrato' || g.tipo === 'procuracao') &&
+            (g.status === 'Assinado' || Boolean(g.assinadoEm)) &&
+            !g.canceladoEm,
+        );
+      if (!hasSignedContract) {
+        reasons.push('Nenhum contrato assinado ou data de contrato registrada para o caso.');
+      }
       const pendingApostilles = caseDocs.filter((d) => d.obrigatorio && d.exigeApostila && !d.apostilado);
       if (pendingApostilles.length > 0) {
         reasons.push(`${pendingApostilles.length} documento(s) obrigatório(s) ainda aguardam Apostila de Haia.`);
@@ -1125,7 +1051,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       if (reasons.length > 0) {
         if (!isAdmin) {
           setErrorMsg(
-            `Antes de protocolar no SERMIG: ${reasons.join(' ')} Revise na aba Documentos ou solicite liberação de um Administrador.`,
+            `Protocolo bloqueado na Etapa ${targetStage}: ${reasons.join(' ')} Somente um Administrador pode autorizar override.`,
           );
           return;
         }
@@ -1133,48 +1059,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         return;
       }
     }
-    const nextStatusPatch: Partial<Case> = { etapaPipeline: targetStage };
-    if (targetStage >= 7 && activeCase.statusSermig === 'Não protocolado') {
-      nextStatusPatch.statusSermig = 'Em trâmite';
-    }
-    if (targetStage >= 15 && !activeCase.encerradoEm) {
-      nextStatusPatch.encerradoEm = new Date().toISOString();
-    }
-    await handleSaveCaseField(nextStatusPatch, 'etapaPipeline');
+    await handleSaveCaseField({ etapaPipeline: targetStage }, 'etapaPipeline');
     await createDefaultStageTasks(targetStage, activeCase);
-  };
-
-  const handleApproveAllSubmittedDocs = async () => {
-    if (!activeCase || approvingAllDocs) return;
-    const submitted = caseDocs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise');
-    if (submitted.length === 0) return;
-    setApprovingAllDocs(true);
-    setErrorMsg(null);
-    try {
-      const reviewer = userProfile.nome || userProfile.email;
-      for (const doc of submitted) {
-        await saveDocumentAudited(
-          'caseDocuments',
-          doc.id,
-          {
-            ...doc,
-            status: 'Aprovado',
-            etapaEsteira: '6 Aprovado para Protocolo',
-            revisadoPor: reviewer,
-          } as unknown as Record<string, unknown>,
-          false,
-          role,
-          'aprovar_documentos_lote',
-          doc,
-        );
-      }
-      setFeedback(`${submitted.length} documento(s) aprovado(s) em lote com sucesso.`);
-      await onRefresh();
-    } catch (err) {
-      setErrorMsg(translateAppError(err).message);
-    } finally {
-      setApprovingAllDocs(false);
-    }
   };
 
   const handleConfirmOverride = async (e: React.FormEvent) => {
@@ -1338,10 +1224,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       >(
         '/api/ai/parecer',
         {
-          caseData: compactCaseForAi(activeCase as unknown as Record<string, unknown>),
-          clientData: compactClientForAi(activeClient as unknown as Record<string, unknown>),
-          dependents: caseDependents.slice(0, 12),
-          legalSources: compactLegalSourcesForAi(legalSources),
+          caseData: activeCase,
+          clientData: activeClient,
+          dependents: caseDependents,
+          legalSources,
         },
         {
           onProgress: (msg) => setAiParecerProgress(msg),
@@ -1742,28 +1628,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     setAiDocProgress('Analisando anexo...');
     setErrorMsg(null);
     try {
-      let fileBase64: string | undefined;
-      let mimeType: string | undefined;
-
-      if (docItem.arquivoUrl && !docItem.arquivoUrl.startsWith('data:')) {
-        try {
-          const fileResp = await fetch(docItem.arquivoUrl);
-          if (fileResp.ok) {
-            const blob = await fileResp.blob();
-            if (blob.size > 0) {
-              const prepared = await prepareAiAttachment(blob);
-              fileBase64 = prepared.fileBase64;
-              mimeType = prepared.mimeType;
-            }
-          }
-        } catch (prepErr) {
-          if (prepErr instanceof Error && prepErr.message.includes('excede o limite')) {
-            throw prepErr;
-          }
-          // Segue com arquivoUrl / observação quando o fetch direto não estiver disponível
-        }
-      }
-
       const resp = await callAiEndpoint<
         AiResponseMeta & {
           nomeIdentificado: string;
@@ -1780,7 +1644,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         {
           nomeEsperado: docItem.nomeDocumento,
           arquivoUrl: docItem.arquivoUrl || '',
-          ...(fileBase64 && mimeType ? { fileBase64, mimeType } : {}),
           textoObservacao: `Arquivo: ${docItem.arquivoNome || 'Não informado'} | Apostilado marcado: ${docItem.apostilado} | Emissão informada: ${docItem.dataEmissao || 'Não informada'}`,
         },
         {
@@ -1789,13 +1652,13 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       );
       const tag =
         resp.fallback || resp.origem === 'regras'
-          ? `[${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'} · Sugestão: ${resp.sugestao}]`
+          ? `[${resp.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'} · Sugestão: ${resp.sugestao}]`
           : `[Sugestão IA: ${resp.sugestao}]`;
       const resumo = `${tag} Órgão: ${resp.orgaoEmissor} · Emissão: ${resp.dataEmissao} · Apostila: ${resp.possuiApostila ? 'Sim' : 'Não'} · ${resp.justificativa}`;
       await handleUpdateDoc(docItem, { analiseIaSugestao: resumo });
       setFeedback(
         resp.fallback || resp.origem === 'regras'
-          ? `${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
+          ? `${resp.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
           : 'Pré-análise sugestiva da IA concluída. A decisão final permanece com o analista.',
       );
     } catch (err) {
@@ -1950,285 +1813,87 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     await onRefresh();
   };
 
-  const clientDeleteSummary = useMemo(() => {
-    if (!deleteClientTarget) return [];
-    const cid = deleteClientTarget.id;
-    return [
-      `${dependents.filter((d) => d.clientId === cid).length} dependente(s)`,
-      `${cases.filter((c) => c.clientId === cid).length} caso(s)`,
-      `${docs.filter((d) => d.clientId === cid).length} documento(s)`,
-      `${tasks.filter((t) => t.clientId === cid).length} tarefa(s) e ${deadlines.filter((dl) => dl.clientId === cid).length} prazo(s)`,
-      `${budgets.filter((b) => b.clientId === cid).length} orçamento(s) e ${financialRecords.filter((f) => f.clientId === cid).length} lançamento(s)`,
-      `${generatedDocuments.filter((g) => g.clientId === cid).length} contrato(s)/documento(s) gerado(s)`,
-    ];
-  }, [deleteClientTarget, dependents, cases, docs, tasks, deadlines, budgets, financialRecords, generatedDocuments]);
-
-  const caseDeleteSummary = useMemo(() => {
-    if (!deleteCaseTarget) return [];
-    const cid = deleteCaseTarget.id;
-    return [
-      `${docs.filter((d) => d.caseId === cid).length} documento(s)`,
-      `${tasks.filter((t) => t.caseId === cid).length} tarefa(s), ${deadlines.filter((dl) => dl.caseId === cid).length} prazo(s) e ${appointments.filter((a) => a.caseId === cid).length} reunião(ões)`,
-      `${viabilityAssessments.filter((v) => v.caseId === cid).length} parecer(es) técnico(s)`,
-      `${communicationLogs.filter((l) => l.caseId === cid).length} registro(s) de comunicação`,
-      `${budgets.filter((b) => b.caseId === cid).length} orçamento(s) e ${financialRecords.filter((f) => f.caseId === cid).length} lançamento(s)`,
-      `${generatedDocuments.filter((g) => g.caseId === cid).length} documento(s) gerado(s)`,
-    ];
-  }, [deleteCaseTarget, docs, tasks, deadlines, appointments, viabilityAssessments, communicationLogs, budgets, financialRecords, generatedDocuments]);
-
-  const renderDeleteModals = () => (
-    <>
-      <ConfirmActionModal
-        open={Boolean(confirmDeleteItem)}
-        title={confirmDeleteItem?.title || 'Confirmar Exclusão'}
-        description={confirmDeleteItem?.description || 'Tem certeza que deseja excluir este registro permanentemente?'}
-        confirmLabel={confirmDeleteItem?.confirmLabel || 'Excluir'}
-        tone="danger"
-        onConfirm={async () => {
-          if (!confirmDeleteItem) return;
-          setErrorMsg(null);
-          try {
-            if (confirmDeleteItem.kind === 'doc') {
-              const d = confirmDeleteItem.item as CaseDocument;
-              await deleteCaseDocumentAudited(d, role);
-              setSelectedDocIds((prev) => prev.filter((id) => id !== d.id));
-              if (previewDocModal?.id === d.id) setPreviewDocModal(null);
-              setFeedback(`Documento "${d.nomeDocumento}" excluído com auditoria.`);
-            } else if (confirmDeleteItem.kind === 'docs_batch') {
-              const batch = confirmDeleteItem.docs || [];
-              for (const d of batch) {
-                await deleteCaseDocumentAudited(d, role);
-              }
-              setSelectedDocIds([]);
-              setFeedback(`${batch.length} documento(s) excluído(s) com auditoria.`);
-            } else if (confirmDeleteItem.kind === 'dependent') {
-              const dep = confirmDeleteItem.item as Dependent;
-              await deleteDocumentAudited('dependents', dep.id, role, dep);
-              setFeedback(`Dependente "${dep.nomeCompleto}" removido.`);
-            } else if (confirmDeleteItem.kind === 'task') {
-              const t = confirmDeleteItem.item as Task;
-              await deleteDocumentAudited('tasks', t.id, role, t);
-              setFeedback(`Tarefa "${t.titulo}" excluída.`);
-            } else if (confirmDeleteItem.kind === 'deadline') {
-              const dl = confirmDeleteItem.item as Deadline;
-              await deleteDocumentAudited('deadlines', dl.id, role, dl);
-              setFeedback(`Prazo "${dl.titulo}" excluído.`);
-            } else if (confirmDeleteItem.kind === 'appointment') {
-              const apt = confirmDeleteItem.item as Appointment;
-              await deleteDocumentAudited('appointments', apt.id, role, apt);
-              setFeedback(`Agendamento "${apt.titulo}" excluído.`);
-            } else if (confirmDeleteItem.kind === 'viability') {
-              const va = confirmDeleteItem.item as ViabilityAssessment;
-              await deleteDocumentAudited('viabilityAssessments', va.id, role, va);
-              setFeedback(`Parecer Técnico v${va.versao} excluído.`);
-            } else if (confirmDeleteItem.kind === 'comm') {
-              const log = confirmDeleteItem.item as CommunicationLog;
-              await deleteDocumentAudited('communicationLogs', log.id, role, log);
-              setFeedback('Registro de comunicação excluído.');
-            }
-            setConfirmDeleteItem(null);
-            await onRefresh();
-          } catch (err) {
-            throw new Error(translateAppError(err).message || 'Não foi possível concluir a exclusão.');
-          }
-        }}
-        onClose={() => setConfirmDeleteItem(null)}
-      />
-
-      {deleteClientTarget && (
-        <ConfirmTypedModal
-          open={Boolean(deleteClientTarget)}
-          onClose={() => setDeleteClientTarget(null)}
-          title={`Excluir definitivamente ${deleteClientTarget.nomeCompleto}?`}
-          description="Esta ação remove o cliente e todos os registros vinculados abaixo de forma irreversível (LGPD / exclusão em cascata)."
-          summaryItems={clientDeleteSummary}
-          requiredKeyword="EXCLUIR"
-          confirmLabel="Excluir Cliente & Vínculos"
-          alternativeLabel="Arquivar em vez de excluir"
-          onAlternative={async () => {
-            await archiveClientAudited(deleteClientTarget, role);
-            setFeedback(`Cliente "${deleteClientTarget.nomeCompleto}" arquivado.`);
-            await onRefresh();
-            setDeleteClientTarget(null);
-          }}
-          onConfirm={async () => {
-            const deletedCount = await deleteClientCascadeAudited({
-              client: deleteClientTarget,
-              dependents,
-              cases,
-              caseFinancials,
-              caseDocuments: docs,
-              tasks,
-              deadlines,
-              appointments,
-              communicationLogs,
-              viabilityAssessments,
-              budgets,
-              financialRecords,
-              generatedDocuments,
-              role,
-            });
-            setFeedback(`Cliente "${deleteClientTarget.nomeCompleto}" e ${deletedCount} vínculo(s) excluídos com auditoria.`);
-            if (selectedCaseId && cases.some((c) => c.id === selectedCaseId && c.clientId === deleteClientTarget.id)) {
-              onSelectCase(null);
-            }
-            setDeleteClientTarget(null);
-            await onRefresh();
-          }}
-        />
-      )}
-
-      {deleteCaseTarget && (
-        <ConfirmTypedModal
-          open={Boolean(deleteCaseTarget)}
-          onClose={() => setDeleteCaseTarget(null)}
-          title={`Excluir definitivamente o caso "${deleteCaseTarget.titulo}"?`}
-          description="Esta ação exclui o processo e todos os documentos, tarefas, prazos, pareceres, comunicações e lançamentos vinculados."
-          summaryItems={caseDeleteSummary}
-          requiredKeyword="EXCLUIR"
-          confirmLabel="Excluir Processo & Vínculos"
-          onConfirm={async () => {
-            const wasActive = selectedCaseId === deleteCaseTarget.id;
-            const deletedCount = await deleteCaseCascadeAudited({
-              caseItem: deleteCaseTarget,
-              caseFinancials,
-              caseDocuments: docs,
-              tasks,
-              deadlines,
-              appointments,
-              communicationLogs,
-              viabilityAssessments,
-              budgets,
-              financialRecords,
-              generatedDocuments,
-              role,
-            });
-            setFeedback(`Processo "${deleteCaseTarget.titulo}" e ${deletedCount} vínculo(s) excluídos.`);
-            setDeleteCaseTarget(null);
-            if (wasActive) onSelectCase(null);
-            await onRefresh();
-          }}
-        />
-      )}
-    </>
-  );
-
   // ===========================================================================
-  // Renderização: Ficha Dinâmica do Caso
+  // Renderização: Ficha do Caso (8 Abas)
   // ===========================================================================
-  if (activeCase && caseCtx) {
+  if (activeCase) {
+    const allTabs: { id: CaseTab; label: string; hidden?: boolean }[] = [
+      { id: 'resumo', label: '1. Resumo & Viabilidade' },
+      { id: 'dependentes', label: `2. Dependentes (${caseDependents.length})` },
+      { id: 'documentos', label: `3. Documentos (${caseDocs.length})` },
+      { id: 'financeiro', label: '4. Orçamento & Financeiro', hidden: isAssistente },
+      { id: 'agenda', label: '5. Agenda & Prazos' },
+      {
+        id: 'comunicacao',
+        label: caseUnreadChatCount > 0 ? `6. Comunicação (${caseUnreadChatCount})` : '6. Comunicação & Histórico',
+      },
+      { id: 'relocation', label: '7. Relocation' },
+      { id: 'historico', label: '8. Histórico' },
+    ];
+
+    const visibleTabs = allTabs.filter((t) => !t.hidden);
     const filteredCaseDocs = caseDocs
       .filter((d) => (docPersonFilter === 'Todos' ? true : d.pessoa === docPersonFilter))
       .filter((d) => (docStatusFilter === 'Todos' ? true : d.status === docStatusFilter))
       .sort((a, b) => a.ordemEmissao - b.ordemEmissao);
     const allDocPessoas = Array.from(new Set(['Titular', ...caseDependents.map((d) => d.nomeCompleto), ...caseDocs.map((d) => d.pessoa)]));
-    const nextActionToneClasses =
-      caseCtx.nextAction.tone === 'warning'
-        ? 'bg-amber-50 border-amber-200 text-amber-950'
-        : caseCtx.nextAction.tone === 'success'
-          ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-          : 'bg-slate-50 border-slate-200 text-slate-900';
 
     return (
-      <div className="space-y-5">
-        {/* Cabeçalho Unificado e Dinâmico do Caso */}
-        <div className="sticky top-14 z-20 bg-white/95 backdrop-blur-xs border border-slate-200 rounded-xl px-4 py-3.5 shadow-xs space-y-3 no-print">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5 min-w-0">
+      <div className="space-y-6">
+        {/* Sticky Case Header com atalhos e Base Legal */}
+        <div className="sticky top-14 z-20 bg-white/95 backdrop-blur-xs border border-slate-200 rounded-xl px-4 py-3 shadow-xs space-y-2 no-print">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => onSelectCase(null)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0 mt-0.5"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Voltar
               </button>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <h1 className="text-base sm:text-lg font-bold text-slate-900 truncate">{activeCase.titulo}</h1>
-                  <span className="text-xs font-medium text-slate-500">· {activeCase.tipoServico}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-slate-500 mt-0.5">
-                  {activeClient && (
-                    <button
-                      type="button"
-                      onClick={() => setDossierClientId(activeClient.id)}
-                      className="font-medium text-[var(--color-primary)] hover:underline text-left"
-                    >
-                      {activeClient.nomeCompleto}
-                    </button>
-                  )}
-                  {activeClient?.email && <span>· {activeClient.email}</span>}
-                  {activeClient?.whatsapp && <span>· {activeClient.whatsapp}</span>}
-                  {activeCase.encerradoEm && (
-                    <span className="text-slate-700 font-semibold">
-                      · Encerrado em {formatDateTimeBR(activeCase.encerradoEm)}
-                    </span>
-                  )}
-                </div>
+                <p className="text-xs font-bold text-slate-900 truncate">{activeCase.titulo}</p>
+                {activeClient && (
+                  <button
+                    type="button"
+                    onClick={() => setDossierClientId(activeClient.id)}
+                    className="text-[11px] text-[var(--color-primary)] hover:underline truncate text-left"
+                  >
+                    Dossiê do Cliente: {activeClient.nomeCompleto}
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {caseDocs.length > 0 && (
-                <span className="text-xs font-semibold tabular-nums px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200" style={{ color: thermo.corHex }}>
-                  Docs {thermo.notaGeral}%
-                </span>
-              )}
-              {caseCtx.usesSermig && (
-                <select
-                  value={activeCase.statusSermig}
-                  onChange={(e) => void handleSermigStatusChange(e.target.value as Case['statusSermig'])}
-                  aria-label="Status SERMIG"
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800"
-                >
-                  {SERMIG_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      SERMIG: {s}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  const nextLib = !(activeClient?.portalLiberado ?? activeCase.portalLiberado);
-                  if (activeClient) {
-                    void setClientPortalAccessAudited({
-                      client: activeClient,
-                      clientCases: cases.filter((c) => c.clientId === activeClient.id),
-                      liberado: nextLib,
-                      role,
-                    }).then(async () => {
-                      setFeedback(
-                        nextLib
-                          ? `Portal do Cliente liberado para ${activeClient.nomeCompleto}.`
-                          : `Portal do Cliente bloqueado para ${activeClient.nomeCompleto}.`,
-                      );
-                      await onRefresh();
-                    });
-                  } else {
-                    void handleSaveCaseField({ portalLiberado: nextLib }, 'portalLiberado');
-                  }
-                }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                  (activeClient?.portalLiberado ?? activeCase.portalLiberado)
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                }`}
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums" style={{ color: thermo.corHex }}>
+                Docs {thermo.notaGeral}% · {thermo.faixa}
+              </span>
+              <select
+                value={activeCase.etapaPipeline}
+                onChange={(e) => void handleStageChange(Number(e.target.value))}
+                aria-label="Sub-etapa operacional"
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
               >
-                {(activeClient?.portalLiberado ?? activeCase.portalLiberado) ? 'Portal Liberado' : 'Liberar Portal'}
-              </button>
-              {activeClient && (activeClient.portalLiberado || activeCase.portalLiberado) && (
-                <button
-                  type="button"
-                  onClick={() => openClientPortalPreview(activeClient.id)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-white text-xs font-semibold text-[#1E7E34] hover:bg-emerald-50 whitespace-nowrap"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  Ver Portal
-                </button>
-              )}
+                {PIPELINE_STAGES.map((st) => (
+                  <option key={st.numero} value={st.numero}>
+                    Sub-etapa {st.numero}: {st.nome}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={activeCase.statusSermig}
+                onChange={(e) => void handleSermigStatusChange(e.target.value as Case['statusSermig'])}
+                aria-label="Status SERMIG"
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
+              >
+                {SERMIG_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    SERMIG: {s}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={() => {
@@ -2238,168 +1903,125 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
               >
                 <FileSignature className="w-3.5 h-3.5" />
-                Contrato
+                Contrato / PDF
               </button>
-              {caseCtx.usesSermig && (
-                <button
-                  type="button"
-                  onClick={() => setLegalModalOpen(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)] hover:bg-slate-50 whitespace-nowrap"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  Base Legal
-                </button>
-              )}
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteCaseTarget(activeCase)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-white text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Excluir Caso
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setLegalModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)] hover:bg-slate-50 whitespace-nowrap"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                Base Legal
+              </button>
             </div>
           </div>
 
-          {/* Barra Simplificada dos 5 Marcos + Botão 1-Clique de Avanço */}
-          {(() => {
-            const nextMacro = getNextMacroStage(caseCtx.currentMacroStage.id);
-            const isFinished = Boolean(activeCase.encerradoEm) || activeCase.etapaPipeline >= 15;
-            return (
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <div className="flex flex-col xl:flex-row xl:items-center gap-2">
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 flex-1">
-                    {MACRO_FUNNEL_STAGES.map((stage) => {
-                      const isCurrent = caseCtx.currentMacroStage.id === stage.id;
-                      const isDone = stage.ordem < caseCtx.currentMacroStage.ordem || isFinished;
-                      return (
-                        <button
-                          key={stage.id}
-                          type="button"
-                          onClick={() => {
-                            const targetStep = resolveTargetPipelineStep(stage.id, activeCase.etapaPipeline);
-                            if (targetStep !== activeCase.etapaPipeline) {
-                              void handleStageChange(targetStep);
-                            }
-                          }}
-                          title={stage.marcoConversao}
-                          className={`px-2.5 py-2 rounded-lg text-left transition-colors border text-xs ${
-                            isCurrent
-                              ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
-                              : isDone
-                                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/70'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
-                        >
-                          <span className="block truncate whitespace-nowrap">
-                            {stage.ordem}. {stage.nome}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {nextMacro ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleStageChange(resolveTargetPipelineStep(nextMacro.id, activeCase.etapaPipeline))}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
-                        style={{ backgroundColor: '#1E7E34' }}
-                      >
-                        <span>Avançar: {nextMacro.nome}</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    ) : !isFinished ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleStageChange(15)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
-                        style={{ backgroundColor: '#1E7E34' }}
-                      >
-                        <span>Concluir Processo</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => setShowDetailedSubStage((v) => !v)}
-                      title="Ajuste fino de sub-etapa operacional (1 a 15)"
-                      className="px-2.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-600 hover:bg-slate-100 whitespace-nowrap shrink-0"
-                    >
-                      Sub-etapa ({activeCase.etapaPipeline}/15)
-                    </button>
-                  </div>
-                </div>
-
-                {showDetailedSubStage && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-                    <span className="text-slate-600">
-                      Sub-etapa operacional detalhada (opcional):
-                    </span>
-                    <select
-                      value={activeCase.etapaPipeline}
-                      onChange={(e) => void handleStageChange(Number(e.target.value))}
-                      aria-label="Sub-etapa operacional"
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 max-w-xs"
-                    >
-                      {PIPELINE_STAGES.map((st) => (
-                        <option key={st.numero} value={st.numero}>
-                          Etapa {st.numero}: {st.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-5">
-          {/* Abas Dinâmicas conforme o tipo e momento do caso */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 no-print">
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {caseCtx.visibleTabs.map((t) => (
+          {/* Barra Interativa dos 5 Marcos do Processo */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-2 border-t border-slate-100">
+            {MACRO_FUNNEL_STAGES.map((stage) => {
+              const currentMacro = getMacroStageForCase(activeCase);
+              const isCurrent = currentMacro.id === stage.id;
+              const isDone = stage.ordem < currentMacro.ordem;
+              return (
                 <button
-                  key={t.id}
+                  key={stage.id}
                   type="button"
-                  onClick={() => setCaseTab(t.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-colors ${
-                    caseTab === t.id
-                      ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  onClick={() => {
+                    const targetStep = resolveTargetPipelineStep(stage.id, activeCase.etapaPipeline);
+                    if (targetStep !== activeCase.etapaPipeline) {
+                      void handleStageChange(targetStep);
+                    }
+                  }}
+                  title={stage.marcoConversao}
+                  className={`px-2.5 py-1.5 rounded-lg text-left transition-colors border text-xs ${
+                    isCurrent
+                      ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
+                      : isDone
+                        ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/70'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <span>{t.label}</span>
-                  {typeof t.badgeCount === 'number' && t.badgeCount > 0 && (
-                    <span className="text-[11px] font-semibold text-slate-500 tabular-nums">({t.badgeCount})</span>
-                  )}
+                  <span className="block truncate whitespace-nowrap">
+                    {stage.ordem}. {stage.nome}
+                  </span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
+        </div>
 
-            {caseCtx.hiddenOptionalTabs.length > 0 && (
-              <div className="flex items-center gap-1.5 pb-1.5">
-                {caseCtx.hiddenOptionalTabs.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      setForcedOptionalTabs((prev) => ({ ...prev, [opt.id]: true }));
-                      setCaseTab(opt.id);
-                    }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-slate-300 text-[11px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900 bg-white"
-                  >
-                    <Plus className="w-3 h-3" />
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium text-slate-500">
+                Cliente: {activeClient?.nomeCompleto || '—'} · {activeClient?.email} · {activeClient?.whatsapp}
+              </p>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">{activeCase.titulo}</h1>
+              {activeCase.encerradoEm && (
+                <p className="text-xs text-slate-600 mt-1">
+                  Caso encerrado em {formatDateTimeBR(activeCase.encerradoEm)} · Motivo: {activeCase.motivoEncerramento}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 no-print">
+              {canManageClients && activeClient && (
+                <select
+                  aria-label="Modalidade de consultoria"
+                  value={normalizePaidModality(activeClient.modalidadeConsultoria || activeCase.modalidadeConsultoria)}
+                  onChange={(e) => void handleChangeClientModality(activeClient, e.target.value as PaidConsultancyModality)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-800"
+                >
+                  <option value="orientativa">Consultoria Orientativa</option>
+                  <option value="completa">Consultoria Completa</option>
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (activeClient && canManageClients) {
+                    await handleTogglePortalCliente(activeClient);
+                  } else {
+                    await handleSaveCaseField({ portalLiberado: !activeCase.portalLiberado }, 'portalLiberado');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                  activeClient?.portalLiberado || activeCase.portalLiberado
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-white border-slate-300 text-slate-700'
+                }`}
+              >
+                {activeClient?.portalLiberado || activeCase.portalLiberado
+                  ? 'Portal Liberado ao Cliente'
+                  : 'Liberar Portal do Cliente'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveCaseField({ relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado }, 'relatorioViabilidadeLiberado')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                  activeCase.relatorioViabilidadeLiberado ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-300 text-slate-700'
+                }`}
+              >
+                {activeCase.relatorioViabilidadeLiberado ? 'Parecer Visível ao Cliente' : 'Liberar Parecer ao Cliente'}
+              </button>
+            </div>
+          </div>
+
+          {/* 8 Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 pt-2 no-print">
+            {visibleTabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setCaseTab(t.id)}
+                className={`px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-colors ${
+                  caseTab === t.id
+                    ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {feedback && (
@@ -2413,489 +2035,24 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             </div>
           )}
 
-          {/* ABA RESUMO DINÂMICO */}
+          {/* ABA 1: RESUMO & VIABILIDADE */}
           {caseTab === 'resumo' && (
-            <div className="space-y-5 pt-1">
-              {/* Orientação contextual do próximo passo */}
-              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border ${nextActionToneClasses} no-print`}>
-                <div className="space-y-0.5">
-                  <p className="text-xs font-bold">{caseCtx.nextAction.titulo}</p>
-                  <p className="text-xs opacity-85">{caseCtx.nextAction.descricao}</p>
-                </div>
-                {caseCtx.nextAction.targetTab !== 'resumo' && (
-                  <button
-                    type="button"
-                    onClick={() => setCaseTab(caseCtx.nextAction.targetTab)}
-                    className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-900 hover:bg-slate-50 shrink-0"
-                  >
-                    {caseCtx.nextAction.ctaLabel}
-                  </button>
-                )}
-              </div>
-
-              {/* Campos dinâmicos do caso (somente os relevantes ao caso aberto) */}
-              <div className="border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900">Dados Essenciais do Caso</h2>
-                    <p className="text-xs text-slate-500">
-                      {showAllCaseFields
-                        ? 'Exibindo todos os campos disponíveis do processo.'
-                        : 'Exibindo apenas os campos pertinentes ao serviço e etapa atual deste caso.'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAllCaseFields((prev) => !prev)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100 no-print"
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                    {showAllCaseFields ? 'Mostrar apenas campos do caso' : 'Exibir todos os campos'}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Serviço</label>
-                    <select
-                      value={activeCase.tipoServico}
-                      onChange={(e) => void handleSaveCaseField({ tipoServico: e.target.value as Case['tipoServico'] }, 'tipoServico')}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                    >
-                      <option value="Residência Temporal">Residência Temporal</option>
-                      <option value="Residência Definitiva">Residência Definitiva</option>
-                      <option value="Prorrogação">Prorrogação</option>
-                      <option value="Mudança de Subcategoria">Mudança de Subcategoria</option>
-                      <option value="Ratificação">Ratificação</option>
-                      <option value="Relocation Completo">Relocation Completo</option>
-                      <option value="Outro">Outro</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Prioridade</label>
-                    <select
-                      value={activeCase.prioridade}
-                      onChange={(e) => void handleSaveCaseField({ prioridade: e.target.value as Case['prioridade'] }, 'prioridade')}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                    >
-                      <option value="Baixa">Baixa</option>
-                      <option value="Média">Média</option>
-                      <option value="Alta">Alta</option>
-                      <option value="Urgente">Urgente</option>
-                    </select>
-                  </div>
-
-                  {caseCtx.fields.subcategoriaSermig && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
-                      <select
-                        value={activeCase.visaCategoryId || 'visa_15_mercosul'}
-                        onChange={(e) => void handleSaveCaseField({ visaCategoryId: e.target.value }, 'visaCategoryId')}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                      >
-                        {visaCategories.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            Cód. {v.codigo} — {v.nomePortugues}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {caseCtx.fields.numeroPedidoSermig && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Número do Pedido SERMIG</label>
-                      <input
-                        key={`pedido-${activeCase.id}-${activeCase.numeroPedidoSermig || ''}`}
-                        defaultValue={activeCase.numeroPedidoSermig || ''}
-                        onBlur={(e) => {
-                          if (e.target.value !== (activeCase.numeroPedidoSermig || '')) {
-                            void handleSaveCaseField({ numeroPedidoSermig: e.target.value }, 'numeroPedidoSermig');
-                          }
-                        }}
-                        placeholder="Ex.: SOL-2026-000123"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  {caseCtx.fields.dataProtocolo && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Data do Protocolo</label>
-                      <input
-                        key={`proto-${activeCase.id}-${activeCase.dataProtocolo || ''}`}
-                        type="date"
-                        defaultValue={activeCase.dataProtocolo || ''}
-                        onBlur={(e) => {
-                          if (e.target.value !== (activeCase.dataProtocolo || '')) {
-                            void handleSaveCaseField({ dataProtocolo: e.target.value }, 'dataProtocolo');
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  {caseCtx.fields.dataLimiteEntrada && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Data Limite de Entrada (90d)</label>
-                      <input
-                        key={`entrada-${activeCase.id}-${activeCase.dataLimiteEntrada || ''}`}
-                        type="date"
-                        defaultValue={activeCase.dataLimiteEntrada || ''}
-                        onBlur={(e) => {
-                          if (e.target.value !== (activeCase.dataLimiteEntrada || '')) {
-                            void handleSaveCaseField({ dataLimiteEntrada: e.target.value }, 'dataLimiteEntrada');
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  {caseCtx.fields.dataVencimentoResidencia && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento da Residência</label>
-                      <input
-                        key={`venc-${activeCase.id}-${activeCase.dataVencimentoResidencia || ''}`}
-                        type="date"
-                        defaultValue={activeCase.dataVencimentoResidencia || ''}
-                        onBlur={(e) => {
-                          if (e.target.value !== (activeCase.dataVencimentoResidencia || '')) {
-                            void handleSaveCaseField({ dataVencimentoResidencia: e.target.value }, 'dataVencimentoResidencia');
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  {caseCtx.fields.prazoRequerimento && (
-                    <div>
-                      <label className="block text-xs font-semibold text-amber-900 mb-1">Prazo Requerimento / Descargos</label>
-                      <input
-                        key={`req-${activeCase.id}-${activeCase.prazoRequerimento || ''}`}
-                        type="date"
-                        defaultValue={activeCase.prazoRequerimento || ''}
-                        onBlur={(e) => {
-                          if (e.target.value !== (activeCase.prazoRequerimento || '')) {
-                            void handleSaveCaseField({ prazoRequerimento: e.target.value }, 'prazoRequerimento');
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-amber-50/40 text-xs"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Comprovante e Notas SERMIG — exibidos apenas quando há protocolo/histórico SERMIG */}
-              {(caseCtx.fields.comprovanteProtocolo || caseCtx.fields.notasSermig) && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 no-print">
-                  {caseCtx.fields.comprovanteProtocolo && (
-                    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
-                      <p className="text-xs font-bold text-slate-900">Comprovante Oficial de Protocolo SERMIG</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {activeCase.comprovanteProtocoloUrl && (
-                          <a
-                            href={activeCase.comprovanteProtocoloUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Ver Comprovante
-                          </a>
-                        )}
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-100">
-                          <Upload className="w-3.5 h-3.5" />
-                          {uploadingProtocolo ? 'Enviando...' : activeCase.comprovanteProtocoloUrl ? 'Substituir comprovante' : 'Anexar comprovante'}
-                          <input
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            className="hidden"
-                            disabled={uploadingProtocolo}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              setUploadingProtocolo(true);
-                              try {
-                                const up = await uploadFileToServer(file);
-                                await handleSaveCaseField({ comprovanteProtocoloUrl: up.url }, 'comprovanteProtocoloUrl');
-                              } finally {
-                                setUploadingProtocolo(false);
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
-
-                  {caseCtx.fields.notasSermig && (
-                    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
-                      <p className="text-xs font-bold text-slate-900">Notas e Despachos SERMIG</p>
-                      <div className="flex flex-wrap gap-2">
-                        <input
-                          value={sermigStatusNote}
-                          onChange={(e) => setSermigStatusNote(e.target.value)}
-                          placeholder="Registrar despacho, notificação ou protocolo..."
-                          className="flex-1 min-w-[180px] px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
-                        />
-                        <UiButton
-                          type="button"
-                          size="sm"
-                          variant="primary"
-                          onClick={() => void handleSermigStatusChange(activeCase.statusSermig, sermigStatusNote)}
-                        >
-                          Salvar Nota
-                        </UiButton>
-                      </div>
-                      {(activeCase.historicoStatusSermig || []).length > 0 && (
-                        <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-slate-100 text-[11px] text-slate-600">
-                          {[...(activeCase.historicoStatusSermig || [])].reverse().map((h, idx) => (
-                            <p key={idx}>
-                              <strong>{h.status}</strong> ({formatDateTimeBR(h.data)} · {h.autor}){h.nota ? ` — ${h.nota}` : ''}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeCase.overrideProtocoloMinimo && (
-                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                  <p className="font-semibold">Exceção de Protocolo Mínimo Registrada</p>
-                  <p>
-                    Autorizada por {activeCase.overrideProtocoloMinimo.autorizadoPor} em{' '}
-                    {formatDateTimeBR(activeCase.overrideProtocoloMinimo.data)}: {activeCase.overrideProtocoloMinimo.justificativa}
-                  </p>
-                </div>
-              )}
-
-              {/* Parecer Técnico (apenas em casos migratórios e recolhível após protocolo) */}
-              {caseCtx.fields.parecerTecnico && (
-                <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setParecerExpanded((prev) => !prev)}
-                      className="flex items-center gap-2 text-left"
-                    >
-                      {parecerExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
-                      )}
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Parecer Técnico e Viabilidade
-                          {caseAssessments.length > 0 && (
-                            <span className="ml-2 text-xs font-medium text-slate-500">
-                              ({caseAssessments.length} {caseAssessments.length === 1 ? 'versão' : 'versões'})
-                            </span>
-                          )}
-                        </h3>
-                        {parecerExpanded && (
-                          <p className="text-xs text-slate-500">
-                            Gere um rascunho fundamentado na Base Legal, edite e aprove antes de liberar ao cliente.
-                          </p>
-                        )}
-                      </div>
-                    </button>
-
-                    <div className="flex flex-wrap items-center gap-2 no-print">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleSaveCaseField(
-                            { relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado },
-                            'relatorioViabilidadeLiberado',
-                          )
-                        }
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${
-                          activeCase.relatorioViabilidadeLiberado
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {activeCase.relatorioViabilidadeLiberado ? 'Visível no Portal' : 'Liberar ao Cliente'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={aiParecerLoading}
-                        onClick={() => {
-                          setParecerExpanded(true);
-                          void handleGenerateAiParecer();
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                        style={{ backgroundColor: 'var(--color-primary)' }}
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {aiParecerLoading ? aiParecerProgress || 'Gerando...' : 'Gerar Rascunho'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {parecerExpanded && (
-                    <>
-                      {aiParecerLoading && aiParecerProgress && (
-                        <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
-                          {aiParecerProgress}
-                        </p>
-                      )}
-
-                      {parecerDraft && (
-                        <form onSubmit={handleSaveParecerDraft} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="space-y-1">
-                              {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
-                                <>
-                                  <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
-                                    {parecerDraft.origemLabel || 'Assistente de Regras SERMIG/BCN'}
-                                  </p>
-                                  {parecerDraft.mensagemUsuario && (
-                                    <p className="text-xs text-amber-900">{parecerDraft.mensagemUsuario}</p>
-                                  )}
-                                </>
-                              ) : (
-                                <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-                                  {parecerDraft.origemLabel || 'Rascunho editável'} — revise e ajuste antes de aprovar.
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              disabled={aiParecerLoading}
-                              onClick={() => void handleGenerateAiParecer()}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              {aiParecerLoading ? aiParecerProgress || 'Tentando novamente...' : 'Gerar novamente'}
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-700 mb-1">Enquadramento Legal</label>
-                              <textarea
-                                rows={4}
-                                value={parecerDraft.enquadramentoLegal}
-                                onChange={(e) => updateParecerDraft({ ...parecerDraft, enquadramentoLegal: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-700 mb-1">Elegibilidade e Riscos</label>
-                              <textarea
-                                rows={4}
-                                value={parecerDraft.elegibilidadeRiscos}
-                                onChange={(e) => updateParecerDraft({ ...parecerDraft, elegibilidadeRiscos: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-700 mb-1">Fundamentação Normativa</label>
-                              <textarea
-                                rows={3}
-                                value={parecerDraft.fundamentacaoNormativa}
-                                onChange={(e) => updateParecerDraft({ ...parecerDraft, fundamentacaoNormativa: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-700 mb-1">Recomendações ao Cliente</label>
-                              <textarea
-                                rows={3}
-                                value={parecerDraft.recomendacoes}
-                                onChange={(e) => updateParecerDraft({ ...parecerDraft, recomendacoes: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                              <input
-                                type="checkbox"
-                                checked={parecerDraft.liberadoAoCliente}
-                                onChange={(e) => updateParecerDraft({ ...parecerDraft, liberadoAoCliente: e.target.checked })}
-                              />
-                              Liberar versão aprovada no Portal do Cliente
-                            </label>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => updateParecerDraft(null)}
-                                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium"
-                              >
-                                Descartar
-                              </button>
-                              <button
-                                type="submit"
-                                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
-                              >
-                                Aprovar e Salvar Versão
-                              </button>
-                            </div>
-                          </div>
-                        </form>
-                      )}
-
-                      {caseAssessments.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-slate-700">Versões Salvas</p>
-                          {caseAssessments.map((va) => (
-                            <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-bold text-slate-900">
-                                  Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
-                                    {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
-                                  </span>
-                                  {isAdmin && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setConfirmDeleteItem({
-                                          kind: 'viability',
-                                          title: `Excluir Parecer Técnico v${va.versao}`,
-                                          description: 'Deseja excluir permanentemente esta versão de parecer técnico? Esta operação será auditada.',
-                                          confirmLabel: 'Excluir Parecer',
-                                          item: va,
-                                        });
-                                      }}
-                                      aria-label={`Excluir parecer versão ${va.versao}`}
-                                      className="p-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="text-slate-700 whitespace-pre-wrap">{va.enquadramentoLegal}</p>
-                              <p className="text-slate-600 whitespace-pre-wrap">{va.recomendacoes}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Ações operacionais do caso */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200 no-print">
+            <div className="space-y-6 pt-2">
+              {/* Ações operacionais rápidas do caso */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200 no-print">
                 <div className="flex flex-wrap gap-2">
-                  {caseCtx.usesSermig && (
-                    <UiButton type="button" size="sm" variant="outline" onClick={() => void handleGenerateAutomaticDeadlines()}>
-                      <Calendar className="w-3.5 h-3.5" />
-                      Gerar Prazos
-                    </UiButton>
-                  )}
+                  <UiButton type="button" size="sm" variant="outline" onClick={() => void handleGenerateAutomaticDeadlines()}>
+                    <Calendar className="w-3.5 h-3.5" />
+                    Gerar Prazos Automáticos
+                  </UiButton>
+                  <UiButton type="button" size="sm" variant="outline" onClick={() => void handleDuplicateCaseStructure()}>
+                    <Copy className="w-3.5 h-3.5" />
+                    Duplicar Estrutura do Caso
+                  </UiButton>
+                  <UiButton type="button" size="sm" variant="outline" onClick={() => setPrintMode('dossie_caso')}>
+                    <Printer className="w-3.5 h-3.5" />
+                    Imprimir Dossiê A4
+                  </UiButton>
                   <UiButton
                     type="button"
                     size="sm"
@@ -2906,7 +2063,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       setCasePdfBusy(true);
                       try {
                         const { exportDossieCasoPdf } = await import('../pdf/ClientPortalPdfDocuments');
-                        const currentThermo = calcularTermometroDocumentos(caseDocs, empresa.bloqueioProtocoloMinimo || 100);
+                        const thermo = calcularTermometroDocumentos(caseDocs, empresa.bloqueioProtocoloMinimo || 100);
                         const fn = await exportDossieCasoPdf({
                           empresa,
                           client: activeClient,
@@ -2914,7 +2071,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           dependents: caseDependents,
                           docs: caseDocs,
                           deadlines: caseDeadlines,
-                          thermo: currentThermo,
+                          thermo,
                           assessments: caseAssessments,
                         });
                         setFeedback(`Dossiê PDF gerado (${fn}).`);
@@ -2928,29 +2085,319 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <Download className="w-3.5 h-3.5" />
                     {casePdfBusy ? 'Gerando PDF...' : 'Baixar Dossiê (PDF)'}
                   </UiButton>
-                  <UiButton type="button" size="sm" variant="outline" onClick={() => setPrintMode('dossie_caso')}>
-                    <Printer className="w-3.5 h-3.5" />
-                    Imprimir A4
-                  </UiButton>
-                  <UiButton type="button" size="sm" variant="outline" onClick={() => void handleDuplicateCaseStructure()}>
-                    <Copy className="w-3.5 h-3.5" />
-                    Duplicar Caso
-                  </UiButton>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {!activeCase.encerradoEm && (
-                    <UiButton type="button" size="sm" variant="danger" onClick={() => setCloseCaseModalOpen(true)}>
-                      Encerrar Caso
+                {!activeCase.encerradoEm && (
+                  <UiButton type="button" size="sm" variant="danger" onClick={() => setCloseCaseModalOpen(true)}>
+                    Encerrar Caso
+                  </UiButton>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
+                  <select
+                    value={activeCase.visaCategoryId || 'visa_15_mercosul'}
+                    onChange={(e) => void handleSaveCaseField({ visaCategoryId: e.target.value }, 'visaCategoryId')}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                  >
+                    {visaCategories.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        Cód. {v.codigo} — {v.nomePortugues}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Número do Pedido SERMIG</label>
+                  <input
+                    defaultValue={activeCase.numeroPedidoSermig || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (activeCase.numeroPedidoSermig || '')) {
+                        void handleSaveCaseField({ numeroPedidoSermig: e.target.value }, 'numeroPedidoSermig');
+                      }
+                    }}
+                    placeholder="Ex.: SOL-2026-000123"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Data do Protocolo</label>
+                  <input
+                    type="date"
+                    defaultValue={activeCase.dataProtocolo || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (activeCase.dataProtocolo || '')) {
+                        void handleSaveCaseField({ dataProtocolo: e.target.value }, 'dataProtocolo');
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Data Limite Entrada (90d Estampado)</label>
+                  <input
+                    type="date"
+                    defaultValue={activeCase.dataLimiteEntrada || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (activeCase.dataLimiteEntrada || '')) {
+                        void handleSaveCaseField({ dataLimiteEntrada: e.target.value }, 'dataLimiteEntrada');
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento da Residência (Janela Prorrogação)</label>
+                  <input
+                    type="date"
+                    defaultValue={activeCase.dataVencimentoResidencia || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (activeCase.dataVencimentoResidencia || '')) {
+                        void handleSaveCaseField({ dataVencimentoResidencia: e.target.value }, 'dataVencimentoResidencia');
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Prazo Requerimento / Descargos</label>
+                  <input
+                    type="date"
+                    defaultValue={activeCase.prazoRequerimento || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (activeCase.prazoRequerimento || '')) {
+                        void handleSaveCaseField({ prazoRequerimento: e.target.value }, 'prazoRequerimento');
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Comprovante de protocolo SERMIG & Histórico de mudanças de status */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 no-print">
+                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
+                  <p className="text-xs font-bold text-slate-900">Comprovante Oficial de Protocolo SERMIG</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {activeCase.comprovanteProtocoloUrl && (
+                      <a
+                        href={activeCase.comprovanteProtocoloUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Ver Comprovante
+                      </a>
+                    )}
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-100">
+                      <Upload className="w-3.5 h-3.5" />
+                      {uploadingProtocolo ? 'Enviando...' : activeCase.comprovanteProtocoloUrl ? 'Substituir PDF/Comprovante' : 'Anexar Comprovante SERMIG'}
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        className="hidden"
+                        disabled={uploadingProtocolo}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploadingProtocolo(true);
+                          try {
+                            const up = await uploadFileToServer(file);
+                            await handleSaveCaseField({ comprovanteProtocoloUrl: up.url }, 'comprovanteProtocoloUrl');
+                          } finally {
+                            setUploadingProtocolo(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
+                  <p className="text-xs font-bold text-slate-900">Registrar Mudança / Nota SERMIG</p>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      value={sermigStatusNote}
+                      onChange={(e) => setSermigStatusNote(e.target.value)}
+                      placeholder="Nota sobre despacho, notificação ou protocolo..."
+                      className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                    />
+                    <UiButton
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      onClick={() => void handleSermigStatusChange(activeCase.statusSermig, sermigStatusNote)}
+                    >
+                      Registrar Nota SERMIG
                     </UiButton>
-                  )}
-                  {isAdmin && (
-                    <UiButton type="button" size="sm" variant="outline" onClick={() => setDeleteCaseTarget(activeCase)}>
-                      <Trash2 className="w-3.5 h-3.5 text-[#C82333]" />
-                      Excluir Processo
-                    </UiButton>
+                  </div>
+                  {(activeCase.historicoStatusSermig || []).length > 0 && (
+                    <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-slate-100 text-[11px] text-slate-600">
+                      {[...(activeCase.historicoStatusSermig || [])].reverse().map((h, idx) => (
+                        <p key={idx}>
+                          <strong>{h.status}</strong> ({formatDateTimeBR(h.data)} · {h.autor}){h.nota ? ` — ${h.nota}` : ''}
+                        </p>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
+
+              {activeCase.overrideProtocoloMinimo && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                  <p className="font-semibold">Override de Protocolo Mínimo Registrado</p>
+                  <p>
+                    Autorizado por {activeCase.overrideProtocoloMinimo.autorizadoPor} em{' '}
+                    {formatDateTimeBR(activeCase.overrideProtocoloMinimo.data)}: {activeCase.overrideProtocoloMinimo.justificativa}
+                  </p>
+                </div>
+              )}
+
+              {!isAssistente && (
+                <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Parecer Técnico &amp; Viabilidade (Confrontado com Base Legal)</h3>
+                      <p className="text-xs text-slate-500">
+                        A IA gera um rascunho citando exclusivamente a Base Legal cadastrada. Edite e aprove antes de liberar ao cliente.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={aiParecerLoading}
+                      onClick={handleGenerateAiParecer}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {aiParecerLoading ? aiParecerProgress || 'Gerando rascunho...' : 'Gerar Rascunho de Parecer com IA'}
+                    </button>
+                  </div>
+
+                  {aiParecerLoading && aiParecerProgress && (
+                    <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
+                      {aiParecerProgress}
+                    </p>
+                  )}
+
+                  {parecerDraft && (
+                    <form onSubmit={handleSaveParecerDraft} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="space-y-1">
+                          {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
+                            <>
+                              <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
+                                {parecerDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
+                              </p>
+                              {parecerDraft.mensagemUsuario && (
+                                <p className="text-xs text-amber-900">{parecerDraft.mensagemUsuario}</p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                              {parecerDraft.origemLabel || 'Rascunho editável gerado pela IA'} — revise e ajuste antes de aprovar.
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={aiParecerLoading}
+                          onClick={() => void handleGenerateAiParecer()}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          {aiParecerLoading ? aiParecerProgress || 'Tentando novamente...' : 'Tentar novamente com IA'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Enquadramento Legal</label>
+                          <textarea
+                            rows={4}
+                            value={parecerDraft.enquadramentoLegal}
+                            onChange={(e) => updateParecerDraft({ ...parecerDraft, enquadramentoLegal: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Elegibilidade &amp; Riscos</label>
+                          <textarea
+                            rows={4}
+                            value={parecerDraft.elegibilidadeRiscos}
+                            onChange={(e) => updateParecerDraft({ ...parecerDraft, elegibilidadeRiscos: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Fundamentação Normativa</label>
+                          <textarea
+                            rows={3}
+                            value={parecerDraft.fundamentacaoNormativa}
+                            onChange={(e) => updateParecerDraft({ ...parecerDraft, fundamentacaoNormativa: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Recomendações ao Cliente</label>
+                          <textarea
+                            rows={3}
+                            value={parecerDraft.recomendacoes}
+                            onChange={(e) => updateParecerDraft({ ...parecerDraft, recomendacoes: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={parecerDraft.liberadoAoCliente}
+                            onChange={(e) => updateParecerDraft({ ...parecerDraft, liberadoAoCliente: e.target.checked })}
+                          />
+                          Liberar versão aprovada no Portal do Cliente
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateParecerDraft(null)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium"
+                          >
+                            Descartar
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                          >
+                            Aprovar e Salvar Versão
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+
+                  {caseAssessments.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-slate-700">Versões Salvas:</p>
+                      {caseAssessments.map((va) => (
+                        <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900">
+                              Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
+                            </span>
+                            <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
+                              {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
+                            </span>
+                          </div>
+                          <p className="text-slate-700 whitespace-pre-wrap">{va.enquadramentoLegal}</p>
+                          <p className="text-slate-600 whitespace-pre-wrap">{va.recomendacoes}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -3075,14 +2522,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           {canManageClients && (
                             <button
                               type="button"
-                              onClick={() => {
-                                setConfirmDeleteItem({
-                                  kind: 'dependent',
-                                  title: 'Remover Dependente',
-                                  description: `Tem certeza que deseja excluir permanentemente o dependente "${dep.nomeCompleto}"?`,
-                                  confirmLabel: 'Excluir Dependente',
-                                  item: dep,
-                                });
+                              onClick={async () => {
+                                await deleteDocumentAudited('dependents', dep.id, role, dep);
+                                await onRefresh();
                               }}
                               className="p-1.5 rounded-lg border border-red-200 text-[#C82333] hover:bg-red-50"
                               aria-label={`Remover ${dep.nomeCompleto}`}
@@ -3128,24 +2570,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 bg-white flex flex-col justify-center gap-2">
-                  {(() => {
-                    const submittedCount = caseDocs.filter(
-                      (d) => d.status === 'Enviado' || d.status === 'Em análise',
-                    ).length;
-                    if (submittedCount === 0) return null;
-                    return (
-                      <button
-                        type="button"
-                        disabled={approvingAllDocs}
-                        onClick={() => void handleApproveAllSubmittedDocs()}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                        style={{ backgroundColor: '#1E7E34' }}
-                      >
-                        <CheckSquare className="w-3.5 h-3.5" />
-                        {approvingAllDocs ? 'Aprovando...' : `Aprovar enviados (${submittedCount})`}
-                      </button>
-                    );
-                  })()}
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
@@ -3165,7 +2589,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       {zipBusy ? 'Gerando...' : 'Baixar ZIP'}
                     </button>
                   </div>
-                  <div className={caseCtx.usesSermig ? 'grid grid-cols-3 gap-1.5' : 'grid grid-cols-1 gap-1.5'}>
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setPrintMode('relacao')}
@@ -3173,90 +2597,82 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     >
                       Relação A4
                     </button>
-                    {caseCtx.usesSermig && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setPrintMode('apostila')}
-                          className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Checklist Haia
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPrintMode('pacote')}
-                          className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Pacote SERMIG
-                        </button>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPrintMode('apostila')}
+                      className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Checklist Haia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrintMode('pacote')}
+                      className="px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Pacote SERMIG
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Cronograma Reverso de Emissões (somente antes do protocolo em casos SERMIG) */}
-              {caseCtx.usesSermig && !caseCtx.hasProtocolStarted && (
-                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 no-print">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900">Cronograma de Emissão Reversa</h3>
-                      <p className="text-xs text-slate-500">
-                        Calcula datas sugeridas a partir da data-alvo do protocolo para evitar vencimento de certidões.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={dataAlvoProtocolo}
-                        onChange={(e) => setDataAlvoProtocolo(e.target.value)}
-                        aria-label="Data alvo do protocolo"
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleApplyCronogramaDatas}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-                      >
-                        Aplicar datas
-                      </button>
-                    </div>
+              {/* Cronograma Reverso de Emissões */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 no-print">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Cronograma Inteligente de Emissão Reversa</h3>
+                    <p className="text-xs text-slate-500">
+                      Calcula datas sugeridas a partir da data-alvo do protocolo para evitar vencimento de certidões (ex.: Antecedentes PF 60d).
+                    </p>
                   </div>
-                  {schedulePreview.length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {schedulePreview.map((item) => (
-                        <div key={item.requirement.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-                          <p className="font-semibold text-slate-900">
-                            #{item.ordem} {item.requirement.nomeDocumento}
-                          </p>
-                          <p className="text-slate-600 mt-0.5">
-                            Emitir até <strong className="tabular-nums">{item.dataSugeridaBR}</strong> · {item.janelaObservacao}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={dataAlvoProtocolo}
+                      onChange={(e) => setDataAlvoProtocolo(e.target.value)}
+                      aria-label="Data alvo do protocolo"
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCronogramaDatas}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                    >
+                      Aplicar datas ao checklist
+                    </button>
+                  </div>
                 </div>
-              )}
+                {schedulePreview.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {schedulePreview.map((item) => (
+                      <div key={item.requirement.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                        <p className="font-semibold text-slate-900">
+                          #{item.ordem} {item.requirement.nomeDocumento}
+                        </p>
+                        <p className="text-slate-600 mt-0.5">
+                          Emitir até <strong className="tabular-nums">{item.dataSugeridaBR}</strong> · {item.janelaObservacao}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-              {/* Filtros por Pessoa/Status + Modal Documento Completo */}
+              {/* Filtros por Pessoa/Status + Modal Documento Completo + Adição rápida */}
               <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200 no-print">
                 <div className="flex flex-wrap items-center gap-2">
-                  {allDocPessoas.length > 1 && (
-                    <select
-                      value={docPersonFilter}
-                      onChange={(e) => setDocPersonFilter(e.target.value)}
-                      aria-label="Filtrar documentos por pessoa"
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
-                    >
-                      <option value="Todos">Pessoa: Todos ({caseDocs.length})</option>
-                      {allDocPessoas.map((p) => (
-                        <option key={p} value={p}>
-                          {p} ({caseDocs.filter((d) => d.pessoa === p).length})
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <select
+                    value={docPersonFilter}
+                    onChange={(e) => setDocPersonFilter(e.target.value)}
+                    aria-label="Filtrar documentos por pessoa"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
+                  >
+                    <option value="Todos">Pessoa: Todos ({caseDocs.length})</option>
+                    {allDocPessoas.map((p) => (
+                      <option key={p} value={p}>
+                        {p} ({caseDocs.filter((d) => d.pessoa === p).length})
+                      </option>
+                    ))}
+                  </select>
                   <select
                     value={docStatusFilter}
                     onChange={(e) => setDocStatusFilter(e.target.value)}
@@ -3271,16 +2687,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <option value="Reprovado">Reprovado</option>
                     <option value="Vencido">Vencido</option>
                   </select>
-                  {caseCtx.usesSermig && (
-                    <button
-                      type="button"
-                      onClick={() => setLegalModalOpen(true)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)]"
-                    >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      Ver Base Legal
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setLegalModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--color-primary)]"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Ver Base Legal
+                  </button>
                 </div>
 
                 <button
@@ -3315,9 +2729,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-900 text-white text-xs no-print">
                   <span className="font-semibold inline-flex items-center gap-1.5">
                     <CheckSquare className="w-4 h-4" />
-                    {selectedDocIds.length === 1
-                      ? '1 documento selecionado'
-                      : `${selectedDocIds.length} documentos selecionados`}
+                    {selectedDocIds.length} documento(s) selecionado(s)
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     <button
@@ -3327,24 +2739,20 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     >
                       Aprovar em lote
                     </button>
-                    {caseCtx.usesSermig && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void handleBatchDocAction('apostilado')}
-                          className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
-                        >
-                          Marcar Apostilado
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleBatchDocAction('traduzido')}
-                          className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
-                        >
-                          Marcar Traduzido
-                        </button>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleBatchDocAction('apostilado')}
+                      className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
+                    >
+                      Marcar Apostilado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleBatchDocAction('traduzido')}
+                      className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold"
+                    >
+                      Marcar Traduzido
+                    </button>
                     <button
                       type="button"
                       onClick={() => void handleBatchDocAction('complementacao')}
@@ -3352,25 +2760,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     >
                       Solicitar Complementação
                     </button>
-                    {canManageClients && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const targets = caseDocs.filter((d) => selectedDocIds.includes(d.id));
-                          if (targets.length === 0) return;
-                          setConfirmDeleteItem({
-                            kind: 'docs_batch',
-                            title: `Excluir ${targets.length} documento(s)`,
-                            description: `Tem certeza que deseja excluir permanentemente ${targets.length} documento(s) selecionado(s) e seus arquivos enviados?`,
-                            confirmLabel: 'Excluir Selecionados',
-                            docs: targets,
-                          });
-                        }}
-                        className="px-2.5 py-1 rounded border border-red-400 text-red-200 hover:bg-red-900/40 font-semibold"
-                      >
-                        Excluir selecionados
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={() => setSelectedDocIds([])}
@@ -3387,28 +2776,26 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <input
                   value={newDocName}
                   onChange={(e) => setNewDocName(e.target.value)}
-                  placeholder="Adicionar documento extra ao checklist..."
+                  placeholder="Adicionar documento extra rápido ao checklist..."
                   className="flex-1 min-w-[220px] px-3 py-2 rounded-lg border border-slate-300 text-xs"
                 />
-                {caseDependents.length > 0 && (
-                  <select
-                    value={newDocPessoa}
-                    onChange={(e) => setNewDocPessoa(e.target.value)}
-                    className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                  >
-                    <option value="Titular">Titular</option>
-                    {caseDependents.map((d) => (
-                      <option key={d.id} value={d.nomeCompleto}>
-                        {d.nomeCompleto}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  value={newDocPessoa}
+                  onChange={(e) => setNewDocPessoa(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                >
+                  <option value="Titular">Titular</option>
+                  {caseDependents.map((d) => (
+                    <option key={d.id} value={d.nomeCompleto}>
+                      {d.nomeCompleto}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="submit"
                   className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50"
                 >
-                  + Incluir documento
+                  + Incluir rápido
                 </button>
               </form>
 
@@ -3572,100 +2959,69 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                                 Cobrar
                               </button>
                             )}
-                            {canManageClients && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteItem({
-                                    kind: 'doc',
-                                    title: 'Excluir Documento',
-                                    description: `Deseja excluir permanentemente "${d.nomeDocumento}" (${d.pessoa})? O anexo armazenado também será removido.`,
-                                    confirmLabel: 'Excluir Documento',
-                                    item: d,
-                                  });
-                                }}
-                                aria-label={`Excluir documento ${d.nomeDocumento}`}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Excluir
-                              </button>
-                            )}
                           </div>
                         </div>
 
-                        {(() => {
-                          const rowVis = getDocumentRowVisibility(d);
-                          return (
-                            <div className="flex flex-wrap items-center gap-2 text-xs pt-2 border-t border-slate-100 no-print">
-                              <select
-                                value={d.status}
-                                onChange={(e) => {
-                                  const nextSt = e.target.value as CaseDocument['status'];
-                                  if (nextSt === 'Reprovado' && !d.motivoReprovacao) {
-                                    void handleUpdateDoc(d, {
-                                      status: 'Reprovado',
-                                      motivoReprovacao: 'Documento pendente de ajuste — informe o detalhe específico abaixo.',
-                                    });
-                                  } else {
-                                    void handleUpdateDoc(d, { status: nextSt });
-                                  }
-                                }}
-                                aria-label="Status do documento"
-                                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
-                              >
-                                <option value="Pendente">Pendente</option>
-                                <option value="Enviado">Enviado</option>
-                                <option value="Em análise">Em análise</option>
-                                <option value="Aprovado">Aprovado</option>
-                                <option value="Reprovado">Reprovado</option>
-                                <option value="Vencido">Vencido</option>
-                              </select>
-                              <select
-                                value={d.etapaEsteira}
-                                onChange={(e) => void handleUpdateDoc(d, { etapaEsteira: e.target.value as DocumentStep })}
-                                aria-label="Etapa da esteira"
-                                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
-                              >
-                                {DOCUMENT_STEPS.map((st) => (
-                                  <option key={st} value={st}>
-                                    {st}
-                                  </option>
-                                ))}
-                              </select>
-                              {rowVis.showEmissionDate && (
-                                <input
-                                  type="date"
-                                  value={d.dataEmissao || ''}
-                                  onChange={(e) => void handleUpdateDoc(d, { dataEmissao: e.target.value })}
-                                  title="Data de emissão"
-                                  aria-label="Data de emissão"
-                                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
-                                />
-                              )}
-                              {rowVis.showApostilleToggle && (
-                                <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
-                                  <input
-                                    type="checkbox"
-                                    checked={d.apostilado}
-                                    onChange={(e) => void handleUpdateDoc(d, { apostilado: e.target.checked })}
-                                  />
-                                  Apostilado{d.exigeApostila && !d.apostilado ? ' (obrig.)' : ''}
-                                </label>
-                              )}
-                              {rowVis.showTranslationToggle && (
-                                <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
-                                  <input
-                                    type="checkbox"
-                                    checked={d.traduzido}
-                                    onChange={(e) => void handleUpdateDoc(d, { traduzido: e.target.checked })}
-                                  />
-                                  Traduzido{d.exigeTraducao && !d.traduzido ? ' (obrig.)' : ''}
-                                </label>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs pt-2 border-t border-slate-100 no-print">
+                          <select
+                            value={d.status}
+                            onChange={(e) => {
+                              const nextSt = e.target.value as CaseDocument['status'];
+                              if (nextSt === 'Reprovado' && !d.motivoReprovacao) {
+                                void handleUpdateDoc(d, {
+                                  status: 'Reprovado',
+                                  motivoReprovacao: 'Documento pendente de ajuste — informe o detalhe específico abaixo.',
+                                });
+                              } else {
+                                void handleUpdateDoc(d, { status: nextSt });
+                              }
+                            }}
+                            aria-label="Status do documento"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
+                          >
+                            <option value="Pendente">Pendente</option>
+                            <option value="Enviado">Enviado</option>
+                            <option value="Em análise">Em análise</option>
+                            <option value="Aprovado">Aprovado</option>
+                            <option value="Reprovado">Reprovado</option>
+                            <option value="Vencido">Vencido</option>
+                          </select>
+                          <select
+                            value={d.etapaEsteira}
+                            onChange={(e) => void handleUpdateDoc(d, { etapaEsteira: e.target.value as DocumentStep })}
+                            aria-label="Etapa da esteira"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          >
+                            {DOCUMENT_STEPS.map((st) => (
+                              <option key={st} value={st}>
+                                {st}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={d.dataEmissao || ''}
+                            onChange={(e) => void handleUpdateDoc(d, { dataEmissao: e.target.value })}
+                            title="Data de emissão"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          />
+                          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={d.apostilado}
+                              onChange={(e) => void handleUpdateDoc(d, { apostilado: e.target.checked })}
+                            />
+                            Apostilado{d.exigeApostila && !d.apostilado ? ' (obrig.)' : ''}
+                          </label>
+                          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={d.traduzido}
+                              onChange={(e) => void handleUpdateDoc(d, { traduzido: e.target.checked })}
+                            />
+                            Traduzido{d.exigeTraducao && !d.traduzido ? ' (obrig.)' : ''}
+                          </label>
+                        </div>
 
                         {d.status === 'Reprovado' && (
                           <div className="space-y-1">
@@ -3929,43 +3285,23 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         <p className={t.status === 'Concluída' ? 'line-through text-slate-400' : 'font-semibold text-slate-800'}>{t.titulo}</p>
                         {t.prazo && <p className="text-[11px] text-slate-500">Prazo: {formatDateBR(t.prazo)}</p>}
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await saveDocumentAudited(
-                              'tasks',
-                              t.id,
-                              { ...t, status: t.status === 'Concluída' ? 'Pendente' : 'Concluída' },
-                              false,
-                              role,
-                              'status_tarefa',
-                            );
-                            await onRefresh();
-                          }}
-                          className="px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-medium"
-                        >
-                          {t.status === 'Concluída' ? 'Reabrir' : 'Concluir'}
-                        </button>
-                        {canManageClients && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConfirmDeleteItem({
-                                kind: 'task',
-                                title: 'Excluir Tarefa',
-                                description: `Tem certeza que deseja excluir a tarefa "${t.titulo}"?`,
-                                confirmLabel: 'Excluir Tarefa',
-                                item: t,
-                              });
-                            }}
-                            aria-label="Excluir tarefa"
-                            className="p-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await saveDocumentAudited(
+                            'tasks',
+                            t.id,
+                            { ...t, status: t.status === 'Concluída' ? 'Pendente' : 'Concluída' },
+                            false,
+                            role,
+                            'status_tarefa',
+                          );
+                          await onRefresh();
+                        }}
+                        className="px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-medium"
+                      >
+                        {t.status === 'Concluída' ? 'Reabrir' : 'Concluir'}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -3986,11 +3322,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     onChange={(e) => setNewDeadlineTipo(e.target.value as Deadline['tipo'])}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
                   >
-                    {caseCtx.relevantDeadlineTypes.map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {tipo}
-                      </option>
-                    ))}
+                    <option value="Validade Documento">Validade Documento</option>
+                    <option value="Entrada no Chile 90d">Entrada no Chile 90d</option>
+                    <option value="Janela Prorrogação">Janela Prorrogação</option>
+                    <option value="Prazo Legal 6 Meses SERMIG">Prazo Legal 6 Meses SERMIG</option>
+                    <option value="Resposta Requerimento/Recurso">Resposta Requerimento/Recurso</option>
+                    <option value="Vencimento Cédula">Vencimento Cédula</option>
                   </select>
                   <div className="flex gap-2">
                     <input
@@ -4011,44 +3348,24 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       <p className="text-[11px] text-slate-500">
                         {dl.tipo} · {formatDateBR(dl.dataLimite)}
                       </p>
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
-                            className="text-[11px] underline text-[var(--color-primary)]"
-                          >
-                            Baixar .ics
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              await saveDocumentAudited('deadlines', dl.id, { ...dl, concluido: !dl.concluido }, false, role, 'prazo');
-                              await onRefresh();
-                            }}
-                            className="text-[11px] underline text-slate-600"
-                          >
-                            {dl.concluido ? 'Concluído' : 'Marcar concluído'}
-                          </button>
-                        </div>
-                        {canManageClients && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConfirmDeleteItem({
-                                kind: 'deadline',
-                                title: 'Excluir Prazo Legal',
-                                description: `Tem certeza que deseja excluir o prazo "${dl.titulo}"?`,
-                                confirmLabel: 'Excluir Prazo',
-                                item: dl,
-                              });
-                            }}
-                            aria-label="Excluir prazo"
-                            className="p-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
+                          className="text-[11px] underline text-[var(--color-primary)]"
+                        >
+                          Baixar .ics
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await saveDocumentAudited('deadlines', dl.id, { ...dl, concluido: !dl.concluido }, false, role, 'prazo');
+                            await onRefresh();
+                          }}
+                          className="text-[11px] underline text-slate-600"
+                        >
+                          {dl.concluido ? 'Concluído' : 'Marcar concluído'}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -4092,42 +3409,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <div key={apt.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                       <p className="font-semibold text-slate-900">{apt.titulo}</p>
                       <p className="text-[11px] text-slate-500">{formatDateTimeBR(apt.dataHoraInicio)} · {apt.status}</p>
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <div className="flex gap-2">
-                          <a
-                            href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] underline text-[var(--color-primary)]"
-                          >
-                            Google Agenda
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => downloadIcsFile({ title: apt.titulo, startIso: apt.dataHoraInicio })}
-                            className="text-[11px] underline text-slate-600"
-                          >
-                            Baixar .ics
-                          </button>
-                        </div>
-                        {canManageClients && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConfirmDeleteItem({
-                                kind: 'appointment',
-                                title: 'Excluir Agendamento',
-                                description: `Tem certeza que deseja excluir o agendamento "${apt.titulo}"?`,
-                                confirmLabel: 'Excluir Agendamento',
-                                item: apt,
-                              });
-                            }}
-                            aria-label="Excluir agendamento"
-                            className="p-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
+                      <div className="flex gap-2 pt-1">
+                        <a
+                          href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] underline text-[var(--color-primary)]"
+                        >
+                          Google Agenda
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => downloadIcsFile({ title: apt.titulo, startIso: apt.dataHoraInicio })}
+                          className="text-[11px] underline text-slate-600"
+                        >
+                          Baixar .ics
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -4136,53 +3433,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             </div>
           )}
 
-          {/* ABA COMUNICAÇÃO E AUDITORIA */}
+          {/* ABA 6: COMUNICAÇÃO */}
           {caseTab === 'comunicacao' && (
             <div className="space-y-5 pt-2">
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-3 no-print">
-                <button
-                  type="button"
-                  onClick={() => setCommSubView('atendimento')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    commSubView === 'atendimento'
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Atendimento e Chat ({caseComms.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCommSubView('auditoria')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    commSubView === 'auditoria'
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Auditoria do Caso ({caseLogs.length})
-                </button>
-              </div>
-
-              {commSubView === 'auditoria' ? (
-                <div className="space-y-2">
-                  {caseLogs.length === 0 ? (
-                    <p className="text-xs text-slate-500 py-3">Nenhuma alteração auditada vinculada diretamente a este caso ainda.</p>
-                  ) : (
-                    caseLogs.map((log) => (
-                      <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs">
-                        <div className="flex flex-wrap justify-between gap-2 text-slate-500">
-                          <span className="font-semibold text-slate-800">
-                            {log.acao} · {log.entidade} ({log.campo || 'registro'})
-                          </span>
-                          <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.actorEmail}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : (
-                <>
               {/* Chat de Dúvidas sobre Documentos (Portal do Cliente) */}
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -4192,11 +3445,11 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       Chat de Dúvidas sobre Documentos (Portal do Cliente)
                     </h3>
                     <p className="text-xs text-slate-500">
-                      As dúvidas enviadas pelo cliente no Portal aparecem aqui em tempo real e ficam salvas no histórico do processo.
+                      As dúvidas enviadas pelo cliente no widget do Portal aparecem aqui em tempo real e ficam salvas no histórico do processo.
                     </p>
                   </div>
                   <span className="text-xs font-semibold text-slate-600 tabular-nums">
-                    {caseChatLogs.length === 1 ? '1 mensagem' : `${caseChatLogs.length} mensagens`}
+                    {caseChatLogs.length} mensagem(ns)
                   </span>
                 </div>
 
@@ -4451,34 +3704,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <h4 className="text-xs font-bold text-slate-700">Histórico Completo de Comunicações ({caseComms.length})</h4>
                 {caseComms.map((log) => (
                   <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs space-y-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-slate-500">
+                    <div className="flex flex-wrap justify-between gap-2 text-slate-500">
                       <span className="font-semibold text-slate-800">
                         {log.canal === 'Chat Portal'
                           ? `Chat Portal (${log.origem === 'cliente' ? 'Cliente' : 'Equipe'})`
                           : log.canal}{' '}
                         · {log.assunto}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.autorNome}</span>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConfirmDeleteItem({
-                                kind: 'comm',
-                                title: 'Excluir Registro de Comunicação',
-                                description: `Tem certeza que deseja excluir o registro "${log.assunto}" do histórico?`,
-                                confirmLabel: 'Excluir Registro',
-                                item: log,
-                              });
-                            }}
-                            aria-label="Excluir registro de comunicação"
-                            className="p-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
+                      <span className="tabular-nums">{formatDateTimeBR(log.createdAt)} · {log.autorNome}</span>
                     </div>
                     {log.documentNome && (
                       <p className="text-[11px] font-semibold text-[var(--color-primary)]">
@@ -4489,8 +3722,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   </div>
                 ))}
               </div>
-                </>
-              )}
             </div>
           )}
 
@@ -4550,6 +3781,26 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ABA 8: HISTÓRICO */}
+          {caseTab === 'historico' && (
+            <div className="space-y-2 pt-2">
+              {caseLogs.length === 0 ? (
+                <p className="text-xs text-slate-500">Nenhuma alteração auditada vinculada diretamente ainda.</p>
+              ) : (
+                caseLogs.map((log) => (
+                  <div key={log.id} className="p-3 rounded-lg border border-slate-200 text-xs">
+                    <div className="flex justify-between text-slate-500">
+                      <span className="font-semibold text-slate-800">
+                        {log.acao} · {log.entidade} ({log.campo || 'registro'})
+                      </span>
+                      <span>{formatDateTimeBR(log.createdAt)} · {log.actorEmail}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -4738,38 +3989,13 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   />
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  {canManageClients && editingDoc.id && caseDocs.some((d) => d.id === editingDoc.id) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targetDoc = caseDocs.find((d) => d.id === editingDoc.id);
-                        if (!targetDoc) return;
-                        setDocModalOpen(false);
-                        setConfirmDeleteItem({
-                          kind: 'doc',
-                          title: 'Excluir Documento',
-                          description: `Deseja excluir permanentemente "${targetDoc.nomeDocumento}"?`,
-                          confirmLabel: 'Excluir Documento',
-                          item: targetDoc,
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Excluir Documento
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setDocModalOpen(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
-                    Salvar Documento
-                  </button>
-                </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setDocModalOpen(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
+                  Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                  Salvar Documento
+                </button>
               </div>
             </form>
           </div>
@@ -4832,8 +4058,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
           onRefresh={onRefresh}
           onLogWhatsApp={onLogWhatsApp}
         />
-
-        {renderDeleteModals()}
       </div>
     );
   }
@@ -4852,43 +4076,39 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         ) || null
       : null;
 
-  const activeExtraCaseFiltersCount =
-    (casePriorityFilter !== 'all' ? 1 : 0) +
-    (caseSermigFilter !== 'all' ? 1 : 0) +
-    (caseVisaFilter !== 'all' ? 1 : 0) +
-    (caseCriticalOnly ? 1 : 0);
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          <h1 className="text-2xl font-bold text-slate-900">
             {mode === 'clientes'
-              ? 'Clientes'
+              ? 'Clientes (CRM & Dossiê 360°)'
               : mode === 'casos'
-                ? 'Processos'
-                : 'Clientes & Processos'}
+                ? 'Casos Migratórios & Pipeline'
+                : 'Clientes & Casos Migratórios'}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500">
             {mode === 'clientes'
-              ? 'Cadastro de clientes, dependentes e acesso ao Portal do Cliente.'
-              : 'Acompanhe cada cliente em 5 etapas simples: Diagnóstico, Abertura, Documentos, Protocolo SERMIG e Finalização.'}
+              ? 'Cadastre clientes, importe CSV, gerencie acesso ao Portal, dependentes e consentimento LGPD'
+              : mode === 'casos'
+                ? 'Conduza processos nas 15 etapas do pipeline, conferência documental, pareceres e prazos SERMIG'
+                : 'Cadastre clientes com dossiê 360°, importe CSV, e conduza processos nas 15 etapas do pipeline'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {mode === 'ambos' && (
-            <div className="flex items-center p-1 bg-slate-200/70 dark:bg-slate-800 rounded-lg">
+            <div className="flex items-center p-1 bg-slate-200/70 rounded-lg">
               <button
                 type="button"
                 onClick={() => setSubView('casos')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'casos' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'casos' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
               >
-                Processos ({cases.length})
+                Casos ({cases.length})
               </button>
               <button
                 type="button"
                 onClick={() => setSubView('clientes')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'clientes' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold ${subView === 'clientes' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
               >
                 Clientes ({clients.filter((c) => !c.arquivado).length})
               </button>
@@ -4900,7 +4120,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               <button
                 type="button"
                 onClick={() => setCsvImportOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 <Upload className="w-3.5 h-3.5" />
                 Importar CSV
@@ -4911,7 +4131,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold ${
                   mode === 'clientes'
                     ? 'text-white'
-                    : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    : 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
                 }`}
                 style={mode === 'clientes' ? { backgroundColor: 'var(--color-primary)' } : undefined}
               >
@@ -4928,88 +4148,40 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               <Plus className="w-3.5 h-3.5" />
-              Novo Processo
+              Novo Caso
             </button>
           )}
         </div>
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 font-medium">
+        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium">
           {feedback}
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-[#C82333] dark:text-red-300 font-medium">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium">
           {errorMsg}
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
-        {/* Barra rápida de 5 etapas em 1 clique para Processos */}
-        {subView === 'casos' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            <button
-              type="button"
-              onClick={() => setCaseStageFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
-                caseStageFilter === 'all'
-                  ? 'bg-[#0B1F33] dark:bg-sky-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              Todos ({cases.filter((c) => !c.arquivado).length})
-            </button>
-            {MACRO_FUNNEL_STAGES.map((m) => {
-              const value = `macro:${m.id}`;
-              const active = caseStageFilter === value;
-              const count = cases.filter((c) => !c.arquivado && getMacroStageForCase(c).id === m.id).length;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setCaseStageFilter(value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
-                    active
-                      ? 'bg-[#0B1F33] dark:bg-sky-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {m.ordem}. {m.nome} ({count})
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por cliente, título do processo, CPF, WhatsApp ou nº SERMIG..."
-            className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 text-sm"
+            placeholder="Buscar por cliente, título do caso, CPF, WhatsApp ou nº pedido SERMIG..."
+            className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 text-sm"
           />
           {subView === 'casos' ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowMoreCaseFilters((v) => !v)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold whitespace-nowrap ${
-                  showMoreCaseFilters || activeExtraCaseFiltersCount > 0
-                    ? 'border-[#0B1F33] dark:border-sky-500 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
-                    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                Mais filtros{activeExtraCaseFiltersCount > 0 ? ` (${activeExtraCaseFiltersCount})` : ''}
-              </button>
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setCasesLayout(casesLayout === 'lista' ? 'kanban' : 'lista')}
-                className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
+                className="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Ver como: {casesLayout === 'lista' ? 'Kanban' : 'Lista'}
+                Visualização: {casesLayout === 'lista' ? 'Lista' : 'Kanban'}
               </button>
               <button
                 type="button"
@@ -5027,7 +4199,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     ]),
                   )
                 }
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 <Download className="w-3.5 h-3.5" />
                 CSV
@@ -5050,10 +4222,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   ]),
                 )
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
             >
               <Download className="w-3.5 h-3.5" />
-              Exportar CSV
+              Exportar Clientes CSV
             </button>
           )}
         </div>
@@ -5064,7 +4236,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={clientPortalFilter}
               onChange={(e) => setClientPortalFilter(e.target.value as 'all' | 'liberado' | 'pendente')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
             >
               <option value="all">Portal: Todos</option>
               <option value="liberado">Portal Liberado</option>
@@ -5073,7 +4245,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={clientPassportFilter}
               onChange={(e) => setClientPassportFilter(e.target.value as 'all' | 'expiring_12m')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
             >
               <option value="all">Passaporte: Todos</option>
               <option value="expiring_12m">Passaporte &lt; 12 meses</option>
@@ -5081,12 +4253,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={clientPendingFilter}
               onChange={(e) => setClientPendingFilter(e.target.value as 'all' | 'com_pendencias')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
             >
               <option value="all">Pendências: Todas</option>
               <option value="com_pendencias">Com documentos pendentes</option>
             </select>
-            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
               <input
                 type="checkbox"
                 checked={showArchivedClients}
@@ -5095,12 +4267,33 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               Mostrar arquivados
             </label>
           </div>
-        ) : showMoreCaseFilters ? (
-          <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <select
+              value={caseStageFilter}
+              onChange={(e) => setCaseStageFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+            >
+              <option value="all">Funil / Etapa: Todas</option>
+              <optgroup label="Marcos do Funil (5 Etapas)">
+                {MACRO_FUNNEL_STAGES.map((m) => (
+                  <option key={m.id} value={`macro:${m.id}`}>
+                    {m.ordem}. {m.nome}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Sub-etapas Operacionais (Detalhe)">
+                {PIPELINE_STAGES.map((st) => (
+                  <option key={st.numero} value={String(st.numero)}>
+                    Sub-etapa {st.numero}: {st.nome}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
             <select
               value={casePriorityFilter}
               onChange={(e) => setCasePriorityFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
             >
               <option value="all">Prioridade: Todas</option>
               <option value="Urgente">Urgente</option>
@@ -5111,7 +4304,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={caseSermigFilter}
               onChange={(e) => setCaseSermigFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
             >
               <option value="all">SERMIG: Todos</option>
               {SERMIG_STATUSES.map((s) => (
@@ -5121,14 +4314,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             <select
               value={caseVisaFilter}
               onChange={(e) => setCaseVisaFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
             >
               <option value="all">Subcategoria: Todas</option>
               {visaCategories.map((v) => (
                 <option key={v.id} value={v.id}>{v.codigo} — {v.nomePortugues}</option>
               ))}
             </select>
-            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
               <input
                 type="checkbox"
                 checked={caseCriticalOnly}
@@ -5136,22 +4329,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               />
               Prazos críticos (&le; 30d)
             </label>
-            {activeExtraCaseFiltersCount > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCasePriorityFilter('all');
-                  setCaseSermigFilter('all');
-                  setCaseVisaFilter('all');
-                  setCaseCriticalOnly(false);
-                }}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Limpar filtros
-              </button>
-            )}
           </div>
-        ) : null}
+        )}
       </div>
 
       {subView === 'clientes' ? (
@@ -5164,13 +4343,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 <tr className="border-b border-slate-200 text-xs text-slate-500 bg-slate-50">
                   <th className="py-3 px-4 font-semibold">Cliente</th>
                   <th className="py-3 px-4 font-semibold">CPF / WhatsApp</th>
+                  <th className="py-3 px-4 font-semibold">Modalidade</th>
                   <th className="py-3 px-4 font-semibold">Portal do Cliente</th>
                   <th className="py-3 px-4 font-semibold">LGPD</th>
                   <th className="py-3 px-4 font-semibold text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredClients.map((cl) => (
+                {filteredClients.map((cl) => {
+                  const modality = normalizePaidModality(cl.modalidadeConsultoria);
+                  return (
                   <tr key={cl.id} className={`hover:bg-slate-50/60 ${cl.arquivado ? 'opacity-60' : ''}`}>
                     <td className="py-3 px-4">
                       <p className="font-semibold text-slate-900">
@@ -5183,9 +4365,27 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       {cl.cpf || 'CPF pendente'} · {cl.whatsapp}
                     </td>
                     <td className="py-3 px-4 text-xs">
+                      {canManageClients ? (
+                        <select
+                          aria-label={`Modalidade de ${cl.nomeCompleto}`}
+                          value={modality}
+                          onChange={(e) => void handleChangeClientModality(cl, e.target.value as PaidConsultancyModality)}
+                          className="px-2 py-1 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-800"
+                        >
+                          <option value="orientativa">Orientativa</option>
+                          <option value="completa">Completa</option>
+                        </select>
+                      ) : (
+                        <span className="font-semibold text-slate-700">{CONSULTANCY_PLANS[modality].nomeCurto}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-xs">
                       <span className={cl.portalLiberado ? 'text-[#1E7E34] font-semibold' : 'text-slate-600'}>
                         {cl.portalLiberado ? 'Liberado' : cl.statusAcessoPortal}
                       </span>
+                      <p className="text-[11px] text-slate-400">
+                        {cl.userId ? 'Conta Google vinculada' : 'Ativa no 1º login Google'}
+                      </p>
                       {cl.conviteEnviadoEm && (
                         <p className="text-[11px] text-slate-400">Convite: {formatDateBR(cl.conviteEnviadoEm)}</p>
                       )}
@@ -5200,7 +4400,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
                         style={{ backgroundColor: 'var(--color-primary)' }}
                       >
-                        Abrir Cliente
+                        Abrir Dossiê (9 Abas)
                       </button>
                       {canManageClients && (
                         <>
@@ -5211,15 +4411,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           >
                             Enviar Convite
                           </button>
-                          {cl.portalLiberado && (
-                            <button
-                              type="button"
-                              onClick={() => openClientPortalPreview(cl.id)}
-                              className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 text-xs font-semibold text-[#1E7E34] hover:bg-emerald-100"
-                            >
-                              Ver Portal
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => void handleTogglePortalCliente(cl)}
@@ -5227,49 +4418,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           >
                             {cl.portalLiberado ? 'Bloquear' : 'Liberar'}
                           </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                if (cl.arquivado) {
-                                  await saveDocumentAudited(
-                                    'clients',
-                                    cl.id,
-                                    { ...cl, arquivado: false, arquivadoEm: '' },
-                                    false,
-                                    role,
-                                    'reativar_cliente',
-                                  );
-                                  setFeedback(`Cliente "${cl.nomeCompleto}" reativado.`);
-                                } else {
-                                  await archiveClientAudited(cl, role);
-                                  setFeedback(`Cliente "${cl.nomeCompleto}" arquivado.`);
-                                }
-                                await onRefresh();
-                              } catch (err) {
-                                setErrorMsg(translateAppError(err).message || 'Erro ao atualizar arquivamento do cliente.');
-                              }
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            {cl.arquivado ? 'Reativar' : 'Arquivar'}
-                          </button>
                         </>
-                      )}
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteClientTarget(cl)}
-                          aria-label={`Excluir cliente ${cl.nomeCompleto}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Excluir
-                        </button>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -5337,26 +4491,15 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           {cFin ? formatCurrency(cFin.valorContrato, cFin.moeda) : '—'}
                         </td>
                       )}
-                      <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => onSelectCase(c.id)}
                           className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white"
                           style={{ backgroundColor: 'var(--color-primary)' }}
                         >
-                          Abrir Processo
+                          Abrir Ficha (8 Abas)
                         </button>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteCaseTarget(c)}
-                            aria-label={`Excluir processo ${c.titulo}`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Excluir
-                          </button>
-                        )}
                       </td>
                     </tr>
                   );
@@ -5449,7 +4592,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                                 {nextDl ? ` · Próx. ${formatDateBR(nextDl.dataLimite)}` : ''}
                                 {!isAssistente && cFin ? ` · ${formatCurrency(cFin.valorContrato, cFin.moeda)}` : ''}
                               </p>
-                              {(nextMacro || isAdmin) && (
+                              {nextMacro && (
                                 <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
                                   <button
                                     type="button"
@@ -5458,56 +4601,42 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                                   >
                                     Abrir ficha
                                   </button>
-                                  <div className="flex items-center gap-1">
-                                    {nextMacro && (
-                                      <button
-                                        type="button"
-                                        onClick={async () => {
-                                          if (blockedForTramite) {
-                                            onSelectCase(c.id);
-                                            return;
-                                          }
-                                          const targetStep = resolveTargetPipelineStep(nextMacro.id, c.etapaPipeline);
-                                          try {
-                                            await saveDocumentAudited(
-                                              'cases',
-                                              c.id,
-                                              { ...c, etapaPipeline: targetStep },
-                                              false,
-                                              role,
-                                              `avanco_funil_${nextMacro.id}`,
-                                              { etapaPipeline: c.etapaPipeline },
-                                            );
-                                            await onRefresh();
-                                          } catch (err) {
-                                            reportAppError(err, { source: 'case-kanban-advance', path: `cases/${c.id}` });
-                                          }
-                                        }}
-                                        title={
-                                          blockedForTramite
-                                            ? `Termômetro em ${t.notaGeral}%. Abra a ficha para conferir pendências ou aplicar override.`
-                                            : `Avançar caso para ${nextMacro.nome}`
-                                        }
-                                        className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors ${
-                                          blockedForTramite
-                                            ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                                            : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                        }`}
-                                      >
-                                        {blockedForTramite ? 'Validar p/ Trâmite' : `→ ${nextMacro.nomeCurto}`}
-                                      </button>
-                                    )}
-                                    {isAdmin && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setDeleteCaseTarget(c)}
-                                        aria-label={`Excluir processo ${c.titulo}`}
-                                        className="p-1 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    )}
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (blockedForTramite) {
+                                        onSelectCase(c.id);
+                                        return;
+                                      }
+                                      const targetStep = resolveTargetPipelineStep(nextMacro.id, c.etapaPipeline);
+                                      try {
+                                        await saveDocumentAudited(
+                                          'cases',
+                                          c.id,
+                                          { ...c, etapaPipeline: targetStep },
+                                          false,
+                                          role,
+                                          `avanco_funil_${nextMacro.id}`,
+                                          { etapaPipeline: c.etapaPipeline },
+                                        );
+                                        await onRefresh();
+                                      } catch (err) {
+                                        reportAppError(err, { source: 'case-kanban-advance', path: `cases/${c.id}` });
+                                      }
+                                    }}
+                                    title={
+                                      blockedForTramite
+                                        ? `Termômetro em ${t.notaGeral}%. Abra a ficha para conferir pendências ou aplicar override.`
+                                        : `Avançar caso para ${nextMacro.nome}`
+                                    }
+                                    className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors ${
+                                      blockedForTramite
+                                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                                        : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {blockedForTramite ? 'Validar p/ Trâmite' : `→ ${nextMacro.nomeCurto}`}
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -5592,6 +4721,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                 />
               </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Modalidade de Consultoria *</label>
+                <select
+                  value={normalizePaidModality(editingClient.modalidadeConsultoria)}
+                  onChange={(e) =>
+                    setEditingClient({
+                      ...editingClient,
+                      modalidadeConsultoria: e.target.value as PaidConsultancyModality,
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                >
+                  <option value="orientativa">Consultoria Orientativa (cliente protocola com nossa orientação e revisão)</option>
+                  <option value="completa">Consultoria Completa (nossa equipe executa todo o processo SERMIG)</option>
+                </select>
+              </div>
             </div>
             <label className="inline-flex items-center gap-2 text-xs text-slate-700">
               <input
@@ -5599,7 +4744,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 checked={Boolean(editingClient.portalLiberado)}
                 onChange={(e) => setEditingClient({ ...editingClient, portalLiberado: e.target.checked })}
               />
-              Liberar acesso ao Portal do Cliente imediatamente (pode cadastrar sem convite e liberar depois)
+              Liberar acesso ao Portal do Cliente imediatamente (sincroniza automaticamente com a conta Google)
             </label>
             <div className="flex justify-end gap-2">
               <button
@@ -5751,45 +4896,19 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Prioridade</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
                 <select
-                  value={newCaseForm.prioridade}
-                  onChange={(e) => setNewCaseForm({ ...newCaseForm, prioridade: e.target.value as Case['prioridade'] })}
+                  value={newCaseForm.visaCategoryId}
+                  onChange={(e) => setNewCaseForm({ ...newCaseForm, visaCategoryId: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
                 >
-                  <option value="Baixa">Baixa</option>
-                  <option value="Média">Média</option>
-                  <option value="Alta">Alta</option>
-                  <option value="Urgente">Urgente</option>
+                  {visaCategories.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.codigo} — {v.nomePortugues}
+                    </option>
+                  ))}
                 </select>
               </div>
-              {serviceRequiresVisaCategory(newCaseForm.tipoServico) && (
-                <div className={serviceNeedsCurrentResidencyExpiry(newCaseForm.tipoServico) ? '' : 'sm:col-span-2'}>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Subcategoria SERMIG</label>
-                  <select
-                    value={newCaseForm.visaCategoryId}
-                    onChange={(e) => setNewCaseForm({ ...newCaseForm, visaCategoryId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
-                  >
-                    {visaCategories.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.codigo} — {v.nomePortugues}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {serviceNeedsCurrentResidencyExpiry(newCaseForm.tipoServico) && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento da Residência Atual</label>
-                  <input
-                    type="date"
-                    value={newCaseForm.dataVencimentoResidencia}
-                    onChange={(e) => setNewCaseForm({ ...newCaseForm, dataVencimentoResidencia: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
-                  />
-                </div>
-              )}
             </div>
             <div className="flex justify-end gap-2">
               <button
@@ -5804,7 +4923,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                {serviceRequiresVisaCategory(newCaseForm.tipoServico) ? 'Criar Caso com Checklist' : 'Criar Caso de Relocation'}
+                Criar Caso com Checklist
               </button>
             </div>
           </form>
@@ -5861,8 +4980,6 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         onRefresh={onRefresh}
         onLogWhatsApp={onLogWhatsApp}
       />
-
-      {renderDeleteModals()}
     </div>
   );
 };

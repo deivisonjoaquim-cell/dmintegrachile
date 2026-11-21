@@ -1,103 +1,117 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowRight, Clock, RefreshCw, ShieldAlert, UserCheck } from 'lucide-react';
-import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Lock,
+  LogIn,
+  MessageCircle,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
+import {
+  fetchSignedInClientRecord,
+  fetchSignedInUserDiagnosticLeads,
+} from '../services/firestoreService';
+import type { Client, Lead } from '../types/domain';
+import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
+import {
+  CONSULTANCY_PLANS,
+  resolveClientPortalAccess,
+  type BasicDiagnosticSummary,
+} from '../utils/portalAccess';
+import { BrandLogo } from '../components/BrandLogo';
 
 interface AuthGatePageProps {
   mode: 'cliente' | 'equipe';
   onNavigate: (path: string) => void;
 }
 
-const GoogleBrandMark: React.FC = () => (
-  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      fill="#4285F4"
-      d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.08 3.56-5.15 3.56-8.65Z"
-    />
-    <path
-      fill="#34A853"
-      d="M12 24c3.24 0 5.95-1.07 7.93-2.91l-3.87-3c-1.07.72-2.44 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.29v3.1A11.99 11.99 0 0 0 12 24Z"
-    />
-    <path
-      fill="#FBBC05"
-      d="M5.29 14.29A7.18 7.18 0 0 1 4.92 12c0-.8.14-1.57.37-2.29V6.61H1.29A11.99 11.99 0 0 0 0 12c0 1.94.46 3.77 1.29 5.39l4-3.1Z"
-    />
-    <path
-      fill="#EA4335"
-      d="M12 4.76c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A11.99 11.99 0 0 0 1.29 6.61l4 3.1c.94-2.84 3.59-4.95 6.71-4.95Z"
-    />
-  </svg>
-);
-
 export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) => {
-  const {
-    userProfile,
-    authLoading,
-    authError,
-    empresa,
-    loginWithGoogle,
-    logout,
-    clearAuthError,
-    refreshUserProfile,
-  } = useApp();
+  const { userProfile, authLoading, authError, empresa, loginWithGoogle, logout, refreshUserProfile } = useApp();
   const [signingIn, setSigningIn] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
-  const [checkNotice, setCheckNotice] = useState<string | null>(null);
+  const [clientRecord, setClientRecord] = useState<Client | null>(null);
+  const [userLeads, setUserLeads] = useState<Lead[]>([]);
+  const [checkMsg, setCheckMsg] = useState<string | null>(null);
 
-  const isStaffActive =
-    Boolean(userProfile) &&
-    userProfile?.status === 'ativo' &&
-    (userProfile?.role === 'admin' || userProfile?.role === 'consultor' || userProfile?.role === 'assistente');
+  const inspectClientAccess = useCallback(async () => {
+    if (!userProfile || userProfile.role !== 'cliente') return;
+    setCheckingAccess(true);
+    try {
+      const [cl, leads] = await Promise.all([
+        fetchSignedInClientRecord(userProfile.uid, userProfile.email),
+        fetchSignedInUserDiagnosticLeads(userProfile.email),
+      ]);
+      setClientRecord(cl);
+      setUserLeads(leads);
 
-  const isClientActive =
-    Boolean(userProfile) &&
-    userProfile?.role === 'cliente' &&
-    userProfile?.status === 'ativo' &&
-    Boolean(userProfile?.clientId);
-
-  useEffect(() => {
-    clearAuthError();
-  }, [mode, clearAuthError]);
+      if (cl && cl.portalLiberado === true && !cl.arquivado) {
+        if (userProfile.status !== 'ativo' || userProfile.clientId !== cl.id) {
+          await refreshUserProfile();
+        }
+        onNavigate('/portal');
+      }
+    } finally {
+      setCheckingAccess(false);
+    }
+  }, [userProfile, refreshUserProfile, onNavigate]);
 
   useEffect(() => {
     if (authLoading || !userProfile) return;
-    if (mode === 'equipe' && isStaffActive) {
-      onNavigate('/painel');
-    } else if (mode === 'cliente' && isClientActive) {
-      onNavigate('/portal');
-    } else if (mode === 'cliente' && isStaffActive) {
-      onNavigate('/portal');
+    if (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente') {
+      if (userProfile.status === 'ativo') {
+        onNavigate('/painel');
+      }
+      return;
     }
-  }, [authLoading, userProfile, mode, isStaffActive, isClientActive, onNavigate]);
+    if (userProfile.role === 'cliente') {
+      void inspectClientAccess();
+    }
+  }, [authLoading, userProfile, onNavigate, inspectClientAccess]);
 
   const handleLogin = async () => {
     setSigningIn(true);
-    setCheckNotice(null);
+    setCheckMsg(null);
     try {
       const profile = await loginWithGoogle();
-      if (!profile) return;
-      const staff =
-        profile.status === 'ativo' &&
-        (profile.role === 'admin' || profile.role === 'consultor' || profile.role === 'assistente');
-      const client = profile.role === 'cliente' && profile.status === 'ativo' && Boolean(profile.clientId);
-      if (staff) {
-        onNavigate(mode === 'cliente' ? '/portal' : '/painel');
-      } else if (client && mode === 'cliente') {
-        onNavigate('/portal');
+      if (profile) {
+        if ((profile.role === 'admin' || profile.role === 'consultor' || profile.role === 'assistente') && profile.status === 'ativo') {
+          onNavigate('/painel');
+        } else if (profile.role === 'cliente' && profile.status === 'ativo' && profile.clientId) {
+          onNavigate('/portal');
+        }
       }
     } finally {
       setSigningIn(false);
     }
   };
 
-  const handleCheckAccess = async () => {
+  const handleManualVerify = async () => {
+    setCheckMsg(null);
     setCheckingAccess(true);
-    setCheckNotice(null);
     try {
       await refreshUserProfile();
-      setCheckNotice(
-        'Verificação concluída. Se o consultor já liberou seu acesso, confira se o e-mail cadastrado no processo é exatamente o mesmo desta conta Google.',
-      );
+      if (userProfile) {
+        const [cl, leads] = await Promise.all([
+          fetchSignedInClientRecord(userProfile.uid, userProfile.email),
+          fetchSignedInUserDiagnosticLeads(userProfile.email),
+        ]);
+        setClientRecord(cl);
+        setUserLeads(leads);
+        if (cl && cl.portalLiberado === true && !cl.arquivado) {
+          onNavigate('/portal');
+          return;
+        }
+        if (cl && !cl.portalLiberado) {
+          setCheckMsg('Seu cadastro foi localizado, mas o portal ainda consta como pendente de liberação na Área da Equipe.');
+        } else {
+          setCheckMsg('Nenhuma liberação ativa encontrada para este e-mail ainda. Confirme com o consultor o e-mail cadastrado.');
+        }
+      }
     } finally {
       setCheckingAccess(false);
     }
@@ -111,36 +125,139 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     );
   }
 
-  return (
-    <div className="py-16 lg:py-24 bg-[var(--color-bg)]">
-      <div className="max-w-lg mx-auto px-4 sm:px-6">
-        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] card-radius overflow-hidden shadow-[0_14px_38px_rgba(11,31,51,0.07)]">
-          <BrandRibbon className="h-[3px] w-full" />
-          <div className="p-8 sm:p-9 text-center space-y-5">
-            <div className="flex justify-center">
-              <BrandLogo
-                src={empresa.logoUrl}
-                alt={empresa.nome_empresa}
-                variant="full"
-                className="h-24 w-auto max-w-[300px] object-contain mx-auto"
-              />
-            </div>
+  const accessResolution =
+    userProfile && userProfile.role === 'cliente'
+      ? resolveClientPortalAccess({
+          userProfile,
+          client: clientRecord,
+          leads: userLeads,
+        })
+      : null;
 
-            <div className="space-y-1.5">
-              <p className="brand-kicker">
-                {mode === 'equipe' ? 'Painel Administrativo e Consultoria' : 'Portal Seguro do Cliente'}
-              </p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0B1F33]">
-                {mode === 'equipe' ? 'Área da Equipe' : 'Acompanhar Meu Processo'}
-              </h1>
+  const renderBasicDiagnosticCard = (basic: BasicDiagnosticSummary) => (
+    <div className="text-left bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Resumo do Diagnóstico Gratuito
+          </p>
+          <h2 className="text-lg font-bold text-slate-900 mt-1">{basic.subcategoriaNome}</h2>
+          {basic.dataCalculo && (
+            <p className="text-xs text-slate-500 mt-0.5">Realizado em {formatDateBR(basic.dataCalculo)}</p>
+          )}
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Viabilidade</p>
+          <p className="text-3xl font-bold tabular-nums text-slate-900">
+            {basic.notaViabilidade}
+            <span className="text-sm font-normal text-slate-500">/100</span>
+          </p>
+          <p className="text-xs font-medium text-slate-600">Confiança {basic.confianca}</p>
+        </div>
+      </div>
+
+      <p className="text-sm text-slate-700 leading-relaxed">{basic.resumoBasico}</p>
+
+      {basic.temAlertaCritico && basic.alertaGeral && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <p className="leading-relaxed">{basic.alertaGeral}</p>
+        </div>
+      )}
+
+      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+          <Lock className="w-3.5 h-3.5 text-slate-600" />
+          Informações técnicas restritas à consultoria contratada
+        </div>
+        <ul className="space-y-1.5 text-xs text-slate-600">
+          {basic.itensBloqueados.map((item) => (
+            <li key={item} className="flex items-start gap-2">
+              <span className="text-slate-400">•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+        {(['orientativa', 'completa'] as const).map((planKey) => {
+          const plan = CONSULTANCY_PLANS[planKey];
+          const isFull = planKey === 'completa';
+          const waMsg = `Olá! Fiz o Diagnóstico Gratuito (${basic.subcategoriaNome} - ${basic.notaViabilidade}/100) com o e-mail ${userProfile?.email || ''} e tenho interesse na ${plan.nome}.`;
+          return (
+            <div
+              key={plan.id}
+              className={`rounded-xl p-4 border flex flex-col justify-between gap-3 ${
+                isFull
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-900 border-slate-200'
+              }`}
+            >
+              <div className="space-y-1.5">
+                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isFull ? 'text-amber-300' : 'text-slate-500'}`}>
+                  {plan.badgeLabel}
+                </p>
+                <h3 className="text-sm font-bold">{plan.nome}</h3>
+                <p className={`text-xs leading-relaxed ${isFull ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {plan.subtitulo}
+                </p>
+              </div>
+              <a
+                href={buildWhatsAppUrl(empresa.whatsapp, waMsg)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  isFull
+                    ? 'bg-white text-slate-900 hover:bg-slate-100'
+                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Contratar {plan.nomeCurto}
+              </a>
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const isWideView =
+    Boolean(userProfile) &&
+    mode === 'cliente' &&
+    (accessResolution?.kind === 'free_diagnostic_only' ||
+      (accessResolution?.kind === 'pending_release' && Boolean(accessResolution.basicDiagnostic)));
+
+  return (
+    <div className="py-12 lg:py-20 bg-[var(--color-bg)]">
+      <div className={`${isWideView ? 'max-w-3xl' : 'max-w-lg'} mx-auto px-4 sm:px-6`}>
+        <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6 sm:p-8 text-center space-y-5">
+          <BrandLogo
+            src={empresa.logoUrl}
+            alt={empresa.nome_empresa}
+            brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+            imgClassName="h-11 w-auto max-w-[180px] object-contain mx-auto"
+            fallbackNode={
+              <div
+                className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+            }
+          />
+
+          <h1 className="text-2xl font-bold text-slate-900">
+            {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Portal do Cliente'}
+          </h1>
 
           {!userProfile ? (
             <>
               <p className="text-sm text-slate-600 leading-relaxed">
                 {mode === 'equipe'
-                  ? 'Entre com sua conta Google autorizada (administrador, consultor ou assistente) para acessar o painel de gestão migratória.'
-                  : 'Entre com a mesma conta Google utilizada no seu diagnóstico ou cadastro para acompanhar etapas, documentos, prazos e orçamentos.'}
+                  ? 'Entre com sua conta Google corporativa autorizada para acessar o painel de gestão migratória.'
+                  : 'Entre com a mesma conta Google utilizada no diagnóstico gratuito ou no cadastro da sua consultoria.'}
               </p>
 
               {authError && (
@@ -153,34 +270,27 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                 type="button"
                 disabled={signingIn}
                 onClick={handleLogin}
-                className="w-full inline-flex items-center justify-center gap-3 px-5 py-3 rounded-lg text-sm font-semibold bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-50 transition-all shadow-xs"
+                className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
+                style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                <GoogleBrandMark />
-                <span>{signingIn ? 'Conectando ao Google...' : 'Continuar com Google'}</span>
+                <LogIn className="w-4 h-4" />
+                {signingIn ? 'Conectando ao Google...' : 'Entrar com Google'}
               </button>
 
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <p className="text-xs text-slate-500">
-                  Acesso protegido via autenticação Google com e-mail verificado.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate(mode === 'equipe' ? '/acompanhar' : '/entrar-equipe')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 transition-colors"
-                >
-                  {mode === 'equipe' ? 'É cliente? Acessar Portal do Cliente' : 'É administrador ou consultor? Entrar na Área da Equipe'}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <p className="text-xs text-slate-500">
+                Autenticação segura via Firebase Authentication (Google).
+              </p>
             </>
-          ) : userProfile.status === 'inativo' ? (
+          ) : accessResolution?.kind === 'inactive' || userProfile.status === 'inativo' ? (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-[#C82333] text-sm flex items-start gap-2.5 text-left">
                 <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold">Acesso desativado</p>
                   <p className="text-xs mt-1">
-                    Sua conta ({userProfile.email}) está inativa no momento. Entre em contato com nossa equipe para regularizar o acesso.
+                    {accessResolution?.kind === 'inactive'
+                      ? accessResolution.reason
+                      : `Sua conta (${userProfile.email}) está inativa no momento. Entre em contato com nossa equipe.`}
                   </p>
                 </div>
               </div>
@@ -192,25 +302,25 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                 Sair desta conta
               </button>
             </div>
-          ) : mode === 'equipe' && userProfile.role === 'cliente' ? (
+          ) : mode === 'equipe' ? (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm flex items-start gap-2.5 text-left">
-                <UserCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-sm flex items-start gap-2.5 text-left">
+                <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">Conta autenticada como Cliente</p>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Você entrou com <strong>{userProfile.email}</strong>, que possui perfil de cliente e não tem permissão para o painel interno da equipe.
+                  <p className="font-semibold">Conta sem permissão de equipe</p>
+                  <p className="text-xs mt-1 leading-relaxed">
+                    A conta <strong>{userProfile.email}</strong> está cadastrada como cliente. Se você faz parte da equipe, entre com seu e-mail corporativo autorizado ou solicite ao administrador a alteração de perfil.
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap justify-center gap-3">
                 <button
                   type="button"
-                  onClick={() => onNavigate(isClientActive ? '/portal' : '/acompanhar')}
+                  onClick={() => onNavigate('/acompanhar')}
                   className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
-                  {isClientActive ? 'Ir para Meu Portal' : 'Ver Status do Meu Processo'}
+                  Ir para Portal do Cliente
                 </button>
                 <button
                   type="button"
@@ -221,35 +331,147 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                 </button>
               </div>
             </div>
+          ) : checkingAccess ? (
+            <div className="py-6 text-sm text-slate-600 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Verificando liberação do seu Portal do Cliente...
+            </div>
+          ) : accessResolution?.kind === 'free_diagnostic_only' ? (
+            <div className="space-y-5">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs flex flex-wrap items-center justify-between gap-3 text-left">
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#1E7E34] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-slate-900">
+                      Acesso Diagnóstico Gratuito — {userProfile.email}
+                    </p>
+                    <p className="text-slate-600 mt-0.5">
+                      Usuários do diagnóstico gratuito visualizam apenas as informações básicas abaixo. Ao contratar a consultoria, seu portal completo é liberado aqui.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleManualVerify()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap shrink-0"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Já contratei — verificar
+                </button>
+              </div>
+
+              {checkMsg && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 text-left">
+                  {checkMsg}
+                </div>
+              )}
+
+              {renderBasicDiagnosticCard(accessResolution.basicDiagnostic)}
+
+              <div className="flex flex-wrap justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/diagnostico')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Refazer Diagnóstico
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Trocar conta Google
+                </button>
+              </div>
+            </div>
+          ) : accessResolution?.kind === 'pending_release' ? (
+            <div className="space-y-5">
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-sm flex items-start gap-2.5 text-left">
+                <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">Portal aguardando liberação da equipe</p>
+                  <p className="text-xs leading-relaxed">
+                    Olá, <strong>{accessResolution.client.nomeCompleto}</strong> ({userProfile.email}). Seu cadastro na modalidade{' '}
+                    <strong>{CONSULTANCY_PLANS[accessResolution.requestedModality].nome}</strong> foi localizado e aguarda a confirmação da liberação pelo consultor.
+                  </p>
+                </div>
+              </div>
+
+              {checkMsg && (
+                <div className="p-3 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-700 text-left">
+                  {checkMsg}
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleManualVerify()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Verificar liberação agora
+                </button>
+                <a
+                  href={buildWhatsAppUrl(
+                    empresa.whatsapp,
+                    `Olá! Já estou logado com ${userProfile.email} no portal e gostaria de confirmar a liberação do meu acesso.`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold whitespace-nowrap"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Falar no WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Trocar conta Google
+                </button>
+              </div>
+
+              {accessResolution.basicDiagnostic && renderBasicDiagnosticCard(accessResolution.basicDiagnostic)}
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-sm flex items-start gap-2.5 text-left">
                 <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">Acesso aguardando liberação</p>
+                  <p className="font-semibold">Cadastro ainda não localizado</p>
                   <p className="text-xs mt-1 leading-relaxed">
-                    Olá, <strong>{userProfile.nome}</strong> ({userProfile.email}). Sua conta Google foi autenticada com sucesso; o acesso completo ao Portal do Cliente é liberado pela equipe após o diagnóstico ou a contratação da assessoria.
+                    Olá, {userProfile.nome} ({userProfile.email}). Ainda não encontramos um diagnóstico ou contrato vinculado a este e-mail Google. Faça seu diagnóstico gratuito ou confirme com o consultor o e-mail informado na contratação.
                   </p>
-                  {checkNotice && <p className="text-xs mt-2 font-medium text-amber-900">{checkNotice}</p>}
                 </div>
               </div>
-              <div className="flex flex-wrap justify-center gap-2.5">
+
+              {checkMsg && (
+                <div className="p-3 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-700 text-left">
+                  {checkMsg}
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-center gap-3">
                 <button
                   type="button"
-                  disabled={checkingAccess}
-                  onClick={handleCheckAccess}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  onClick={() => void handleManualVerify()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${checkingAccess ? 'animate-spin' : ''}`} />
-                  {checkingAccess ? 'Verificando...' : 'Verificar liberação agora'}
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Verificar novamente
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigate('/diagnostico')}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
                 >
-                  Fazer Diagnóstico
+                  Fazer Diagnóstico Gratuito
                 </button>
                 <button
                   type="button"
@@ -261,7 +483,6 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               </div>
             </div>
           )}
-          </div>
         </div>
       </div>
     </div>

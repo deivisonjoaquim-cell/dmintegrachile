@@ -12,21 +12,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { executeValidatedAdminWrite } from './adminSecurityService';
-import { type AiEngineHealthInfo, sanitizeClientAiError } from '../utils/aiClient';
-import {
-  createDevE2eFirebaseUser,
-  devE2eBuildAiHealth,
-  devE2eDeleteClientCascade,
-  devE2eDeleteDocument,
-  devE2eDeletePartnerCascade,
-  devE2eExecuteAiResponse,
-  devE2eGetCatalog,
-  getDevE2eDataset,
-  devE2eGetWorkspace,
-  devE2eSaveDocument,
-  devE2eSyncPartnerAndPublic,
-  isDevE2eActive,
-} from '../utils/devE2eBridge';
+import { sanitizeClientAiError } from '../utils/aiClient';
 import {
   DEFAULT_CONTRATO_TEMPLATE,
   DEFAULT_DIAGNOSTIC_RULE_VERSION,
@@ -63,8 +49,8 @@ import type {
   LegalSource,
   MediaAsset,
   MessageTemplate,
+  PaidConsultancyModality,
   Partner,
-  PartnerCategory,
   PartnerProposal,
   PartnerPublic,
   SiteContent,
@@ -82,21 +68,7 @@ import {
   validateBancarioConfigPayload,
   validateEmpresaConfigPayload,
 } from '../utils/firestoreUtils';
-import {
-  sanitizeDiagnosticLeadPayload,
-  sanitizeDiagnosticSessionPayload,
-} from '../utils/firestorePayloads';
-import {
-  buildAuditLogPayloadForRuleDecision,
-  loadRuleEngineSnapshotAsync,
-  saveRuleEngineSnapshot,
-  setLocalAiRuntimeNotice,
-  type CatalogSyncSource,
-  type PendingOfflineDiagnostic,
-  type RuleEngineDecisionLog,
-} from '../utils/offlineRuleEngineStore';
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
-import { upgradeLegacyCopyString, upgradeLegacySiteContentCopy } from '../utils/homeCopyNormalizer';
 import { reportAppError } from './errorService';
 
 export function makeId(prefix: string): string {
@@ -148,40 +120,9 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
       ? data.termoLgpd.replace(LEGACY_TERMO_LGPD_LINE, CURRENT_TERMO_LGPD_LINE)
       : data.termoLgpd || DEFAULT_EMPRESA_CONFIG.termoLgpd;
 
-  const mergedLayout = {
-    ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
-    ...(data.layoutConfig || {}),
-  };
-  if (mergedLayout.textoCtaCabecalho) {
-    mergedLayout.textoCtaCabecalho =
-      upgradeLegacyCopyString(mergedLayout.textoCtaCabecalho) || mergedLayout.textoCtaCabecalho;
-  }
-  if (mergedLayout.rodapeSubtitulo) {
-    mergedLayout.rodapeSubtitulo =
-      upgradeLegacyCopyString(mergedLayout.rodapeSubtitulo) || mergedLayout.rodapeSubtitulo;
-  }
-
-  const isLegacyDefaultTheme =
-    (!data.corPrimaria || data.corPrimaria.toUpperCase() === '#0F2537') &&
-    (!data.corFundo || data.corFundo.toUpperCase() === '#F8F9FA' || data.corFundo.toUpperCase() === '#F6F7F9');
-
   const normalized: EmpresaConfig = {
     ...DEFAULT_EMPRESA_CONFIG,
     ...data,
-    corPrimaria: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corPrimaria : data.corPrimaria || DEFAULT_EMPRESA_CONFIG.corPrimaria,
-    corDestaque: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corDestaque : data.corDestaque || DEFAULT_EMPRESA_CONFIG.corDestaque,
-    corFundo: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corFundo : data.corFundo || DEFAULT_EMPRESA_CONFIG.corFundo,
-    corTexto: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corTexto : data.corTexto || DEFAULT_EMPRESA_CONFIG.corTexto,
-    corRodapeBg: isLegacyDefaultTheme ? DEFAULT_EMPRESA_CONFIG.corRodapeBg : data.corRodapeBg || DEFAULT_EMPRESA_CONFIG.corRodapeBg,
-    fonteDisplay:
-      isLegacyDefaultTheme && (!data.fonteDisplay || data.fonteDisplay === 'Plus Jakarta Sans')
-        ? DEFAULT_EMPRESA_CONFIG.fonteDisplay
-        : data.fonteDisplay || DEFAULT_EMPRESA_CONFIG.fonteDisplay,
-    logoUrl: data.logoUrl?.trim() ? data.logoUrl : DEFAULT_EMPRESA_CONFIG.logoUrl,
-    logoDarkUrl: data.logoDarkUrl?.trim() ? data.logoDarkUrl : DEFAULT_EMPRESA_CONFIG.logoDarkUrl,
-    faviconUrl: data.faviconUrl?.trim() ? data.faviconUrl : DEFAULT_EMPRESA_CONFIG.faviconUrl,
-    avisoLegal:
-      upgradeLegacyCopyString(data.avisoLegal) || DEFAULT_EMPRESA_CONFIG.avisoLegal,
     razao_social_cnpj_rut:
       !data.razao_social_cnpj_rut || data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL
         ? DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut
@@ -196,7 +137,10 @@ function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
         : data.endereco_cidade,
     textoContratoPadrao,
     termoLgpd,
-    layoutConfig: mergedLayout,
+    layoutConfig: {
+      ...(DEFAULT_EMPRESA_CONFIG.layoutConfig || {}),
+      ...(data.layoutConfig || {}),
+    },
   };
   if (data.siteDraft) {
     normalized.siteDraft = normalizeSiteContentAssets(data.siteDraft);
@@ -266,14 +210,11 @@ function normalizeSiteContentAssets(rows: SiteContent[]): SiteContent[] {
         next = { ...next, metadados: meta };
       }
     }
-    return upgradeLegacySiteContentCopy(next);
+    return next;
   });
 }
 
 export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return getDevE2eDataset().empresa;
-  }
   try {
     const snap = await getDoc(doc(db, 'config', 'empresa'));
     if (snap.exists()) {
@@ -286,9 +227,6 @@ export async function fetchEmpresaConfig(): Promise<EmpresaConfig> {
 }
 
 export async function fetchSiteContentPublic(): Promise<SiteContent[]> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return getDevE2eDataset().siteContent;
-  }
   try {
     const q = query(collection(db, 'siteContent'), where('ativo', '==', true));
     const snap = await getDocs(q);
@@ -303,9 +241,6 @@ export async function fetchSiteContentPublic(): Promise<SiteContent[]> {
 }
 
 export async function fetchAllSiteContentStaff(): Promise<SiteContent[]> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return getDevE2eDataset().siteContent;
-  }
   try {
     const snap = await getDocs(collection(db, 'siteContent'));
     if (snap.empty) return SEED_SITE_CONTENT;
@@ -319,9 +254,6 @@ export async function fetchAllSiteContentStaff(): Promise<SiteContent[]> {
 }
 
 export async function fetchPartnersPublic(): Promise<PartnerPublic[]> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return getDevE2eDataset().partnersPublic;
-  }
   try {
     const q = query(
       collection(db, 'partnersPublic'),
@@ -341,9 +273,6 @@ export async function fetchVisaCatalogPublic(): Promise<{
   requirements: VisaRequirement[];
   legalSources: LegalSource[];
 }> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return devE2eGetCatalog();
-  }
   try {
     const [catSnap, reqSnap, legSnap] = await Promise.all([
       getDocs(query(collection(db, 'visaCategories'), where('ativo', '==', true))),
@@ -384,216 +313,6 @@ export async function fetchActiveDiagnosticRules(): Promise<DiagnosticRuleVersio
   } catch {
     return DEFAULT_DIAGNOSTIC_RULE_VERSION;
   }
-}
-
-export interface RuleEngineBundleResult {
-  fromCloud: boolean;
-  source: CatalogSyncSource;
-  savedAt: string;
-  empresa: EmpresaConfig;
-  siteContent: SiteContent[];
-  partnersPublic: PartnerPublic[];
-  visaCategories: VisaCategory[];
-  visaRequirements: VisaRequirement[];
-  legalSources: LegalSource[];
-  activeDiagnosticRules: DiagnosticRuleVersion;
-}
-
-export async function fetchRuleEngineBundleWithSync(): Promise<RuleEngineBundleResult> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    const ds = getDevE2eDataset();
-    const cat = devE2eGetCatalog();
-    return {
-      fromCloud: true,
-      source: 'cloud',
-      savedAt: new Date().toISOString(),
-      empresa: ds.empresa,
-      siteContent: ds.siteContent,
-      partnersPublic: ds.partnersPublic,
-      visaCategories: cat.categories,
-      visaRequirements: cat.requirements,
-      legalSources: cat.legalSources,
-      activeDiagnosticRules: DEFAULT_DIAGNOSTIC_RULE_VERSION,
-    };
-  }
-
-  const isBrowserOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-  if (isBrowserOffline) {
-    const localSnap = await loadRuleEngineSnapshotAsync();
-    return {
-      fromCloud: false,
-      source: localSnap.source,
-      savedAt: localSnap.savedAt,
-      empresa: localSnap.empresa,
-      siteContent: SEED_SITE_CONTENT,
-      partnersPublic: SEED_PARTNERS.map((p) => p.pub),
-      visaCategories: localSnap.visaCategories,
-      visaRequirements: localSnap.visaRequirements,
-      legalSources: localSnap.legalSources,
-      activeDiagnosticRules: localSnap.activeDiagnosticRules,
-    };
-  }
-
-  try {
-    const [empresaSnap, siteSnap, partnersSnap, catSnap, reqSnap, legSnap, rulesSnap] = await Promise.all([
-      getDoc(doc(db, 'config', 'empresa')),
-      getDocs(query(collection(db, 'siteContent'), where('ativo', '==', true))),
-      getDocs(
-        query(
-          collection(db, 'partnersPublic'),
-          where('recomendadoAosClientes', '==', true),
-          where('statusHomologacao', '==', 'Ativo/Indicado'),
-        ),
-      ),
-      getDocs(query(collection(db, 'visaCategories'), where('ativo', '==', true))),
-      getDocs(query(collection(db, 'visaRequirements'), where('peso', '>=', 1))),
-      getDocs(
-        query(
-          collection(db, 'legalSources'),
-          where('statusVigencia', 'in', ['Vigente', 'Alterada', 'Revogada', 'A verificar']),
-        ),
-      ),
-      getDocs(query(collection(db, 'diagnosticRuleVersions'), where('ativa', '==', true))),
-    ]);
-
-    const empresa = empresaSnap.exists()
-      ? normalizeEmpresaConfig(empresaSnap.data() as Partial<EmpresaConfig>)
-      : DEFAULT_EMPRESA_CONFIG;
-
-    const siteContent = siteSnap.empty
-      ? SEED_SITE_CONTENT
-      : normalizeSiteContentAssets(
-          siteSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SiteContent, 'id'>) })),
-        ).sort((a, b) => a.ordem - b.ordem);
-
-    const partnersPublic = partnersSnap.empty
-      ? SEED_PARTNERS.map((p) => p.pub)
-      : partnersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PartnerPublic, 'id'>) }));
-
-    const rawCategories = catSnap.empty
-      ? SEED_VISA_CATEGORIES
-      : catSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaCategory, 'id'>) }));
-    const mercosulSeed = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
-    const visaCategories = rawCategories.map((c) => (c.codigo === '15' ? { ...c, ...mercosulSeed, id: c.id } : c));
-
-    const visaRequirements = reqSnap.empty
-      ? SEED_VISA_REQUIREMENTS
-      : reqSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<VisaRequirement, 'id'>) }));
-
-    const legalSources = legSnap.empty
-      ? SEED_LEGAL_SOURCES
-      : legSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LegalSource, 'id'>) }));
-
-    const ruleRows = rulesSnap.empty
-      ? [DEFAULT_DIAGNOSTIC_RULE_VERSION]
-      : rulesSnap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<DiagnosticRuleVersion, 'id'>) }))
-          .sort((a, b) => (b.dataPublicacao || '').localeCompare(a.dataPublicacao || ''));
-    const activeDiagnosticRules = ruleRows[0] || DEFAULT_DIAGNOSTIC_RULE_VERSION;
-
-    const persisted = await saveRuleEngineSnapshot({
-      empresa,
-      visaCategories,
-      visaRequirements,
-      legalSources,
-      activeDiagnosticRules,
-      source: 'cloud',
-    });
-
-    return {
-      fromCloud: true,
-      source: 'cloud',
-      savedAt: persisted.savedAt,
-      empresa,
-      siteContent,
-      partnersPublic,
-      visaCategories,
-      visaRequirements,
-      legalSources,
-      activeDiagnosticRules,
-    };
-  } catch {
-    const localSnap = await loadRuleEngineSnapshotAsync();
-    return {
-      fromCloud: false,
-      source: localSnap.source,
-      savedAt: localSnap.savedAt,
-      empresa: localSnap.empresa,
-      siteContent: SEED_SITE_CONTENT,
-      partnersPublic: SEED_PARTNERS.map((p) => p.pub),
-      visaCategories: localSnap.visaCategories,
-      visaRequirements: localSnap.visaRequirements,
-      legalSources: localSnap.legalSources,
-      activeDiagnosticRules: localSnap.activeDiagnosticRules,
-    };
-  }
-}
-
-export async function syncRuleEngineDecisionLogToFirestore(
-  log: RuleEngineDecisionLog,
-  actorRole?: UserRole,
-): Promise<void> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return;
-  }
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
-    throw new Error('Autenticação obrigatória para sincronizar logs de decisão na nuvem.');
-  }
-  const payload = buildAuditLogPayloadForRuleDecision(log);
-  const docId = `aud_rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  try {
-    await setDoc(doc(db, 'auditLogs', docId), {
-      id: docId,
-      actorUid: String(currentUser.uid).slice(0, 128),
-      actorEmail: String(currentUser.email || '').slice(0, 200),
-      actorRole: String(actorRole || 'usuario').slice(0, 40),
-      acao: payload.acao,
-      entidade: payload.entidade,
-      entidadeId: payload.entidadeId,
-      campo: payload.campo,
-      antes: '',
-      depois: payload.depois,
-      createdAt: new Date().toISOString(),
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, `auditLogs/${docId}`);
-  }
-}
-
-export async function syncPendingOfflineDiagnosticToFirestore(
-  pending: PendingOfflineDiagnostic,
-): Promise<{ leadId: string }> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return { leadId: pending.existingLeadId || pending.id };
-  }
-  const leadId = pending.existingLeadId || makeId('lead');
-  const isNewLead = !pending.existingLeadId;
-  const leadPayload = sanitizeDiagnosticLeadPayload(
-    {
-      ...pending.leadPayload,
-      id: leadId,
-      statusFunil: 'Novo',
-      createdAt: pending.createdAt,
-    },
-    { isNew: isNewLead, forcePublicCreate: true },
-  );
-  await setDoc(doc(db, 'leads', leadId), stripUndefined(leadPayload), { merge: true });
-
-  const sessionPayload = sanitizeDiagnosticSessionPayload(
-    pending.sessionToken,
-    {
-      ...pending.sessionPayload,
-      leadId,
-      createdAt: pending.createdAt,
-    },
-    isNewLead,
-  );
-  await setDoc(doc(db, 'diagnosticSessions', pending.sessionToken), stripUndefined(sessionPayload), {
-    merge: true,
-  });
-
-  return { leadId };
 }
 
 export async function fetchAllDiagnosticRuleVersions(): Promise<DiagnosticRuleVersion[]> {
@@ -848,23 +567,6 @@ export async function saveDiagnosticSession(
   isNew: boolean,
 ): Promise<DiagnosticSession> {
   const now = new Date().toISOString();
-  let resolvedCreatedAt = payload.createdAt || '';
-
-  if (!resolvedCreatedAt) {
-    try {
-      const existingSnap = await getDoc(doc(db, 'diagnosticSessions', token));
-      if (existingSnap.exists()) {
-        const existingData = existingSnap.data() as Partial<DiagnosticSession>;
-        if (typeof existingData.createdAt === 'string' && existingData.createdAt.length >= 10) {
-          resolvedCreatedAt = existingData.createdAt;
-        }
-      }
-    } catch {
-      // Documento inexistente ou inacessível ao usuário anônimo antes do create: segue com timestamp novo
-    }
-  }
-
-  const finalCreatedAt = resolvedCreatedAt || now;
   const session: DiagnosticSession = stripUndefined({
     id: token,
     etapaAtual: payload.etapaAtual,
@@ -873,12 +575,14 @@ export async function saveDiagnosticSession(
     leadId: payload.leadId || '',
     expiraEmMs: payload.expiraEmMs,
     utm: payload.utm,
-    createdAt: finalCreatedAt,
+    createdAt: payload.createdAt || now,
     updatedAt: now,
   });
-
   const writePayload: Record<string, unknown> = { ...session };
-  await setDoc(doc(db, 'diagnosticSessions', token), writePayload, { merge: !isNew || Boolean(resolvedCreatedAt) });
+  if (!isNew && !payload.createdAt) {
+    delete writePayload.createdAt;
+  }
+  await setDoc(doc(db, 'diagnosticSessions', token), writePayload, { merge: !isNew });
   return session;
 }
 
@@ -1088,7 +792,7 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
   empresa: EmpresaConfig;
   role: UserRole;
   autorNome: string;
-  initialPipelineStep?: number;
+  modalidadeConsultoria?: PaidConsultancyModality;
 }): Promise<{ clientId: string; caseId: string; clientReused: boolean; docsCount: number; tasksCount: number }> {
   const {
     lead,
@@ -1100,8 +804,9 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     empresa,
     role,
     autorNome,
-    initialPipelineStep = 3,
+    modalidadeConsultoria,
   } = params;
+  const chosenModality: PaidConsultancyModality = modalidadeConsultoria || lead.modalidadeInteresse || 'completa';
   const cleanPhone = (p: string) => p.replace(/\D/g, '');
   const existingClient = clients.find(
     (c) =>
@@ -1116,18 +821,29 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
       id: clientId,
       nomeCompleto: lead.nome,
       cpf: '',
-      email: lead.email.toLowerCase(),
+      email: lead.email.trim().toLowerCase(),
       whatsapp: lead.whatsapp,
       enderecoCompleto: lead.cidadeUf,
       objetivoChile: lead.interesse,
       portalLiberado: false,
       statusAcessoPortal: 'Pendente liberação',
+      modalidadeConsultoria: chosenModality,
       lgpdAceito: lead.lgpdAceito,
       lgpdAceitoEm: lead.lgpdData,
       lgpdVersao: lead.lgpdVersao,
       createdAt: new Date().toISOString(),
     };
     await saveDocumentAudited('clients', clientId, newClient as unknown as Record<string, unknown>, true, role, 'conversao_lead');
+  } else if (existingClient && existingClient.modalidadeConsultoria !== chosenModality) {
+    await saveDocumentAudited(
+      'clients',
+      existingClient.id,
+      { ...existingClient, modalidadeConsultoria: chosenModality },
+      false,
+      role,
+      'modalidadeConsultoria',
+      existingClient.modalidadeConsultoria,
+    );
   }
 
   const matchedVisa =
@@ -1143,9 +859,10 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     tipoServico: 'Residência Temporal',
     visaCategoryId: matchedVisa?.id || 'visa_15_mercosul',
     subcategoriaIa: lead.subcategoriaSugerida || '',
-    etapaPipeline: initialPipelineStep,
+    etapaPipeline: 2,
     statusSermig: 'Não protocolado',
-    portalLiberado: false,
+    portalLiberado: Boolean(existingClient?.portalLiberado),
+    modalidadeConsultoria: chosenModality,
     relatorioViabilidadeLiberado: false,
     prioridade: lead.prioridade || 'Alta',
     notaViabilidadeGeral: lead.notaViabilidade,
@@ -1153,11 +870,10 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
   };
   await saveDocumentAudited('cases', caseId, newCase as unknown as Record<string, unknown>, true, role, 'conversao_lead');
 
-  // Gerar diagnóstico completo (quando houver respostas) ou checklist inicial padrão para leads rápidos
+  // Gerar diagnóstico completo para vincular checklist por pessoa, plano de ação em tarefas e parecer inicial
   const answers: DiagnosticAnswers | undefined = lead.respostasTriagem;
   let docsCount = 0;
   let tasksCount = 0;
-  const reqs = visaRequirements.filter((r) => r.visaCategoryId === (matchedVisa?.id || 'visa_15_mercosul'));
 
   if (answers) {
     const diag = runDiagnosticEngine(answers, visaCategories, visaRequirements, legalSources, {
@@ -1191,6 +907,7 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     }
 
     const pessoasParaChecklist = ['Titular', ...depNames];
+    const reqs = visaRequirements.filter((r) => r.visaCategoryId === (matchedVisa?.id || 'visa_15_mercosul'));
 
     for (const pessoa of pessoasParaChecklist) {
       for (const req of reqs) {
@@ -1267,61 +984,6 @@ export async function convertLeadToClientAndCaseEnhanced(params: {
     if (role === 'admin' || role === 'consultor') {
       await saveDocumentAudited('viabilityAssessments', assessmentId, assessment as unknown as Record<string, unknown>, true, role, 'parecer_inicial_lead');
     }
-  } else {
-    // Lead rápido (WhatsApp / Instagram / Cadastro manual): gera checklist padrão do visto e 2 tarefas iniciais
-    for (const req of reqs) {
-      const docId = makeId('doc');
-      const caseDoc: CaseDocument = {
-        id: docId,
-        caseId,
-        clientId,
-        pessoa: 'Titular',
-        visaRequirementId: req.id,
-        nomeDocumento: req.nomeDocumento,
-        categoriaDoc: req.categoriaDoc,
-        etapaEsteira: '1 Aguardando Envio',
-        ordemEmissao: req.ordemPrioridadeEmissao,
-        status: 'Pendente',
-        validadeDias: req.validadeDias,
-        apostilado: false,
-        traduzido: false,
-        exigeApostila: req.exigeApostila,
-        exigeTraducao: req.exigeTraducao,
-        obrigatorio: req.obrigatorio,
-        peso: req.peso,
-        versao: 1,
-      };
-      await saveDocumentAudited('caseDocuments', docId, caseDoc as unknown as Record<string, unknown>, true, role, 'checklist_lead');
-      docsCount += 1;
-    }
-
-    const starterTasks = [
-      {
-        titulo: 'Confirmar contrato e liberar acesso ao Portal do Cliente',
-        descricao: 'Validar assinatura/honorários e liberar envio de documentos pelo portal.',
-        prioridade: 'Alta' as const,
-      },
-      {
-        titulo: 'Solicitar e conferir documentos iniciais do checklist',
-        descricao: 'Acompanhar envio de passaporte, antecedentes e certidões necessárias.',
-        prioridade: 'Média' as const,
-      },
-    ];
-    for (const st of starterTasks) {
-      const taskId = makeId('task');
-      const t: Task = {
-        id: taskId,
-        titulo: st.titulo,
-        descricao: st.descricao,
-        caseId,
-        clientId,
-        prioridade: st.prioridade,
-        status: 'Pendente',
-        createdAt: new Date().toISOString(),
-      };
-      await saveDocumentAudited('tasks', taskId, t as unknown as Record<string, unknown>, true, role, 'plano_acao_lead');
-      tasksCount += 1;
-    }
   }
 
   await saveDocumentAudited(
@@ -1354,10 +1016,6 @@ export async function saveDocumentAudited<T extends Record<string, unknown>>(
   campoLabel = 'registro',
   antes?: unknown,
 ): Promise<void> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    devE2eSaveDocument(collectionName, id, stripUndefined(data), isNew);
-    return;
-  }
   const pathStr = `${collectionName}/${id}`;
   try {
     const cleanData = stripUndefined({ ...data, id, updatedAt: new Date().toISOString() });
@@ -1382,10 +1040,6 @@ export async function deleteDocumentAudited(
   actorRole?: UserRole,
   antes?: unknown,
 ): Promise<void> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    devE2eDeleteDocument(collectionName, id);
-    return;
-  }
   const pathStr = `${collectionName}/${id}`;
   try {
     await deleteDoc(doc(db, collectionName, id));
@@ -1422,6 +1076,127 @@ export async function logSensitiveDocumentAccess(
   }
 }
 
+export async function setClientPortalAccessAudited(params: {
+  client: Client;
+  portalLiberado: boolean;
+  modalidadeConsultoria?: PaidConsultancyModality;
+  role: UserRole;
+  extraClientFields?: Partial<Client>;
+}): Promise<{ userLinked: boolean; syncedCases: number; updatedClient: Client }> {
+  const { client, portalLiberado, modalidadeConsultoria, role, extraClientFields } = params;
+  if (role !== 'admin' && role !== 'consultor') {
+    throw new Error('Apenas Admin ou Consultor podem liberar ou alterar o acesso ao Portal do Cliente.');
+  }
+
+  const now = new Date().toISOString();
+  const normalizedEmail = (client.email || '').trim().toLowerCase();
+  const nextModality: PaidConsultancyModality =
+    modalidadeConsultoria || client.modalidadeConsultoria || 'completa';
+
+  // 1. Procura conta Google (users/{uid}) correspondente ao cliente
+  let matchedUserUid = client.userId || '';
+  let matchedUserData: UserProfile | null = null;
+
+  try {
+    if (matchedUserUid) {
+      const uSnap = await getDoc(doc(db, 'users', matchedUserUid));
+      if (uSnap.exists()) {
+        matchedUserData = uSnap.data() as UserProfile;
+      } else {
+        matchedUserUid = '';
+      }
+    }
+
+    if (!matchedUserUid && normalizedEmail) {
+      const uq = await getDocs(query(collection(db, 'users'), where('email', '==', normalizedEmail)));
+      if (!uq.empty) {
+        const candidate = uq.docs.find((d) => (d.data() as UserProfile).role === 'cliente') || uq.docs[0];
+        matchedUserUid = candidate.id;
+        matchedUserData = candidate.data() as UserProfile;
+      } else {
+        // Fallback case-insensitive em caso de e-mail salvo com maiúsculas no legado
+        const allUsersSnap = await getDocs(collection(db, 'users'));
+        const foundDoc = allUsersSnap.docs.find((d) => {
+          const data = d.data() as UserProfile;
+          return data.role === 'cliente' && (data.email || '').trim().toLowerCase() === normalizedEmail;
+        });
+        if (foundDoc) {
+          matchedUserUid = foundDoc.id;
+          matchedUserData = foundDoc.data() as UserProfile;
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: se usuário ainda não criou conta Google, será sincronizado no 1º login
+  }
+
+  // 2. Atualiza clients/{clientId} com e-mail normalizado, modalidade e userId vinculado
+  const updatedClient: Client = {
+    ...client,
+    ...extraClientFields,
+    email: normalizedEmail || client.email,
+    userId: matchedUserUid || client.userId,
+    portalLiberado,
+    statusAcessoPortal: portalLiberado ? 'Liberado' : 'Pendente liberação',
+    modalidadeConsultoria: nextModality,
+    updatedAt: now,
+  };
+
+  await saveDocumentAudited(
+    'clients',
+    client.id,
+    updatedClient as unknown as Record<string, unknown>,
+    false,
+    role,
+    'portalLiberado',
+    {
+      portalLiberado: client.portalLiberado,
+      statusAcessoPortal: client.statusAcessoPortal,
+      modalidadeConsultoria: client.modalidadeConsultoria,
+    },
+  );
+
+  // 3. Sincroniza users/{uid} se o cliente já fez login alguma vez (somente role === 'cliente')
+  let userLinked = false;
+  if (matchedUserUid && matchedUserData && matchedUserData.role === 'cliente') {
+    try {
+      await updateDoc(doc(db, 'users', matchedUserUid), {
+        clientId: client.id,
+        status: portalLiberado ? 'ativo' : 'pendente',
+        updatedAt: now,
+      });
+      userLinked = true;
+    } catch (err) {
+      reportAppError(err, {
+        source: 'portal-sync-user',
+        operation: OperationType.UPDATE,
+        path: `users/${matchedUserUid}`,
+      });
+    }
+  }
+
+  // 4. Sincroniza os casos vinculados ao cliente
+  let syncedCases = 0;
+  try {
+    const casesSnap = await getDocs(query(collection(db, 'cases'), where('clientId', '==', client.id)));
+    for (const cDoc of casesSnap.docs) {
+      const cData = cDoc.data() as Case;
+      if (cData.portalLiberado !== portalLiberado || cData.modalidadeConsultoria !== nextModality) {
+        await updateDoc(doc(db, 'cases', cDoc.id), {
+          portalLiberado,
+          modalidadeConsultoria: nextModality,
+          updatedAt: now,
+        });
+        syncedCases += 1;
+      }
+    }
+  } catch {
+    // Non-blocking
+  }
+
+  return { userLinked, syncedCases, updatedClient };
+}
+
 export async function archiveClientAudited(client: Client, role: UserRole): Promise<void> {
   const now = new Date().toISOString();
   await saveDocumentAudited(
@@ -1439,6 +1214,16 @@ export async function archiveClientAudited(client: Client, role: UserRole): Prom
     'arquivar_cliente',
     { arquivado: client.arquivado ?? false, portalLiberado: client.portalLiberado },
   );
+  if (client.userId) {
+    try {
+      const uSnap = await getDoc(doc(db, 'users', client.userId));
+      if (uSnap.exists() && (uSnap.data() as UserProfile).role === 'cliente') {
+        await updateDoc(doc(db, 'users', client.userId), { status: 'pendente', updatedAt: now });
+      }
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export async function mergeClientsAudited(params: {
@@ -1567,167 +1352,6 @@ export async function mergeClientsAudited(params: {
   return movedCount;
 }
 
-export async function cleanupServerUploadUrl(url?: string | null): Promise<void> {
-  if (!url || typeof url !== 'string' || !url.startsWith('/uploads/')) return;
-  const filename = url.slice('/uploads/'.length).split('?')[0];
-  if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) return;
-  try {
-    const user = auth.currentUser;
-    if (!user) return;
-    const token = await user.getIdToken();
-    await fetch(`/api/uploads/${encodeURIComponent(filename)}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  } catch {
-    // Limpeza best-effort no disco efêmero/local para nunca impedir remoção lógica no Firestore
-  }
-}
-
-export async function deleteCaseDocumentAudited(docItem: CaseDocument, role: UserRole): Promise<void> {
-  if (role !== 'admin' && role !== 'consultor') {
-    throw new Error('Sem permissão para excluir documentos.');
-  }
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    devE2eDeleteDocument('caseDocuments', docItem.id);
-    return;
-  }
-  await deleteDocumentAudited('caseDocuments', docItem.id, role, {
-    caseId: docItem.caseId,
-    clientId: docItem.clientId,
-    nomeDocumento: docItem.nomeDocumento,
-    pessoa: docItem.pessoa,
-  });
-  const urlsToClean = new Set<string>();
-  if (docItem.arquivoUrl) urlsToClean.add(docItem.arquivoUrl);
-  if (Array.isArray(docItem.anexos)) {
-    docItem.anexos.forEach((a) => {
-      if (a?.url) urlsToClean.add(a.url);
-    });
-  }
-  await Promise.all(Array.from(urlsToClean).map((u) => cleanupServerUploadUrl(u)));
-}
-
-export async function deleteLeadAndSessionAudited(lead: Lead, role: UserRole): Promise<void> {
-  if (role !== 'admin') {
-    throw new Error('Apenas administradores podem excluir leads.');
-  }
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    devE2eDeleteDocument('leads', lead.id);
-    return;
-  }
-  await deleteDocumentAudited('leads', lead.id, role, {
-    nome: lead.nome,
-    email: lead.email,
-    statusFunil: lead.statusFunil,
-  });
-  if (lead.sessionToken && lead.sessionToken.length >= 20) {
-    await deleteDoc(doc(db, 'diagnosticSessions', lead.sessionToken)).catch(() => {});
-  }
-}
-
-export async function deleteCaseCascadeAudited(params: {
-  caseItem: Case;
-  caseFinancials: CaseFinancialSummary[];
-  caseDocuments: CaseDocument[];
-  tasks: Task[];
-  deadlines: Deadline[];
-  appointments: Appointment[];
-  communicationLogs: CommunicationLog[];
-  viabilityAssessments: ViabilityAssessment[];
-  budgets: Budget[];
-  financialRecords: FinancialRecord[];
-  generatedDocuments: GeneratedDocument[];
-  role: UserRole;
-}): Promise<number> {
-  const {
-    caseItem,
-    caseFinancials,
-    caseDocuments,
-    tasks,
-    deadlines,
-    appointments,
-    communicationLogs,
-    viabilityAssessments,
-    budgets,
-    financialRecords,
-    generatedDocuments,
-    role,
-  } = params;
-
-  if (role !== 'admin') {
-    throw new Error('Apenas administradores podem excluir um processo definitivamente.');
-  }
-
-  let deleted = 0;
-  const uploadUrlsToClean = new Set<string>();
-
-  const matchingDocs = caseDocuments.filter((d) => d.caseId === caseItem.id);
-  matchingDocs.forEach((d) => {
-    if (d.arquivoUrl) uploadUrlsToClean.add(d.arquivoUrl);
-    if (Array.isArray(d.anexos)) {
-      d.anexos.forEach((a) => {
-        if (a?.url) uploadUrlsToClean.add(a.url);
-      });
-    }
-  });
-
-  const matchingRecords = financialRecords.filter((r) => r.caseId === caseItem.id);
-  matchingRecords.forEach((r) => {
-    if (r.comprovanteUrl) uploadUrlsToClean.add(r.comprovanteUrl);
-  });
-
-  const delCol = async <T extends { id: string; caseId?: string }>(col: string, list: T[]) => {
-    for (const item of list.filter((i) => i.caseId === caseItem.id)) {
-      await deleteDoc(doc(db, col, item.id));
-      deleted += 1;
-    }
-  };
-
-  await Promise.all([
-    delCol('caseDocuments', matchingDocs),
-    delCol('tasks', tasks),
-    delCol('deadlines', deadlines),
-    delCol('appointments', appointments),
-    delCol('communicationLogs', communicationLogs),
-    delCol('viabilityAssessments', viabilityAssessments),
-    delCol('budgets', budgets),
-    delCol('financialRecords', matchingRecords),
-    delCol('generatedDocuments', generatedDocuments),
-    ...caseFinancials
-      .filter((cf) => cf.caseId === caseItem.id)
-      .map(async (cf) => {
-        await deleteDoc(doc(db, 'caseFinancials', cf.caseId));
-        deleted += 1;
-      }),
-    (async () => {
-      try {
-        const notifSnap = await getDocs(query(collection(db, 'clientNotifications'), where('caseId', '==', caseItem.id)));
-        for (const d of notifSnap.docs) {
-          await deleteDoc(doc(db, 'clientNotifications', d.id));
-          deleted += 1;
-        }
-      } catch {
-        // non-blocking cleanup
-      }
-    })(),
-  ]);
-
-  await deleteDoc(doc(db, 'cases', caseItem.id));
-  await Promise.all(Array.from(uploadUrlsToClean).map((u) => cleanupServerUploadUrl(u)));
-
-  await registrarAuditoria(
-    'Exclusão em Cascata Processo',
-    'cases',
-    caseItem.id,
-    'exclusao_processo',
-    { titulo: caseItem.titulo, clientId: caseItem.clientId, tipoServico: caseItem.tipoServico },
-    { deletedRelatedCount: deleted },
-    role,
-  );
-  return deleted;
-}
-
 export async function deleteClientCascadeAudited(params: {
   client: Client;
   dependents: Dependent[];
@@ -1765,27 +1389,8 @@ export async function deleteClientCascadeAudited(params: {
   if (role !== 'admin') {
     throw new Error('Apenas administradores podem excluir definitivamente um cliente.');
   }
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return devE2eDeleteClientCascade(client.id);
-  }
   const caseIds = new Set(cases.filter((c) => c.clientId === client.id).map((c) => c.id));
   let deleted = 0;
-
-  const uploadUrlsToClean = new Set<string>();
-  const matchingDocs = caseDocuments.filter((i) => i.clientId === client.id || (i.caseId && caseIds.has(i.caseId)));
-  matchingDocs.forEach((d) => {
-    if (d.arquivoUrl) uploadUrlsToClean.add(d.arquivoUrl);
-    if (Array.isArray(d.anexos)) {
-      d.anexos.forEach((a) => {
-        if (a?.url) uploadUrlsToClean.add(a.url);
-      });
-    }
-  });
-  financialRecords
-    .filter((r) => r.clientId === client.id || (r.caseId && caseIds.has(r.caseId)))
-    .forEach((r) => {
-      if (r.comprovanteUrl) uploadUrlsToClean.add(r.comprovanteUrl);
-    });
 
   const delCol = async <T extends { id: string; clientId?: string; caseId?: string }>(col: string, list: T[]) => {
     for (const item of list.filter((i) => i.clientId === client.id || (i.caseId && caseIds.has(i.caseId)))) {
@@ -1796,7 +1401,7 @@ export async function deleteClientCascadeAudited(params: {
 
   await Promise.all([
     delCol('dependents', dependents),
-    delCol('caseDocuments', matchingDocs),
+    delCol('caseDocuments', caseDocuments),
     delCol('tasks', tasks),
     delCol('deadlines', deadlines),
     delCol('appointments', appointments),
@@ -1815,37 +1420,9 @@ export async function deleteClientCascadeAudited(params: {
       await deleteDoc(doc(db, 'cases', cid));
       deleted += 1;
     }),
-    (async () => {
-      try {
-        const [notifSnap, tokenSnap, leadsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'clientNotifications'), where('clientId', '==', client.id))),
-          getDocs(query(collection(db, 'fcmTokens'), where('clientId', '==', client.id))),
-          getDocs(query(collection(db, 'leads'), where('convertedClientId', '==', client.id))),
-        ]);
-        for (const n of notifSnap.docs) {
-          await deleteDoc(doc(db, 'clientNotifications', n.id));
-          deleted += 1;
-        }
-        for (const t of tokenSnap.docs) {
-          await deleteDoc(doc(db, 'fcmTokens', t.id));
-          deleted += 1;
-        }
-        for (const l of leadsSnap.docs) {
-          await updateDoc(doc(db, 'leads', l.id), {
-            convertedClientId: '',
-            convertedCaseId: '',
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      } catch {
-        // non-blocking secondary cleanup
-      }
-    })(),
   ]);
 
   await deleteDoc(doc(db, 'clients', client.id));
-  await Promise.all(Array.from(uploadUrlsToClean).map((u) => cleanupServerUploadUrl(u)));
-
   await registrarAuditoria(
     lgpdJustification ? 'Exclusão LGPD Cliente' : 'Exclusão em Cascata Cliente',
     'clients',
@@ -1892,10 +1469,6 @@ export async function saveBancarioConfigAdmin(data: BancarioConfig, antes: Banca
 
 export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: EmpresaConfig): Promise<void> {
   const validated = validateEmpresaConfigPayload(data);
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    getDevE2eDataset().empresa = validated;
-    return;
-  }
   await executeValidatedAdminWrite('config/empresa', OperationType.WRITE, async () => {
     await setDoc(doc(db, 'config', 'empresa'), validated, { merge: true });
     await registrarAuditoria('Atualizar', 'config', 'empresa', 'configuracao_geral', antes, validated, 'admin');
@@ -1903,34 +1476,19 @@ export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: Empresa
 }
 
 export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {
-  const sanitizedPartner: Partner = {
-    ...partner,
-    nome: String(partner.nome || '').slice(0, 200),
-    categoria: (String(partner.categoria || 'Outro').slice(0, 100)) as PartnerCategory,
-    pais: partner.pais || 'Chile',
-    whatsapp: String(partner.whatsapp || '').slice(0, 40),
-    tabelaValoresComissao: String(partner.tabelaValoresComissao || '').slice(0, 2000),
-    condicoesParceria: String(partner.condicoesParceria || '').slice(0, 2000),
-    observacoes: String(partner.observacoes || '').slice(0, 3000),
-    descricaoPublica: partner.descricaoPublica ? String(partner.descricaoPublica).slice(0, 1000) : '',
-  };
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    devE2eSyncPartnerAndPublic(sanitizedPartner, isNew);
-    return;
-  }
-  await saveDocumentAudited('partners', sanitizedPartner.id, sanitizedPartner as unknown as Record<string, unknown>, isNew, role);
-  const pubRef = doc(db, 'partnersPublic', sanitizedPartner.id);
-  if (sanitizedPartner.recomendadoAosClientes && sanitizedPartner.statusHomologacao === 'Ativo/Indicado') {
+  await saveDocumentAudited('partners', partner.id, partner as unknown as Record<string, unknown>, isNew, role);
+  const pubRef = doc(db, 'partnersPublic', partner.id);
+  if (partner.recomendadoAosClientes && partner.statusHomologacao === 'Ativo/Indicado') {
     const pubPayload: PartnerPublic = sanitizeFirestoreData({
-      id: sanitizedPartner.id,
-      nome: sanitizedPartner.nome,
-      categoria: sanitizedPartner.categoria,
-      pais: sanitizedPartner.pais,
-      cidadeRegiao: sanitizedPartner.cidadeRegiao,
-      whatsapp: sanitizedPartner.whatsapp,
-      siteInstagram: sanitizedPartner.siteInstagram,
-      avaliacao: sanitizedPartner.avaliacao,
-      descricaoPublica: (sanitizedPartner.descricaoPublica || sanitizedPartner.condicoesParceria || '').slice(0, 1000),
+      id: partner.id,
+      nome: partner.nome,
+      categoria: partner.categoria,
+      pais: partner.pais,
+      cidadeRegiao: partner.cidadeRegiao,
+      whatsapp: partner.whatsapp,
+      siteInstagram: partner.siteInstagram,
+      avaliacao: partner.avaliacao,
+      descricaoPublica: partner.descricaoPublica || partner.condicoesParceria || '',
       recomendadoAosClientes: true,
       statusHomologacao: 'Ativo/Indicado',
       updatedAt: new Date().toISOString(),
@@ -1938,87 +1496,11 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
     await setDoc(pubRef, pubPayload);
   } else {
     try {
-      const pubSnap = await getDoc(pubRef);
-      if (pubSnap.exists()) {
-        await deleteDoc(pubRef);
-      }
-    } catch (err) {
-      const code = (err as { code?: string })?.code || '';
-      if (!code.includes('not-found')) {
-        handleFirestoreError(err, OperationType.DELETE, `partnersPublic/${sanitizedPartner.id}`);
-      }
-    }
-  }
-}
-
-export async function deletePartnerAndPublicAudited(
-  partner: Partner,
-  role: UserRole,
-  linkedProposals: PartnerProposal[] = [],
-): Promise<void> {
-  if (role !== 'admin') {
-    throw new Error('Apenas administradores podem excluir parceiros.');
-  }
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    devE2eDeletePartnerCascade(partner.id);
-    return;
-  }
-  const pubRef = doc(db, 'partnersPublic', partner.id);
-  try {
-    const pubSnap = await getDoc(pubRef);
-    if (pubSnap.exists()) {
       await deleteDoc(pubRef);
+    } catch {
+      // ignore if didn't exist
     }
-  } catch {
-    await deleteDoc(pubRef).catch(() => {});
   }
-
-  for (const prop of linkedProposals.filter((p) => p.partnerIdVinculado === partner.id)) {
-    await updateDoc(doc(db, 'partnerProposals', prop.id), {
-      partnerIdVinculado: '',
-      updatedAt: new Date().toISOString(),
-    }).catch(() => {});
-  }
-
-  await deleteDocumentAudited('partners', partner.id, role, {
-    nome: partner.nome,
-    categoria: partner.categoria,
-    pais: partner.pais,
-  });
-}
-
-export async function rejectPartnerProposalAudited(
-  proposal: PartnerProposal,
-  motivo: string,
-  role: UserRole,
-): Promise<void> {
-  if (role !== 'admin' && role !== 'consultor') {
-    throw new Error('Sem permissão para recusar propostas de parceria.');
-  }
-  await saveDocumentAudited(
-    'partnerProposals',
-    proposal.id,
-    {
-      ...proposal,
-      status: 'Recusada',
-      notasInternas: motivo ? `${proposal.notasInternas ? proposal.notasInternas + '\n' : ''}Motivo recusa: ${motivo}`.slice(0, 2000) : proposal.notasInternas,
-    } as unknown as Record<string, unknown>,
-    false,
-    role,
-    'recusar_proposta_parceiro',
-    { status: proposal.status },
-  );
-}
-
-export async function deletePartnerProposalAudited(proposal: PartnerProposal, role: UserRole): Promise<void> {
-  if (role !== 'admin') {
-    throw new Error('Apenas administradores podem excluir propostas de parceria.');
-  }
-  await deleteDocumentAudited('partnerProposals', proposal.id, role, {
-    nome_empresa: proposal.nome_empresa,
-    categoria: proposal.categoria,
-    status: proposal.status,
-  });
 }
 
 export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
@@ -2043,9 +1525,6 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
   auditLogs: AuditLog[];
   staffUsers: UserProfile[];
 }> {
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return devE2eGetWorkspace(role);
-  }
   const canSeeFinance = role === 'admin' || role === 'consultor';
 
   const safeList = async <T,>(col: string, qOverride?: ReturnType<typeof query>): Promise<T[]> => {
@@ -2172,16 +1651,8 @@ export async function fetchClientPortalData(clientId: string): Promise<{
   const clientSnap = await getDoc(doc(db, 'clients', clientId)).catch(() => null);
   const client = clientSnap?.exists() ? ({ id: clientSnap.id, ...(clientSnap.data() as Omit<Client, 'id'>) }) : null;
 
-  const userEmail = (client?.email || auth.currentUser?.email || '').trim().toLowerCase();
-  const fetchClientLeads = userEmail
-    ? getDocs(query(collection(db, 'leads'), where('email', '==', userEmail)))
-        .then((snap) =>
-          snap.docs
-            .map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }) as Lead)
-            .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
-        )
-        .catch(() => [] as Lead[])
-    : Promise.resolve([] as Lead[]);
+  const userEmail = (auth.currentUser?.email || client?.email || '').trim().toLowerCase();
+  const fetchClientLeads = fetchSignedInUserDiagnosticLeads(userEmail);
 
   const [
     dependents,
@@ -2222,6 +1693,106 @@ export async function fetchClientPortalData(clientId: string): Promise<{
   };
 }
 
+export async function fetchSignedInUserDiagnosticLeads(email?: string | null): Promise<Lead[]> {
+  const rawEmail = (email || auth.currentUser?.email || '').trim();
+  const lowerEmail = rawEmail.toLowerCase();
+  if (!lowerEmail) return [];
+
+  const results = new Map<string, Lead>();
+  const queries = [query(collection(db, 'leads'), where('email', '==', lowerEmail))];
+  if (rawEmail && rawEmail !== lowerEmail) {
+    queries.push(query(collection(db, 'leads'), where('email', '==', rawEmail)));
+  }
+
+  for (const q of queries) {
+    try {
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        results.set(d.id, { id: d.id, ...(d.data() as Record<string, unknown>) } as Lead);
+      }
+    } catch {
+      // ignore individual query errors
+    }
+  }
+
+  return Array.from(results.values()).sort((a, b) =>
+    (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''),
+  );
+}
+
+export async function fetchSignedInClientRecord(uid: string, email?: string | null): Promise<Client | null> {
+  const rawEmail = (email || auth.currentUser?.email || '').trim();
+  const lowerEmail = rawEmail.toLowerCase();
+  const found: Client[] = [];
+
+  const tryQuery = async (q: ReturnType<typeof query>) => {
+    try {
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        if (!found.some((c) => c.id === d.id)) {
+          found.push({ id: d.id, ...(d.data() as Omit<Client, 'id'>) });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  if (lowerEmail) {
+    await tryQuery(query(collection(db, 'clients'), where('email', '==', lowerEmail)));
+  }
+  if (rawEmail && rawEmail !== lowerEmail) {
+    await tryQuery(query(collection(db, 'clients'), where('email', '==', rawEmail)));
+  }
+  if (uid) {
+    await tryQuery(query(collection(db, 'clients'), where('userId', '==', uid)));
+  }
+
+  if (found.length === 0) return null;
+  // Prioriza cliente ativo com portal liberado e não arquivado
+  const activeUnlocked = found.find((c) => c.portalLiberado === true && !c.arquivado);
+  if (activeUnlocked) return activeUnlocked;
+  const nonArchived = found.find((c) => !c.arquivado);
+  return nonArchived || found[0];
+}
+
+function readFileAsDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Não foi possível ler o arquivo selecionado.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressImageToDataUrl(file: File, maxDimension = 1400, quality = 0.78): Promise<string> {
+  const originalUrl = await readFileAsDataUrl(file);
+  if (typeof document === 'undefined' || typeof Image === 'undefined') return originalUrl;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
+      const width = Math.max(1, Math.round(img.width * ratio));
+      const height = Math.max(1, Math.round(img.height * ratio));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(originalUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      const targetMime = file.type === 'image/png' ? 'image/webp' : 'image/jpeg';
+      const compressed = canvas.toDataURL(targetMime, quality);
+      resolve(compressed.length < originalUrl.length ? compressed : originalUrl);
+    };
+    img.onerror = () => resolve(originalUrl);
+    img.src = originalUrl;
+  });
+}
+
 export async function uploadFileToServer(file: File): Promise<{ url: string; filename: string }> {
   const user = auth.currentUser;
   if (!user) throw new Error('Faça login para enviar arquivos.');
@@ -2242,19 +1813,49 @@ export async function uploadFileToServer(file: File): Promise<{ url: string; fil
   if (file.size > 10 * 1024 * 1024) {
     throw new Error('O arquivo excede o limite máximo de 10 MB.');
   }
-  const token = await user.getIdToken();
-  const formData = new FormData();
-  formData.append('file', file);
-  const resp = await fetch('/api/upload', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-  const data = (await resp.json()) as { url?: string; filename?: string; error?: string };
-  if (!resp.ok || !data.url) {
-    throw new Error(data.error || 'Falha ao enviar arquivo.');
+
+  // 1. Tenta o endpoint /api/upload quando disponível (servidor local/Node)
+  try {
+    const token = await user.getIdToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const resp = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+    if (resp.ok && contentType.includes('application/json')) {
+      const data = (await resp.json()) as { url?: string; filename?: string; error?: string };
+      if (data.url) {
+        return { url: data.url, filename: data.filename || file.name };
+      }
+    }
+  } catch {
+    // Em hospedagem estática (Vercel Free), /api/upload não usa disco local — segue para fallback seguro
   }
-  return { url: data.url, filename: data.filename || file.name };
+
+  // 2. Fallback compatível com Vercel Free (sem disco local): otimização local + DataURL segura para Firestore
+  const isRasterImage = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+  if (isRasterImage) {
+    const dataUrl = await compressImageToDataUrl(file);
+    if (dataUrl.length > 650_000) {
+      const smaller = await compressImageToDataUrl(file, 960, 0.62);
+      if (smaller.length > 680_000) {
+        throw new Error('A imagem ficou grande demais para armazenamento direto na hospedagem gratuita. Reduza a resolução ou envie em formato JPG menor.');
+      }
+      return { url: smaller, filename: file.name };
+    }
+    return { url: dataUrl, filename: file.name };
+  }
+
+  if (file.size > 480 * 1024) {
+    throw new Error(
+      'No plano gratuito (Vercel/Firebase), PDFs enviados diretamente precisam ter até 480 KB. Comprima o PDF (ex.: iLovePDF) ou envie foto/imagem nítida do documento.',
+    );
+  }
+  const dataUrl = await readFileAsDataUrl(file);
+  return { url: dataUrl, filename: file.name };
 }
 
 export async function fetchMediaAssetsStaff(): Promise<MediaAsset[]> {
@@ -2292,382 +1893,140 @@ export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): 
 
 export interface CallAiOptions {
   onProgress?: (message: string, attempt?: number, maxAttempts?: number) => void;
-  timeoutMs?: number;
-}
-
-async function resolveCurrentAuthUser() {
-  if (auth.currentUser) return auth.currentUser;
-  if (import.meta.env.DEV && isDevE2eActive()) {
-    return createDevE2eFirebaseUser();
-  }
-  return null;
-}
-
-export async function fetchAiHealthStatus(): Promise<AiEngineHealthInfo | null> {
-  if (import.meta.env.DEV && isDevE2eActive() && !auth.currentUser) {
-    return devE2eBuildAiHealth();
-  }
-  const user = await resolveCurrentAuthUser();
-  if (!user) return null;
-  try {
-    const token = await user.getIdToken();
-    const resp = await fetch('/api/ai/health', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!resp.ok) return null;
-    const ct = (resp.headers.get('content-type') || '').toLowerCase();
-    if (!ct.includes('application/json')) return null;
-    return (await resp.json()) as AiEngineHealthInfo;
-  } catch {
-    return null;
-  }
 }
 
 export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
-  if (import.meta.env.DEV && isDevE2eActive() && !auth.currentUser) {
-    options?.onProgress?.('Processando no motor local inteligente...', 1, 1);
-    return devE2eExecuteAiResponse(endpoint, body) as T;
-  }
-  const user = await resolveCurrentAuthUser();
+  const user = auth.currentUser;
   if (!user) {
     throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
   }
+  const token = await user.getIdToken();
+  let resp: Response;
+  try {
+    resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options?.onProgress ? { 'x-ai-progress': '1' } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (networkErr) {
+    throw new Error(sanitizeClientAiError(networkErr));
+  }
 
-  const executeFetch = async (forceTokenRefresh: boolean, useProgressStream: boolean): Promise<T> => {
-    const token = await user.getIdToken(forceTokenRefresh);
-    const controller = new AbortController();
-    const timeoutMs = options?.timeoutMs ?? 65_000;
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/x-ndjson') && resp.body) {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: T | null = null;
+    let streamError: string | null = null;
 
-    let resp: Response;
-    try {
-      resp = await fetch(endpoint, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...(useProgressStream && options?.onProgress ? { 'x-ai-progress': '1' } : {}),
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (networkErr) {
-      clearTimeout(timer);
-      if (networkErr instanceof Error && (networkErr.name === 'AbortError' || networkErr.message.includes('abort'))) {
-        throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
-      }
-      throw new Error(sanitizeClientAiError(networkErr));
-    }
-
-    try {
-      if (resp.status === 401 && !forceTokenRefresh) {
-        return await executeFetch(true, useProgressStream);
-      }
-
-      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-      if (contentType.includes('application/x-ndjson') && resp.body) {
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let finalResult: T | null = null;
-        let streamError: string | null = null;
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const ev = JSON.parse(trimmed) as {
-                type?: string;
-                message?: string;
-                attempt?: number;
-                maxAttempts?: number;
-                data?: T;
-                error?: string;
-              };
-              if (ev.type === 'progress' && ev.message) {
-                options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
-              } else if (ev.type === 'result' && ev.data) {
-                finalResult = ev.data;
-              } else if (ev.type === 'error') {
-                streamError = sanitizeClientAiError(ev.error || '');
-              }
-            } catch {
-              // ignore partial line
-            }
-          }
-        }
-        if (buffer.trim()) {
-          try {
-            const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
-            if (ev.type === 'result' && ev.data) finalResult = ev.data;
-            else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
-          } catch {
-            // ignore
-          }
-        }
-
-        if (streamError) throw new Error(streamError);
-        if (finalResult) return finalResult;
-        // Fallback once to standard JSON request if stream terminated without final result
-        if (useProgressStream) {
-          return await executeFetch(false, false);
-        }
-        throw new Error(sanitizeClientAiError(''));
-      }
-
-      let rawText = '';
-      try {
-        rawText = await resp.text();
-      } catch {
-        rawText = '';
-      }
-
-      let data: (T & { error?: unknown }) | null = null;
-      if (rawText) {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
         try {
-          data = JSON.parse(rawText) as T & { error?: unknown };
+          const ev = JSON.parse(trimmed) as {
+            type?: string;
+            message?: string;
+            attempt?: number;
+            maxAttempts?: number;
+            data?: T;
+            error?: string;
+          };
+          if (ev.type === 'progress' && ev.message) {
+            options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
+          } else if (ev.type === 'result' && ev.data) {
+            finalResult = ev.data;
+          } else if (ev.type === 'error') {
+            streamError = sanitizeClientAiError(ev.error || '');
+          }
         } catch {
-          data = null;
+          // ignore partial line
         }
       }
-
-      if (!resp.ok) {
-        if (resp.status === 413) {
-          throw new Error('Os dados ou arquivo enviados excedem o limite permitido pelo servidor.');
-        }
-        if (resp.status === 504 || resp.status === 502) {
-          throw new Error('Tempo limite excedido ao consultar o serviço de IA. Tente novamente em instantes.');
-        }
-        throw new Error(sanitizeClientAiError(data?.error || rawText || String(resp.status)));
-      }
-
-      if (!data) {
-        throw new Error(sanitizeClientAiError(rawText || 'invalid_response'));
-      }
-
-      return data;
-    } finally {
-      clearTimeout(timer);
     }
-  };
+    if (buffer.trim()) {
+      try {
+        const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
+        if (ev.type === 'result' && ev.data) finalResult = ev.data;
+        else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
+      } catch {
+        // ignore
+      }
+    }
 
+    if (streamError) throw new Error(streamError);
+    if (finalResult) return finalResult;
+    throw new Error(sanitizeClientAiError(''));
+  }
+
+  let rawText = '';
   try {
-    const result = await executeFetch(false, Boolean(options?.onProgress));
-    const meta = result as {
-      fallback?: boolean;
-      origem?: string;
-      mensagemUsuario?: string;
-      resumoExecutivo?: string;
-      fontesCitadas?: string[];
-      riscos?: string[];
-    };
-    if (meta?.fallback || meta?.origem === 'regras') {
-      setLocalAiRuntimeNotice('local_rules');
-    } else if (meta?.origem === 'principal' || meta?.origem === 'reserva') {
-      setLocalAiRuntimeNotice('cloud');
+    rawText = await resp.text();
+    const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
+    if (!resp.ok) {
+      throw new Error(sanitizeClientAiError(data.error || rawText || String(resp.status)));
     }
-    return result;
+    return data;
   } catch (err) {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      setLocalAiRuntimeNotice('local_rules');
-    }
-    throw err;
-  }
-}
-
-export async function setClientPortalAccessAudited(params: {
-  client: Client;
-  clientCases?: Case[];
-  liberado: boolean;
-  role: UserRole;
-  conviteEnviadoEm?: string;
-}): Promise<Client> {
-  const { client, liberado, role, conviteEnviadoEm } = params;
-  const nowIso = new Date().toISOString();
-  const normalizedEmail = (client.email || '').trim().toLowerCase();
-
-  const updatedClient: Client = {
-    ...client,
-    email: normalizedEmail || client.email,
-    portalLiberado: liberado,
-    statusAcessoPortal: liberado ? 'Liberado' : 'Pendente liberação',
-    ...(conviteEnviadoEm ? { conviteEnviadoEm } : {}),
-    updatedAt: nowIso,
-  };
-
-  await saveDocumentAudited(
-    'clients',
-    client.id,
-    updatedClient as unknown as Record<string, unknown>,
-    false,
-    role,
-    'portalLiberado',
-    client.portalLiberado,
-  );
-
-  // Sincroniza TODOS os processos vinculados ao cliente para evitar divergência entre Cliente e Caso
-  let casesToSync = params.clientCases;
-  if (!casesToSync) {
-    const snap = await getDocs(query(collection(db, 'cases'), where('clientId', '==', client.id))).catch(() => null);
-    casesToSync = snap
-      ? snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Case, 'id'>) }))
-      : [];
-  }
-
-  for (const cs of casesToSync) {
-    if (Boolean(cs.portalLiberado) !== liberado) {
-      const nextCase: Case = { ...cs, portalLiberado: liberado, updatedAt: nowIso };
-      delete (nextCase as unknown as Record<string, unknown>).valorContrato;
-      await saveDocumentAudited(
-        'cases',
-        cs.id,
-        nextCase as unknown as Record<string, unknown>,
-        false,
-        role,
-        'portalLiberado',
-        cs.portalLiberado,
-      ).catch(() => {});
-    }
-  }
-
-  // Se o cliente já tiver conta Google registrada em users/{uid}, atualiza status/clientId imediatamente (admin)
-  if (role === 'admin') {
-    try {
-      const targetStatus: UserProfile['status'] = liberado ? 'ativo' : 'pendente';
-      const candidateUserDocs: Array<{ id: string; data: Partial<UserProfile> }> = [];
-      if (client.userId) {
-        const uSnap = await getDoc(doc(db, 'users', client.userId)).catch(() => null);
-        if (uSnap?.exists()) {
-          candidateUserDocs.push({ id: uSnap.id, data: uSnap.data() as Partial<UserProfile> });
-        }
-      }
-      if (candidateUserDocs.length === 0 && normalizedEmail) {
-        const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', normalizedEmail))).catch(
-          () => null,
-        );
-        if (usersSnap && !usersSnap.empty) {
-          for (const d of usersSnap.docs) {
-            candidateUserDocs.push({ id: d.id, data: d.data() as Partial<UserProfile> });
-          }
-        }
-      }
-
-      for (const u of candidateUserDocs) {
-        if (u.data.role === 'cliente') {
-          await updateDoc(doc(db, 'users', u.id), {
-            clientId: client.id,
-            status: targetStatus,
-            updatedAt: nowIso,
-          }).catch(() => {});
-          if (liberado && updatedClient.userId !== u.id) {
-            await updateDoc(doc(db, 'clients', client.id), {
-              userId: u.id,
-              updatedAt: nowIso,
-            }).catch(() => {});
-            updatedClient.userId = u.id;
-          }
-        }
-      }
-    } catch {
-      // Non-blocking sync for user doc
-    }
-  }
-
-  return updatedClient;
-}
-
-export async function fetchPortalClientsForStaff(): Promise<Client[]> {
-  try {
-    const snap = await getDocs(collection(db, 'clients'));
-    const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Client, 'id'>) }));
-    return list
-      .filter((c) => !c.arquivado)
-      .sort((a, b) => {
-        if (Boolean(b.portalLiberado) !== Boolean(a.portalLiberado)) {
-          return Number(Boolean(b.portalLiberado)) - Number(Boolean(a.portalLiberado));
-        }
-        return (a.nomeCompleto || '').localeCompare(b.nomeCompleto || '', 'pt-BR');
-      });
-  } catch {
-    return [];
+    throw new Error(sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)));
   }
 }
 
 export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {
-  if (user.role !== 'cliente') return user;
-
-  const normalizedEmail = (user.email || '').trim().toLowerCase();
-  if (!normalizedEmail && !user.clientId) return user;
+  if (user.role !== 'cliente' || user.status === 'inativo') {
+    return user;
+  }
 
   try {
-    let matchedId: string | null = null;
-    let clientData: Client | null = null;
-
-    // 1. Se já possui clientId vinculado, revalida diretamente pelo ID
-    if (user.clientId) {
-      const directSnap = await getDoc(doc(db, 'clients', user.clientId)).catch(() => null);
-      if (directSnap?.exists()) {
-        matchedId = directSnap.id;
-        clientData = { id: directSnap.id, ...(directSnap.data() as Omit<Client, 'id'>) };
-      }
+    const matchedClient = await fetchSignedInClientRecord(user.uid, user.email);
+    if (!matchedClient) {
+      // Sem cadastro de cliente: permanece pendente (pode visualizar apenas diagnóstico gratuito básico)
+      return user;
     }
 
-    // 2. Busca por userId já vinculado
-    if (!clientData) {
-      const byUidSnap = await getDocs(query(collection(db, 'clients'), where('userId', '==', user.uid))).catch(
-        () => null,
-      );
-      if (byUidSnap && !byUidSnap.empty) {
-        const docSnap = byUidSnap.docs[0];
-        matchedId = docSnap.id;
-        clientData = { id: docSnap.id, ...(docSnap.data() as Omit<Client, 'id'>) };
-      }
+    const now = new Date().toISOString();
+    const shouldBeActive = matchedClient.portalLiberado === true && !matchedClient.arquivado;
+    const targetStatus: UserProfile['status'] = shouldBeActive ? 'ativo' : 'pendente';
+
+    // 1. Vincula userId no documento do cliente se ainda estiver vazio
+    if (!matchedClient.userId) {
+      await updateDoc(doc(db, 'clients', matchedClient.id), {
+        userId: user.uid,
+        updatedAt: now,
+      }).catch(() => {});
     }
 
-    // 3. Busca por e-mail normalizado (e fallback para caixa original caso legado)
-    if (!clientData && normalizedEmail) {
-      let clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', normalizedEmail))).catch(
-        () => null,
-      );
-      if ((!clSnap || clSnap.empty) && user.email && user.email !== normalizedEmail) {
-        clSnap = await getDocs(query(collection(db, 'clients'), where('email', '==', user.email))).catch(() => null);
-      }
-      if (clSnap && !clSnap.empty) {
-        const docSnap = clSnap.docs[0];
-        matchedId = docSnap.id;
-        clientData = { id: docSnap.id, ...(docSnap.data() as Omit<Client, 'id'>) };
-      }
+    // 2. Sincroniza clientId e status em users/{uid} (autorizado pelas regras do Firestore quando portalLiberado == true)
+    if (user.clientId !== matchedClient.id || user.status !== targetStatus) {
+      await updateDoc(doc(db, 'users', user.uid), {
+        clientId: matchedClient.id,
+        status: targetStatus,
+        updatedAt: now,
+      });
     }
 
-    if (matchedId && clientData) {
-      const nowIso = new Date().toISOString();
-      const newStatus: UserProfile['status'] = clientData.portalLiberado ? 'ativo' : 'pendente';
-
-      if (clientData.portalLiberado && clientData.userId !== user.uid) {
-        await updateDoc(doc(db, 'clients', matchedId), {
-          userId: user.uid,
-          updatedAt: nowIso,
-        }).catch(() => {});
-      }
-
-      if (user.clientId !== matchedId || user.status !== newStatus) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          clientId: matchedId,
-          status: newStatus,
-          updatedAt: nowIso,
-        }).catch(() => {});
-      }
-
-      return { ...user, clientId: matchedId, status: newStatus, updatedAt: nowIso };
-    }
-  } catch {
-    // Fallback silencioso caso o cliente ainda não tenha cadastro vinculado
+    return {
+      ...user,
+      clientId: matchedClient.id,
+      status: targetStatus,
+      updatedAt: now,
+    };
+  } catch (err) {
+    reportAppError(err, {
+      source: 'portal-link-client',
+      operation: OperationType.UPDATE,
+      path: `users/${user.uid}`,
+    });
   }
   return user;
 }

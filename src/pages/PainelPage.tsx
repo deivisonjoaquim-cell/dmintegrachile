@@ -20,7 +20,6 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
-import { BrandLogo, BrandRibbon, BrandWordmark } from '../components/BrandLogo';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
@@ -34,17 +33,17 @@ import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
+import { BrandLogo } from '../components/BrandLogo';
 import { useFirestore } from '../hooks/useFirestore';
 import { subscribeStaffDocumentChat } from '../services/chatService';
 import { reportAppError } from '../services/errorService';
 import {
-  convertLeadToClientAndCaseEnhanced,
   fetchAllSiteContentStaff,
   fetchStaffWorkspaceData,
   makeId,
   saveDocumentAudited,
 } from '../services/firestoreService';
-import type { CommunicationLog, Lead, SiteContent, Task, UserRole } from '../types/domain';
+import type { CommunicationLog, SiteContent, Task, UserRole } from '../types/domain';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../utils/documentChat';
 import { daysUntilDate, formatDateBR } from '../utils/formatters';
 import type { MacroFunnelStageId } from '../utils/funnelModel';
@@ -108,12 +107,6 @@ const HUB_ICONS: Record<PanelHubId, React.ReactNode> = {
   config: <Settings className="w-4 h-4 shrink-0" />,
 };
 
-const SIDEBAR_GROUPS: { id: string; label: string; hubIds: PanelHubId[] }[] = [
-  { id: 'rotina', label: 'Dia a Dia', hubIds: ['hoje', 'funil', 'agenda'] },
-  { id: 'operacao', label: 'Leads & Processos', hubIds: ['leads', 'processos'] },
-  { id: 'gestao', label: 'Gestão', hubIds: ['financeiro', 'config'] },
-];
-
 export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const {
     userProfile,
@@ -149,11 +142,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     action: 'new_case' | 'new_client';
     seq: number;
   } | null>(null);
-  const [requestedOpenLead, setRequestedOpenLead] = useState<{
-    leadId: string;
-    seq: number;
-  } | null>(null);
-  const [requestedQuickLeadSeq, setRequestedQuickLeadSeq] = useState(0);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -426,60 +414,10 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     setMobileMenuOpen(false);
   }, []);
 
-  const handleOpenLead = useCallback((leadId?: string) => {
-    setActiveHub('leads');
-    setSelectedCaseId(null);
-    if (leadId) {
-      setRequestedOpenLead({ leadId, seq: Date.now() });
-    }
-    setMobileMenuOpen(false);
-  }, []);
-
-  const handleQuickCreateLead = useCallback(() => {
-    setQuickCreateOpen(false);
-    setActiveHub('leads');
-    setSelectedCaseId(null);
-    setRequestedQuickLeadSeq(Date.now());
-    setMobileMenuOpen(false);
-  }, []);
-
-  const handleConvertLeadFromKanban = useCallback(
-    async (lead: Lead) => {
-      if (!userProfile || !effectiveWorkspace) return null;
-      if (userProfile.role !== 'admin' && userProfile.role !== 'consultor') return null;
-      const res = await convertLeadToClientAndCaseEnhanced({
-        lead,
-        clients: effectiveWorkspace.clients,
-        visaCategories,
-        visaRequirements,
-        legalSources,
-        activeRules: activeDiagnosticRules,
-        empresa,
-        role: userProfile.role,
-        autorNome: userProfile.nome || userProfile.email,
-        initialPipelineStep: 3,
-      });
-      await handleRefreshAll();
-      return { caseId: res.caseId, docsCount: res.docsCount, tasksCount: res.tasksCount };
-    },
-    [
-      userProfile,
-      effectiveWorkspace,
-      visaCategories,
-      visaRequirements,
-      legalSources,
-      activeDiagnosticRules,
-      empresa,
-      handleRefreshAll,
-    ],
-  );
-
   const triggerQuickCreate = useCallback(
-    (action: 'new_lead' | 'new_case' | 'new_client' | 'agenda' | 'contratos' | 'financeiro') => {
+    (action: 'new_case' | 'new_client' | 'agenda' | 'contratos' | 'financeiro') => {
       setQuickCreateOpen(false);
-      if (action === 'new_lead') {
-        handleQuickCreateLead();
-      } else if (action === 'new_case') {
+      if (action === 'new_case') {
         setActiveHub('processos');
         setProcessosTab('casos');
         setSelectedCaseId(null);
@@ -493,7 +431,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         handleNavigateLegacySection(action);
       }
     },
-    [handleNavigateLegacySection, handleQuickCreateLead],
+    [handleNavigateLegacySection],
   );
 
   const visibleHubs = useMemo(() => getVisiblePanelHubs(role), [role]);
@@ -700,22 +638,24 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     return (
       <div className={`min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)] ${panelThemeClass}`}>
         <div
-          className="border border-[#E5DFD2] dark:border-[#1C324B] max-w-md w-full overflow-hidden shadow-[0_12px_36px_rgba(11,31,51,0.08)]"
+          className="border border-slate-200/90 dark:border-slate-800 max-w-md w-full overflow-hidden shadow-[0_12px_36px_rgba(11,31,51,0.08)]"
           style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-card, 16px)' }}
         >
-          <BrandRibbon className="h-[3px] w-full" />
+          <div className="flex h-1.5 w-full" aria-hidden="true">
+            <div className="flex-[3] bg-[var(--color-primary)]" />
+            <div className="flex-1 bg-[var(--color-accent)]" />
+          </div>
           <div className="p-8 sm:p-10 text-center space-y-5">
-            <div className="flex justify-center">
-              <BrandLogo
-                src={empresa.logoUrl}
-                alt={empresa.nome_empresa}
-                variant={isDark ? 'emblem-dark' : 'emblem'}
-                className="h-14 w-14 object-contain"
-              />
+            <div
+              className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white tracking-tight shadow-xs"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+              aria-hidden="true"
+            >
+              D&amp;M
             </div>
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-[#9A7B1C] dark:text-amber-400">
-                Consultoria Migratória · Área da Equipe
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9A7B1C] dark:text-amber-400">
+                Consultoria Migratória · Área Restrita
               </p>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                 Painel Interno da Equipe
@@ -763,84 +703,70 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           : null;
 
   return (
-    <div className={`min-h-screen flex bg-[var(--color-bg)] text-[#0B1523] dark:text-slate-100 transition-colors panel-workspace ${panelThemeClass}`}>
-      {/* Sidebar Desktop Enxuta padronizada pela identidade D&M */}
+    <div className={`min-h-screen flex bg-[var(--color-bg)] text-slate-900 dark:text-slate-100 transition-colors ${panelThemeClass}`}>
+      {/* Sidebar Desktop Enxuta (6 hubs práticos em vez de 15 itens espalhados) */}
       <aside
-        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-[272px]'
+        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0F1629] border-r border-slate-200/90 dark:border-slate-800 shrink-0 no-print transition-all ${
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
         }`}
       >
-        <BrandRibbon className="h-[3px] w-full" />
-        <div className="h-14 px-3 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-1.5">
-          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2 text-left min-w-0">
+        <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
             <BrandLogo
               src={activeLogoUrl}
               alt={empresa.nome_empresa}
-              variant={isDark ? 'emblem-dark' : 'emblem'}
-              className="h-8 w-8 object-contain shrink-0"
+              brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+              imgClassName={sidebarCollapsed ? 'h-7 w-7 object-contain shrink-0' : 'h-7 max-w-[116px] object-contain shrink-0'}
+              fallbackNode={
+                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
+                  {sidebarCollapsed ? 'D&M' : empresa.nome_empresa.split('–')[0].trim()}
+                </span>
+              }
             />
-            {!sidebarCollapsed && (
-              <BrandWordmark tone={isDark ? 'dark' : 'light'} size="sm" className="whitespace-nowrap" />
-            )}
           </button>
           <button
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
             aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            className="p-1.5 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-slate-600 dark:text-slate-300 hover:bg-[#F7F5F0] dark:hover:bg-[#152B44] shrink-0"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
           >
             {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-4 overflow-y-auto" aria-label="Navegação principal do painel">
-          {SIDEBAR_GROUPS.map((group) => {
-            const groupHubs = group.hubIds
-              .map((id) => visibleHubs.find((h) => h.id === id))
-              .filter((h): h is NonNullable<typeof h> => Boolean(h));
-            if (groupHubs.length === 0) return null;
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto" aria-label="Navegação principal do painel">
+          {visibleHubs.map((hub) => {
+            const isActive = activeHub === hub.id;
+            const badge = hubBadges[hub.id];
             return (
-              <div key={group.id} className="space-y-1">
-                {!sidebarCollapsed && (
-                  <p className="px-3 pb-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
-                    {group.label}
-                  </p>
+              <button
+                key={hub.id}
+                type="button"
+                title={hub.description}
+                onClick={() => handleSelectHub(hub.id)}
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+                } py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'text-white font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                }`}
+                style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  {HUB_ICONS[hub.id]}
+                  {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
+                </span>
+                {!sidebarCollapsed && badge > 0 && (
+                  <span
+                    className={`text-xs font-semibold tabular-nums shrink-0 ${
+                      isActive ? 'text-white/90' : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {badge}
+                  </span>
                 )}
-                {groupHubs.map((hub) => {
-                  const isActive = activeHub === hub.id;
-                  const badge = hubBadges[hub.id];
-                  return (
-                    <button
-                      key={hub.id}
-                      type="button"
-                      title={hub.description}
-                      onClick={() => handleSelectHub(hub.id)}
-                      className={`w-full flex items-center ${
-                        sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
-                      } py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'text-white font-semibold'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
-                      }`}
-                      style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
-                    >
-                      <span className="flex items-center gap-2.5 min-w-0">
-                        {HUB_ICONS[hub.id]}
-                        {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
-                      </span>
-                      {!sidebarCollapsed && badge > 0 && (
-                        <span
-                          className={`text-xs font-semibold tabular-nums shrink-0 ${
-                            isActive ? 'text-white/90' : 'text-slate-400 dark:text-slate-500'
-                          }`}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              </button>
             );
           })}
 
@@ -909,9 +835,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <BrandRibbon className="h-[3px] w-full no-print" />
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
-        <header className="bg-white/92 dark:bg-[#0D1E31]/92 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
+        <header className="bg-white/90 dark:bg-[#0F1629]/90 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
@@ -1008,13 +933,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               </button>
               {quickCreateOpen && (
                 <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-1.5 z-40 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => triggerQuickCreate('new_lead')}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-[var(--color-primary)] dark:text-sky-400"
-                  >
-                    Novo Lead (Chegada Rápida)
-                  </button>
                   <button
                     type="button"
                     onClick={() => triggerQuickCreate('new_case')}
@@ -1252,7 +1170,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   currentUser={userProfile}
                   staffUsers={effectiveWorkspace.staffUsers}
                   empresa={empresa}
-                  isDark={isDark}
                   leads={effectiveWorkspace.leads}
                   clients={effectiveWorkspace.clients}
                   cases={effectiveWorkspace.cases}
@@ -1260,9 +1177,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   tasks={effectiveWorkspace.tasks}
                   deadlines={effectiveWorkspace.deadlines}
                   onOpenCase={handleOpenCase}
-                  onOpenLeads={handleOpenLead}
-                  onQuickCreateLead={handleQuickCreateLead}
-                  onConvertLead={handleConvertLeadFromKanban}
+                  onOpenLeads={() => handleSelectHub('leads')}
                   onRefresh={handleRefreshAll}
                 />
               )}
@@ -1276,9 +1191,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   leads={effectiveWorkspace.leads}
                   clients={effectiveWorkspace.clients}
                   tasks={effectiveWorkspace.tasks}
-                  auditLogs={effectiveWorkspace.auditLogs}
-                  requestedOpenLead={requestedOpenLead}
-                  requestedQuickLeadSeq={requestedQuickLeadSeq}
                   visaCategories={visaCategories}
                   visaRequirements={visaRequirements}
                   legalSources={legalSources}
@@ -1361,7 +1273,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   docs={effectiveWorkspace.caseDocuments}
                   deadlines={effectiveWorkspace.deadlines}
                   avisoLegal={empresa.avisoLegal}
-                  onRefresh={handleRefreshAll}
                 />
               )}
 

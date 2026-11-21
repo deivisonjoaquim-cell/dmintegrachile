@@ -29,7 +29,6 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { BrandLogo, BrandRibbon, BrandWordmark } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
@@ -40,7 +39,6 @@ import { useApp } from '../contexts/AppContext';
 import { PIPELINE_STAGES } from '../data/seeds';
 import {
   fetchClientPortalData,
-  fetchPortalClientsForStaff,
   makeId,
   saveDocumentAudited,
   uploadFileToServer,
@@ -85,6 +83,13 @@ import {
   maskPhoneBR,
   sanitizeHtml,
 } from '../utils/formatters';
+import {
+  CONSULTANCY_PLANS,
+  mapPipelineStepToOrientativaStep,
+  ORIENTATIVA_STAGES,
+  resolveClientPortalAccess,
+} from '../utils/portalAccess';
+import { BrandLogo } from '../components/BrandLogo';
 
 interface PortalClientePageProps {
   onNavigate: (path: string) => void;
@@ -92,29 +97,8 @@ interface PortalClientePageProps {
 
 type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
 
-function readClientIdFromUrl(): string {
-  if (typeof window === 'undefined') return '';
-  const fromSearch = new URLSearchParams(window.location.search).get('clientId');
-  if (fromSearch) return fromSearch.trim();
-  const hashQuery = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
-  const fromHash = hashQuery ? new URLSearchParams(hashQuery).get('clientId') : null;
-  return (fromHash || '').trim();
-}
-
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
-  const { userProfile, authLoading, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
-  const isStaffPortalPreview = Boolean(
-    userProfile &&
-      userProfile.status === 'ativo' &&
-      (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente'),
-  );
-  const isAdminPortal = Boolean(userProfile && userProfile.status === 'ativo' && userProfile.role === 'admin');
-  const [staffSelectedClientId, setStaffSelectedClientId] = useState<string>(() => readClientIdFromUrl());
-  const [staffClientsList, setStaffClientsList] = useState<Client[]>([]);
-  const [staffListLoading, setStaffListLoading] = useState(false);
-
-  const effectiveClientId = isStaffPortalPreview ? staffSelectedClientId : userProfile?.clientId || '';
-
+  const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
   const [tab, setTab] = useState<PortalTab>('processo');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -142,7 +126,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   const [notifications, setNotifications] = useState<ClientNotification[]>([]);
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
-  const [pushSupport, setPushSupport] = useState<BrowserPushSupport>({ supported: false, fcmSupported: false, permission: 'unsupported' });
+  const [pushSupport, setPushSupport] = useState<BrowserPushSupport>({ supported: false, permission: 'unsupported' });
   const [pushActive, setPushActive] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushToast, setPushToast] = useState<{ title: string; body: string } | null>(null);
@@ -155,41 +139,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const [npsNota, setNpsNota] = useState(5);
   const [npsComent, setNpsComent] = useState('');
 
-  useEffect(() => {
-    if (!isStaffPortalPreview) return;
-    const syncFromUrl = () => {
-      const nextId = readClientIdFromUrl();
-      if (nextId) setStaffSelectedClientId(nextId);
-    };
-    window.addEventListener('popstate', syncFromUrl);
-    return () => window.removeEventListener('popstate', syncFromUrl);
-  }, [isStaffPortalPreview]);
-
-  useEffect(() => {
-    if (!isStaffPortalPreview) return;
-    let active = true;
-    setStaffListLoading(true);
-    void fetchPortalClientsForStaff()
-      .then((list) => {
-        if (active) setStaffClientsList(list);
-      })
-      .finally(() => {
-        if (active) setStaffListLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [isStaffPortalPreview]);
-
   const loadPortal = useCallback(async () => {
-    if (!effectiveClientId) {
-      setClient(null);
+    if (!userProfile?.clientId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchClientPortalData(effectiveClientId);
+      const data = await fetchClientPortalData(userProfile.clientId);
       setClient(data.client);
       setDependents(data.dependents);
       setCases(data.cases);
@@ -210,14 +167,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     } finally {
       setLoading(false);
     }
-  }, [effectiveClientId]);
+  }, [userProfile?.clientId]);
 
   useEffect(() => {
     void loadPortal();
   }, [loadPortal]);
 
   useEffect(() => {
-    if (!effectiveClientId || !userProfile?.uid) return;
+    if (!userProfile?.clientId || !userProfile?.uid) return;
     let active = true;
 
     void getBrowserPushSupport().then((support) => {
@@ -230,7 +187,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       .catch(() => undefined);
 
     const unsubNotifs = subscribeClientNotifications(
-      effectiveClientId,
+      userProfile.clientId,
       (list) => {
         if (active) setNotifications(list);
       },
@@ -249,127 +206,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       unsubNotifs();
       unsubFcm();
     };
-  }, [effectiveClientId, userProfile?.uid, loadPortal]);
+  }, [userProfile?.clientId, userProfile?.uid, loadPortal]);
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="text-sm text-slate-600">Verificando sessão segura no Portal do Cliente...</div>
-      </div>
-    );
-  }
-
-  if (isStaffPortalPreview && !effectiveClientId) {
-    const unlockedClients = staffClientsList.filter((c) => c.portalLiberado);
-    const pendingClients = staffClientsList.filter((c) => !c.portalLiberado);
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 max-w-2xl w-full space-y-5 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <p className="text-xs font-semibold text-slate-500">Visualização da Equipe</p>
-              <h1 className="text-xl font-bold text-slate-900 mt-0.5">Portal do Cliente</h1>
-              <p className="text-xs text-slate-600 mt-1">
-                Selecione um cliente abaixo para abrir e conferir exatamente o que ele vê no portal.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('/painel')}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Voltar ao Painel
-            </button>
-          </div>
-
-          {staffListLoading ? (
-            <p className="text-sm text-slate-500 py-6 text-center">Carregando lista de clientes...</p>
-          ) : staffClientsList.length === 0 ? (
-            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-3">
-              <p className="text-sm text-slate-700 font-medium">Nenhum cliente cadastrado ainda.</p>
-              <button
-                type="button"
-                onClick={() => onNavigate('/painel')}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                Ir para Clientes no Painel
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {unlockedClients.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-[#1E7E34]">
-                    Portais Liberados ({unlockedClients.length})
-                  </p>
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                    {unlockedClients.map((cl) => (
-                      <div key={cl.id} className="p-3.5 bg-white flex items-center justify-between gap-3 hover:bg-slate-50/70">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate">{cl.nomeCompleto}</p>
-                          <p className="text-xs text-slate-500 truncate">{cl.email}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStaffSelectedClientId(cl.id);
-                            onNavigate(`/portal?clientId=${encodeURIComponent(cl.id)}`);
-                          }}
-                          className="px-3.5 py-2 rounded-lg text-xs font-semibold text-white shrink-0"
-                          style={{ backgroundColor: 'var(--color-primary)' }}
-                        >
-                          Abrir Portal
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {pendingClients.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-500">
-                    Aguardando liberação ({pendingClients.length})
-                  </p>
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                    {pendingClients.slice(0, 6).map((cl) => (
-                      <div key={cl.id} className="p-3 bg-slate-50/50 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-700 truncate">{cl.nomeCompleto}</p>
-                          <p className="text-[11px] text-slate-500 truncate">{cl.email}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStaffSelectedClientId(cl.id);
-                            onNavigate(`/portal?clientId=${encodeURIComponent(cl.id)}`);
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 shrink-0"
-                        >
-                          Pré-visualizar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const isClientAuthorized = Boolean(
-    userProfile &&
-      userProfile.role === 'cliente' &&
-      userProfile.status === 'ativo' &&
-      userProfile.clientId &&
-      (!client || client.portalLiberado !== false),
-  );
-
-  if (!userProfile || (!isStaffPortalPreview && !isClientAuthorized)) {
+  if (!userProfile || userProfile.role !== 'cliente' || !userProfile.clientId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
         <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
@@ -391,6 +230,41 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   }
 
   const activeCase = cases[0] || null;
+  const accessResolution = resolveClientPortalAccess({
+    userProfile,
+    client,
+    activeCase,
+    leads: clientLeads,
+  });
+
+  if (!loading && client && accessResolution.kind !== 'active_paid') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
+          <h1 className="text-xl font-bold text-slate-900">Acesso ao Portal Pendente</h1>
+          <p className="text-sm text-slate-600">
+            {accessResolution.kind === 'inactive'
+              ? accessResolution.reason
+              : 'O acesso completo ao seu Portal do Cliente está pendente de liberação pela consultoria.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigate('/acompanhar')}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Ver resumo do acesso
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const paidModality = accessResolution.kind === 'active_paid' ? accessResolution.modality : 'completa';
+  const planSpec = CONSULTANCY_PLANS[paidModality];
+  const isOrientativa = paidModality === 'orientativa';
+  const orientativaCurrentStep = mapPipelineStepToOrientativaStep(activeCase?.etapaPipeline || 1);
+
   const activeDocs = activeCase ? docs.filter((d) => d.caseId === activeCase.id) : docs;
   const primaryLead = clientLeads[0] || null;
   const releasedAssessments = activeCase?.relatorioViabilidadeLiberado ? assessments : [];
@@ -753,53 +627,22 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
-      {isStaffPortalPreview && (
-        <div className="bg-[#0B1F33] text-white border-b border-white/10 px-4 sm:px-6 py-2.5 no-print">
-          <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-medium">
-              Visualizando Portal de <strong>{client?.nomeCompleto || 'Cliente'}</strong>
-              {client && !client.portalLiberado ? ' (ainda bloqueado para o cliente)' : ' · Acesso liberado'}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setStaffSelectedClientId('');
-                  onNavigate('/portal');
-                }}
-                className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-semibold"
-              >
-                Trocar cliente
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('/painel')}
-                className="px-2.5 py-1 rounded bg-white text-[#0B1F33] hover:bg-slate-100 font-semibold"
-              >
-                Voltar ao Painel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Header do Portal padronizado pela identidade da logo */}
-      <header className="bg-white border-b border-[#E5DFD2] sticky top-0 z-30">
-        <BrandRibbon className="h-[3px] w-full no-print" />
+      {/* Header do Portal */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <BrandLogo
               src={empresa.logoUrl}
               alt={empresa.nome_empresa}
-              variant="emblem"
-              className="h-10 w-10 object-contain shrink-0"
+              brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+              imgClassName="h-8 w-auto max-w-[130px] object-contain shrink-0"
+              fallbackClassName="w-8 h-8 btn-radius flex items-center justify-center text-xs font-bold text-white shrink-0"
             />
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <BrandWordmark tone="light" size="sm" className="hidden sm:inline-flex" />
-                <span className="hidden sm:inline text-slate-300" aria-hidden="true">·</span>
-                <p className="text-xs sm:text-sm font-bold text-[#0B1F33] truncate">Portal do Cliente</p>
-              </div>
-              <p className="text-xs text-[#4A5A6D] truncate mt-0.5">{client?.nomeCompleto || userProfile.nome}</p>
+              <p className="text-sm font-bold text-slate-900 truncate">
+                Portal do Cliente · {planSpec.nome}
+              </p>
+              <p className="text-xs text-slate-500 truncate">{client?.nomeCompleto || userProfile.nome}</p>
             </div>
           </div>
 
@@ -808,12 +651,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               type="button"
               onClick={() => setNotifDrawerOpen(true)}
               aria-label="Abrir central de notificações do processo"
-              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0]"
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
             >
               <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
               <span className="hidden sm:inline">Alertas</span>
               {unreadNotifCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#A61C2B] text-white text-[10px] font-bold tabular-nums">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#C82333] text-white text-[10px] font-bold tabular-nums">
                   {unreadNotifCount}
                 </span>
               )}
@@ -821,14 +664,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] text-xs font-medium text-[#0B1F33] hover:bg-[#F7F5F0]"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
               Site público
             </button>
             <button
               type="button"
               onClick={logout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] hover:text-[#0B1F33]"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sair
@@ -837,7 +680,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
 
         {/* Abas desktop/tablet */}
-        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#F1EDE4] no-print">
+        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-slate-100 no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
@@ -852,8 +695,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={() => setTab(item.id as PortalTab)}
               className={`px-3.5 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 tab === item.id
-                  ? 'border-[#C8A236] text-[#0B1F33] font-semibold'
-                  : 'border-transparent text-[#4A5A6D] hover:text-[#0B1F33]'
+                  ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-semibold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
               }`}
             >
               {item.label}
@@ -868,7 +711,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <div className="flex items-start gap-3">
               <BellRing className="w-5 h-5 text-[var(--color-accent)] shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-semibold text-slate-300">Nova atualização do processo</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-300">Nova atualização do processo</p>
                 <p className="text-sm font-semibold mt-0.5">{pushToast.title}</p>
                 <p className="text-xs text-slate-200 mt-0.5">{pushToast.body}</p>
               </div>
@@ -923,10 +766,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           : pushSupport.permission === 'denied'
                             ? 'As notificações push estão bloqueadas nas permissões do navegador; libere no ícone de cadeado da barra de endereço.'
                             : !effectiveVapidKey
-                              ? 'Alertas em tempo real ativos na Central de Notificações do Portal.'
+                              ? 'Alertas em tempo real ativos no Portal. Para push em segundo plano, aguarde a configuração da chave Web Push pelo administrador.'
                               : pushActive
-                                ? 'Você receberá alertas automáticos neste dispositivo sempre que houver mudança de etapa, status SERMIG ou documento analisado.'
-                                : 'Ative os alertas no navegador para ser avisado imediatamente sobre atualizações de etapa, SERMIG e análise de documentos.'}
+                                ? 'Você receberá alertas automáticos neste dispositivo quando houver mudança de etapa, status SERMIG ou documento analisado.'
+                                : 'Ative os alertas push para ser avisado imediatamente sobre atualizações de etapa, SERMIG e análise de documentos.'}
                       </p>
                     </div>
                   </div>
@@ -969,7 +812,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
                     <div>
                       <p className="text-xs font-semibold text-slate-500">
-                        {activeCase ? `${activeCase.tipoServico} · SERMIG: ${activeCase.statusSermig}` : 'Processo em estruturação'}
+                        {planSpec.nome}
+                        {activeCase
+                          ? isOrientativa
+                            ? ` · ${activeCase.tipoServico} · Protocolo conduzido pelo cliente`
+                            : ` · ${activeCase.tipoServico} · SERMIG: ${activeCase.statusSermig}`
+                          : ' · Processo em estruturação'}
                       </p>
                       <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                         {activeCase?.titulo || 'Acompanhamento de Residência no Chile'}
@@ -1002,29 +850,53 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           <Download className="w-3.5 h-3.5" />
                           {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Progresso (PDF)'}
                         </button>
-                        {isAdminPortal && (
-                          <button
-                            type="button"
-                            disabled={pdfBusy !== null}
-                            onClick={() => void handleExportDiagnosticoPdf()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Exportar Diagnóstico (PDF)'}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handleExportDiagnosticoPdf()}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Exportar Diagnóstico (PDF)'}
+                        </button>
                       </div>
                     </div>
                   </div>
+
+                  {/* Aviso de escopo conforme modalidade contratada */}
+                  {isOrientativa && (
+                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-amber-950">
+                          Modalidade contratada: Consultoria Orientativa
+                        </p>
+                        <p className="text-xs text-amber-900 leading-relaxed">
+                          Nossa equipe entrega seu checklist na ordem correta, realiza a conferência técnica de cada documento enviado aqui e orienta o passo a passo. O protocolo no sistema oficial do SERMIG é realizado diretamente por você.
+                        </p>
+                      </div>
+                      <a
+                        href={buildWhatsAppUrl(
+                          empresa.whatsapp,
+                          `Olá! Sou cliente na Consultoria Orientativa (${client?.nomeCompleto || ''}) e gostaria de saber como migrar para a Consultoria Completa.`,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold whitespace-nowrap shrink-0 hover:bg-slate-800"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Migrar para Completa
+                      </a>
+                    </div>
+                  )}
 
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 mb-6">
                     <div className="flex justify-between text-xs font-semibold text-slate-700 mb-2">
                       <span>
                         {thermo.faltantesObrigatorios === 0
-                          ? 'Todos os documentos obrigatórios foram aprovados.'
-                          : thermo.faltantesObrigatorios === 1
-                            ? `Falta 1 documento obrigatório. Seu processo está ${thermo.notaGeral}% pronto.`
-                            : `Faltam ${thermo.faltantesObrigatorios} documentos obrigatórios. Seu processo está ${thermo.notaGeral}% pronto.`}
+                          ? isOrientativa
+                            ? 'Todos os documentos obrigatórios foram conferidos e aprovados para você protocolar!'
+                            : 'Todos os documentos obrigatórios foram aprovados!'
+                          : `Faltam ${thermo.faltantesObrigatorios} documento(s). Seu processo está ${thermo.notaGeral}% pronto.`}
                       </span>
                       <span className="tabular-nums">{thermo.notaGeral}%</span>
                     </div>
@@ -1036,81 +908,132 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </div>
                   </div>
 
-                  {/* Linha do tempo 15 etapas */}
-                  <h2 className="text-sm font-semibold text-slate-900 mb-3">Linha do tempo do processo</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                    {PIPELINE_STAGES.map((st) => {
-                      const current = activeCase?.etapaPipeline || 1;
-                      const done = st.numero < current;
-                      const active = st.numero === current;
-                      return (
-                        <div
-                          key={st.numero}
-                          className={`p-3 rounded-lg border text-xs ${
-                            active
-                              ? 'border-[var(--color-primary)] bg-slate-900 text-white'
-                              : done
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                                : 'border-slate-200 bg-white text-slate-500'
-                          }`}
-                        >
-                          <p className="font-bold tabular-nums">Etapa {st.numero}</p>
-                          <p className="mt-0.5 leading-snug">{st.nome}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {/* Linha do tempo diferenciada por modalidade */}
+                  {isOrientativa ? (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h2 className="text-sm font-semibold text-slate-900">
+                          Roteiro da Consultoria Orientativa (6 Etapas)
+                        </h2>
+                        <span className="text-xs text-slate-500 tabular-nums">
+                          Etapa atual: {orientativaCurrentStep}/6
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {ORIENTATIVA_STAGES.map((st) => {
+                          const done = st.numero < orientativaCurrentStep;
+                          const active = st.numero === orientativaCurrentStep;
+                          return (
+                            <div
+                              key={st.numero}
+                              className={`p-4 rounded-xl border text-xs space-y-1.5 ${
+                                active
+                                  ? 'border-[var(--color-primary)] bg-slate-900 text-white'
+                                  : done
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                                    : 'border-slate-200 bg-white text-slate-600'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold tabular-nums">Etapa {st.numero}</span>
+                                <span
+                                  className={`text-[10px] font-semibold uppercase tracking-wider ${
+                                    active ? 'text-amber-300' : done ? 'text-emerald-700' : 'text-slate-400'
+                                  }`}
+                                >
+                                  {st.responsavel}
+                                </span>
+                              </div>
+                              <p className={`font-semibold ${active ? 'text-white' : 'text-slate-900'}`}>{st.nome}</p>
+                              <p className={`leading-relaxed ${active ? 'text-slate-300' : 'text-slate-600'}`}>
+                                {st.descricao}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h2 className="text-sm font-semibold text-slate-900">
+                          Linha do tempo — Consultoria Completa (15 Etapas)
+                        </h2>
+                        <span className="text-xs text-slate-500 tabular-nums">
+                          Etapa atual: {activeCase?.etapaPipeline || 1}/15
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                        {PIPELINE_STAGES.map((st) => {
+                          const current = activeCase?.etapaPipeline || 1;
+                          const done = st.numero < current;
+                          const active = st.numero === current;
+                          return (
+                            <div
+                              key={st.numero}
+                              className={`p-3 rounded-lg border text-xs ${
+                                active
+                                  ? 'border-[var(--color-primary)] bg-slate-900 text-white'
+                                  : done
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                    : 'border-slate-200 bg-white text-slate-500'
+                              }`}
+                            >
+                              <p className="font-bold tabular-nums">Etapa {st.numero}</p>
+                              <p className="mt-0.5 leading-snug">{st.nome}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
                 {(primaryLead || releasedAssessments.length > 0) && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-xl p-6 space-y-4">
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h2 className="text-base font-semibold text-[#0B1F33]">
-                          Diagnóstico &amp; Parecer Técnico Liberado
+                        <h2 className="text-base font-semibold text-slate-900">
+                          Diagnóstico de Viabilidade &amp; Parecer Técnico
                         </h2>
                         <p className="text-xs text-slate-500">
-                          {isAdminPortal
-                            ? 'Histórico do diagnóstico inicial e orientações técnicas liberadas pela consultoria'
-                            : 'Resumo do diagnóstico registrado e pareceres liberados oficialmente pelo seu consultor'}
+                          Histórico do seu diagnóstico inicial e orientações técnicas liberadas pela consultoria
                         </p>
                       </div>
-                      {isAdminPortal && (
-                        <div className="flex flex-wrap items-center gap-2 no-print">
-                          <button
-                            type="button"
-                            disabled={pdfBusy !== null}
-                            onClick={() => void handlePreviewPdf('diagnostico')}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0] whitespace-nowrap shrink-0 disabled:opacity-50"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                            Pré-visualizar
-                          </button>
-                          <button
-                            type="button"
-                            disabled={pdfBusy !== null}
-                            onClick={() => void handleExportDiagnosticoPdf()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0] whitespace-nowrap shrink-0 disabled:opacity-50"
-                          >
-                            <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Diagnóstico (PDF)'}
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2 no-print">
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handlePreviewPdf('diagnostico')}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          Pré-visualizar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pdfBusy !== null}
+                          onClick={() => void handleExportDiagnosticoPdf()}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Diagnóstico (PDF)'}
+                        </button>
+                      </div>
                     </div>
 
-                    {primaryLead && isAdminPortal && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs">
+                    {primaryLead && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                         <div>
                           <p className="text-slate-500">Subcategoria sugerida</p>
-                          <p className="font-bold text-[#0B1F33] mt-0.5">
+                          <p className="font-bold text-slate-900 mt-0.5">
                             {primaryLead.subcategoriaSugerida || primaryLead.interesse || 'Em análise'}
                           </p>
                         </div>
                         <div>
                           <p className="text-slate-500">Índice de viabilidade</p>
-                          <p className="font-bold text-[#0B1F33] mt-0.5 tabular-nums">
+                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
                             {typeof primaryLead.notaViabilidade === 'number'
                               ? `${primaryLead.notaViabilidade}/100`
                               : 'Em avaliação'}
@@ -1119,22 +1042,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         </div>
                         <div>
                           <p className="text-slate-500">Realizado em</p>
-                          <p className="font-bold text-[#0B1F33] mt-0.5 tabular-nums">
+                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
                             {formatDateBR(primaryLead.createdAt)}
                             {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
                           </p>
                         </div>
-                      </div>
-                    )}
-
-                    {primaryLead && !isAdminPortal && (
-                      <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs text-slate-700 space-y-1">
-                        <p className="font-semibold text-[#0B1F33]">
-                          Diagnóstico inicial registrado em {formatDateBR(primaryLead.createdAt)}
-                        </p>
-                        <p className="text-slate-600 leading-relaxed">
-                          O relatório técnico completo do diagnóstico é de uso interno da administração. Caso tenha dúvidas, fale diretamente com o seu consultor pelo WhatsApp.
-                        </p>
                       </div>
                     )}
 
@@ -1148,7 +1060,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           {releasedAssessments[0].enquadramentoLegal}
                         </p>
                         {releasedAssessments[0].fundamentacaoNormativa && (
-                          <p className="text-xs text-slate-600 whitespace-pre-wrap border-l-2 border-slate-300 pl-3">
+                          <p className="text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded-lg p-3">
                             {releasedAssessments[0].fundamentacaoNormativa}
                           </p>
                         )}
@@ -1285,7 +1197,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
                     >
                       <BookOpen className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                      Entenda a legislação
+                      Entenda a Lei
                     </button>
                   </div>
                 </div>
@@ -1321,10 +1233,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" aria-hidden="true" />
                             <div className="text-xs space-y-0.5">
                               <p className="font-bold text-slate-900">
-                                Lembretes de Vencimento:{' '}
-                                {expiringClientDocs.length === 1
-                                  ? '1 documento expira em menos de 30 dias'
-                                  : `${expiringClientDocs.length} documentos expiram em menos de 30 dias`}
+                                Lembretes de Vencimento: {expiringClientDocs.length} documento(s) expira(m) em menos de 30 dias
                               </p>
                               <p className="text-slate-700">
                                 {expiringClientDocs
@@ -1552,7 +1461,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
                       <Calendar className="w-4 h-4" />
-                      Agendar consulta
+                      Agendar no Calendly
                     </button>
                     <a
                       href={buildWhatsAppUrl(empresa.whatsapp, `Olá! Sou ${client?.nomeCompleto} e gostaria de falar sobre meu processo.`)}
@@ -1577,7 +1486,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800"
                     >
                       <BookOpen className="w-4 h-4" />
-                      Entenda a legislação
+                      Entenda a Lei
                     </button>
                   </div>
                 </div>
@@ -1933,7 +1842,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       />
 
       <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} clientId={client?.id} caseId={activeCase?.id} onConfirmed={loadPortal} />
-      <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a legislação" sources={legalSources} clientFriendlyOnly />
+      <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a Lei" sources={legalSources} clientFriendlyOnly />
 
       {/* Central de Notificações do Processo */}
       {notifDrawerOpen && (
@@ -1987,7 +1896,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[11px] font-semibold text-[var(--color-primary)]">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-primary)]">
                             {notif.tipo === 'etapa_pipeline'
                               ? 'Etapa do Processo'
                               : notif.tipo === 'status_sermig'
@@ -2004,7 +1913,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             {formatDateTimeBR(notif.createdAt)}
                           </span>
                           {!notif.lida && (
-                            <span className="text-[11px] font-semibold text-[#C82333]">Nova</span>
+                            <span className="text-[10px] font-bold text-[#C82333] uppercase">Nova</span>
                           )}
                         </div>
                         <p className="text-sm font-bold text-slate-900">{notif.titulo}</p>

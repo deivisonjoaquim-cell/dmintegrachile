@@ -15,8 +15,7 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { ConfirmActionModal, ConfirmTypedModal, UiButton } from '../ui/DesignSystem';
-import { translateAppError } from '../../services/errorService';
+import { ConfirmTypedModal, UiButton } from '../ui/DesignSystem';
 import {
   archiveClientAudited,
   deleteClientCascadeAudited,
@@ -28,6 +27,7 @@ import {
   setClientPortalAccessAudited,
   uploadFileToServer,
 } from '../../services/firestoreService';
+import { CONSULTANCY_PLANS, normalizePaidModality } from '../../utils/portalAccess';
 import type {
   Appointment,
   AuditLog,
@@ -42,6 +42,7 @@ import type {
   FinancialRecord,
   GeneratedDocument,
   MessageTemplate,
+  PaidConsultancyModality,
   Task,
   UserRole,
   ViabilityAssessment,
@@ -134,7 +135,6 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [depToDelete, setDepToDelete] = useState<Dependent | null>(null);
 
   // Novo dependente
   const [depForm, setDepForm] = useState({
@@ -224,14 +224,22 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
     }
     setSaving(true);
     try {
+      const modality = normalizePaidModality(form.modalidadeConsultoria);
       const payload: Client = {
         ...form,
         nomeCompleto: form.nomeCompleto.trim(),
         email: form.email.trim().toLowerCase(),
+        modalidadeConsultoria: modality,
         statusAcessoPortal: form.portalLiberado ? 'Liberado' : form.statusAcessoPortal || 'Pendente liberação',
       };
       await saveDocumentAudited('clients', client.id, payload as unknown as Record<string, unknown>, false, role, 'ficha_cliente', client);
-      setFeedback('Dossiê do cliente salvo com sucesso.');
+      await setClientPortalAccessAudited({
+        client: payload,
+        portalLiberado: payload.portalLiberado,
+        modalidadeConsultoria: modality,
+        role,
+      });
+      setFeedback('Dossiê do cliente salvo e sincronizado com sucesso.');
       await onRefresh();
     } finally {
       setSaving(false);
@@ -268,20 +276,24 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
 
   const handleSendInvite = async () => {
     const portalUrl = `${window.location.origin}/acompanhar`;
-    const cleanEmail = (form.email || '').trim().toLowerCase();
-    const msg = `Olá, ${form.nomeCompleto}! Seu Portal do Cliente D&M Integra Chile está pronto. Acesse em ${portalUrl} usando seu e-mail Google (${cleanEmail}) para acompanhar etapas, prazos e enviar documentos.`;
+    const modality = normalizePaidModality(form.modalidadeConsultoria);
+    const msg = `Olá, ${form.nomeCompleto}! Seu Portal do Cliente D&M Integra Chile (${CONSULTANCY_PLANS[modality].nome}) está liberado. Acesse em ${portalUrl} usando seu e-mail Google (${form.email}).`;
     window.open(buildWhatsAppUrl(form.whatsapp, msg), '_blank', 'noopener,noreferrer');
     const now = new Date().toISOString();
-    const updated = await setClientPortalAccessAudited({
+    const res = await setClientPortalAccessAudited({
       client: form,
-      clientCases,
-      liberado: true,
+      portalLiberado: true,
+      modalidadeConsultoria: modality,
       role,
-      conviteEnviadoEm: now,
+      extraClientFields: { conviteEnviadoEm: now },
     });
     await onLogWhatsApp(client.id, clientCases[0]?.id, 'Convite Portal do Cliente', msg);
-    setForm(updated);
-    setFeedback('Convite enviado via WhatsApp e acesso ao Portal liberado!');
+    setForm(res.updatedClient);
+    setFeedback(
+      `Convite enviado via WhatsApp e Portal LIBERADO (${CONSULTANCY_PLANS[modality].nome})! ${
+        res.userLinked ? 'Conta Google sincronizada.' : 'Ativará no 1º login Google do cliente.'
+      }`,
+    );
     await onRefresh();
   };
 
@@ -684,8 +696,11 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                         {canEdit && (
                           <button
                             type="button"
-                            onClick={() => setDepToDelete(dep)}
-                            className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
+                            onClick={async () => {
+                              await deleteDocumentAudited('dependents', dep.id, role, dep);
+                              await onRefresh();
+                            }}
+                            className="p-1.5 rounded border border-red-200 text-[#C82333]"
                             aria-label="Remover dependente"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -924,12 +939,15 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
           {/* TAB 8: PORTAL & LGPD */}
           {tab === 'portal_lgpd' && (
             <div className="space-y-4 text-xs">
-              <div className="p-4 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="p-4 rounded-xl border border-slate-200 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Acesso ao Portal do Cliente</h3>
-                    <p className="text-slate-500">
+                    <h3 className="text-sm font-bold text-slate-900">Acesso ao Portal do Cliente &amp; Modalidade</h3>
+                    <p className="text-slate-500 mt-0.5">
                       Status atual: <strong>{form.portalLiberado ? 'Liberado' : form.statusAcessoPortal}</strong>
+                      {' · '}
+                      Modalidade: <strong>{CONSULTANCY_PLANS[normalizePaidModality(form.modalidadeConsultoria)].nome}</strong>
+                      {form.userId ? ' · Conta Google vinculada' : ' · Ativará no 1º login Google'}
                       {form.conviteEnviadoEm ? ` · Convite enviado em ${formatDateTimeBR(form.conviteEnviadoEm)}` : ''}
                     </p>
                   </div>
@@ -939,46 +957,66 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                         <Send className="w-3.5 h-3.5" />
                         Enviar Convite WhatsApp &amp; Liberar
                       </UiButton>
-                      {form.portalLiberado && (
-                        <UiButton
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const targetUrl = `/portal?clientId=${encodeURIComponent(client.id)}`;
-                            window.history.pushState({}, '', targetUrl);
-                            window.dispatchEvent(new PopStateEvent('popstate'));
-                          }}
-                        >
-                          Ver Portal do Cliente
-                        </UiButton>
-                      )}
                       <UiButton
                         type="button"
                         size="sm"
                         variant="outline"
                         onClick={async () => {
                           const nextLib = !form.portalLiberado;
-                          const updated = await setClientPortalAccessAudited({
+                          const modality = normalizePaidModality(form.modalidadeConsultoria);
+                          const res = await setClientPortalAccessAudited({
                             client: form,
-                            clientCases,
-                            liberado: nextLib,
+                            portalLiberado: nextLib,
+                            modalidadeConsultoria: modality,
                             role,
                           });
-                          setForm(updated);
+                          setForm(res.updatedClient);
                           setFeedback(
                             nextLib
-                              ? 'Acesso ao Portal do Cliente liberado com sucesso.'
-                              : 'Acesso ao Portal do Cliente bloqueado.',
+                              ? `Portal LIBERADO (${CONSULTANCY_PLANS[modality].nome}). ${
+                                  res.userLinked ? 'Conta Google sincronizada imediatamente!' : 'Será ativado no 1º login Google do cliente.'
+                                }`
+                              : 'Portal bloqueado com segurança.',
                           );
                           await onRefresh();
                         }}
                       >
-                        {form.portalLiberado ? 'Bloquear Portal' : 'Apenas Liberar Acesso'}
+                        {form.portalLiberado ? 'Bloquear Portal' : 'Liberar Acesso Agora'}
                       </UiButton>
                     </div>
                   )}
                 </div>
+
+                {canEdit && (
+                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Modalidade contratada pelo cliente</p>
+                      <p className="text-[11px] text-slate-500">
+                        Define quais recursos e etapas aparecem no Portal do Cliente (Orientativa vs Completa).
+                      </p>
+                    </div>
+                    <select
+                      aria-label="Modalidade de consultoria no dossiê"
+                      value={normalizePaidModality(form.modalidadeConsultoria)}
+                      onChange={async (e) => {
+                        const nextMod = e.target.value as PaidConsultancyModality;
+                        const res = await setClientPortalAccessAudited({
+                          client: form,
+                          portalLiberado: form.portalLiberado,
+                          modalidadeConsultoria: nextMod,
+                          role,
+                        });
+                        setForm(res.updatedClient);
+                        setFeedback(`Modalidade atualizada para ${CONSULTANCY_PLANS[nextMod].nome}.`);
+                        await onRefresh();
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800"
+                    >
+                      <option value="orientativa">Consultoria Orientativa (cliente protocola)</option>
+                      <option value="completa">Consultoria Completa (equipe faz todo o processo)</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 rounded-xl border border-slate-200 space-y-3">
@@ -1081,26 +1119,6 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
           await onRefresh();
           onClose();
         }}
-      />
-
-      <ConfirmActionModal
-        open={Boolean(depToDelete)}
-        title="Remover Dependente"
-        description={`Tem certeza que deseja excluir permanentemente o dependente "${depToDelete?.nomeCompleto || ''}"?`}
-        confirmLabel="Excluir Dependente"
-        tone="danger"
-        onConfirm={async () => {
-          if (!depToDelete) return;
-          try {
-            await deleteDocumentAudited('dependents', depToDelete.id, role, depToDelete);
-            setFeedback(`Dependente "${depToDelete.nomeCompleto}" removido.`);
-            setDepToDelete(null);
-            await onRefresh();
-          } catch (err) {
-            throw new Error(translateAppError(err).message || 'Não foi possível remover o dependente.');
-          }
-        }}
-        onClose={() => setDepToDelete(null)}
       />
     </div>
   );

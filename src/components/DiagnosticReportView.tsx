@@ -14,15 +14,14 @@ import {
   HelpCircle,
   Lock,
   MessageCircle,
-  PhoneCall,
   Printer,
   RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
   Sparkles,
+  UserCheck,
   Users,
 } from 'lucide-react';
-import { BrandLogo, BrandRibbon, BrandWordmark } from './BrandLogo';
 import { PdfPreviewModal } from './pdf/PdfPreviewModal';
 import type {
   DiagnosticAnswers,
@@ -41,7 +40,10 @@ import {
   formatCurrency,
   formatDateBR,
 } from '../utils/formatters';
-import { getJurisdictionLabel, getJurisdictionTextClass } from '../utils/legalJurisdiction';
+import {
+  buildBasicDiagnosticSummary,
+  CONSULTANCY_PLANS,
+} from '../utils/portalAccess';
 
 export interface AiDiagnosticDraft {
   rascunho?: boolean;
@@ -116,19 +118,19 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 
   const scoreColor =
     result.viabilidade.total >= 80
-      ? '#146B43'
+      ? '#1E7E34'
       : result.viabilidade.total >= 60
-        ? '#0B1F33'
+        ? '#0F2537'
         : result.viabilidade.total >= 40
-          ? '#C8A236'
-          : '#A61C2B';
+          ? '#D4AF37'
+          : '#C82333';
 
   const confidenceBadge =
     result.confianca === 'Alta'
-      ? 'bg-emerald-50 text-[#146B43] border-emerald-200'
+      ? 'bg-emerald-50 text-[#1E7E34] border-emerald-200'
       : result.confianca === 'Média'
-        ? 'bg-amber-50 text-[#8C6D14] border-amber-200'
-        : 'bg-red-50 text-[#A61C2B] border-red-200';
+        ? 'bg-amber-50 text-amber-800 border-amber-200'
+        : 'bg-red-50 text-[#C82333] border-red-200';
 
   const tpl = SEED_MESSAGE_TEMPLATES.find((t) => t.codigo === 'POS_DIAGNOSTICO') || SEED_MESSAGE_TEMPLATES[0];
   const recommendedTitle = result.recomendada
@@ -150,6 +152,256 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
   const handlePrintPdf = () => {
     window.print();
   };
+
+  // MODO PÚBLICO (DIAGNÓSTICO GRATUITO): exibe APENAS as informações básicas do diagnóstico.
+  // Plano de ação completo, tabela de taxas BRL/CLP, checklist por pessoa, matriz comparativa e PDF técnico
+  // são exclusivos da consultoria contratada (Orientativa ou Completa) e da Área da Equipe (mode="consultant").
+  if (mode === 'public') {
+    const basic = buildBasicDiagnosticSummary(result, answers);
+    const planOrientativa = CONSULTANCY_PLANS.orientativa;
+    const planCompleta = CONSULTANCY_PLANS.completa;
+
+    const buildPlanWaUrl = (planLabel: string) =>
+      buildWhatsAppUrl(
+        empresa.whatsapp,
+        `Olá! Concluí o Diagnóstico Gratuito na ${empresa.nome_empresa} (${basic.subcategoriaNome} — Viabilidade ${basic.notaViabilidade}/100) e quero saber mais sobre a ${planLabel}.`,
+      );
+
+    return (
+      <div className="space-y-6">
+        {/* Cabeçalho de Resultado Básico */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 border-b border-slate-200 pb-6">
+            <div className="space-y-2.5 max-w-2xl">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-slate-500">
+                <span className="uppercase tracking-[0.14em] text-[#0F2537]">Resultado Básico · Diagnóstico Gratuito</span>
+                <span>·</span>
+                <span className={basic.confianca === 'Alta' ? 'text-[#1E7E34]' : basic.confianca === 'Média' ? 'text-[#8F6F16]' : 'text-[#C82333]'}>
+                  Confiança {basic.confianca}
+                </span>
+                {basic.familiaResumo && (
+                  <>
+                    <span>·</span>
+                    <span>{basic.familiaResumo}</span>
+                  </>
+                )}
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
+                {basic.subcategoriaNome}
+              </h1>
+              <p className="text-sm text-slate-600 leading-relaxed">{basic.resumoBasico}</p>
+            </div>
+
+            <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 shrink-0 min-w-[200px]">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Índice Preliminar
+              </p>
+              <p className="text-4xl font-bold tabular-nums leading-none" style={{ color: scoreColor }}>
+                {basic.notaViabilidade}
+                <span className="text-base font-normal text-slate-500">/100</span>
+              </p>
+              <p className="text-xs font-semibold text-slate-700 text-right">{basic.veredito}</p>
+            </div>
+          </div>
+
+          {/* 3 indicadores básicos da subcategoria */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Pedido dentro do Chile
+              </p>
+              <p className="text-sm font-bold text-slate-900 mt-1">
+                {basic.permiteDentroChile || 'Sob análise técnica'}
+              </p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Permite trabalhar
+              </p>
+              <p className="text-sm font-bold text-slate-900 mt-1">
+                {basic.permiteTrabalhar === undefined ? 'Sob análise técnica' : basic.permiteTrabalhar ? 'Sim' : 'Não'}
+              </p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Caminho para Definitiva
+              </p>
+              <p className="text-sm font-bold text-slate-900 mt-1">
+                {basic.levaDefinitiva === undefined ? 'Sob análise técnica' : basic.levaDefinitiva ? 'Elegível conforme prazo legal' : 'Não aplicável'}
+              </p>
+            </div>
+          </div>
+
+          {/* Aviso de atenção em alto nível (sem expor passo a passo jurídico interno) */}
+          {basic.temAlertaCritico && basic.alertaGeral && (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                  Ponto de atenção identificado no seu perfil
+                </p>
+                <p className="text-sm leading-relaxed">{basic.alertaGeral}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Bloco do que está reservado para a consultoria */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <Lock className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
+              O que é liberado ao contratar uma das nossas modalidades de consultoria
+            </div>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs text-slate-700">
+              {basic.itensBloqueados.map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* Escolha entre os dois tipos de consultoria */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6">
+          <div className="space-y-1.5 max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Próximo passo — Escolha como prefere conduzir seu processo
+            </p>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+              Duas modalidades de consultoria para o seu momento
+            </h2>
+            <p className="text-sm text-slate-600">
+              Você pode optar pela <strong>Consultoria Orientativa</strong> (para protocolar por conta própria com nossa conferência técnica) ou pela <strong>Consultoria Completa</strong> (onde nós cuidamos de todo o processo para você).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Consultoria Orientativa */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-6 flex flex-col justify-between gap-5">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {planOrientativa.badgeLabel}
+                  </p>
+                  <h3 className="text-xl font-bold text-slate-900">{planOrientativa.nome}</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">{planOrientativa.subtitulo}</p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700">
+                  <strong className="text-slate-900">Protocolo SERMIG:</strong> realizado pelo próprio cliente com nosso guia e revisão prévia.
+                </div>
+
+                <ul className="space-y-2 text-xs text-slate-700">
+                  {planOrientativa.inclui.map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#1E7E34] shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <a
+                  href={buildPlanWaUrl(planOrientativa.nome)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    if (onLogWhatsApp) void onLogWhatsApp('Interesse Consultoria Orientativa', waMessage);
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Quero Consultoria Orientativa
+                </a>
+              </div>
+            </div>
+
+            {/* Consultoria Completa */}
+            <div className="rounded-2xl border-2 border-[#0B1F33] bg-[#0B1F33] text-white p-6 flex flex-col justify-between gap-5">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#E6C55A]">
+                    {planCompleta.badgeLabel}
+                  </p>
+                  <h3 className="text-xl font-bold text-white">{planCompleta.nome}</h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">{planCompleta.subtitulo}</p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-100">
+                  <strong className="text-white">Protocolo SERMIG:</strong> conduzido integralmente pela nossa equipe do início ao fim.
+                </div>
+
+                <ul className="space-y-2 text-xs text-slate-200">
+                  {planCompleta.inclui.map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#E6C55A] shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <a
+                  href={buildPlanWaUrl(planCompleta.nome)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    if (onLogWhatsApp) void onLogWhatsApp('Interesse Consultoria Completa', waMessage);
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#C9A227] text-[#0B1523] text-sm font-bold hover:bg-[#d6b13a] transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Quero Consultoria Completa
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              {onOpenCalendly && (
+                <button
+                  type="button"
+                  onClick={onOpenCalendly}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Agendar conversa inicial
+                </button>
+              )}
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/acompanhar')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Já contratei — acessar Portal
+                </button>
+              )}
+            </div>
+            {onRestart && (
+              <button
+                type="button"
+                onClick={onRestart}
+                className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Refazer diagnóstico
+              </button>
+            )}
+          </div>
+        </section>
+
+        <p className="text-[11px] text-slate-500 text-center max-w-2xl mx-auto">
+          {empresa.avisoLegal}
+        </p>
+      </div>
+    );
+  }
 
   const closePdfPreview = () => {
     setPdfPreview((prev) => {
@@ -258,229 +510,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     </div>
   );
 
-  const OBJECTIVE_PUBLIC_LABELS: Record<string, string> = {
-    trabalho_formal: 'Trabalho formal / emprego no Chile',
-    empreender_investir: 'Empreender ou investir no Chile',
-    estudar: 'Estudos no Chile',
-    renda_passiva: 'Aposentadoria ou renda passiva',
-    familia: 'Reunião / vínculo familiar no Chile',
-    explorar: 'Morar no Chile / avaliar melhor opção',
-  };
-
-  // =========================================================================
-  // VISÃO BÁSICA DO CLIENTE (mode === 'public')
-  // O cliente vê apenas a confirmação, resumo básico do perfil e opções para
-  // falar com o consultor ou aguardar o contato. O diagnóstico técnico completo
-  // fica restrito exclusivamente ao Administrador.
-  // =========================================================================
-  if (mode === 'public') {
-    const protocolText =
-      savedLeadId && savedLeadId !== 'local-preview' ? savedLeadId : 'Registrado no atendimento';
-    const composicaoLabel =
-      answers.composicaoFamiliar === 'casal' ||
-      answers.composicaoFamiliar === 'familia_com_filhos' ||
-      answers.familiaAcompanhante === true
-        ? `Familiar (${1 + Math.max(1, answers.quantidadeDependentes || (answers.pessoasFamilia?.length ? answers.pessoasFamilia.length - 1 : 1))} pessoas)`
-        : 'Individual (titular)';
-    const objetivoLabel = OBJECTIVE_PUBLIC_LABELS[answers.objetivo] || 'Residência no Chile';
-    const basicClientWaMessage = [
-      `Olá! Acabei de concluir meu diagnóstico no site da ${empresa.nome_empresa}.`,
-      savedLeadId && savedLeadId !== 'local-preview' ? `Protocolo: ${savedLeadId}` : null,
-      `Nome: ${answers.nome || 'Visitante'}`,
-      `Localização atual: ${answers.localizacao || 'Não informada'}`,
-      `Objetivo: ${objetivoLabel}`,
-      'Gostaria de conversar com um consultor sobre o resultado completo do meu diagnóstico.',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const handleClientContactWhatsApp = async () => {
-      const url = buildWhatsAppUrl(empresa.whatsapp, basicClientWaMessage);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      if (onLogWhatsApp) {
-        await onLogWhatsApp(`Contato Pós-Diagnóstico: ${answers.nome || 'Lead'}`, basicClientWaMessage);
-      }
-    };
-
-    return (
-      <div className="max-w-3xl mx-auto space-y-6" id="diagnostic-client-basic-root">
-        {/* Card Principal de Confirmação */}
-        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-sm">
-          <BrandRibbon className="h-[3.5px] w-full" />
-          <div className="p-6 sm:p-8 space-y-6">
-            {/* Identidade Oficial da Logo */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#E5DFD2]">
-              <div className="flex items-center gap-3">
-                <BrandLogo
-                  src={empresa.logoUrl}
-                  alt={empresa.nome_empresa}
-                  variant="emblem"
-                  className="h-12 w-12 shrink-0"
-                />
-                <BrandWordmark
-                  size="md"
-                  showSubtitle
-                  subtitle="Relocation & Assessoria"
-                />
-              </div>
-              <div className="text-left sm:text-right text-xs text-slate-600 tabular-nums">
-                <p className="font-semibold text-[#8C6D14]">Protocolo de atendimento</p>
-                <p className="font-bold text-[#0B1F33] text-sm mt-0.5">{protocolText}</p>
-                <p className="text-[11px] text-slate-500">Registrado em {formatDateBR(new Date())}</p>
-              </div>
-            </div>
-
-            {/* Confirmação clara */}
-            <div className="space-y-2.5">
-              <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#146B43]">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Diagnóstico recebido e registrado com sucesso</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0B1F33] leading-tight">
-                Obrigado, {answers.nome ? answers.nome.split(' ')[0] : 'visitante'}. Recebemos suas informações.
-              </h1>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                {result.dadosInsuficientes
-                  ? 'Suas informações iniciais foram registradas com segurança. Nosso consultor complementará a análise diretamente com você no atendimento.'
-                  : 'Sua pré-análise migratória preliminar foi registrada com sucesso e encaminhada para revisão técnica exclusiva da nossa administração.'}
-              </p>
-            </div>
-
-            {/* Resumo Básico (sem dados técnicos restritos) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs">
-              <div>
-                <p className="text-slate-500">Titular</p>
-                <p className="font-semibold text-[#0B1F33] mt-0.5">{answers.nome || '—'}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Situação geográfica</p>
-                <p className="font-semibold text-[#0B1F33] mt-0.5">
-                  {answers.localizacao || '—'}
-                  {answers.cidadeUf ? ` · ${answers.cidadeUf}` : ''}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-500">Composição do processo</p>
-                <p className="font-semibold text-[#0B1F33] mt-0.5">{composicaoLabel}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Objetivo informado</p>
-                <p className="font-semibold text-[#0B1F33] mt-0.5">{objetivoLabel}</p>
-              </div>
-            </div>
-
-            {/* Bloco explicativo: Relatório Completo Restrito à Administração */}
-            <div className="rounded-xl border border-[#E5DFD2] bg-white p-5 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center shrink-0 mt-0.5">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-sm font-bold text-[#0B1F33]">
-                    Diagnóstico Técnico Completo · Revisão Exclusiva do Consultor
-                  </h2>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Para evitar interpretações equivocadas das regras do SERMIG e garantir segurança jurídica ao seu caso, o relatório técnico completo é acessado exclusivamente pela nossa administração e apresentado a você diretamente pelo consultor.
-                  </p>
-                </div>
-              </div>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-[#E5DFD2] text-xs text-slate-700">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
-                  <span>Enquadramento na legislação chilena e Acordo Mercosul</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
-                  <span>Checklist documental personalizado com prazos e apostilamentos</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
-                  <span>Plano de ação em etapas e cronograma estimado</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#146B43] shrink-0 mt-0.5" />
-                  <span>Estimativa de taxas oficiais e proposta de assessoria</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Próximos Passos: Entrar em contato ou aguardar */}
-            <div className="space-y-4 pt-1">
-              <div className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-[#8C6D14]">
-                  Como receber seu diagnóstico completo
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleClientContactWhatsApp()}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-[#146B43] hover:bg-[#0F5434] text-white text-sm font-semibold transition-colors shadow-sm"
-                  >
-                    <MessageCircle className="w-4 h-4 shrink-0" />
-                    Falar agora com o consultor no WhatsApp
-                  </button>
-                  {onOpenCalendly && empresa.linkCalendly && (
-                    <button
-                      type="button"
-                      onClick={onOpenCalendly}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-95"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    >
-                      <Calendar className="w-4 h-4 shrink-0" />
-                      Agendar reunião
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Opção de aguardar contato */}
-              <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] flex items-start gap-3">
-                <PhoneCall className="w-4 h-4 text-[#0B1F33] shrink-0 mt-0.5" />
-                <div className="text-xs text-slate-700 space-y-1 leading-relaxed">
-                  <p className="font-bold text-[#0B1F33]">Prefere aguardar o nosso contato? Tudo certo.</p>
-                  <p>
-                    Seus dados já foram encaminhados à equipe administrativa. Um consultor entrará em contato pelo{' '}
-                    <strong>WhatsApp ({answers.whatsapp || 'informado'})</strong> ou pelo{' '}
-                    <strong>e-mail ({answers.email || 'informado'})</strong> para apresentar seu estudo completo.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Rodapé discreto de navegação e LGPD */}
-            <div className="pt-4 border-t border-[#E5DFD2] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <p className="text-[11px] text-slate-500 leading-relaxed max-w-md">
-                Dados protegidos conforme a legislação brasileira (LGPD — Lei nº 13.709/2018). Atendimento consultivo e orientativo.
-              </p>
-              <div className="flex flex-wrap items-center gap-3 shrink-0">
-                {onRestart && (
-                  <button
-                    type="button"
-                    onClick={onRestart}
-                    className="inline-flex items-center gap-1.5 text-slate-600 hover:text-[#0B1F33] font-semibold"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Refazer diagnóstico
-                  </button>
-                )}
-                {onNavigate && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/')}
-                    className="text-[#0B1F33] hover:text-[#146B43] font-semibold underline underline-offset-4"
-                  >
-                    Voltar ao início
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Perfil 29 — Dados insuficientes (visão Administrador)
+  // Perfil 29 — Dados insuficientes
   if (result.dadosInsuficientes || !result.recomendada) {
     return (
       <div className="space-y-6">
@@ -525,7 +555,13 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
       {/* Cabeçalho A4 para Impressão / PDF */}
       <div className="hidden print:flex items-center justify-between border-b-2 border-slate-900 pb-4 mb-4">
         <div className="flex items-center gap-3">
-          <BrandLogo src={empresa.logoUrl} alt={empresa.nome_empresa} variant="emblem" className="h-12 w-12 shrink-0" />
+          {empresa.logoUrl ? (
+            <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain" />
+          ) : (
+            <div className="w-10 h-10 rounded-lg bg-[#0F2537] text-white flex items-center justify-center font-bold text-sm">
+              D&amp;M
+            </div>
+          )}
           <div>
             <p className="text-base font-bold text-slate-900">{empresa.nome_empresa}</p>
             <p className="text-xs text-slate-600">{empresa.razao_social_cnpj_rut}</p>
@@ -533,7 +569,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         </div>
         <div className="text-right text-xs text-slate-700">
           <p className="font-bold">Relatório de Pré-Análise Migratória</p>
-          <p>Emitido em {formatDateBR(new Date())} (horário de Brasília)</p>
+          <p>Emitido em {formatDateBR(new Date())} (America/Sao_Paulo)</p>
           <p>
             Regras {result.versaoRegras.versao} · {formatDateBR(result.versaoRegras.dataPublicacao)}
           </p>
@@ -617,7 +653,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           <button
             type="button"
             onClick={() => void handleSendWhatsApp()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#146B43] text-white text-xs font-semibold hover:bg-[#0F5434] whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             Enviar WhatsApp
@@ -714,9 +750,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 
           {result.flagsRevisaoConsultor.length > 0 && (
             <div className="p-3.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 space-y-1">
-              <p className="font-bold text-slate-900">
-                Revisar com o consultor em atendimento reservado (Legislação Brasileira — LGPD, Lei nº 13.709/2018):
-              </p>
+              <p className="font-bold text-slate-900">Revisar com o consultor em atendimento reservado (LGPD):</p>
               <ul className="space-y-1">
                 {result.flagsRevisaoConsultor.map((f) => (
                   <li key={f.campo}>• {f.label}</li>
@@ -842,8 +876,8 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         {!hideCosts && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
             <div>
-              <p className="text-xs font-semibold text-amber-800">Taxas Oficiais e Terceiros</p>
-              <h2 className="text-lg font-bold text-slate-900">Estimativa de Taxas (BRL e CLP)</h2>
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Taxas Oficiais &amp; Terceiros</p>
+              <h2 className="text-lg font-bold text-slate-900">Estimativa de Taxas (BRL ↔ CLP)</h2>
               <p className="text-xs text-slate-500">{result.custosEstimados.avisoEstimativa}</p>
               <p className="text-[11px] font-medium text-slate-600 mt-1 tabular-nums">
                 Câmbio de referência: 1 BRL ≈ {result.custosEstimados.taxaCambioBrlClp.toLocaleString('pt-BR')} CLP · 1 USD ≈ R${' '}
@@ -879,7 +913,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <span className="text-[11px] font-semibold text-amber-800">Proposta sob medida</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Cada processo possui um escopo específico. Envie seu resultado para receber uma proposta personalizada (em BRL ou CLP) considerando:
+                Cada processo tem um escopo diferente. Envie seu resultado para receber uma proposta fechada (em BRL ou CLP) considerando:
               </p>
               <ul className="text-[11px] text-slate-600 space-y-0.5">
                 {result.custosEstimados.honorariosMotivosVariacao.map((m, i) => (
@@ -892,10 +926,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   onClick={() => {
                     const numPessoas =
                       answers.familiaAcompanhante === true ? 1 + Math.max(1, answers.quantidadeDependentes || 1) : 1;
-                    const pessoasTexto = numPessoas === 1 ? '1 pessoa' : `${numPessoas} pessoas`;
                     const msgProposta = `Olá! Concluí meu diagnóstico na ${empresa.nome_empresa}${
                       savedLeadId && savedLeadId !== 'local-preview' ? ` (Protocolo ${savedLeadId})` : ''
-                    }.\nPerfil: ${answers.nome || 'Visitante'} · ${pessoasTexto} · Subcategoria sugerida: ${recommendedTitle} (Viabilidade ${result.viabilidade.total}/100).\nGostaria de consultar os honorários e receber a proposta personalizada para minha assessoria.`;
+                    }.\nPerfil: ${answers.nome || 'Visitante'} · ${numPessoas} pessoa(s) · Subcategoria sugerida: ${recommendedTitle} (Viabilidade ${result.viabilidade.total}/100).\nGostaria de consultar os honorários e receber a proposta personalizada para minha assessoria.`;
                     const targetPhone = mode === 'consultant' ? answers.whatsapp || empresa.whatsapp : empresa.whatsapp;
                     window.open(buildWhatsAppUrl(targetPhone, msgProposta), '_blank', 'noopener,noreferrer');
                     if (onLogWhatsApp) {
@@ -914,7 +947,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-semibold hover:bg-slate-100"
                   >
                     <Calendar className="w-3.5 h-3.5" />
-                    Agendar consulta gratuita
+                    Agendar conversa gratuita
                   </button>
                 )}
               </div>
@@ -1236,27 +1269,6 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           </div>
         )}
 
-        {result.fontesLegais.length > 0 && (
-          <div className="pt-4 border-t border-slate-200 space-y-2">
-            <p className="text-xs font-semibold text-slate-600">
-              Fontes normativas consultadas (identificação por jurisdição)
-            </p>
-            <ul className="divide-y divide-slate-100 border border-slate-200 rounded-xl bg-slate-50/50 text-xs">
-              {result.fontesLegais.map((src) => (
-                <li key={src.id} className="px-3.5 py-2.5 flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-slate-800 font-medium">
-                    {src.titulo}
-                    {src.numeroAno ? ` (${src.numeroAno})` : ''}
-                  </span>
-                  <span className={getJurisdictionTextClass(src.pais)}>
-                    {getJurisdictionLabel(src.pais)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {aiLoading && aiProgress && (
           <p className="text-xs font-medium text-slate-600" role="status" aria-live="polite">
             {aiProgress}
@@ -1275,11 +1287,11 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               <div className="space-y-1">
                 {aiDraft.fallback || aiDraft.origem === 'regras' ? (
                   <>
-                    <span className="inline-block px-2.5 py-1 rounded-md bg-slate-200/80 border border-slate-300 text-[11px] font-semibold text-slate-800">
-                      {aiDraft.origemLabel || 'Assistente de Regras SERMIG/BCN'}
+                    <span className="inline-block px-2.5 py-1 rounded-md bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-950">
+                      {aiDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
                     </span>
                     {aiDraft.mensagemUsuario && (
-                      <p className="text-xs text-slate-600">{aiDraft.mensagemUsuario}</p>
+                      <p className="text-xs text-amber-900">{aiDraft.mensagemUsuario}</p>
                     )}
                   </>
                 ) : (
@@ -1356,7 +1368,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               <FileCheck2 className="w-5 h-5 text-[var(--color-primary)]" />
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Termômetro e Checklist Documental</h2>
-                <p className="text-xs text-slate-500">Documentos disponíveis e pendentes antes do protocolo</p>
+                <p className="text-xs text-slate-500">Documentos já disponíveis vs. pendentes antes do protocolo</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

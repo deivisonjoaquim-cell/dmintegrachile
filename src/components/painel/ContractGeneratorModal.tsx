@@ -14,7 +14,6 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { BrandLogo } from '../BrandLogo';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
 import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
@@ -41,6 +40,7 @@ import {
   generateVerificationCode,
   valorPorExtenso,
 } from '../../utils/formatters';
+import { CONSULTANCY_PLANS, normalizePaidModality } from '../../utils/portalAccess';
 
 interface ContractGeneratorModalProps {
   open: boolean;
@@ -184,11 +184,19 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
       data_atual: formatDateBR(new Date()),
     });
 
+    const modality = normalizePaidModality(cl?.modalidadeConsultoria || cs?.modalidadeConsultoria);
+    const modalitySpec = CONSULTANCY_PLANS[modality];
+
     if (tpl.tipo === 'contrato') {
       const addDep = opts?.incDep ?? incluirDependentes;
       const addParc = opts?.incParc ?? incluirParcelamento;
       const addTax = opts?.incTax ?? incluirTaxasTerceiros;
       const extras: string[] = [];
+      extras.push(
+        modality === 'orientativa'
+          ? `CLÁUSULA DE MODALIDADE – CONSULTORIA ORIENTATIVA\nFica expressamente ajustado que o presente contrato refere-se à modalidade ${modalitySpec.nome}. Caberá à CONTRATADA fornecer diagnóstico técnico, checklist personalizado na ordem de validade, conferência prévia dos documentos enviados no Portal e orientação passo a passo por reunião/chat. O protocolo oficial no sistema do SERMIG (Servicio Nacional de Migraciones) e o acompanhamento direto das notificações oficiais serão realizados pelo próprio CONTRATANTE.`
+          : `CLÁUSULA DE MODALIDADE – CONSULTORIA COMPLETA (GESTÃO INTEGRAL)\nFica expressamente ajustado que o presente contrato refere-se à modalidade ${modalitySpec.nome}. Caberá à CONTRATADA conduzir integralmente a organização do dossiê, conferência documental, realização do protocolo oficial junto ao SERMIG, monitoramento de prazos e eventuais requerimentos oficiais, além das orientações pós-aprovação (Estampado Eletrônico, PDI e Cédula/RUN).`,
+      );
       if (addDep && deps.length > 0) {
         extras.push(
           `CLÁUSULA ADICIONAL – DEPENDENTES VINCULADOS\nIncluem-se no escopo operacional os seguintes dependentes familiares: ${deps
@@ -805,12 +813,16 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
               <div className="bg-white border border-slate-300 rounded-xl p-8 sm:p-10 max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
                   <div className="flex items-center gap-3">
-                    <BrandLogo
-                      src={empresa.logoUrl}
-                      alt={empresa.nome_empresa}
-                      variant="emblem"
-                      className="h-12 w-12 object-contain shrink-0"
-                    />
+                    {empresa.logoUrl ? (
+                      <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain" />
+                    ) : (
+                      <span
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        style={{ backgroundColor: 'var(--color-primary)' }}
+                      >
+                        D&amp;M
+                      </span>
+                    )}
                     <div>
                       <p className="text-sm font-bold text-slate-900">{empresa.nome_empresa}</p>
                       <p className="text-[11px] text-slate-500">{empresa.razao_social_cnpj_rut}</p>

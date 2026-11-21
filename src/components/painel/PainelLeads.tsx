@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -10,31 +10,26 @@ import {
   Eye,
   GitMerge,
   MessageCircle,
-  Plus,
+  Moon,
   RefreshCw,
   Search,
-  SlidersHorizontal,
+  Sun,
   Trash2,
   X,
 } from 'lucide-react';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../DiagnosticReportView';
 import { LegalBaseModal } from '../LegalBaseModal';
-import { ConfirmActionModal } from '../ui/DesignSystem';
 import { FUNIL_STAGES, PainelLeadsKanban } from './PainelLeadsKanban';
 import { buildUpdatedLeadFromPatch, type LeadQuickEditPatch } from '../../utils/leadKanban';
 import {
   callAiEndpoint,
   convertLeadToClientAndCaseEnhanced,
   deleteDocumentAudited,
-  deleteLeadAndSessionAudited,
-  makeId,
   recalculateLeadsWithRules,
   saveDocumentAudited,
   syncDiagnosticFollowUpTasks,
 } from '../../services/firestoreService';
-import { sanitizeDiagnosticLeadPayload } from '../../utils/firestorePayloads';
 import type {
-  AuditLog,
   Client,
   DiagnosticAnswers,
   DiagnosticRuleVersion,
@@ -42,12 +37,14 @@ import type {
   Lead,
   LegalSource,
   MessageTemplate,
+  PaidConsultancyModality,
   Task,
   UserProfile,
   UserRole,
   VisaCategory,
   VisaRequirement,
 } from '../../types/domain';
+import { CONSULTANCY_PLANS } from '../../utils/portalAccess';
 import { computeDiagnosticIntelligence } from '../../utils/diagnosticAnalytics';
 import { compareWhatIfScenarios, runDiagnosticEngine } from '../../utils/diagnosticEngine';
 import {
@@ -57,14 +54,11 @@ import {
   formatDateBR,
 } from '../../utils/formatters';
 import {
-  compactLegalSourcesForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
 } from '../../utils/aiClient';
 type PanelTheme = 'light' | 'dark';
-
-export type PainelLeadsViewId = 'lista' | 'kanban' | 'inteligencia';
 
 interface PainelLeadsProps {
   role: UserRole;
@@ -73,8 +67,6 @@ interface PainelLeadsProps {
   leads: Lead[];
   clients: Client[];
   tasks: Task[];
-  auditLogs?: AuditLog[];
-  requestedView?: { view: PainelLeadsViewId; seq: number } | null;
   visaCategories: VisaCategory[];
   visaRequirements: VisaRequirement[];
   legalSources: LegalSource[];
@@ -82,8 +74,6 @@ interface PainelLeadsProps {
   messageTemplates: MessageTemplate[];
   panelTheme?: PanelTheme;
   onToggleTheme?: () => void;
-  requestedOpenLead?: { leadId: string; seq: number } | null;
-  requestedQuickLeadSeq?: number;
   onRefresh: () => Promise<void>;
   onLogWhatsApp: (clientId: string | undefined, caseId: string | undefined, assunto: string, msg: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
@@ -96,21 +86,18 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   leads,
   clients,
   tasks,
-  auditLogs = [],
-  requestedView,
   visaCategories,
   visaRequirements,
   legalSources,
   activeRules,
   messageTemplates,
   panelTheme = 'light',
-  requestedOpenLead,
-  requestedQuickLeadSeq,
+  onToggleTheme,
   onRefresh,
   onLogWhatsApp,
   onOpenCase,
 }) => {
-  const [view, setView] = useState<PainelLeadsViewId>(() => {
+  const [view, setView] = useState<'lista' | 'kanban' | 'inteligencia'>(() => {
     try {
       const saved = window.localStorage.getItem('dm_leads_view');
       if (saved === 'lista' || saved === 'kanban' || saved === 'inteligencia') return saved;
@@ -119,13 +106,6 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     }
     return 'lista';
   });
-
-  useEffect(() => {
-    if (requestedView?.view) {
-      setView(requestedView.view);
-    }
-  }, [requestedView]);
-
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [smartFilter, setSmartFilter] = useState<
@@ -147,128 +127,10 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
 
   const [convertingId, setConvertingId] = useState<string | null>(null);
-  const [lastConvertedCaseId, setLastConvertedCaseId] = useState<string | null>(null);
+  const [convertModality, setConvertModality] = useState<PaidConsultancyModality>('completa');
   const [busyAction, setBusyAction] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedTplId, setSelectedTplId] = useState(messageTemplates[0]?.id || '');
-  const [showAdvancedToolbar, setShowAdvancedToolbar] = useState(false);
-  const [quickLeadOpen, setQuickLeadOpen] = useState(false);
-  const [quickLeadSaving, setQuickLeadSaving] = useState(false);
-  const [quickLeadError, setQuickLeadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (requestedQuickLeadSeq && requestedQuickLeadSeq > 0) {
-      setQuickLeadError(null);
-      setQuickLeadOpen(true);
-    }
-  }, [requestedQuickLeadSeq]);
-
-  useEffect(() => {
-    if (!requestedOpenLead?.leadId) return;
-    const found = leads.find((l) => l.id === requestedOpenLead.leadId);
-    if (found) {
-      setInspectingLead(found);
-      setWhatIfAnswers(found.respostasTriagem ? { ...found.respostasTriagem } : null);
-      setAiError(null);
-      setAiProgress(null);
-      setAiDraft(loadAiDraftCache<AiDiagnosticDraft>(`diagnostico_lead_${found.id}`));
-    }
-  }, [requestedOpenLead, leads]);
-  const [quickLeadForm, setQuickLeadForm] = useState<{
-    nome: string;
-    whatsapp: string;
-    email: string;
-    cidadeUf: string;
-    origem: Lead['origem'];
-    interesse: string;
-    prioridade: Lead['prioridade'];
-    notas: string;
-  }>({
-    nome: '',
-    whatsapp: '',
-    email: '',
-    cidadeUf: '',
-    origem: 'Instagram',
-    interesse: 'Residência Temporal (Acordo Mercosul)',
-    prioridade: 'Alta',
-    notas: '',
-  });
-  const [confirmModal, setConfirmModal] = useState<{
-    title: string;
-    description: string;
-    details?: string[];
-    confirmLabel: string;
-    onConfirm: () => Promise<void>;
-  } | null>(null);
-
-  const effectiveLeads = useMemo(
-    () => leads.map((l) => optimisticLeads[l.id] || l),
-    [leads, optimisticLeads],
-  );
-
-  const stageCounts = useMemo(() => {
-    const counts: Record<string, number> = { Todos: effectiveLeads.length };
-    for (const st of FUNIL_STAGES) counts[st] = 0;
-    for (const l of effectiveLeads) {
-      counts[l.statusFunil] = (counts[l.statusFunil] || 0) + 1;
-    }
-    return counts;
-  }, [effectiveLeads]);
-
-  const handleCreateQuickLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setQuickLeadError(null);
-    setQuickLeadSaving(true);
-    try {
-      const id = makeId('lead');
-      const now = new Date().toISOString();
-      const payload = sanitizeDiagnosticLeadPayload(
-        {
-          id,
-          nome: quickLeadForm.nome,
-          whatsapp: quickLeadForm.whatsapp,
-          email: quickLeadForm.email,
-          cidadeUf: quickLeadForm.cidadeUf || 'Brasil',
-          origem: quickLeadForm.origem,
-          interesse: quickLeadForm.interesse || 'Residência no Chile',
-          statusFunil: 'Novo',
-          prioridade: quickLeadForm.prioridade,
-          notas: quickLeadForm.notas,
-          statusConclusao: 'Concluído',
-          lgpdAceito: true,
-          lgpdVersao: empresa.termoLgpdVersao || '1.0',
-          lgpdData: now,
-          createdAt: now,
-        },
-        { isNew: true },
-      );
-      await saveDocumentAudited(
-        'leads',
-        id,
-        payload as unknown as Record<string, unknown>,
-        true,
-        role,
-        'criar_lead_rapido',
-      );
-      setQuickLeadOpen(false);
-      setQuickLeadForm({
-        nome: '',
-        whatsapp: '',
-        email: '',
-        cidadeUf: '',
-        origem: 'Instagram',
-        interesse: 'Residência Temporal (Acordo Mercosul)',
-        prioridade: 'Alta',
-        notas: '',
-      });
-      setFeedback(`Lead "${payload.nome}" cadastrado com sucesso.`);
-      await onRefresh();
-    } catch (err) {
-      setQuickLeadError(err instanceof Error ? err.message : 'Verifique nome, e-mail e WhatsApp válidos.');
-    } finally {
-      setQuickLeadSaving(false);
-    }
-  };
 
   const engineOptions = useMemo(
     () => ({
@@ -280,6 +142,11 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       taxaCambioUsdBrl: activeRules.taxaCambioUsdBrl ?? empresa.taxaCambioUsdBrl,
     }),
     [activeRules, empresa],
+  );
+
+  const effectiveLeads = useMemo(
+    () => leads.map((l) => optimisticLeads[l.id] || l),
+    [leads, optimisticLeads],
   );
 
   const intelligence = useMemo(
@@ -381,7 +248,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             nomePortugues: v.nomePortugues,
             permiteDentroChile: v.permiteDentroChile,
           })),
-          legalSources: compactLegalSourcesForAi(inspectedResult.fontesLegais),
+          legalSources: inspectedResult.fontesLegais,
         },
         {
           onProgress: (msg) => setAiProgress(msg),
@@ -466,45 +333,12 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     });
   };
 
-  const requestDeleteLead = (lead: Lead) => {
+  const handleDelete = async (lead: Lead) => {
     if (role !== 'admin') return;
-    setConfirmModal({
-      title: 'Excluir lead definitivamente',
-      description: `Deseja excluir o lead "${lead.nome}"? A sessão temporária do diagnóstico vinculada também será removida e a exclusão ficará registrada em auditoria LGPD.`,
-      details: [
-        `E-mail / WhatsApp: ${lead.email || '—'} · ${lead.whatsapp || '—'}`,
-        `Status no funil: ${lead.statusFunil}`,
-      ],
-      confirmLabel: 'Excluir lead',
-      onConfirm: async () => {
-        await deleteLeadAndSessionAudited(lead, role);
-        setSelectedLeadIds((prev) => prev.filter((id) => id !== lead.id));
-        if (inspectingLead?.id === lead.id) setInspectingLead(null);
-        if (editingLead?.id === lead.id) setEditingLead(null);
-        setFeedback(`Lead "${lead.nome}" excluído com auditoria.`);
-        await onRefresh();
-      },
-    });
-  };
-
-  const requestBulkDeleteLeads = () => {
-    if (role !== 'admin' || selectedLeadIds.length === 0) return;
-    const targets = effectiveLeads.filter((l) => selectedLeadIds.includes(l.id));
-    if (targets.length === 0) return;
-    setConfirmModal({
-      title: `Excluir ${targets.length} lead(s) selecionado(s)`,
-      description: 'Esta ação remove definitivamente os leads selecionados e suas sessões de retomada, atendendo auditoria LGPD.',
-      details: targets.slice(0, 6).map((t) => `${t.nome} (${t.statusFunil})`),
-      confirmLabel: `Excluir ${targets.length} lead(s)`,
-      onConfirm: async () => {
-        for (const target of targets) {
-          await deleteLeadAndSessionAudited(target, role);
-        }
-        setSelectedLeadIds([]);
-        setFeedback(`${targets.length} lead(s) excluído(s) com auditoria.`);
-        await onRefresh();
-      },
-    });
+    if (!window.confirm(`Excluir o lead "${lead.nome}"? Esta ação será auditada e atende solicitação LGPD.`)) return;
+    await deleteDocumentAudited('leads', lead.id, role, lead);
+    setFeedback('Lead excluído com auditoria.');
+    await onRefresh();
   };
 
   const handleExportLeadLgpd = (lead: Lead) => {
@@ -517,14 +351,14 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const handleConvert = async (lead: Lead) => {
+  const handleConvert = async (lead: Lead, modalityOverride?: PaidConsultancyModality) => {
     if (role !== 'admin' && role !== 'consultor') {
       setFeedback('Apenas Admin ou Consultor podem converter leads em Clientes e Casos.');
       return;
     }
+    const chosenModality = modalityOverride || convertModality;
     setConvertingId(lead.id);
     setFeedback(null);
-    setLastConvertedCaseId(null);
     try {
       const res = await convertLeadToClientAndCaseEnhanced({
         lead,
@@ -536,15 +370,10 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         empresa,
         role,
         autorNome: userProfile.nome || userProfile.email,
+        modalidadeConsultoria: chosenModality,
       });
-      setLastConvertedCaseId(res.caseId);
-      setInspectingLead((prev) =>
-        prev && prev.id === lead.id
-          ? { ...prev, statusFunil: 'Fechado', convertedClientId: res.clientId, convertedCaseId: res.caseId }
-          : prev,
-      );
       setFeedback(
-        `Lead convertido! Cliente ${res.clientReused ? 'reutilizado' : 'criado'} e Processo aberto em Documentação com ${res.docsCount} documento(s) e ${res.tasksCount} tarefa(s).`,
+        `Lead convertido na modalidade ${CONSULTANCY_PLANS[chosenModality].nome}! Cliente ${res.clientReused ? 'reutilizado' : 'criado'}, Caso aberto com ${res.docsCount} documento(s) e ${res.tasksCount} tarefa(s).`,
       );
       await onRefresh();
     } finally {
@@ -674,9 +503,9 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     <div className="space-y-5 min-w-0 w-full">
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Leads</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Gestão de Leads &amp; Inteligência do Diagnóstico</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Atendimento comercial simples: filtre pela etapa, fale no WhatsApp e converta em processo em 1 clique.
+            Triagem por prioridade e confiança, simulador &quot;E se&quot;, recálculo sob demanda e conversão em 1 clique
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -684,13 +513,13 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             {[
               { id: 'lista', label: 'Lista' },
               { id: 'kanban', label: 'Kanban' },
-              { id: 'inteligencia', label: 'Métricas' },
+              { id: 'inteligencia', label: 'Inteligência & Métricas' },
             ].map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => {
-                  const next = t.id as PainelLeadsViewId;
+                  const next = t.id as typeof view;
                   setView(next);
                   try {
                     window.localStorage.setItem('dm_leads_view', next);
@@ -710,32 +539,64 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => {
-              setQuickLeadError(null);
-              setQuickLeadOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            disabled={busyAction}
+            onClick={() => void handleSyncFollowUps()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0 disabled:opacity-50"
           >
-            <Plus className="w-3.5 h-3.5" />
-            Novo Lead
+            <BellPlus className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-sky-400" />
+            Sincronizar Follow-ups
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              exportToCSV(
+                'leads-dm-integra',
+                ['Nome', 'E-mail', 'WhatsApp', 'Origem', 'UTM', 'Conclusão', 'Prioridade', 'Temperatura', 'Confiança', 'Funil', 'Subcategoria', 'Nota', 'Versão Regras', 'Data'],
+                filtered.map((l) => [
+                  l.nome,
+                  l.email,
+                  l.whatsapp,
+                  l.origem,
+                  [l.utmSource, l.utmMedium, l.utmCampaign].filter(Boolean).join('/'),
+                  l.statusConclusao || 'Concluído',
+                  l.prioridade,
+                  l.temperatura || '',
+                  l.confianca || '',
+                  l.statusFunil,
+                  l.subcategoriaSugerida,
+                  l.notaViabilidade,
+                  l.versaoRegras || '',
+                  formatDateBR(l.createdAt),
+                ]),
+              )
+            }
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar CSV
+          </button>
+          {onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              title={panelTheme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Dark Mode'}
+              aria-label={panelTheme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Dark Mode'}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
+            >
+              {panelTheme === 'dark' ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-slate-600" />
+              )}
+              <span>{panelTheme === 'dark' ? 'Modo Claro' : 'Dark Mode'}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 font-medium flex flex-wrap items-center justify-between gap-2">
-          <span>{feedback}</span>
-          {lastConvertedCaseId && (
-            <button
-              type="button"
-              onClick={() => onOpenCase(lastConvertedCaseId)}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
-            >
-              Abrir Processo agora
-              <ArrowRightCircle className="w-3.5 h-3.5" />
-            </button>
-          )}
+        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 font-medium">
+          {feedback}
         </div>
       )}
 
@@ -759,6 +620,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         </div>
       )}
 
+      {/* PAINEL DE INTELIGÊNCIA DO DIAGNÓSTICO */}
       {view === 'inteligencia' ? (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
@@ -895,54 +757,69 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         </div>
       ) : (
         <>
-          {/* Barra Simples: Etapas em 1 clique + Busca + Mais opções */}
+          {/* Barra de Filtros + Ação Recalcular */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-3">
-            {view === 'lista' && (
-              <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                {(['Todos', ...FUNIL_STAGES] as const).map((stage) => {
-                  const active = statusFilter === stage;
-                  return (
-                    <button
-                      key={stage}
-                      type="button"
-                      onClick={() => setStatusFilter(stage)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
-                        active
-                          ? 'bg-[#0B1F33] dark:bg-sky-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {stage} ({stageCounts[stage] || 0})
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center min-w-0">
+            <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center min-w-0">
               <div className="relative flex-1 min-w-0">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar lead por nome, WhatsApp, e-mail ou visto..."
+                  placeholder="Buscar lead por nome, e-mail, WhatsApp, UTM ou subcategoria..."
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 text-xs sm:text-sm"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedToolbar((v) => !v)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
-                    showAdvancedToolbar || smartFilter !== 'todos'
-                      ? 'border-[#0B1F33] dark:border-sky-500 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
-                      : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
-                  }`}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+                {view === 'lista' && (
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    aria-label="Filtrar por status do funil"
+                    className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100 min-w-0"
+                  >
+                    <option value="Todos">Todos os status do funil</option>
+                    {FUNIL_STAGES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <select
+                  value={smartFilter}
+                  onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
+                  aria-label="Filtrar por perfil do lead"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100 min-w-0"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Filtros e ações
-                </button>
+                  <option value="todos">Todos os perfis</option>
+                  <option value="alta_urgente">Prioridade Alta / Urgente</option>
+                  <option value="quente">Temperatura Quente</option>
+                  <option value="confianca_baixa">Confiança Baixa</option>
+                  <option value="revisar_consultor">Solicitou falar c/ consultor</option>
+                  <option value="abandonados">Abandonados / Em andamento</option>
+                </select>
+                <select
+                  value={convertModality}
+                  onChange={(e) => setConvertModality(e.target.value as PaidConsultancyModality)}
+                  aria-label="Modalidade padrão ao converter lead"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 max-w-[230px] min-w-0 font-semibold"
+                >
+                  <option value="completa">Converter como: Completa</option>
+                  <option value="orientativa">Converter como: Orientativa</option>
+                </select>
+                <select
+                  value={selectedTplId}
+                  onChange={(e) => setSelectedTplId(e.target.value)}
+                  aria-label="Selecionar modelo de mensagem"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 max-w-[240px] min-w-0"
+                >
+                  {messageTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      Modelo: {t.titulo}
+                    </option>
+                  ))}
+                </select>
                 {hasActiveFilters && (
                   <button
                     type="button"
@@ -955,100 +832,19 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               </div>
             </div>
 
-            {showAdvancedToolbar && (
-              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
-                <select
-                  value={smartFilter}
-                  onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
-                  aria-label="Filtrar por perfil do lead"
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value="todos">Todos os perfis</option>
-                  <option value="alta_urgente">Prioridade Alta / Urgente</option>
-                  <option value="quente">Temperatura Quente</option>
-                  <option value="confianca_baixa">Confiança Baixa</option>
-                  <option value="revisar_consultor">Solicitou falar c/ consultor</option>
-                  <option value="abandonados">Abandonados / Em andamento</option>
-                </select>
-                <select
-                  value={selectedTplId}
-                  onChange={(e) => setSelectedTplId(e.target.value)}
-                  aria-label="Selecionar modelo de mensagem"
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 max-w-[240px]"
-                >
-                  {messageTemplates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      WhatsApp: {t.titulo}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={busyAction}
-                  onClick={() => void handleSyncFollowUps()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap disabled:opacity-50"
-                >
-                  <BellPlus className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-sky-400" />
-                  Sincronizar Follow-ups
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    exportToCSV(
-                      'leads-dm-integra',
-                      ['Nome', 'E-mail', 'WhatsApp', 'Origem', 'UTM', 'Conclusão', 'Prioridade', 'Temperatura', 'Confiança', 'Funil', 'Subcategoria', 'Nota', 'Versão Regras', 'Data'],
-                      filtered.map((l) => [
-                        l.nome,
-                        l.email,
-                        l.whatsapp,
-                        l.origem,
-                        [l.utmSource, l.utmMedium, l.utmCampaign].filter(Boolean).join('/'),
-                        l.statusConclusao || 'Concluído',
-                        l.prioridade,
-                        l.temperatura || '',
-                        l.confianca || '',
-                        l.statusFunil,
-                        l.subcategoriaSugerida,
-                        l.notaViabilidade,
-                        l.versaoRegras || '',
-                        formatDateBR(l.createdAt),
-                      ]),
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Exportar CSV
-                </button>
-              </div>
-            )}
-
             {selectedLeadIds.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                 <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{selectedLeadIds.length} lead(s) selecionado(s)</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={busyAction}
-                    onClick={() => void handleRecalculateSelected()}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white font-semibold whitespace-nowrap shrink-0 disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Recalcular selecionados com regras {activeRules.versao}
-                  </button>
-                  {role === 'admin' && (
-                    <button
-                      type="button"
-                      disabled={busyAction}
-                      onClick={requestBulkDeleteLeads}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 text-[#C82333] dark:text-red-400 font-semibold whitespace-nowrap shrink-0 hover:bg-red-100/80 disabled:opacity-50"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Excluir selecionados
-                    </button>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  disabled={busyAction}
+                  onClick={() => void handleRecalculateSelected()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white font-semibold whitespace-nowrap shrink-0 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Recalcular selecionados com regras {activeRules.versao}
+                </button>
               </div>
             )}
           </div>
@@ -1175,7 +971,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                           {role === 'admin' && (
                             <button
                               type="button"
-                              onClick={() => requestDeleteLead(l)}
+                              onClick={() => void handleDelete(l)}
                               aria-label={`Excluir ${l.nome}`}
                               className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                             >
@@ -1203,7 +999,6 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               onQuickUpdateLead={handleQuickUpdateLead}
               onInspectLead={openInspectModal}
               onEditLead={setEditingLead}
-              onDeleteLead={role === 'admin' ? requestDeleteLead : undefined}
               onSendWhatsApp={handleSendTemplate}
               onConvertLead={handleConvert}
               onOpenCase={onOpenCase}
@@ -1227,16 +1022,6 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {role === 'admin' && (
-                  <button
-                    type="button"
-                    onClick={() => requestDeleteLead(inspectingLead)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800/70 bg-white dark:bg-slate-800 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Excluir
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => handleExportLeadLgpd(inspectingLead)}
@@ -1255,131 +1040,34 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               </div>
             </div>
 
-            {/* Fluxo Rápido do Lead: avançar etapas ou converter em Processo em 1 clique */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  Fluxo do Lead · Etapa atual: <strong className="text-slate-900 dark:text-slate-100">{inspectingLead.statusFunil}</strong>
-                </p>
-                <div className="flex flex-wrap items-center gap-1">
-                  {(['Novo', 'Contatado', 'Diagnóstico Agendado', 'Orçamento Enviado', 'Fechado'] as Lead['statusFunil'][]).map((st) => {
-                    const active = inspectingLead.statusFunil === st;
-                    return (
-                      <button
-                        key={st}
-                        type="button"
-                        disabled={movingLeadId === inspectingLead.id}
-                        onClick={async () => {
-                          await handleMoveLeadStage(inspectingLead, st);
-                          setInspectingLead((prev) => (prev ? { ...prev, statusFunil: st } : prev));
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors whitespace-nowrap ${
-                          active
-                            ? 'bg-[var(--color-primary)] text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => void handleSendTemplate(inspectingLead)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700/70 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 text-xs font-semibold hover:bg-emerald-100/70 whitespace-nowrap"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  WhatsApp
-                </button>
-                {inspectingLead.convertedCaseId ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cid = inspectingLead.convertedCaseId!;
-                      setInspectingLead(null);
-                      onOpenCase(cid);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap"
-                    style={{ backgroundColor: '#1E7E34' }}
-                  >
-                    Abrir Processo
-                    <ArrowRightCircle className="w-3.5 h-3.5" />
-                  </button>
-                ) : (role === 'admin' || role === 'consultor') ? (
-                  <button
-                    type="button"
-                    disabled={convertingId === inspectingLead.id}
-                    onClick={() => void handleConvert(inspectingLead)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap disabled:opacity-50"
-                    style={{ backgroundColor: '#1E7E34' }}
-                  >
-                    <ArrowRightCircle className="w-3.5 h-3.5" />
-                    {convertingId === inspectingLead.id ? 'Abrindo Processo...' : 'Converter em Processo (1 clique)'}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {role === 'admin' ? (
-              <DiagnosticReportView
-                mode="consultant"
-                result={inspectedResult}
-                answers={inspectingLead.respostasTriagem}
-                empresa={empresa}
-                hideCosts={false}
-                savedLeadId={inspectingLead.id}
-                aiDraft={aiDraft}
-                aiLoading={aiLoading}
-                aiProgress={aiProgress}
-                aiError={aiError}
-                onRefineAi={() => void handleRefineInspectAi()}
-                onUpdateAiDraft={(next) => {
-                  setAiDraft(next);
-                  if (inspectingLead) saveAiDraftCache(`diagnostico_lead_${inspectingLead.id}`, next);
-                }}
-                onOpenLaw={() => setLawModalOpen(true)}
-                onLogWhatsApp={async (assunto, msg) => {
-                  await onLogWhatsApp(inspectingLead.convertedClientId, inspectingLead.convertedCaseId, assunto, msg);
-                }}
-                whatIfAnswers={whatIfAnswers}
-                whatIfComparison={whatIfComparison}
-                onChangeWhatIf={setWhatIfAnswers}
-                onResetWhatIf={() =>
-                  setWhatIfAnswers(inspectingLead.respostasTriagem ? { ...inspectingLead.respostasTriagem } : null)
-                }
-                leadHistory={inspectingLead.historicoResultados}
-              />
-            ) : (
-              <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-6 space-y-4">
-                <div className="space-y-1">
-                  <p className="brand-kicker">Acesso Restrito ao Administrador</p>
-                  <h3 className="text-lg font-bold text-[#0B1F33] dark:text-slate-100">
-                    Resumo básico do diagnóstico — {inspectingLead.nome}
-                  </h3>
-                  <p className="text-xs text-[#4A5A6D] dark:text-slate-400 leading-relaxed">
-                    O relatório técnico completo (pontuação detalhada, subcategorias SERMIG, plano de ação documental, custos e simulador de cenários) é de acesso exclusivo do perfil Administrador.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] text-xs">
-                  <div>
-                    <p className="text-[#4A5A6D] dark:text-slate-400">Protocolo</p>
-                    <p className="font-semibold text-[#0B1F33] dark:text-slate-100 mt-0.5 tabular-nums">{inspectingLead.id}</p>
-                  </div>
-                  <div>
-                    <p className="text-[#4A5A6D] dark:text-slate-400">Contato do cliente</p>
-                    <p className="font-semibold text-[#0B1F33] dark:text-slate-100 mt-0.5">{inspectingLead.whatsapp || inspectingLead.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-[#4A5A6D] dark:text-slate-400">Status do atendimento</p>
-                    <p className="font-semibold text-[#0B1F33] dark:text-slate-100 mt-0.5">{inspectingLead.statusFunil || 'Novo'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <DiagnosticReportView
+              mode="consultant"
+              result={inspectedResult}
+              answers={inspectingLead.respostasTriagem}
+              empresa={empresa}
+              hideCosts={role === 'assistente'}
+              savedLeadId={inspectingLead.id}
+              aiDraft={aiDraft}
+              aiLoading={aiLoading}
+              aiProgress={aiProgress}
+              aiError={aiError}
+              onRefineAi={() => void handleRefineInspectAi()}
+              onUpdateAiDraft={(next) => {
+                setAiDraft(next);
+                if (inspectingLead) saveAiDraftCache(`diagnostico_lead_${inspectingLead.id}`, next);
+              }}
+              onOpenLaw={() => setLawModalOpen(true)}
+              onLogWhatsApp={async (assunto, msg) => {
+                await onLogWhatsApp(inspectingLead.convertedClientId, inspectingLead.convertedCaseId, assunto, msg);
+              }}
+              whatIfAnswers={whatIfAnswers}
+              whatIfComparison={whatIfComparison}
+              onChangeWhatIf={setWhatIfAnswers}
+              onResetWhatIf={() =>
+                setWhatIfAnswers(inspectingLead.respostasTriagem ? { ...inspectingLead.respostasTriagem } : null)
+              }
+              leadHistory={inspectingLead.historicoResultados}
+            />
           </div>
         </div>
       )}
@@ -1442,25 +1130,13 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               />
             </div>
             <div className="flex flex-wrap justify-between items-center gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleExportLeadLgpd(editingLead)}
-                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  Exportar LGPD
-                </button>
-                {role === 'admin' && (
-                  <button
-                    type="button"
-                    onClick={() => requestDeleteLead(editingLead)}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/70 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Excluir
-                  </button>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => handleExportLeadLgpd(editingLead)}
+                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Exportar LGPD
+              </button>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1481,154 +1157,6 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           </form>
         </div>
       )}
-
-      {/* Modal Novo Lead Rápido */}
-      {quickLeadOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 flex items-center justify-center p-4">
-          <form
-            onSubmit={(e) => void handleCreateQuickLead(e)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Novo Lead Rápido</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Cadastre um contato recebido por WhatsApp, Instagram ou indicação em segundos.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setQuickLeadOpen(false)}
-                aria-label="Fechar"
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {quickLeadError && (
-              <p className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
-                {quickLeadError}
-              </p>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <label className="space-y-1 sm:col-span-2">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Nome completo *</span>
-                <input
-                  type="text"
-                  required
-                  value={quickLeadForm.nome}
-                  onChange={(e) => setQuickLeadForm((p) => ({ ...p, nome: e.target.value }))}
-                  placeholder="Ex.: Mariana Silva"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">WhatsApp *</span>
-                <input
-                  type="text"
-                  required
-                  value={quickLeadForm.whatsapp}
-                  onChange={(e) => setQuickLeadForm((p) => ({ ...p, whatsapp: e.target.value }))}
-                  placeholder="+55 11 99999-9999"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">E-mail *</span>
-                <input
-                  type="email"
-                  required
-                  value={quickLeadForm.email}
-                  onChange={(e) => setQuickLeadForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="nome@email.com"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Origem</span>
-                <select
-                  value={quickLeadForm.origem}
-                  onChange={(e) => setQuickLeadForm((p) => ({ ...p, origem: e.target.value as Lead['origem'] }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                >
-                  <option value="Instagram">Instagram</option>
-                  <option value="Indicação">Indicação</option>
-                  <option value="Site">Site</option>
-                  <option value="Parceiro">Parceiro</option>
-                  <option value="Outro">Outro</option>
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Prioridade</span>
-                <select
-                  value={quickLeadForm.prioridade}
-                  onChange={(e) =>
-                    setQuickLeadForm((p) => ({ ...p, prioridade: e.target.value as Lead['prioridade'] }))
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                >
-                  <option value="Urgente">Urgente</option>
-                  <option value="Alta">Alta</option>
-                  <option value="Média">Média</option>
-                  <option value="Baixa">Baixa</option>
-                </select>
-              </label>
-              <label className="space-y-1 sm:col-span-2">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Interesse / Visto</span>
-                <input
-                  type="text"
-                  value={quickLeadForm.interesse}
-                  onChange={(e) => setQuickLeadForm((p) => ({ ...p, interesse: e.target.value }))}
-                  placeholder="Ex.: Residência Mercosul, Trabalho, Reunificação Familiar"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                />
-              </label>
-              <label className="space-y-1 sm:col-span-2">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Observações (opcional)</span>
-                <textarea
-                  rows={2}
-                  value={quickLeadForm.notas}
-                  onChange={(e) => setQuickLeadForm((p) => ({ ...p, notas: e.target.value }))}
-                  placeholder="Contexto rápido do atendimento..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                />
-              </label>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setQuickLeadOpen(false)}
-                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={quickLeadSaving}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                {quickLeadSaving ? 'Salvando...' : 'Salvar Lead'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <ConfirmActionModal
-        open={Boolean(confirmModal)}
-        title={confirmModal?.title || 'Confirmar'}
-        description={confirmModal?.description || ''}
-        details={confirmModal?.details}
-        confirmLabel={confirmModal?.confirmLabel}
-        onConfirm={async () => {
-          if (confirmModal) await confirmModal.onConfirm();
-        }}
-        onClose={() => setConfirmModal(null)}
-      />
     </div>
   );
 };

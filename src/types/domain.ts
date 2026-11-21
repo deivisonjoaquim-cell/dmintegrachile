@@ -1,6 +1,8 @@
 export type UserRole = 'admin' | 'consultor' | 'assistente' | 'cliente';
 export type UserStatus = 'ativo' | 'pendente' | 'inativo';
 export type CurrencyCode = 'BRL' | 'CLP' | 'USD';
+export type ConsultancyModality = 'diagnostico_gratuito' | 'orientativa' | 'completa';
+export type PaidConsultancyModality = 'orientativa' | 'completa';
 export type FontChoice =
   | 'Plus Jakarta Sans'
   | 'DM Sans'
@@ -229,8 +231,6 @@ export interface PartnerProposal {
   parecerIa?: string;
   decisaoConsultor?: string;
   textoIndicacao?: string;
-  partnerIdVinculado?: string;
-  notasInternas?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -401,9 +401,6 @@ export interface DiagnosticAnswers {
   localizacao: DiagnosticLocation;
   faixaEtaria?: 'maior_18' | 'menor_18_com_pais' | 'menor_18_desacompanhado';
   mesesResidenciaChile?: number;
-  residenteSubcategoriaAtual?: string;
-  residenteVenceEmDias?: 'mais_90' | 'entre_90_e_10' | 'menos_10' | 'vencida';
-  residenteMesesForaUltimoAno?: number;
   entradaRecenteChileTurista?: boolean | null;
   nacionalidadeBrasileira: boolean | null;
   possuiSegundaNacionalidade: boolean | null;
@@ -412,7 +409,6 @@ export interface DiagnosticAnswers {
   passaporteValidadeMeses: number; // >= 12 ideal
   // Etapa 3
   vinculoFamiliarChile: boolean | null;
-  familiarStatusChile?: 'chileno' | 'residente_definitivo' | 'residente_temporal';
   vinculoTipo?: 'Cônjuge/União Civil' | 'Filho(a) chileno(a)' | 'Pais/Dependente' | 'Outro';
   vinculoFormalizado: boolean | null;
   composicaoFamiliar?: 'individual' | 'casal' | 'familia_com_filhos';
@@ -420,17 +416,11 @@ export interface DiagnosticAnswers {
   // Etapa 4
   objetivo: DiagnosticObjective | '';
   possuiOfertaTrabalhoFormal: boolean | null;
-  contratoNotariadoEmpresaChilena?: boolean | null;
   possuiMatriculaReconhecida: boolean | null;
   possuiRendaPassiva: boolean | null;
   faixaRendaMensalUsd?: 'abaixo_1000' | '1000_2500' | 'acima_2500';
   possuiCapitalComprovadoOrigem: boolean | null;
-  investimentoAcima500kUsd?: boolean | null;
   titularTemResidenciaChile: boolean | null;
-  possuiCertificadoMedicoChile?: boolean | null;
-  possuiRespaldoEntidadeReligiosa?: boolean | null;
-  possuiContratoSazonal?: boolean | null;
-  motivoHumanitarioTipo?: 'protecao_vulnerabilidade' | 'vitima_trafico_violencia' | 'menor_desprotegido' | 'outro_humanitario';
   // Etapa 5 (Riscos independentes)
   overstay: boolean | null;
   ordenAbandono: boolean | null;
@@ -529,6 +519,7 @@ export interface Lead {
   cidadeUf: string;
   origem: 'Instagram' | 'Indicação' | 'Site' | 'Parceiro' | 'Outro';
   interesse: string;
+  modalidadeInteresse?: PaidConsultancyModality;
   statusFunil: 'Novo' | 'Contatado' | 'Diagnóstico Agendado' | 'Orçamento Enviado' | 'Fechado' | 'Perdido';
   motivoPerda?: string;
   responsavelId?: string;
@@ -583,6 +574,7 @@ export interface Client {
   userId?: string;
   portalLiberado: boolean;
   statusAcessoPortal: 'Não solicitado' | 'Pendente liberação' | 'Liberado';
+  modalidadeConsultoria?: PaidConsultancyModality;
   lgpdAceito?: boolean;
   lgpdAceitoEm?: string;
   lgpdVersao?: string;
@@ -642,6 +634,7 @@ export interface Case {
     | 'Rejeitado'
     | 'Em recurso';
   portalLiberado: boolean;
+  modalidadeConsultoria?: PaidConsultancyModality;
   relatorioViabilidadeLiberado: boolean;
   dataContrato?: string;
   dataProtocolo?: string;
@@ -828,6 +821,7 @@ export interface Budget {
   clientId?: string;
   caseId?: string;
   titulo: string;
+  modalidadeConsultoria?: PaidConsultancyModality;
   tipoCobranca: 'Por Serviço Escolhido' | 'Por Etapa Realizada' | 'Pacote Completo';
   moedaPrincipal: CurrencyCode;
   taxaCambioBrlClp?: number;
