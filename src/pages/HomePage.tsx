@@ -4,6 +4,7 @@ import { HomeSectionsView } from '../components/HomeSectionsView';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { useSeoMetadata } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -11,17 +12,19 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const { empresa, siteContent, partnersPublic, legalSources } = useApp();
+  const { isEsCL, t } = useLanguage();
   const [lawModalOpen, setLawModalOpen] = useState(false);
   const [calendlyOpen, setCalendlyOpen] = useState(false);
 
   const heroSec = siteContent.find((s) => s.secao === 'hero');
 
   useSeoMetadata({
-    title: heroSec?.seoTitulo || empresa.seoTituloPadrao || `${empresa.nome_empresa}`,
-    description:
-      heroSec?.seoDescricao ||
-      empresa.seoDescricaoPadrao ||
-      'Assessoria especializada em imigração, Acordo Mercosul, Residência Temporal e Definitiva no Chile.',
+    title: isEsCL
+      ? t.seo.homeTitle(empresa.nome_empresa)
+      : heroSec?.seoTitulo || empresa.seoTituloPadrao || empresa.nome_empresa,
+    description: isEsCL
+      ? t.seo.homeDescription
+      : heroSec?.seoDescricao || empresa.seoDescricaoPadrao || t.seo.homeDescription,
     orgName: empresa.nome_empresa,
     email: empresa.email,
     whatsapp: empresa.whatsapp,
@@ -43,7 +46,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <LegalBaseModal
         open={lawModalOpen}
         onClose={() => setLawModalOpen(false)}
-        title="Legislação Chilena, Brasileira e Mercosul — em linguagem clara"
+        title={t.seo.legalModalTitle}
         sources={legalSources}
         clientFriendlyOnly
       />

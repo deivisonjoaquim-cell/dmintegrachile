@@ -33,6 +33,7 @@ import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../util
 import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
 import { computeDailyPrioritySummary, type LegacyPanelSection } from '../../utils/panelNavigation';
+import { PainelAnalyticsRecharts } from './PainelAnalyticsRecharts';
 import { PainelFunnelConversionChart } from './PainelFunnelConversionChart';
 import { PainelFunnelPerformanceSummary } from './PainelFunnelPerformanceSummary';
 import { PainelLembretesVencimento } from './PainelLembretesVencimento';
@@ -483,6 +484,15 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         </div>
       </section>
 
+      {/* Painel Estatístico Recharts: Diagnósticos/Mês, Taxa de Conversão e Perfis Migratórios */}
+      <PainelAnalyticsRecharts
+        leads={filteredLeads}
+        clients={clients}
+        cases={cases}
+        isDark={isDark}
+        onNavigateSection={onNavigateSection}
+      />
+
       {/* Fila de Trabalho Unificada em 4 Abas Práticas */}
       <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         <div
@@ -764,6 +774,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                   clients={clients}
                   dependents={dependents}
                   visaRequirements={visaRequirements}
+                  deadlines={deadlines}
                   communicationLogs={communicationLogs}
                   brandName={brandName}
                   onOpenCase={(id) => onOpenCase(id)}

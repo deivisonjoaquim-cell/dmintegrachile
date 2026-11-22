@@ -25,6 +25,8 @@ import {
 import {
   dispatchExpirationReminderEmails,
   getSmtpConfigFromEnv,
+  sendTestExpirationEmail,
+  verifySmtpConnection,
   type EmailReminderItemPayload,
 } from './server/emailReminderService.ts';
 import {
@@ -367,9 +369,42 @@ app.get(
     res.json({
       ok: true,
       smtpConfigured: smtp.configured,
+      hostConfigured: Boolean(smtp.host),
+      port: smtp.port,
+      secure: smtp.secure,
       from: smtp.from,
+      alertDays: smtp.alertDays,
       cooldownDays: smtp.cooldownDays,
     });
+  },
+);
+
+app.post(
+  '/api/emails/verify-smtp',
+  requireAuth,
+  requireRole(['admin', 'consultor']),
+  async (_req: AuthedRequest, res: Response) => {
+    const result = await verifySmtpConnection();
+    res.json(result);
+  },
+);
+
+app.post(
+  '/api/emails/test',
+  requireAuth,
+  requireRole(['admin', 'consultor']),
+  async (req: AuthedRequest, res: Response) => {
+    const body = (req.body || {}) as { toEmail?: string; brandName?: string; portalUrl?: string };
+    const targetEmail = (body.toEmail || req.authUser?.email || '').trim();
+    const appUrl = (process.env.APP_URL || '').trim().replace(/\/$/, '');
+    const portalUrl = body.portalUrl || (appUrl ? `${appUrl}/portal` : '');
+
+    const result = await sendTestExpirationEmail({
+      toEmail: targetEmail,
+      brandName: body.brandName,
+      portalUrl,
+    });
+    res.status(result.ok ? 200 : 400).json(result);
   },
 );
 

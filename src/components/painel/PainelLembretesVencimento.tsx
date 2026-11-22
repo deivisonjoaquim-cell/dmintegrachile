@@ -11,12 +11,15 @@ import {
   MessageCircle,
   Search,
   Send,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import {
   fetchEmailAutomationHealth,
   findLatestEmailLogForDoc,
   sendExpirationReminderEmails,
+  sendTestReminderEmailClient,
+  verifySmtpConnectionClient,
   type EmailServiceHealth,
 } from '../../services/emailReminderClient';
 import { notifyClientProcessUpdate } from '../../services/notificationService';
@@ -25,6 +28,7 @@ import type {
   CaseDocument,
   Client,
   CommunicationLog,
+  Deadline,
   Dependent,
   VisaRequirement,
 } from '../../types/domain';
@@ -40,6 +44,7 @@ interface PainelLembretesVencimentoProps {
   clients: Client[];
   dependents?: Dependent[];
   visaRequirements?: VisaRequirement[];
+  deadlines?: Deadline[];
   communicationLogs?: CommunicationLog[];
   brandName?: string;
   onOpenCase: (caseId: string) => void;
@@ -53,7 +58,7 @@ interface PainelLembretesVencimentoProps {
   onEmailLogsCreated?: (logs: CommunicationLog[]) => void;
 }
 
-type ReminderFilter = 'todos' | 'vencidos' | 'criticos' | 'atencao' | 'sem_data';
+type ReminderFilter = 'todos' | 'vistos' | 'vencidos' | 'criticos' | 'atencao' | 'sem_data';
 
 const AUTO_EMAIL_ENABLED_KEY = 'dm_auto_email_reminders_enabled';
 const AUTO_EMAIL_LAST_SWEEP_KEY = 'dm_auto_email_last_sweep_ms';
@@ -64,6 +69,7 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
   clients,
   dependents = [],
   visaRequirements = [],
+  deadlines = [],
   communicationLogs = [],
   brandName,
   onOpenCase,
@@ -77,6 +83,8 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
+  const [verifyingSmtp, setVerifyingSmtp] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const [emailHealth, setEmailHealth] = useState<EmailServiceHealth | null>(null);
   const [autoSweepEnabled, setAutoSweepEnabled] = useState<boolean>(() => {
@@ -110,6 +118,9 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
     };
   }, []);
 
+  const alertDays = emailHealth?.alertDays ?? 30;
+  const cooldownDays = emailHealth?.cooldownDays ?? 7;
+
   const summary = useMemo(
     () =>
       collectExpirationReminders({
@@ -118,11 +129,11 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
         clients,
         dependents,
         visaRequirements,
+        deadlines,
+        warningDays: alertDays,
       }),
-    [docs, cases, clients, dependents, visaRequirements],
+    [docs, cases, clients, dependents, visaRequirements, deadlines, alertDays],
   );
-
-  const cooldownDays = emailHealth?.cooldownDays ?? 7;
 
   const eligiblePendingEmailItems = useMemo(() => {
     const nowMs = Date.now();
@@ -146,13 +157,15 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
     const base: ExpirationReminderItem[] =
       filter === 'sem_data'
         ? summary.missingDateItems
-        : filter === 'vencidos'
-          ? summary.expiringItems.filter((i) => i.severity === 'vencido')
-          : filter === 'criticos'
-            ? summary.expiringItems.filter((i) => i.severity === 'critico')
-            : filter === 'atencao'
-              ? summary.expiringItems.filter((i) => i.severity === 'atencao')
-              : summary.expiringItems;
+        : filter === 'vistos'
+          ? summary.expiringItems.filter((i) => i.itemKind === 'visto' || i.itemKind === 'prazo_visto')
+          : filter === 'vencidos'
+            ? summary.expiringItems.filter((i) => i.severity === 'vencido')
+            : filter === 'criticos'
+              ? summary.expiringItems.filter((i) => i.severity === 'critico')
+              : filter === 'atencao'
+                ? summary.expiringItems.filter((i) => i.severity === 'atencao')
+                : summary.expiringItems;
 
     const q = queryText.trim().toLowerCase();
     if (!q) return base;
@@ -170,18 +183,21 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
       const dedupKey = `${clientId}::${item.doc.id}`;
       if (seenKeys.has(dedupKey)) continue;
       seenKeys.add(dedupKey);
+      const isVisa = item.itemKind === 'visto' || item.itemKind === 'prazo_visto';
       await notifyClientProcessUpdate({
         clientId,
         caseId: item.caseObj.id,
         tipo: 'prazo',
-        titulo: `Vencimento próximo: ${item.doc.nomeDocumento}`,
+        titulo: isVisa
+          ? `Alerta de Visto (≤ ${alertDays}d): ${item.doc.nomeDocumento}`
+          : `Vencimento próximo: ${item.doc.nomeDocumento}`,
         mensagem: `${item.statusLabel} (Validade: ${item.dataValidadeBR}). Enviamos um lembrete automático para o seu e-mail.`,
         linkDestino: '/portal',
       }).catch(() => undefined);
     }
-  }, []);
+  }, [alertDays]);
 
-  // Varredura automática diária silenciosa quando SMTP ativo + há itens pendentes fora do cooldown
+  // Varredura automática diária silenciosa quando SMTP ativo + há vistos/documentos <= 30 dias fora do cooldown
   useEffect(() => {
     if (!autoSweepEnabled || !emailHealth?.smtpConfigured || autoSweptRef.current) return;
     if (eligiblePendingEmailItems.length === 0) return;
@@ -217,7 +233,7 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
           );
           setEmailFeedback({
             tone: 'success',
-            text: `Automação diária: ${res.sentEmails} e-mail(s) enviado(s) automaticamente cobrindo ${res.coveredDocs} documento(s) < 30 dias.`,
+            text: `Automação diária Nodemailer: ${res.sentEmails} e-mail(s) enviado(s) automaticamente cobrindo ${res.coveredDocs} visto(s)/documento(s) ≤ ${alertDays} dias.`,
           });
         }
       } catch {
@@ -231,6 +247,7 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
     communicationLogs,
     brandName,
     copyConsultant,
+    alertDays,
     onEmailLogsCreated,
     syncPortalNotifications,
   ]);
@@ -247,16 +264,66 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
     });
   };
 
+  const handleVerifySmtp = async () => {
+    if (verifyingSmtp) return;
+    setVerifyingSmtp(true);
+    setEmailFeedback(null);
+    try {
+      const res = await verifySmtpConnectionClient();
+      setEmailHealth((prev) => ({
+        ok: res.ok,
+        smtpConfigured: res.smtpConfigured,
+        port: res.port,
+        secure: res.secure,
+        alertDays: res.alertDays,
+        cooldownDays: res.cooldownDays,
+        from: prev?.from,
+      }));
+      setEmailFeedback({
+        tone: res.ok ? 'success' : res.smtpConfigured ? 'error' : 'warning',
+        text: res.message,
+      });
+    } catch (err) {
+      setEmailFeedback({
+        tone: 'error',
+        text: err instanceof Error ? err.message : 'Erro ao validar conexão SMTP.',
+      });
+    } finally {
+      setVerifyingSmtp(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (sendingTest) return;
+    setSendingTest(true);
+    setEmailFeedback(null);
+    try {
+      const res = await sendTestReminderEmailClient({ brandName });
+      setEmailFeedback({
+        tone: res.ok ? 'success' : res.smtpConfigured ? 'error' : 'warning',
+        text: res.message,
+      });
+    } catch (err) {
+      setEmailFeedback({
+        tone: 'error',
+        text: err instanceof Error ? err.message : 'Falha ao enviar e-mail de teste.',
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   const handleNotifyClient = async (item: ExpirationReminderItem) => {
     if (sendingId) return;
     setSendingId(item.doc.id);
     try {
       const clientName = item.client?.nomeCompleto ? `, ${item.client.nomeCompleto}` : '';
+      const kindWord = item.itemKind === 'visto' ? 'o visto/residência' : 'o documento';
       const detail =
         item.severity === 'vencido'
-          ? `o documento "${item.doc.nomeDocumento}" (${item.doc.pessoa}) consta como vencido (${item.dataValidadeBR}) e precisa ser reemitido`
-          : `o documento "${item.doc.nomeDocumento}" (${item.doc.pessoa}) expira em ${item.daysRemaining} dia(s) (${item.dataValidadeBR})`;
-      const msg = `Olá${clientName}! Lembrete de vencimento D&M Integra Chile: ${detail}. Caso já tenha atualizado, envie pelo Portal do Cliente.`;
+          ? `${kindWord} "${item.doc.nomeDocumento}" (${item.doc.pessoa}) consta como vencido (${item.dataValidadeBR}) e precisa de ação imediata`
+          : `${kindWord} "${item.doc.nomeDocumento}" (${item.doc.pessoa}) expira em ${item.daysRemaining} dia(s) (${item.dataValidadeBR})`;
+      const msg = `Olá${clientName}! Lembrete preventivo de vencimento D&M Integra Chile (janela ${alertDays} dias): ${detail}. Caso já tenha atualizado, envie pelo Portal do Cliente.`;
       if (item.client?.whatsapp) {
         openExternalSafe(buildWhatsAppUrl(item.client.whatsapp, msg));
       }
@@ -288,14 +355,14 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
         await syncPortalNotifications([item]);
         setEmailFeedback({
           tone: 'success',
-          text: `Lembrete enviado por e-mail para ${item.client?.email} referente a "${item.doc.nomeDocumento}".`,
+          text: `Lembrete enviado por e-mail via Nodemailer para ${item.client?.email} referente a "${item.doc.nomeDocumento}".`,
         });
       } else if (!res.smtpConfigured) {
         setEmailFeedback({
           tone: 'warning',
           text:
             res.warning ||
-            'Configure SMTP_HOST, SMTP_USER e SMTP_PASS no ambiente para ativar o envio real via Nodemailer.',
+            'Configure SMTP_HOST, SMTP_USER e SMTP_PASS nos segredos do servidor (.env.example) para ativar o envio real via Nodemailer.',
         });
       } else {
         setEmailFeedback({
@@ -337,7 +404,7 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
         await syncPortalNotifications(targets.filter((i) => sentIds.has(i.doc.id)));
         setEmailFeedback({
           tone: 'success',
-          text: `${res.sentEmails} e-mail(s) enviado(s) via Nodemailer cobrindo ${res.coveredDocs} documento(s).`,
+          text: `${res.sentEmails} e-mail(s) enviado(s) via Nodemailer cobrindo ${res.coveredDocs} visto(s)/documento(s) ≤ ${alertDays} dias.`,
         });
       } else if (!res.smtpConfigured) {
         setEmailFeedback({
@@ -381,14 +448,14 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
       });
       if (res.previewHtml) {
         setPreviewModal({
-          subject: res.previewSubject || 'Lembrete de Vencimento (< 30 dias)',
+          subject: res.previewSubject || `Lembrete de Vencimento (≤ ${alertDays} dias)`,
           to: res.previewTo || '(cliente)',
           html: res.previewHtml,
         });
       } else {
         setEmailFeedback({
           tone: 'warning',
-          text: res.warning || 'Não há documentos com vencimento < 30 dias para pré-visualizar.',
+          text: res.warning || `Não há vistos ou documentos com vencimento ≤ ${alertDays} dias para pré-visualizar.`,
         });
       }
     } catch (err) {
@@ -405,9 +472,8 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
 
   return (
     <section
-      aria-label="Lembretes de Vencimento de Documentos Exigidos"
-      className="border border-slate-200 p-6 space-y-4"
-      style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--card-radius, 12px)' }}
+      aria-label="Lembretes Automáticos de Vencimento de Vistos e Documentos"
+      className="bg-white dark:bg-[#0D1E31] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 rounded-xl"
     >
       {/* Cabeçalho */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -420,73 +486,81 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                 aria-hidden="true"
               />
             ) : (
-              <CalendarClock className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+              <CalendarClock className="w-5 h-5 text-[var(--color-primary)] dark:text-[#E5C76B] shrink-0" aria-hidden="true" />
             )}
-            <h2 className="text-lg font-bold text-slate-900">Lembretes de Vencimento</h2>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+              Lembretes Automáticos de Vistos &amp; Documentos (≤ {alertDays} dias)
+            </h2>
           </div>
-          <p className="text-xs text-slate-500">
-            Verificação automática das datas dos documentos exigidos com expiração em menos de 30 dias e disparo por e-mail (Nodemailer / Firebase Functions)
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Integração Nodemailer (variáveis SMTP de <code className="font-mono">.env.example</code>) com disparo preventivo 30 dias antes da expiração de vistos, residências e certidões
           </p>
         </div>
 
         {/* Resumo numérico limpo em texto tabular */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums">
-          <span className={counts.vencidos > 0 ? 'font-bold text-[#DC2626]' : 'text-slate-500'}>
+          <span className={counts.vistosAlerta > 0 ? 'font-bold text-[#146B43] dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}>
+            {counts.vistosAlerta} visto(s) ≤ {alertDays}d
+          </span>
+          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+          <span className={counts.vencidos > 0 ? 'font-bold text-[#DC2626] dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}>
             {counts.vencidos} vencido(s)
           </span>
-          <span className="text-slate-300" aria-hidden="true">·</span>
-          <span className={counts.criticos7d > 0 ? 'font-bold text-[#DC2626]' : 'text-slate-500'}>
+          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+          <span className={counts.criticos7d > 0 ? 'font-bold text-[#DC2626] dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}>
             {counts.criticos7d} crítico(s) ≤ 7d
           </span>
-          <span className="text-slate-300" aria-hidden="true">·</span>
-          <span className={counts.atencao30d > 0 ? 'font-bold text-[#D97706]' : 'text-slate-500'}>
-            {counts.atencao30d} em atenção (8–29d)
+          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+          <span className={counts.atencao30d > 0 ? 'font-bold text-[#D97706] dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}>
+            {counts.atencao30d} em atenção (8–{alertDays}d)
           </span>
-          <span className="text-slate-300" aria-hidden="true">·</span>
-          <span className="text-slate-500">
-            {summary.monitoredCount} com data monitorada
+          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+          <span className="text-slate-500 dark:text-slate-400">
+            {summary.monitoredCount} monitorado(s)
           </span>
         </div>
       </div>
 
-      {/* Barra de Automação de E-mails (Nodemailer / Firebase Functions) */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      {/* Barra de Automação de E-mails (Nodemailer SMTP) */}
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 px-4 py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-          <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
-            <Mail className="w-3.5 h-3.5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
-            Automação de E-mail:
+          <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
+            <Mail className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-[#E5C76B] shrink-0" aria-hidden="true" />
+            Nodemailer SMTP:
           </span>
           {emailHealth ? (
             <span
               className={`font-semibold ${
-                emailHealth.smtpConfigured ? 'text-[#16A34A]' : 'text-[#B45309]'
+                emailHealth.smtpConfigured
+                  ? 'text-[#146B43] dark:text-emerald-400'
+                  : 'text-[#B45309] dark:text-amber-400'
               }`}
             >
               {emailHealth.smtpConfigured
-                ? 'SMTP Nodemailer ativo'
-                : 'SMTP pendente de configuração no servidor'}
+                ? `Ativo (porta ${emailHealth.port || 587} · janela ${alertDays}d)`
+                : 'Aguardando SMTP_HOST, SMTP_USER e SMTP_PASS no ambiente'}
             </span>
           ) : (
-            <span className="text-slate-500">Verificando serviço SMTP...</span>
+            <span className="text-slate-500 dark:text-slate-400">Verificando serviço SMTP...</span>
           )}
-          <span className="text-slate-300" aria-hidden="true">·</span>
-          <span className="text-slate-600 tabular-nums">
-            {eligiblePendingEmailItems.length} pendente(s) de envio automático
+          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+          <span className="text-slate-600 dark:text-slate-300 tabular-nums">
+            {eligiblePendingEmailItems.length} alerta(s) pendente(s)
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer select-none">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoSweepEnabled}
               onChange={handleToggleAutoSweep}
               className="rounded border-slate-300 text-[var(--color-primary)]"
             />
-            Envio automático diário
+            Envio automático (≤ {alertDays}d)
           </label>
 
-          <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer select-none">
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={copyConsultant}
@@ -498,12 +572,32 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
 
           <button
             type="button"
+            disabled={verifyingSmtp}
+            onClick={() => void handleVerifySmtp()}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {verifyingSmtp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+            Testar SMTP
+          </button>
+
+          <button
+            type="button"
+            disabled={sendingTest}
+            onClick={() => void handleSendTestEmail()}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {sendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+            Enviar Teste
+          </button>
+
+          <button
+            type="button"
             disabled={previewBusy || summary.expiringItems.length === 0}
             onClick={() => void handlePreviewEmail()}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 whitespace-nowrap"
           >
             {previewBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-            Pré-visualizar E-mail
+            Pré-visualizar
           </button>
 
           <button
@@ -526,10 +620,10 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
           role={emailFeedback.tone === 'error' ? 'alert' : 'status'}
           className={`rounded-lg border px-3 py-2 text-xs flex items-center justify-between gap-2 ${
             emailFeedback.tone === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200'
               : emailFeedback.tone === 'warning'
-                ? 'border-amber-200 bg-amber-50 text-amber-900'
-                : 'border-red-200 bg-red-50 text-red-900'
+                ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200'
+                : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200'
           }`}
         >
           <span>{emailFeedback.text}</span>
@@ -546,16 +640,17 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
       {/* Barra de filtros + busca */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div
-          className="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold"
+          className="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-semibold"
           role="tablist"
           aria-label="Filtrar lembretes de vencimento"
         >
           {(
             [
-              { id: 'todos', label: `Todos < 30d (${counts.totalAlertas})` },
+              { id: 'todos', label: `Todos ≤ ${alertDays}d (${counts.totalAlertas})` },
+              { id: 'vistos', label: `Vistos (${counts.vistosAlerta})` },
               { id: 'vencidos', label: `Vencidos (${counts.vencidos})` },
               { id: 'criticos', label: `≤ 7 dias (${counts.criticos7d})` },
-              { id: 'atencao', label: `8–29 dias (${counts.atencao30d})` },
+              { id: 'atencao', label: `8–${alertDays} dias (${counts.atencao30d})` },
               { id: 'sem_data', label: `Sem data (${counts.semData})` },
             ] as const
           ).map((opt) => (
@@ -567,8 +662,8 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
               onClick={() => setFilter(opt.id)}
               className={`px-2.5 py-1.5 rounded-md whitespace-nowrap tabular-nums transition-colors ${
                 filter === opt.id
-                  ? 'bg-white text-slate-900 border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               {opt.label}
@@ -582,30 +677,32 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
             type="search"
             value={queryText}
             onChange={(e) => setQueryText(e.target.value)}
-            placeholder="Filtrar documento, cliente ou caso..."
+            placeholder="Filtrar visto, documento, cliente..."
             aria-label="Buscar nos lembretes de vencimento"
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
           />
         </div>
       </div>
 
       {/* Lista ou Empty State */}
       {activeItems.length === 0 ? (
-        <div className="py-6 px-4 rounded-lg bg-slate-50/80 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="py-6 px-4 rounded-lg bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0 mt-0.5" aria-hidden="true" />
             <div className="text-xs space-y-0.5">
-              <p className="font-semibold text-slate-800">
+              <p className="font-semibold text-slate-800 dark:text-slate-100">
                 {filter === 'sem_data'
                   ? 'Todos os documentos com validade curta já possuem data registrada.'
-                  : queryText.trim()
-                    ? 'Nenhum documento encontrado com esse filtro de busca.'
-                    : 'Nenhum documento exigido expira em menos de 30 dias.'}
+                  : filter === 'vistos'
+                    ? `Nenhum visto ou residência expira dentro dos próximos ${alertDays} dias.`
+                    : queryText.trim()
+                      ? 'Nenhum item encontrado com esse filtro de busca.'
+                      : `Nenhum visto ou documento exigido expira nos próximos ${alertDays} dias.`}
               </p>
-              <p className="text-slate-500 tabular-nums">
+              <p className="text-slate-500 dark:text-slate-400 tabular-nums">
                 {summary.upcomingItems.length > 0
-                  ? `${summary.upcomingItems.length} documento(s) monitorado(s) estão com validade igual ou superior a 30 dias.`
-                  : 'Preencha a data de emissão dos documentos no Checklist ou Dossiê para ativar a contagem automática.'}
+                  ? `${summary.upcomingItems.length} item(ns) monitorado(s) estão com validade superior a ${alertDays} dias.`
+                  : 'Registre a data de vencimento da residência nos casos e a emissão dos documentos no Checklist para ativar os alertas automáticos.'}
               </p>
             </div>
           </div>
@@ -613,18 +710,19 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
             <button
               type="button"
               onClick={() => onOpenChecklist()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
             >
-              <ClipboardCheck className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+              <ClipboardCheck className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-[#E5C76B]" />
               Conferir datas no Checklist
             </button>
           )}
         </div>
       ) : (
-        <div className="divide-y divide-slate-200">
+        <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {activeItems.map((item) => {
             const isCritical = item.severity === 'vencido' || item.severity === 'critico';
             const isWarning = item.severity === 'atencao';
+            const isVisa = item.itemKind === 'visto' || item.itemKind === 'prazo_visto';
             const statusColor = isCritical
               ? '#DC2626'
               : isWarning
@@ -644,10 +742,10 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                   <div
                     className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                       isCritical
-                        ? 'bg-red-50 text-[#DC2626]'
+                        ? 'bg-red-50 dark:bg-red-950/50 text-[#DC2626] dark:text-red-400'
                         : isWarning
-                          ? 'bg-amber-50 text-[#D97706]'
-                          : 'bg-slate-100 text-slate-500'
+                          ? 'bg-amber-50 dark:bg-amber-950/50 text-[#D97706] dark:text-amber-400'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                     }`}
                     title={item.statusLabel}
                   >
@@ -663,48 +761,54 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                       <span className="font-bold tabular-nums" style={{ color: statusColor }}>
                         {item.statusLabel}
                       </span>
-                      <span className="text-slate-300" aria-hidden="true">·</span>
-                      <span className="font-medium text-slate-700">
-                        {item.doc.obrigatorio ? 'Obrigatório' : 'Opcional'}
+                      <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+                      <span className={isVisa ? 'font-bold text-[#146B43] dark:text-emerald-400' : 'font-medium text-slate-700 dark:text-slate-300'}>
+                        {item.itemKind === 'visto'
+                          ? 'Visto / Residência'
+                          : item.itemKind === 'prazo_visto'
+                            ? 'Prazo Migratório'
+                            : item.doc.obrigatorio
+                              ? 'Doc. Obrigatório'
+                              : 'Doc. Opcional'}
                       </span>
-                      <span className="text-slate-300" aria-hidden="true">·</span>
-                      <span className="text-slate-500">Status atual: {item.doc.status}</span>
+                      <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+                      <span className="text-slate-500 dark:text-slate-400">Status: {item.doc.status}</span>
                       {latestEmailLog?.createdAt && (
                         <>
-                          <span className="text-slate-300" aria-hidden="true">·</span>
-                          <span className="font-semibold text-[#16A34A] tabular-nums">
+                          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+                          <span className="font-semibold text-[#16A34A] dark:text-emerald-400 tabular-nums">
                             E-mail enviado em {formatDateBR(latestEmailLog.createdAt)}
                           </span>
                         </>
                       )}
                     </div>
 
-                    <p className="text-sm font-semibold text-slate-900 truncate">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                       {item.doc.nomeDocumento}{' '}
-                      <span className="font-normal text-slate-500">({item.doc.pessoa})</span>
+                      <span className="font-normal text-slate-500 dark:text-slate-400">({item.doc.pessoa})</span>
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-600 tabular-nums">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-600 dark:text-slate-400 tabular-nums">
                       <span>{item.client?.nomeCompleto || 'Cliente não vinculado'}</span>
-                      <span className="text-slate-300" aria-hidden="true">·</span>
+                      <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
                       <span className="truncate max-w-[260px]">{item.caseObj.titulo}</span>
                       {item.dataEmissao && (
                         <>
-                          <span className="text-slate-300" aria-hidden="true">·</span>
+                          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
                           <span>Emissão: {formatDateBR(item.dataEmissao)}</span>
                         </>
                       )}
                       {item.dataValidadeEfetiva && (
                         <>
-                          <span className="text-slate-300" aria-hidden="true">·</span>
-                          <span className="font-semibold text-slate-800">
+                          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
                             Expira em: {item.dataValidadeBR}
                           </span>
                         </>
                       )}
                       {item.validadeDias > 0 && (
                         <>
-                          <span className="text-slate-300" aria-hidden="true">·</span>
+                          <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">·</span>
                           <span>Regra: {item.validadeDias}d</span>
                         </>
                       )}
@@ -713,20 +817,20 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pl-11 lg:pl-0 shrink-0">
-                  {onOpenChecklist && (
+                  {onOpenChecklist && !isVisa && (
                     <button
                       type="button"
                       onClick={() => onOpenChecklist(item.caseObj.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
                     >
-                      <ClipboardCheck className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                      <ClipboardCheck className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-[#E5C76B]" />
                       Checklist
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => onOpenCase(item.caseObj.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
                   >
                     <FolderOpen className="w-3.5 h-3.5" />
                     Abrir Caso
@@ -742,12 +846,12 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                             ? `Enviar lembrete por e-mail para ${item.client?.email}`
                             : 'Cliente sem e-mail cadastrado'
                         }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 whitespace-nowrap"
                       >
                         {sendingEmailId === item.doc.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          <Mail className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          <Mail className="w-3.5 h-3.5 text-[var(--color-primary)] dark:text-[#E5C76B]" />
                         )}
                         {sendingEmailId === item.doc.id
                           ? 'Enviando...'
@@ -760,10 +864,10 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                         type="button"
                         disabled={sendingId === item.doc.id}
                         onClick={() => void handleNotifyClient(item)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] hover:opacity-95 disabled:opacity-50 whitespace-nowrap"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#146B43] hover:opacity-95 disabled:opacity-50 whitespace-nowrap"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
-                        {sendingId === item.doc.id ? 'Registrando...' : 'Avisar Cliente'}
+                        {sendingId === item.doc.id ? 'Registrando...' : 'WhatsApp'}
                       </button>
                     </>
                   )}
@@ -782,22 +886,22 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
           aria-modal="true"
           aria-label="Pré-visualização do E-mail de Lembrete"
         >
-          <div className="bg-white rounded-xl border border-slate-200 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-xl">
-            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3">
+          <div className="bg-white dark:bg-[#0D1E31] rounded-xl border border-slate-200 dark:border-slate-700 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-xl">
+            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs text-slate-500 truncate">Para: {previewModal.to}</p>
-                <h3 className="text-sm font-bold text-slate-900 truncate">{previewModal.subject}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Para: {previewModal.to}</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{previewModal.subject}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setPreviewModal(null)}
                 aria-label="Fechar pré-visualização"
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 shrink-0"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3 bg-slate-100 overflow-auto flex-1">
+            <div className="p-3 bg-slate-100 dark:bg-slate-900 overflow-auto flex-1">
               <iframe
                 title="Pré-visualização do e-mail automático"
                 srcDoc={previewModal.html}

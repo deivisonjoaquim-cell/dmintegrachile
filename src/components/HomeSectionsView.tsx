@@ -1,17 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import {
   ArrowRight,
+  BellRing,
   BookOpen,
   Calendar,
   Check,
   ChevronDown,
-  ChevronUp,
   Compass,
+  FileCheck2,
   MessageCircle,
   Quote,
+  Radar,
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 import type {
   EmpresaConfig,
   LegalSource,
@@ -19,9 +23,8 @@ import type {
   SiteContent,
   SiteSectionKey,
 } from '../types/domain';
-import { BrandRibbon } from './BrandLogo';
 import { buildWhatsAppUrl, openExternalSafe, sanitizeHtml } from '../utils/formatters';
-import { CONSULTANCY_PLANS } from '../utils/portalAccess';
+import { BrandLogo, BrandRibbon } from './BrandLogo';
 
 export interface ServiceItemMeta {
   numero: string;
@@ -32,29 +35,6 @@ export interface ServiceItemMeta {
   faixaPrazo?: string;
 }
 
-const SERVICE_DETAILS_FALLBACK: Record<string, { paraQuem: string; subcategoriaTipica: string; faixaPrazo: string }> = {
-  '01': {
-    paraQuem: 'Brasileiros que planejam morar, trabalhar ou empreender no Chile (com ou sem oferta prévia).',
-    subcategoriaTipica: 'Subcategoria 15 (Acordo Mercosul) ou Subcategorias 01, 02, 03, 11 e 13',
-    faixaPrazo: 'Preparação: 15–35 dias · Análise SERMIG: 3–8 meses em média',
-  },
-  '02': {
-    paraQuem: 'Quem já possui Residência Temporal no Chile e precisa prorrogar, alterar vínculo ou pedir a Definitiva.',
-    subcategoriaTipica: 'Prorrogação / Mudança de Subcategoria / Residência Definitiva (24m)',
-    faixaPrazo: 'Janela legal: 90 a 10 dias antes do vencimento da residência atual',
-  },
-  '03': {
-    paraQuem: 'Pessoas e famílias que querem evitar indeferimentos ou vencimento de Antecedentes PF (60 dias).',
-    subcategoriaTipica: 'Certidões civis, Polícia Federal, Apostila de Haia (CNJ) e tradução',
-    faixaPrazo: 'Cronograma reverso ajustado à data prevista do protocolo',
-  },
-  '04': {
-    paraQuem: 'Recém-aprovados que vão ingressar no Chile para cumprir registro PDI e Cédula.',
-    subcategoriaTipica: 'Estampado Electrónico, Registro PDI, Cédula Civil, ClaveÚnica e RUT',
-    faixaPrazo: 'Ingresso até 90 dias após Estampado + agendamentos em Santiago',
-  },
-};
-
 interface HomeSectionsViewProps {
   empresa: EmpresaConfig;
   siteContent: SiteContent[];
@@ -64,6 +44,8 @@ interface HomeSectionsViewProps {
   onOpenCalendly?: () => void;
   previewMode?: boolean;
 }
+
+const EASE_EXECUTIVE = [0.22, 1, 0.36, 1] as const;
 
 function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' | 'suave' | 'escuro-primario') {
   const active = tema || defaultTheme;
@@ -102,6 +84,106 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
   };
 }
 
+/**
+ * Geometric 7-pillar SVG radar diagram aligned to D&M Integra Chile logo palette
+ * (Deep Navy #0B1F33, Gold Star #C8A236, Brazil Emerald #146B43, Chile Crimson #A61C2B).
+ */
+const ArchitecturalRadarVisual: React.FC = () => {
+  const cx = 110;
+  const cy = 110;
+  const maxR = 82;
+  const sides = 7;
+  const scores = [0.96, 0.92, 0.98, 0.88, 0.94, 0.9, 0.95];
+
+  const getPoint = (idx: number, radius: number) => {
+    const angle = (Math.PI * 2 * idx) / sides - Math.PI / 2;
+    return {
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+    };
+  };
+
+  const rings = [0.33, 0.66, 1].map((scale) =>
+    Array.from({ length: sides }, (_, idx) => {
+      const p = getPoint(idx, maxR * scale);
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(' '),
+  );
+
+  const dataPolygon = scores
+    .map((score, idx) => {
+      const p = getPoint(idx, maxR * score);
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg
+      viewBox="0 0 220 220"
+      className="w-44 h-44 sm:w-52 sm:h-52 shrink-0 select-none"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="dmRadarFill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#146B43" stopOpacity="0.48" />
+          <stop offset="55%" stopColor="#C8A236" stopOpacity="0.34" />
+          <stop offset="100%" stopColor="#A61C2B" stopOpacity="0.30" />
+        </linearGradient>
+      </defs>
+
+      {rings.map((points, i) => (
+        <polygon
+          key={i}
+          points={points}
+          fill="none"
+          stroke="rgba(229, 199, 107, 0.22)"
+          strokeWidth={i === 2 ? '1.1' : '0.8'}
+        />
+      ))}
+
+      {Array.from({ length: sides }, (_, idx) => {
+        const outer = getPoint(idx, maxR);
+        return (
+          <line
+            key={idx}
+            x1={cx}
+            y1={cy}
+            x2={outer.x}
+            y2={outer.y}
+            stroke="rgba(255, 255, 255, 0.14)"
+            strokeWidth="0.8"
+          />
+        );
+      })}
+
+      <polygon
+        points={dataPolygon}
+        fill="url(#dmRadarFill)"
+        stroke="#E5C76B"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+
+      {scores.map((score, idx) => {
+        const p = getPoint(idx, maxR * score);
+        return (
+          <circle
+            key={idx}
+            cx={p.x}
+            cy={p.y}
+            r="3.2"
+            fill={idx % 3 === 0 ? '#E5C76B' : idx % 3 === 1 ? '#34D399' : '#F87171'}
+            stroke="#0B1F33"
+            strokeWidth="1.2"
+          />
+        );
+      })}
+
+      <circle cx={cx} cy={cy} r="3" fill="#E5C76B" />
+    </svg>
+  );
+};
+
 export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   empresa,
   siteContent,
@@ -111,6 +193,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   onOpenCalendly,
   previewMode = false,
 }) => {
+  const { t, translateText } = useLanguage();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [serviceDrawer, setServiceDrawer] = useState<ServiceItemMeta | null>(null);
   const [compLocal, setCompLocal] = useState<'brasil' | 'turista_chile' | 'residente_chile'>('brasil');
@@ -120,6 +203,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   const density = empresa.layoutConfig?.densidadeSecoes || 'equilibrada';
   const sectionPad =
     density === 'compacta' ? 'py-10 lg:py-12' : density === 'ampla' ? 'py-20 lg:py-28' : 'py-14 lg:py-20';
+
+  const brandShortName = empresa.nome_empresa.split('–')[0].trim();
 
   const hasExplicitPartnersSection = useMemo(
     () => siteContent.some((s) => s.secao === 'parceiros'),
@@ -137,79 +222,47 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   );
 
   const comparatorRecommendation = useMemo(() => {
+    const routes = t.comparator.routes;
     if (compLocal === 'residente_chile') {
-      return {
-        titulo: 'Prorrogação ou Residência Definitiva',
-        baseLegal: 'Ley Nº 21.325 · Arts. 78–80 · Decreto Nº 177/2022',
-        protocoloRegra: 'Portal SERMIG dentro do Chile',
-        trabalho: 'Mantém direito laboral vigente',
-        prazoEstimado: 'Janela legal: 90 a 10 dias antes do vencimento',
-        resumo: 'Avaliamos seu tempo de residência vigente, contagem de ausências do território chileno e enquadramento para Residência Definitiva.',
-        alerta: 'Mantenha o protocolo estritamente dentro da janela de 90 a 10 dias antes do vencimento para preservar a regularidade migratória.',
-      };
+      return routes.residente;
     }
     if (compVinculo === 'sim' || compObj === 'familia') {
       return {
-        titulo: 'Reunificação Familiar (Subcategoria 01)',
-        baseLegal: 'Ley Nº 21.325 · Art. 19 · Decreto Nº 177/2022 (Subcat. 01)',
-        protocoloRegra: compLocal === 'turista_chile' ? 'Pode ser avaliada dentro do Chile (se vínculo formalizado)' : 'Exterior ou território chileno (conforme registro)',
-        trabalho: 'Autoriza trabalho lícito após Estampado',
-        prazoEstimado: 'Preparação 15–30d · SERMIG 3–7 meses',
-        resumo: 'Com vínculo formalizado (casamento, Acordo de União Civil ou filho chileno), permite análise inclusive para quem já está no Chile.',
-        alerta: compLocal === 'turista_chile' ? 'Se o vínculo ainda não estiver formalizado em registro civil, aplica-se a regra geral de protocolo pelo exterior (Mercosul).' : undefined,
+        titulo: routes.familia.titulo,
+        baseLegal: routes.familia.baseLegal,
+        protocoloRegra:
+          compLocal === 'turista_chile' ? routes.familia.protocoloTurista : routes.familia.protocoloExterior,
+        trabalho: routes.familia.trabalho,
+        prazoEstimado: routes.familia.prazoEstimado,
+        resumo: routes.familia.resumo,
+        alerta: compLocal === 'turista_chile' ? routes.familia.alertaTurista : undefined,
       };
     }
     if (compObj === 'trabalho_oferta') {
       return {
-        titulo: 'Mercosul (Cód. 15) vs. Atividades Lícitas (Cód. 02)',
-        baseLegal: 'Acordo Mercosul (Dec. BR 6.975/2009) vs. Dec. 177/2022 (Subcat. 02)',
-        protocoloRegra: 'Protocolo obrigatório do exterior (fora do Chile)',
-        trabalho: 'Mercosul: livre · Cód. 02: exige contrato formal',
-        prazoEstimado: 'Preparação 15–30d · SERMIG 3–8 meses',
-        resumo: 'Para brasileiros, o Acordo Mercosul costuma oferecer maior liberdade laboral (sem vínculo a único empregador); comparamos ambos no diagnóstico.',
-        alerta: compLocal === 'turista_chile' ? 'Protocolo inicial exige saída prévia do território chileno.' : undefined,
+        ...routes.trabalho,
+        alerta: compLocal === 'turista_chile' ? routes.trabalho.alertaTurista : undefined,
       };
     }
     if (compObj === 'estudar') {
       return {
-        titulo: 'Mercosul (Cód. 15) vs. Estudantes (Cód. 03)',
-        baseLegal: 'Acordo Mercosul (Subcat. 15) vs. Dec. 177/2022 (Subcat. 03)',
-        protocoloRegra: 'Protocolo do exterior (fora do Chile)',
-        trabalho: 'Mercosul: integral · Estudante: até 30h/sem',
-        prazoEstimado: 'Preparação 15–30d · SERMIG 3–7 meses',
-        resumo: 'Quem tem nacionalidade brasileira pode optar pelo Mercosul (acesso irrestrito ao mercado de trabalho e caminho direto à Definitiva) ou Visto de Estudante.',
-        alerta: compLocal === 'turista_chile' ? 'Solicitação inicial feita fora do território chileno.' : undefined,
+        ...routes.estudar,
+        alerta: compLocal === 'turista_chile' ? routes.estudar.alertaTurista : undefined,
       };
     }
     if (compObj === 'renda') {
       return {
-        titulo: 'Mercosul (Cód. 15) ou Aposentados/Rentistas (Cód. 11)',
-        baseLegal: 'Acordo Mercosul (Subcat. 15) vs. Dec. 177/2022 (Subcat. 11)',
-        protocoloRegra: 'Protocolo do exterior (fora do Chile)',
-        trabalho: 'Mercosul: liberado · Rentista: renda passiva',
-        prazoEstimado: 'Preparação 15–35d · SERMIG 3–8 meses',
-        resumo: 'Avaliamos se a comprovação de renda passiva/aposentadoria agrega vantagem ou se a via Mercosul simplifica a documentação e a Apostila CNJ.',
-        alerta: compLocal === 'turista_chile' ? 'Regra geral da Ley 21.325 exige envio do pedido fora do Chile.' : undefined,
+        ...routes.renda,
+        alerta: compLocal === 'turista_chile' ? routes.renda.alertaTurista : undefined,
       };
     }
     return {
-      titulo: 'Acordo Mercosul — Subcategoria 15',
-      baseLegal: 'Decreto BR Nº 6.975/2009 · Ley Nº 21.325 · Dec. 177/2022',
-      protocoloRegra: 'Protocolo 100% digital a partir do Brasil/Exterior',
-      trabalho: 'Trabalho formal, autônomo ou empresa liberados',
-      prazoEstimado: 'Antecedentes PF (60d) · SERMIG 3–8 meses',
-      resumo: 'Principal caminho para brasileiros: não exige oferta prévia de emprego nem comprovação de renda, com acesso direto à Residência Definitiva após 24 meses.',
-      alerta:
-        compLocal === 'turista_chile'
-          ? 'Atenção: estando como turista no Chile sem vínculo formalizado, a Ley 21.325 exige saída do país para protocolar a Subcategoria 15.'
-          : undefined,
+      ...routes.mercosul,
+      alerta: compLocal === 'turista_chile' ? routes.mercosul.alertaTurista : undefined,
     };
-  }, [compLocal, compObj, compVinculo]);
+  }, [compLocal, compObj, compVinculo, t]);
 
-  const whatsappHeroUrl = buildWhatsAppUrl(
-    empresa.whatsapp,
-    'Olá! Gostaria de receber informações sobre assessoria migratória para o Chile.',
-  );
+  const whatsappHeroUrl = buildWhatsAppUrl(empresa.whatsapp, t.hero.waGreeting);
 
   const navigateAction = (dest: string) => {
     if (previewMode) return;
@@ -219,6 +272,201 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       onNavigate(dest);
     }
   };
+
+  const renderTechArchitectureBento = (keyId: string) => (
+    <section
+      key={keyId}
+      className={`${sectionPad} bg-[#FAF9F6] border-b border-[#E5DFD2]`}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
+        <div className="max-w-3xl space-y-2.5">
+          <div className="flex items-center gap-3">
+            <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
+              {t.techBento.eyebrow}
+            </p>
+          </div>
+          <h2 className="font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-[1.15] text-[#0B1F33] text-balance">
+            {t.techBento.heading}
+          </h2>
+          <p className="text-sm sm:text-base text-[#4A5A6D] leading-relaxed">
+            {t.techBento.subheading}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* Card 1: Motor de Diagnóstico Inteligente + Radar de 7 Pilares */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.45, ease: EASE_EXECUTIVE }}
+            className="lg:col-span-7 rounded-2xl bg-[#0B1F33] text-white border border-[#1E3A5F] overflow-hidden shadow-[0_18px_40px_rgba(11,31,51,0.16)] flex flex-col justify-between"
+          >
+            <BrandRibbon className="h-[3px] w-full" />
+            <div className="p-6 sm:p-8 flex flex-col justify-between gap-6 flex-1">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-3 flex-1">
+                  <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                    <Radar className="w-4 h-4 shrink-0" />
+                    <span>{t.techBento.radarCard.kicker}</span>
+                  </div>
+                  <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug text-white">
+                    {t.techBento.radarCard.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    {t.techBento.radarCard.description}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center md:justify-end">
+                  <ArchitecturalRadarVisual />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10">
+                {t.techBento.radarCard.pillars.map((pillar) => (
+                  <div
+                    key={pillar.label}
+                    className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5"
+                  >
+                    <p className="font-mono text-base font-bold text-[#E5C76B] tabular-nums">
+                      {pillar.score}
+                    </p>
+                    <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">{pillar.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => navigateAction('/diagnostico')}
+                  className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-opacity hover:opacity-95 whitespace-nowrap"
+                  style={{ backgroundColor: 'var(--color-accent)' }}
+                >
+                  {t.techBento.radarCard.cta}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Card 2: Monitoramento & Alertas Automáticos 30 Dias */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.45, delay: 0.06, ease: EASE_EXECUTIVE }}
+            className="lg:col-span-5 rounded-2xl bg-white border border-[#E5DFD2] p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-[0_8px_28px_rgba(11,31,51,0.05)]"
+          >
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#A61C2B]">
+                <BellRing className="w-4 h-4 shrink-0" />
+                <span>{t.techBento.alertsCard.kicker}</span>
+              </div>
+              <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug text-[#0B1F33]">
+                {t.techBento.alertsCard.title}
+              </h3>
+              <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed">
+                {t.techBento.alertsCard.description}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {t.techBento.alertsCard.rules.map((rule, idx) => (
+                <div
+                  key={rule.code}
+                  className="flex items-start gap-3.5 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]"
+                >
+                  <span
+                    className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-lg tabular-nums shrink-0 ${
+                      idx === 0
+                        ? 'bg-[#A61C2B] text-white'
+                        : idx === 1
+                          ? 'bg-[#0B1F33] text-[#E5C76B]'
+                          : 'bg-[#146B43] text-white'
+                    }`}
+                  >
+                    {rule.code}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[#0B1F33]">{rule.title}</p>
+                    <p className="text-[11.5px] text-[#4A5A6D] leading-relaxed mt-0.5">{rule.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Card 3: Portal do Cliente & Identidade Oficial */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.45, delay: 0.12, ease: EASE_EXECUTIVE }}
+            className="lg:col-span-12 rounded-2xl bg-white border border-[#E5DFD2] p-6 sm:p-8 shadow-[0_8px_28px_rgba(11,31,51,0.05)]"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              <div className="lg:col-span-8 space-y-3">
+                <div className="flex items-center gap-3">
+                  <BrandLogo
+                    variant="emblem"
+                    alt={empresa.nome_empresa}
+                    brandShortName={brandShortName}
+                    imgClassName="w-11 h-11 object-contain shrink-0"
+                  />
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#146B43]">
+                      {t.techBento.portalCard.kicker}
+                    </p>
+                    <h3 className="font-display text-lg sm:text-2xl font-bold tracking-tight text-[#0B1F33] leading-snug">
+                      {t.techBento.portalCard.title}
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed max-w-3xl">
+                  {t.techBento.portalCard.description}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                  {t.techBento.portalCard.milestones.map((m, idx) => (
+                    <div
+                      key={m}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FAF9F6] border border-[#E5DFD2] text-[11.5px] font-semibold text-[#0B1F33]"
+                    >
+                      <span className="font-mono text-[10px] font-bold text-[#8C6D14] tabular-nums">
+                        0{idx + 1}
+                      </span>
+                      <span className="truncate">{m}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-2.5 lg:items-end justify-end">
+                <button
+                  type="button"
+                  onClick={() => navigateAction('/acompanhar')}
+                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  <FileCheck2 className="w-4 h-4 text-[#E5C76B]" />
+                  {t.techBento.portalCard.primaryCta}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateAction('/diagnostico')}
+                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-[#FAF9F6] hover:bg-[#F1EDE4] transition-colors whitespace-nowrap"
+                >
+                  {t.techBento.portalCard.secondaryCta}
+                  <ArrowRight className="w-3.5 h-3.5 text-[#8C6D14]" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
 
   const renderPartnersGrid = (
     sec: { titulo: string; subtitulo: string; conteudoHtml?: string; ctaTexto?: string; ctaDestino?: string; metadados?: Record<string, unknown> },
@@ -233,11 +481,17 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div className="max-w-2xl">
-              {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold mb-1.5 ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
-              <h2 className={`text-2xl sm:text-3xl font-bold mb-2 ${theme.headingClass}`}>{sec.titulo}</h2>
-              <p className={`text-base ${theme.subClass}`}>{sec.subtitulo}</p>
+              {Boolean(meta.eyebrow) && (
+                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-1.5 ${theme.eyebrowClass}`}>
+                  {translateText(String(meta.eyebrow))}
+                </p>
+              )}
+              <h2 className={`text-2xl sm:text-3xl font-bold mb-2 ${theme.headingClass}`}>
+                {translateText(sec.titulo)}
+              </h2>
+              <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
               {sec.conteudoHtml && (
-                <p className={`text-xs mt-2 ${theme.subClass}`}>{sec.conteudoHtml}</p>
+                <p className={`text-xs mt-2 ${theme.subClass}`}>{translateText(sec.conteudoHtml)}</p>
               )}
             </div>
             <button
@@ -248,7 +502,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               }`}
               style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
             >
-              {sec.ctaTexto || 'Ver todos e Seja um Parceiro'}
+              {translateText(sec.ctaTexto) || t.sections.partnersDefaultCta}
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -277,173 +531,122 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
     if (key === 'hero') {
       const variante = (meta.varianteLayout as string) || 'split-direita';
-      const heroDestaques = (meta.destaques as string[] | undefined) || [
+      const rawDestaques = (meta.destaques as string[] | undefined) || [
         'Atendimento 100% em português do Brasil',
         'Base normativa alinhada à Ley 21.325 e SERMIG',
         'Acompanhamento transparente em 15 etapas',
       ];
-      const eyebrow = (meta.eyebrow as string) || 'Assessoria Migratória Brasil – Chile · Ley 21.325 & Acordo Mercosul';
-      const ctaPrimario = sec.ctaTexto || (meta.ctaPrimario as string) || 'Fazer Diagnóstico Gratuito';
-      const ctaSecundario = (meta.ctaSecundario as string) || 'Falar no WhatsApp';
-      const badgeTitulo = (meta.badgeTitulo as string) || 'Operação Brasil & Santiago';
-      const badgeSubtitulo =
-        (meta.badgeSubtitulo as string) || 'Segurança documental do protocolo ao Estampado Electrónico';
+      const heroDestaques = rawDestaques.map((d) => translateText(d));
+      const eyebrow = translateText(meta.eyebrow as string | undefined) || t.hero.defaultEyebrow;
+      const ctaPrimario = translateText(sec.ctaTexto || (meta.ctaPrimario as string | undefined)) || t.hero.defaultPrimaryCta;
+      const ctaSecundario = translateText(meta.ctaSecundario as string | undefined) || t.hero.defaultSecondaryCta;
+      const badgeTitulo = translateText(meta.badgeTitulo as string | undefined) || t.hero.defaultBadgeTitle;
+      const badgeSubtitulo = translateText(meta.badgeSubtitulo as string | undefined) || t.hero.defaultBadgeSubtitle;
+      const heroTitle = translateText(sec.titulo);
+      const heroSubtitle = translateText(sec.subtitulo);
+      const heroHtml = translateText(sec.conteudoHtml);
 
       if (variante === 'banner-cheio') {
         return (
-          <section key={sec.id} className="relative overflow-hidden bg-slate-950 text-white border-b border-slate-800">
-            {sec.imagemUrl && (
-              <img
-                src={sec.imagemUrl}
-                alt={sec.titulo}
-                referrerPolicy="no-referrer"
-                className="absolute inset-0 w-full h-full object-cover opacity-35"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/75 to-slate-950/50" />
-            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 lg:py-24">
-              <div className="max-w-3xl space-y-5">
-                <p className="text-xs font-semibold tracking-wide text-slate-200">{eyebrow}</p>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.12] text-balance">
-                  {sec.titulo}
-                </h1>
-                <p className="text-base sm:text-lg text-slate-200 leading-relaxed">{sec.subtitulo}</p>
-                {sec.conteudoHtml && (
-                  <div
-                    className="text-sm text-slate-300 leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
-                  />
-                )}
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                    className="inline-flex items-center gap-2 px-6 py-3 btn-radius text-sm font-semibold text-slate-950 transition-opacity hover:opacity-95"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
-                  >
-                    {ctaPrimario}
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                  <a
-                    href={whatsappHeroUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-sm font-semibold text-white border border-white/30 hover:bg-white/10 transition-colors"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    {ctaSecundario}
-                  </a>
-                </div>
-              </div>
-              {heroDestaques.length > 0 && (
-                <div className="mt-12 pt-8 border-t border-white/15 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {heroDestaques.map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                      <p className="text-sm font-medium text-slate-100">{item}</p>
-                    </div>
-                  ))}
-                </div>
+          <React.Fragment key={sec.id}>
+            <section className="relative overflow-hidden bg-[#0B1F33] text-white border-b border-slate-800">
+              {sec.imagemUrl && (
+                <img
+                  src={sec.imagemUrl}
+                  alt={heroTitle}
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-cover opacity-35"
+                />
               )}
-            </div>
-          </section>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#071422]/95 via-[#0B1F33]/80 to-[#0B1F33]/55" />
+              <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 lg:py-24">
+                <div className="max-w-3xl space-y-5">
+                  <div className="flex items-center gap-3">
+                    <BrandLogo
+                      variant="emblem-dark"
+                      alt={empresa.nome_empresa}
+                      brandShortName={brandShortName}
+                      imgClassName="w-10 h-10 object-contain shrink-0"
+                    />
+                    <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[#E5C76B]">{eyebrow}</p>
+                  </div>
+                  <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] text-balance">
+                    {heroTitle}
+                  </h1>
+                  <p className="text-base sm:text-lg text-slate-200 leading-relaxed">{heroSubtitle}</p>
+                  {heroHtml && (
+                    <div
+                      className="text-sm text-slate-300 leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
+                    />
+                  )}
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
+                      className="inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-bold text-[#0B1523] transition-opacity hover:opacity-95 whitespace-nowrap"
+                      style={{ backgroundColor: 'var(--color-accent)' }}
+                    >
+                      {ctaPrimario}
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <a
+                      href={whatsappHeroUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-white border border-white/30 hover:bg-white/10 transition-colors whitespace-nowrap"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      {ctaSecundario}
+                    </a>
+                  </div>
+                </div>
+                {heroDestaques.length > 0 && (
+                  <div className="mt-12 pt-8 border-t border-white/15 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {heroDestaques.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-3">
+                        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
+                        <p className="text-sm font-medium text-slate-100">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+            {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
+          </React.Fragment>
         );
       }
 
       if (variante === 'centralizado') {
         return (
-          <section key={sec.id} className="bg-[var(--color-surface)] border-b border-slate-200">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 lg:py-20 text-center space-y-6">
-              <p className="text-xs font-semibold tracking-wide text-slate-500">{eyebrow}</p>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[var(--color-text)] leading-[1.12] text-balance">
-                {sec.titulo}
-              </h1>
-              <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-3xl mx-auto">{sec.subtitulo}</p>
-              {sec.conteudoHtml && (
-                <div
-                  className="text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto"
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
-                />
-              )}
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                  className="inline-flex items-center gap-2 px-6 py-3 btn-radius text-sm font-semibold text-white transition-opacity hover:opacity-95"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  {ctaPrimario}
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <a
-                  href={whatsappHeroUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-sm font-semibold text-slate-800 border border-slate-300 bg-white hover:bg-slate-50"
-                >
-                  <MessageCircle className="w-4 h-4 text-[#1E7E34]" />
-                  {ctaSecundario}
-                </a>
-              </div>
-              {sec.imagemUrl && (
-                <div className="relative h-64 sm:h-96 card-radius overflow-hidden border border-slate-200 bg-slate-900 text-left mt-8">
-                  <img
-                    src={sec.imagemUrl}
-                    alt={sec.titulo}
-                    referrerPolicy="no-referrer"
-                    className={`w-full h-full ${imgFitClass}`}
+          <React.Fragment key={sec.id}>
+            <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2]">
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 lg:py-20 text-center space-y-6">
+                <div className="flex flex-col items-center gap-3">
+                  <BrandLogo
+                    variant="emblem"
+                    alt={empresa.nome_empresa}
+                    brandShortName={brandShortName}
+                    imgClassName="w-14 h-14 object-contain"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
-                  <div className="absolute bottom-5 left-5 right-5 text-white">
-                    <p className="text-xs font-medium text-slate-200">{badgeTitulo}</p>
-                    <p className="text-base font-semibold mt-0.5">{badgeSubtitulo}</p>
-                  </div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">{eyebrow}</p>
                 </div>
-              )}
-              {heroDestaques.length > 0 && (
-                <div className="mt-10 pt-8 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                  {heroDestaques.map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                      <p className="text-sm font-medium text-slate-800">{item}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        );
-      }
-
-      const imageFirst = variante === 'split-esquerda';
-      return (
-        <section key={sec.id} className="bg-[var(--color-surface)] border-b border-[#E5DFD2] relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-20">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-stretch">
-              <div className={`lg:col-span-7 flex flex-col justify-center ${imageFirst ? 'lg:order-2' : 'lg:order-1'}`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="h-[2px] w-7 shrink-0" style={{ backgroundColor: 'var(--color-accent)' }} aria-hidden="true" />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
-                    {eyebrow}
-                  </p>
-                </div>
-                <h1 className="text-[clamp(2.15rem,3.6vw,3.35rem)] font-bold tracking-[-0.025em] text-[#0B1F33] leading-[1.09] text-balance mb-5">
-                  {sec.titulo}
+                <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#0B1F33] leading-[1.1] text-balance">
+                  {heroTitle}
                 </h1>
-                <p className="text-base sm:text-[17px] text-[#4A5A6D] leading-[1.65] max-w-2xl mb-4">
-                  {sec.subtitulo}
-                </p>
-                {sec.conteudoHtml && (
+                <p className="text-base sm:text-lg text-[#4A5A6D] leading-relaxed max-w-3xl mx-auto">{heroSubtitle}</p>
+                {heroHtml && (
                   <div
-                    className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mb-7"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
+                    className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mx-auto"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
                   />
                 )}
-                <div className="flex flex-wrap items-center gap-3.5 pt-1">
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
                   <button
                     type="button"
                     onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                    className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_8px_22px_rgba(11,31,51,0.2)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     {ctaPrimario}
@@ -453,70 +656,224 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={whatsappHeroUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#FAF9F6] hover:border-[#C8A236]/60 transition-all duration-150 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#FAF9F6] whitespace-nowrap"
                   >
                     <MessageCircle className="w-4 h-4 text-[#146B43]" />
                     {ctaSecundario}
                   </a>
                 </div>
-
-                {/* Faixa técnica do motor de diagnóstico */}
-                <div className="mt-8 pt-6 border-t border-[#E5DFD2] grid grid-cols-3 gap-4 max-w-xl">
-                  <div>
-                    <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33]">6 Etapas</p>
-                    <p className="text-[11px] text-[#4A5A6D] mt-0.5">Diagnóstico completo ao vivo</p>
-                  </div>
-                  <div>
-                    <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14]">7 Pilares</p>
-                    <p className="text-[11px] text-[#4A5A6D] mt-0.5">Radar + Simulador de cenários</p>
-                  </div>
-                  <div>
-                    <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#146B43]">PDF 2 Págs</p>
-                    <p className="text-[11px] text-[#4A5A6D] mt-0.5">Dossiê oficial exportável</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}>
-                <div className="relative h-72 sm:h-96 lg:h-full min-h-[390px] card-radius overflow-hidden border border-[#E5DFD2] bg-[#0B1F33] shadow-[0_20px_48px_rgba(11,31,51,0.16)]">
-                  {sec.imagemUrl ? (
+                {sec.imagemUrl && (
+                  <div className="relative h-64 sm:h-96 card-radius overflow-hidden border border-[#E5DFD2] bg-[#0B1F33] text-left mt-8">
                     <img
                       src={sec.imagemUrl}
-                      alt={sec.titulo}
+                      alt={heroTitle}
                       referrerPolicy="no-referrer"
                       className={`w-full h-full ${imgFitClass}`}
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white text-sm">
-                      Santiago do Chile · Assessoria Internacional
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/85 via-transparent to-transparent" />
+                    <div className="absolute bottom-5 left-5 right-5 text-white">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#E5C76B]">{badgeTitulo}</p>
+                      <p className="text-base font-semibold mt-0.5">{badgeSubtitulo}</p>
                     </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/90 via-[#071422]/25 to-transparent" />
-                  <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="h-[2px] w-5" style={{ backgroundColor: 'var(--color-accent)' }} aria-hidden="true" />
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#E5C76B]">
-                        {badgeTitulo}
-                      </p>
-                    </div>
-                    <p className="text-base font-semibold leading-snug">{badgeSubtitulo}</p>
                   </div>
-                </div>
+                )}
+                {heroDestaques.length > 0 && (
+                  <div className="mt-10 pt-8 border-t border-[#E5DFD2] grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                    {heroDestaques.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-3">
+                        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
+                        <p className="text-sm font-medium text-[#0B1F33]">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            </section>
+            {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
+          </React.Fragment>
+        );
+      }
 
-            {heroDestaques.length > 0 && (
-              <div className="mt-12 pt-7 border-t border-[#E5DFD2] grid grid-cols-1 md:grid-cols-3 gap-6">
-                {heroDestaques.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                    <p className="text-sm font-medium text-[#0B1F33] leading-snug">{item}</p>
+      const imageFirst = variante === 'split-esquerda';
+      return (
+        <React.Fragment key={sec.id}>
+          <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2] relative overflow-hidden">
+            {/* Grade arquitetônica sutil inspirada em precisão cartográfica Brasil–Chile */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 opacity-[0.38]"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 1px 1px, rgba(11, 31, 51, 0.10) 1px, transparent 0)',
+                backgroundSize: '28px 28px',
+              }}
+            />
+            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-20">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, ease: EASE_EXECUTIVE }}
+                  className={`lg:col-span-7 flex flex-col justify-center ${imageFirst ? 'lg:order-2' : 'lg:order-1'}`}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="h-[2px] w-7 shrink-0 bg-[#C8A236]" aria-hidden="true" />
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
+                      {eyebrow}
+                    </p>
                   </div>
-                ))}
+
+                  <h1 className="font-display text-[clamp(2.2rem,3.8vw,3.45rem)] font-bold tracking-[-0.025em] text-[#0B1F33] leading-[1.08] text-balance mb-5">
+                    {heroTitle}
+                  </h1>
+
+                  <p className="text-base sm:text-[17px] text-[#4A5A6D] leading-[1.65] max-w-2xl mb-4">
+                    {heroSubtitle}
+                  </p>
+
+                  {heroHtml && (
+                    <div
+                      className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mb-7"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
+                    />
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
+                      className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_10px_24px_rgba(11,31,51,0.22)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      {ctaPrimario}
+                      <ArrowRight className="w-4 h-4 text-[#E5C76B]" />
+                    </button>
+                    <a
+                      href={whatsappHeroUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#FAF9F6] hover:border-[#C8A236]/70 transition-all duration-150 whitespace-nowrap shrink-0"
+                    >
+                      <MessageCircle className="w-4 h-4 text-[#146B43]" />
+                      {ctaSecundario}
+                    </a>
+                  </div>
+
+                  {/* Faixa de métricas arquitetônicas com paleta da marca */}
+                  <div className="mt-8 pt-6 border-t border-[#E5DFD2] grid grid-cols-3 gap-4 max-w-xl">
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33]">
+                        {t.hero.metric1Value}
+                      </p>
+                      <p className="text-[11px] text-[#4A5A6D] mt-0.5">{t.hero.metric1Label}</p>
+                    </div>
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14]">
+                        {t.hero.metric2Value}
+                      </p>
+                      <p className="text-[11px] text-[#4A5A6D] mt-0.5">{t.hero.metric2Label}</p>
+                    </div>
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#146B43]">
+                        {t.hero.metric3Value}
+                      </p>
+                      <p className="text-[11px] text-[#4A5A6D] mt-0.5">{t.hero.metric3Label}</p>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Quadro visual flagship guiado pela logo oficial D&M Integra Chile */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.985 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.08, ease: EASE_EXECUTIVE }}
+                  className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}
+                >
+                  <div className="relative h-full min-h-[430px] card-radius overflow-hidden border border-[#1E3A5F]/20 bg-[#0B1F33] shadow-[0_24px_56px_rgba(11,31,51,0.20)] flex flex-col justify-between">
+                    {sec.imagemUrl ? (
+                      <img
+                        src={sec.imagemUrl}
+                        alt={heroTitle}
+                        referrerPolicy="no-referrer"
+                        className={`absolute inset-0 w-full h-full ${imgFitClass}`}
+                      />
+                    ) : null}
+
+                    <div className="absolute inset-0 bg-gradient-to-b from-[#071422]/75 via-[#071422]/35 to-[#071422]/94" />
+
+                    {/* Cabeçalho com Emblema Oficial D&M Integra Chile */}
+                    <div className="relative z-10 p-5 sm:p-6">
+                      <div className="inline-flex items-center gap-3 rounded-xl bg-[#071422]/80 backdrop-blur-md border border-white/15 px-3.5 py-2.5 max-w-full">
+                        <BrandLogo
+                          variant="emblem-dark"
+                          alt={empresa.nome_empresa}
+                          brandShortName={brandShortName}
+                          imgClassName="w-10 h-10 object-contain shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B] truncate">
+                            {t.hero.crestLabel}
+                          </p>
+                          <p className="text-xs text-slate-200 truncate">{t.hero.crestTagline}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Painel inferior executivo com módulos da plataforma */}
+                    <div className="relative z-10 p-5 sm:p-6 space-y-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="h-[2px] w-5 bg-[#C8A236]" aria-hidden="true" />
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">
+                            {badgeTitulo}
+                          </p>
+                        </div>
+                        <p className="text-sm sm:text-base font-semibold text-white leading-snug">
+                          {badgeSubtitulo}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 rounded-xl bg-[#071422]/80 backdrop-blur-md border border-white/12 p-3">
+                        {t.hero.intelModules.map((mod) => (
+                          <div
+                            key={mod.code}
+                            className="flex items-center justify-between gap-3 py-1 border-b border-white/10 last:border-b-0 text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-[10px] font-bold text-[#E5C76B] tabular-nums">
+                                {mod.code}
+                              </span>
+                              <span className="text-slate-300 truncate">{mod.label}</span>
+                            </div>
+                            <span className="font-mono text-[11px] font-semibold text-white whitespace-nowrap shrink-0">
+                              {mod.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
-            )}
-          </div>
-        </section>
+
+              {heroDestaques.length > 0 && (
+                <div className="mt-12 pt-7 border-t border-[#E5DFD2] grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {heroDestaques.map((item, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <ShieldCheck
+                        className="w-5 h-5 shrink-0 mt-0.5"
+                        style={{ color: idx === 0 ? '#146B43' : idx === 1 ? '#C8A236' : '#A61C2B' }}
+                      />
+                      <p className="text-sm font-medium text-[#0B1F33] leading-snug">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
+        </React.Fragment>
       );
     }
 
@@ -532,54 +889,65 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             ? 'space-y-4'
             : 'grid grid-cols-1 md:grid-cols-2 gap-6';
 
+      const plans = t.services.plans;
+
       return (
         <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-12">
             <div>
               <div className="max-w-3xl mb-10">
                 <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5 ${theme.eyebrowClass}`}>
-                  {(meta.eyebrow as string) || 'Serviços especializados'}
+                  {translateText(meta.eyebrow as string | undefined) || t.services.defaultEyebrow}
                 </p>
-                <h2 className={`text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
-                  {sec.titulo}
+                <h2 className={`font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
+                  {translateText(sec.titulo)}
                 </h2>
-                <p className={`text-base leading-relaxed ${theme.subClass}`}>{sec.subtitulo}</p>
+                <p className={`text-base leading-relaxed ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
               </div>
 
               <div className={gridClass}>
-                {servicosItens.map((item) => (
-                  <div
-                    key={item.numero}
-                    className={`${theme.cardClass} card-radius p-6 sm:p-7 flex ${
-                      variante === 'lista-editorial' ? 'flex-col md:flex-row md:items-center' : 'flex-col'
-                    } justify-between gap-5`}
-                  >
-                    <div className="flex-1">
-                      <p
-                        className={`text-[11px] font-bold uppercase tracking-[0.12em] mb-2.5 tabular-nums ${
-                          theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16]'
-                        }`}
-                      >
-                        {item.numero} · Solução migratória
-                      </p>
-                      <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>{item.titulo}</h3>
-                      <p className={`text-sm leading-relaxed ${theme.subClass}`}>{item.descricao}</p>
+                {servicosItens.map((item) => {
+                  const localizedItem: ServiceItemMeta = {
+                    ...item,
+                    titulo: translateText(item.titulo),
+                    descricao: translateText(item.descricao),
+                  };
+                  return (
+                    <div
+                      key={item.numero}
+                      className={`${theme.cardClass} card-radius p-6 sm:p-7 flex ${
+                        variante === 'lista-editorial' ? 'flex-col md:flex-row md:items-center' : 'flex-col'
+                      } justify-between gap-5`}
+                    >
+                      <div className="flex-1">
+                        <p
+                          className={`text-[11px] font-bold uppercase tracking-[0.12em] mb-2.5 tabular-nums ${
+                            theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16]'
+                          }`}
+                        >
+                          {localizedItem.numero} · {t.services.solutionPrefix}
+                        </p>
+                        <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>
+                          {localizedItem.titulo}
+                        </h3>
+                        <p className={`text-sm leading-relaxed ${theme.subClass}`}>{localizedItem.descricao}</p>
+                      </div>
+                      <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'}`}>
+                        <button
+                          type="button"
+                          onClick={() => !previewMode && setServiceDrawer(localizedItem)}
+                          className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
+                            theme.isDark ? 'text-[#E5C76B]' : ''
+                          }`}
+                          style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
+                        >
+                          {t.services.learnMore}
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'}`}>
-                      <button
-                        type="button"
-                        onClick={() => !previewMode && setServiceDrawer(item)}
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
-                          theme.isDark ? 'text-[#E5C76B]' : ''
-                        }`}
-                        style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
-                      >
-                        Saiba mais sobre esta etapa
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -587,13 +955,17 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             <div className="pt-4 space-y-6">
               <div className="max-w-3xl">
                 <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
-                  Modelos de contratação
+                  {t.services.plansKicker}
                 </p>
-                <h3 className={`text-xl sm:text-3xl font-bold tracking-tight text-balance mb-2 ${theme.headingClass}`}>
-                  Escolha o nível de acompanhamento ideal para o seu processo
+                <h3 className={`font-display text-xl sm:text-3xl font-bold tracking-tight text-balance mb-2 ${theme.headingClass}`}>
+                  {t.services.plansTitle}
                 </h3>
                 <p className={`text-sm sm:text-base leading-relaxed ${theme.subClass}`}>
-                  Comece pela análise inicial gratuita e avance para a <strong>Consultoria Orientativa</strong> (você executa o protocolo com nossa revisão técnica) ou para a <strong>Consultoria Completa</strong> (nós conduzimos todo o processo do início ao fim).
+                  {t.services.plansSubtitlePrefix}
+                  <strong>{t.services.plansOrientativaBold}</strong>
+                  {t.services.plansOrientativaDesc}
+                  <strong>{t.services.plansCompletaBold}</strong>
+                  {t.services.plansCompletaDesc}
                 </p>
               </div>
 
@@ -603,20 +975,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
-                        Etapa inicial · Gratuito · PDF incluso
+                        {plans.diagnostico_gratuito.kicker}
                       </p>
                       <h4 className="text-lg font-bold tracking-tight text-[#0B1F33]">
-                        {CONSULTANCY_PLANS.diagnostico_gratuito.nome}
+                        {plans.diagnostico_gratuito.nome}
                       </h4>
                       <p className="text-xs text-[#4A5A6D] leading-relaxed">
-                        {CONSULTANCY_PLANS.diagnostico_gratuito.subtitulo}
+                        {plans.diagnostico_gratuito.subtitulo}
                       </p>
                     </div>
                     <p className="text-[11px] font-semibold text-[#0B1F33] pt-3 border-t border-[#F1EDE4]">
-                      Escopo: {CONSULTANCY_PLANS.diagnostico_gratuito.responsavelProtocolo}
+                      {plans.diagnostico_gratuito.escopoPrefix} {plans.diagnostico_gratuito.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-700">
-                      {CONSULTANCY_PLANS.diagnostico_gratuito.inclui.map((item) => (
+                      {plans.diagnostico_gratuito.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
                           <Check className="w-4 h-4 text-[#146B43] shrink-0 mt-0.5" />
                           <span>{item}</span>
@@ -629,7 +1001,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     onClick={() => navigateAction('/diagnostico')}
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-[#F1EDE4] transition-colors"
                   >
-                    Iniciar Diagnóstico Completo
+                    {plans.diagnostico_gratuito.cta}
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -639,20 +1011,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0B1F33]">
-                        Modalidade 01 · Direcionamento técnico
+                        {plans.orientativa.kicker}
                       </p>
                       <h4 className="text-lg font-bold tracking-tight text-[#0B1F33]">
-                        {CONSULTANCY_PLANS.orientativa.nome}
+                        {plans.orientativa.nome}
                       </h4>
                       <p className="text-xs text-[#4A5A6D] leading-relaxed">
-                        {CONSULTANCY_PLANS.orientativa.subtitulo}
+                        {plans.orientativa.subtitulo}
                       </p>
                     </div>
                     <p className="text-[11px] font-semibold text-[#0B1F33] pt-3 border-t border-[#F1EDE4]">
-                      Execução: {CONSULTANCY_PLANS.orientativa.responsavelProtocolo}
+                      {plans.orientativa.escopoPrefix} {plans.orientativa.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-700">
-                      {CONSULTANCY_PLANS.orientativa.inclui.map((item) => (
+                      {plans.orientativa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
                           <Check className="w-4 h-4 text-[#0B1F33] shrink-0 mt-0.5" />
                           <span>{item}</span>
@@ -661,17 +1033,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     </ul>
                   </div>
                   <a
-                    href={buildWhatsAppUrl(
-                      empresa.whatsapp,
-                      'Olá! Tenho interesse na Consultoria Orientativa (eu conduzo o protocolo com a orientação e revisão técnica de vocês). Podem me enviar os detalhes?',
-                    )}
+                    href={buildWhatsAppUrl(empresa.whatsapp, plans.orientativa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-semibold text-white transition-opacity hover:opacity-95"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
-                    Solicitar Consultoria Orientativa
+                    {plans.orientativa.cta}
                   </a>
                 </div>
 
@@ -683,20 +1052,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">
-                        Modalidade 02 · Gestão integral
+                        {plans.completa.kicker}
                       </p>
                       <h4 className="text-lg font-bold tracking-tight text-white">
-                        {CONSULTANCY_PLANS.completa.nome}
+                        {plans.completa.nome}
                       </h4>
                       <p className="text-xs text-slate-200 leading-relaxed">
-                        {CONSULTANCY_PLANS.completa.subtitulo}
+                        {plans.completa.subtitulo}
                       </p>
                     </div>
                     <p className="text-[11px] font-semibold text-[#E5C76B] pt-3 border-t border-white/15">
-                      Execução: {CONSULTANCY_PLANS.completa.responsavelProtocolo}
+                      {plans.completa.escopoPrefix} {plans.completa.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-100">
-                      {CONSULTANCY_PLANS.completa.inclui.map((item) => (
+                      {plans.completa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
                           <Check className="w-4 h-4 text-[#E5C76B] shrink-0 mt-0.5" />
                           <span>{item}</span>
@@ -705,17 +1074,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     </ul>
                   </div>
                   <a
-                    href={buildWhatsAppUrl(
-                      empresa.whatsapp,
-                      'Olá! Tenho interesse na Consultoria Completa (onde vocês conduzem todo o meu processo migratório no Chile do início ao fim). Podem me enviar proposta?',
-                    )}
+                    href={buildWhatsAppUrl(empresa.whatsapp, plans.completa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-opacity hover:opacity-95"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
-                    Solicitar Consultoria Completa
+                    {plans.completa.cta}
                   </a>
                 </div>
               </div>
@@ -729,52 +1095,52 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       <div className="flex items-center gap-2">
                         <Compass className="w-4 h-4 text-[#8C6D14]" />
                         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
-                          Simulador Orientativo · Ley Nº 21.325 &amp; SERMIG
+                          {t.comparator.kicker}
                         </p>
                       </div>
                       <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-[#0B1F33]">
-                        Qual caminho serve para mim?
+                        {t.comparator.title}
                       </h3>
                       <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed">
-                        Simule em 3 seleções rápidas a rota migratória, base normativa e regra de protocolo aplicáveis antes de iniciar o diagnóstico completo com radar de 7 pilares.
+                        {t.comparator.subtitle}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
                       <div>
-                        <label className="block font-semibold text-[#0B1F33] mb-1.5">Onde você está?</label>
+                        <label className="block font-semibold text-[#0B1F33] mb-1.5">{t.comparator.labelWhere}</label>
                         <select
                           value={compLocal}
                           onChange={(e) => setCompLocal(e.target.value as typeof compLocal)}
                           className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
                         >
-                          <option value="brasil">No Brasil / Exterior</option>
-                          <option value="turista_chile">No Chile como turista</option>
-                          <option value="residente_chile">Já resido no Chile</option>
+                          <option value="brasil">{t.comparator.whereOptions.brasil}</option>
+                          <option value="turista_chile">{t.comparator.whereOptions.turista_chile}</option>
+                          <option value="residente_chile">{t.comparator.whereOptions.residente_chile}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-[#0B1F33] mb-1.5">Principal objetivo</label>
+                        <label className="block font-semibold text-[#0B1F33] mb-1.5">{t.comparator.labelGoal}</label>
                         <select
                           value={compObj}
                           onChange={(e) => setCompObj(e.target.value as typeof compObj)}
                           className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
                         >
-                          <option value="morar_trabalhar">Morar / Empreender (BR)</option>
-                          <option value="trabalho_oferta">Contrato formal no Chile</option>
-                          <option value="estudar">Estudar no Chile</option>
-                          <option value="renda">Aposentado / Rentista</option>
-                          <option value="familia">Reunir com familiar no Chile</option>
+                          <option value="morar_trabalhar">{t.comparator.goalOptions.morar_trabalhar}</option>
+                          <option value="trabalho_oferta">{t.comparator.goalOptions.trabalho_oferta}</option>
+                          <option value="estudar">{t.comparator.goalOptions.estudar}</option>
+                          <option value="renda">{t.comparator.goalOptions.renda}</option>
+                          <option value="familia">{t.comparator.goalOptions.familia}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-[#0B1F33] mb-1.5">Vínculo formal no Chile?</label>
+                        <label className="block font-semibold text-[#0B1F33] mb-1.5">{t.comparator.labelTie}</label>
                         <select
                           value={compVinculo}
                           onChange={(e) => setCompVinculo(e.target.value as typeof compVinculo)}
                           className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
                         >
-                          <option value="nao">Não possuo</option>
-                          <option value="sim">Sim (cônjuge / filho chileno)</option>
+                          <option value="nao">{t.comparator.tieOptions.nao}</option>
+                          <option value="sim">{t.comparator.tieOptions.sim}</option>
                         </select>
                       </div>
                     </div>
@@ -787,7 +1153,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                          Rota indicativa preliminar
+                          {t.comparator.resultKicker}
                         </p>
                         <p className="font-display text-lg sm:text-xl font-bold tracking-tight text-white leading-snug">
                           {comparatorRecommendation.titulo}
@@ -801,15 +1167,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       </p>
                       <dl className="grid grid-cols-1 gap-2 pt-2.5 border-t border-white/15 text-[11px]">
                         <div className="flex items-baseline justify-between gap-2">
-                          <dt className="text-slate-400">Protocolo:</dt>
+                          <dt className="text-slate-400">{t.comparator.dtProtocol}</dt>
                           <dd className="text-right font-semibold text-white">{comparatorRecommendation.protocoloRegra}</dd>
                         </div>
                         <div className="flex items-baseline justify-between gap-2">
-                          <dt className="text-slate-400">Trabalho:</dt>
+                          <dt className="text-slate-400">{t.comparator.dtWork}</dt>
                           <dd className="text-right font-semibold text-emerald-300">{comparatorRecommendation.trabalho}</dd>
                         </div>
                         <div className="flex items-baseline justify-between gap-2">
-                          <dt className="text-slate-400">Referência:</dt>
+                          <dt className="text-slate-400">{t.comparator.dtReference}</dt>
                           <dd className="text-right font-mono tabular-nums text-[#E5C76B]">{comparatorRecommendation.prazoEstimado}</dd>
                         </div>
                       </dl>
@@ -825,7 +1191,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-all duration-150 hover:opacity-95"
                       style={{ backgroundColor: 'var(--color-accent)' }}
                     >
-                      Validar meu caso no Diagnóstico Completo
+                      {t.comparator.ctaValidate}
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -852,7 +1218,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <div className="h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
                   <img
                     src={sec.imagemUrl}
-                    alt={sec.titulo}
+                    alt={translateText(sec.titulo)}
                     referrerPolicy="no-referrer"
                     className={`w-full h-full ${imgFitClass}`}
                   />
@@ -861,15 +1227,17 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             )}
             <div className={`${noImage ? 'lg:col-span-12 max-w-4xl mx-auto' : 'lg:col-span-7'} flex flex-col justify-center ${imageRight ? 'lg:order-1' : 'lg:order-2'}`}>
               <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
-                {(meta.eyebrow as string) || 'Metodologia operacional'}
+                {translateText(meta.eyebrow as string | undefined) || t.sections.diferenciaisEyebrow}
               </p>
-              <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>{sec.titulo}</h2>
-              <p className={`text-base mb-8 ${theme.subClass}`}>{sec.subtitulo}</p>
+              <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>
+                {translateText(sec.titulo)}
+              </h2>
+              <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
               <div className="space-y-6">
                 {difItens.map((d, idx) => (
                   <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2]'} last:border-b-0 last:pb-0`}>
-                    <h3 className={`text-base font-bold mb-1 ${theme.headingClass}`}>{d.titulo}</h3>
-                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{d.descricao}</p>
+                    <h3 className={`text-base font-bold mb-1 ${theme.headingClass}`}>{translateText(d.titulo)}</h3>
+                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{translateText(d.descricao)}</p>
                   </div>
                 ))}
               </div>
@@ -882,7 +1250,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
                   >
                     <BookOpen className="w-4 h-4" />
-                    Entenda a Lei (Resumo acessível para clientes)
+                    {t.sections.understandLawCta}
                   </button>
                 </div>
               )}
@@ -901,13 +1269,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             <div className="max-w-2xl mb-12">
               {Boolean(meta.eyebrow) && (
                 <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5 ${theme.eyebrowClass}`}>
-                  {String(meta.eyebrow)}
+                  {translateText(String(meta.eyebrow))}
                 </p>
               )}
-              <h2 className={`text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
-                {sec.titulo}
+              <h2 className={`font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
+                {translateText(sec.titulo)}
               </h2>
-              <p className={`text-base leading-relaxed ${theme.subClass}`}>{sec.subtitulo}</p>
+              <p className={`text-base leading-relaxed ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {passos.map((p) => (
@@ -919,8 +1287,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       </p>
                       <span className={`h-[2px] w-6 ${theme.isDark ? 'bg-white/25' : 'bg-[#DDD6C7]'}`} aria-hidden="true" />
                     </div>
-                    <h3 className={`text-base font-bold tracking-tight mb-2 ${theme.headingClass}`}>{p.titulo}</h3>
-                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{p.descricao}</p>
+                    <h3 className={`text-base font-bold tracking-tight mb-2 ${theme.headingClass}`}>
+                      {translateText(p.titulo)}
+                    </h3>
+                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{translateText(p.descricao)}</p>
                   </div>
                 </div>
               ))}
@@ -938,14 +1308,16 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               <div className="lg:col-span-7">
                 <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
-                  {(meta.eyebrow as string) || 'Quem Somos'}
+                  {translateText(meta.eyebrow as string | undefined) || t.sections.quemSomosEyebrow}
                 </p>
-                <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>{sec.titulo}</h2>
-                <p className={`text-base mb-4 ${theme.subClass}`}>{sec.subtitulo}</p>
+                <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>
+                  {translateText(sec.titulo)}
+                </h2>
+                <p className={`text-base mb-4 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
                 {sec.conteudoHtml && (
                   <div
                     className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#4A5A6D]'}`}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
                 )}
                 <button
@@ -957,7 +1329,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       : 'border-[#DDD6C7] text-[#0B1F33] hover:bg-[#FAF9F6] hover:border-[#C8A236]/60'
                   }`}
                 >
-                  {sec.ctaTexto || 'Conhecer trajetória e credenciais'}
+                  {translateText(sec.ctaTexto) || t.sections.quemSomosCta}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -966,7 +1338,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   {sec.imagemUrl ? (
                     <img
                       src={sec.imagemUrl}
-                      alt={sec.titulo}
+                      alt={translateText(sec.titulo)}
                       referrerPolicy="no-referrer"
                       className={`w-full h-full ${imgFitClass}`}
                     />
@@ -979,8 +1351,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           {!hasExplicitPartnersSection &&
             renderPartnersGrid(
               {
-                titulo: 'Parceiros recomendados',
-                subtitulo: 'Rede homologada no Brasil e no Chile para apostilamentos, traduções juramentadas e relocation.',
+                titulo: t.sections.partnersFallbackTitle,
+                subtitulo: t.sections.partnersFallbackSubtitle,
               },
               `${sec.id}_fallback_partners`,
             )}
@@ -999,9 +1371,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-3xl mb-10">
-              {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
-              <h2 className={`text-2xl sm:text-3xl font-bold mb-2 ${theme.headingClass}`}>{sec.titulo}</h2>
-              <p className={`text-base ${theme.subClass}`}>{sec.subtitulo}</p>
+              {Boolean(meta.eyebrow) && (
+                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+                  {translateText(String(meta.eyebrow))}
+                </p>
+              )}
+              <h2 className={`font-display text-2xl sm:text-3xl font-bold mb-2 ${theme.headingClass}`}>
+                {translateText(sec.titulo)}
+              </h2>
+              <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {authorizedTestimonials.map((dep) => (
@@ -1027,9 +1405,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       return (
         <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6">
-            {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
-            <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>{sec.titulo}</h2>
-            <p className={`text-base mb-8 ${theme.subClass}`}>{sec.subtitulo}</p>
+            {Boolean(meta.eyebrow) && (
+              <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+                {translateText(String(meta.eyebrow))}
+              </p>
+            )}
+            <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>
+              {translateText(sec.titulo)}
+            </h2>
+            <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
             <div className="divide-y divide-[#E5DFD2] border border-[#E5DFD2] card-radius bg-[var(--color-surface)] text-[#0B1F33] overflow-hidden shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
               {perguntas.map((item, idx) => {
                 const isOpen = openFaq === idx;
@@ -1041,14 +1425,30 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       onClick={() => setOpenFaq(isOpen ? null : idx)}
                       className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#FAF9F6] transition-colors"
                     >
-                      <span className="text-sm sm:text-base font-semibold text-[#0B1F33]">{item.pergunta}</span>
-                      {isOpen ? (
-                        <ChevronUp className="w-4 h-4 text-[#8C6D14] shrink-0" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
-                      )}
+                      <span className="text-sm sm:text-base font-semibold text-[#0B1F33]">
+                        {translateText(item.pergunta)}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                          isOpen ? 'rotate-180 text-[#8C6D14]' : 'text-slate-500'
+                        }`}
+                      />
                     </button>
-                    {isOpen && <div className="px-6 pb-5 text-sm text-[#4A5A6D] leading-relaxed">{item.resposta}</div>}
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.22, ease: EASE_EXECUTIVE }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-6 pb-5 text-sm text-[#4A5A6D] leading-relaxed">
+                            {translateText(item.resposta)}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               })}
@@ -1063,21 +1463,31 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       return (
         <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} relative overflow-hidden`} style={theme.sectionStyle}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-7">
+            <div className="flex justify-center">
+              <BrandLogo
+                variant="emblem-dark"
+                alt={empresa.nome_empresa}
+                brandShortName={brandShortName}
+                imgClassName="w-14 h-14 object-contain"
+              />
+            </div>
             <div className="space-y-3">
               <div className="inline-flex items-center gap-3 justify-center">
                 <span className="h-[1px] w-8 bg-[#C9A227]/70" aria-hidden="true" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#E5C76B]">
-                  Próximo Passo
+                  {t.sections.contatoKicker}
                 </p>
                 <span className="h-[1px] w-8 bg-[#C9A227]/70" aria-hidden="true" />
               </div>
-              <h2 className={`text-2xl sm:text-4xl font-bold tracking-tight text-balance ${theme.headingClass}`}>
-                {sec.titulo}
+              <h2 className={`font-display text-2xl sm:text-4xl font-bold tracking-tight text-balance ${theme.headingClass}`}>
+                {translateText(sec.titulo)}
               </h2>
               <p className={`text-base sm:text-lg max-w-2xl mx-auto leading-relaxed ${theme.subClass}`}>
-                {sec.subtitulo}
+                {translateText(sec.subtitulo)}
               </p>
-              {sec.conteudoHtml && <p className="text-xs opacity-80 mt-2">{sec.conteudoHtml}</p>}
+              {sec.conteudoHtml && (
+                <p className="text-xs opacity-80 mt-2">{translateText(sec.conteudoHtml)}</p>
+              )}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3.5 pt-1">
               <button
@@ -1086,7 +1496,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 className="inline-flex items-center gap-2 px-6.5 py-3.5 btn-radius text-sm font-bold text-[#0B1523] shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5"
                 style={{ backgroundColor: 'var(--color-accent)' }}
               >
-                {sec.ctaTexto || 'Iniciar Diagnóstico Agora'}
+                {translateText(sec.ctaTexto) || t.sections.contatoDefaultCta}
                 <ArrowRight className="w-4 h-4" />
               </button>
               <a
@@ -1098,7 +1508,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 }`}
               >
                 <MessageCircle className="w-4 h-4" />
-                Atendimento via WhatsApp
+                {t.sections.contatoWhatsappCta}
               </a>
               {onOpenCalendly && (
                 <button
@@ -1109,7 +1519,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   }`}
                 >
                   <Calendar className="w-4 h-4" />
-                  Agendar Conversa
+                  {t.sections.contatoScheduleCta}
                 </button>
               )}
             </div>
@@ -1130,13 +1540,19 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             {hasImage ? (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
                 <div className={`lg:col-span-7 space-y-4 ${imgLeft ? 'lg:order-2' : 'lg:order-1'}`}>
-                  {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
-                  <h2 className={`text-2xl sm:text-3xl font-bold text-balance ${theme.headingClass}`}>{sec.titulo}</h2>
-                  {sec.subtitulo && <p className={`text-base ${theme.subClass}`}>{sec.subtitulo}</p>}
+                  {Boolean(meta.eyebrow) && (
+                    <p className={`text-xs font-semibold ${theme.eyebrowClass}`}>
+                      {translateText(String(meta.eyebrow))}
+                    </p>
+                  )}
+                  <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance ${theme.headingClass}`}>
+                    {translateText(sec.titulo)}
+                  </h2>
+                  {sec.subtitulo && <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>}
                   {sec.conteudoHtml && (
                     <div
                       className={`text-sm leading-relaxed ${theme.subClass}`}
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                     />
                   )}
                   {sec.ctaTexto && (
@@ -1145,9 +1561,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         type="button"
                         onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
                         className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white"
-                        style={{ backgroundColor: theme.isDark ? 'var(--color-accent)' : 'var(--color-primary)', color: theme.isDark ? '#0F172A' : '#FFFFFF' }}
+                        style={{
+                          backgroundColor: theme.isDark ? 'var(--color-accent)' : 'var(--color-primary)',
+                          color: theme.isDark ? '#0F172A' : '#FFFFFF',
+                        }}
                       >
-                        {sec.ctaTexto}
+                        {translateText(sec.ctaTexto)}
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -1157,7 +1576,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <div className="h-72 sm:h-80 card-radius overflow-hidden border border-slate-200/80 bg-slate-100">
                     <img
                       src={sec.imagemUrl}
-                      alt={sec.titulo}
+                      alt={translateText(sec.titulo)}
                       referrerPolicy="no-referrer"
                       className={`w-full h-full ${imgFitClass}`}
                     />
@@ -1166,20 +1585,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
             ) : (
               <div className="max-w-3xl mx-auto text-center space-y-4">
-                {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
-                <h2 className={`text-2xl sm:text-3xl font-bold text-balance ${theme.headingClass}`}>{sec.titulo}</h2>
-                {sec.subtitulo && <p className={`text-base ${theme.subClass}`}>{sec.subtitulo}</p>}
+                {Boolean(meta.eyebrow) && (
+                  <p className={`text-xs font-semibold ${theme.eyebrowClass}`}>
+                    {translateText(String(meta.eyebrow))}
+                  </p>
+                )}
+                <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance ${theme.headingClass}`}>
+                  {translateText(sec.titulo)}
+                </h2>
+                {sec.subtitulo && <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>}
                 {sec.conteudoHtml && (
                   <div
                     className={`text-sm leading-relaxed ${theme.subClass}`}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
                 )}
                 {sec.imagemUrl && (
                   <div className="pt-3">
                     <img
                       src={sec.imagemUrl}
-                      alt={sec.titulo}
+                      alt={translateText(sec.titulo)}
                       referrerPolicy="no-referrer"
                       className={`max-h-80 mx-auto card-radius border border-slate-200 ${imgFitClass}`}
                     />
@@ -1196,7 +1621,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         color: theme.isDark ? '#0F172A' : '#FFFFFF',
                       }}
                     >
-                      {sec.ctaTexto}
+                      {translateText(sec.ctaTexto)}
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -1211,85 +1636,95 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     return null;
   };
 
+  const drawerFallback = serviceDrawer ? t.services.fallbackDetails[serviceDrawer.numero] : undefined;
+
   return (
-    <div>
-      {orderedSections.map((sec) => renderSection(sec))}
+    <MotionConfig reducedMotion="user">
+      <div>
+        {orderedSections.map((sec) => renderSection(sec))}
 
-      {serviceDrawer && !previewMode && (
-        <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end" role="dialog" aria-modal="true">
-          <div className="bg-white w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2]">
-            <BrandRibbon className="h-[3px] w-full shrink-0" />
-            <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B] font-mono tabular-nums">
-                  Serviço {serviceDrawer.numero} · Assessoria Migratória
-                </p>
-                <h3 className="font-display text-lg font-bold text-white mt-1 leading-snug">{serviceDrawer.titulo}</h3>
+        {serviceDrawer && !previewMode && (
+          <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end" role="dialog" aria-modal="true">
+            <div className="bg-white w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2]">
+              <BrandRibbon className="h-[3px] w-full shrink-0" />
+              <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B] font-mono tabular-nums">
+                    {serviceDrawer.numero} · {t.services.drawer.headerPrefix}
+                  </p>
+                  <h3 className="font-display text-lg font-bold text-white mt-1 leading-snug">{serviceDrawer.titulo}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setServiceDrawer(null)}
+                  aria-label={t.services.drawer.closeLabel}
+                  className="p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setServiceDrawer(null)}
-                aria-label="Fechar detalhes do serviço"
-                className="p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="p-6 flex-1 overflow-y-auto space-y-4">
-              <p className="text-sm text-[#4A5A6D] leading-relaxed">{serviceDrawer.descricao}</p>
-              <div className="space-y-3 text-xs pt-1">
-                <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">Para quem é indicado</p>
-                  <p className="text-[#0B1F33] mt-1 leading-relaxed">
-                    {serviceDrawer.paraQuem || SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.paraQuem || 'Avaliado individualmente no diagnóstico.'}
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">Enquadramento e documentos típicos</p>
-                  <p className="text-[#0B1F33] mt-1 leading-relaxed">
-                    {serviceDrawer.subcategoriaTipica || SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.subcategoriaTipica || 'Conforme normativa vigente SERMIG.'}
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">Faixa referencial de prazos</p>
-                  <p className="text-[#0B1F33] font-mono tabular-nums mt-1 leading-relaxed">
-                    {serviceDrawer.faixaPrazo || SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.faixaPrazo || 'Definido conforme fila do SERMIG.'}
-                  </p>
+              <div className="p-6 flex-1 overflow-y-auto space-y-4">
+                <p className="text-sm text-[#4A5A6D] leading-relaxed">{serviceDrawer.descricao}</p>
+                <div className="space-y-3 text-xs pt-1">
+                  <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                      {t.services.drawer.whoFor}
+                    </p>
+                    <p className="text-[#0B1F33] mt-1 leading-relaxed">
+                      {serviceDrawer.paraQuem || drawerFallback?.paraQuem || t.services.drawer.defaultWhoFor}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                      {t.services.drawer.framework}
+                    </p>
+                    <p className="text-[#0B1F33] mt-1 leading-relaxed">
+                      {serviceDrawer.subcategoriaTipica || drawerFallback?.subcategoriaTipica || t.services.drawer.defaultFramework}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                      {t.services.drawer.timeline}
+                    </p>
+                    <p className="text-[#0B1F33] font-mono tabular-nums mt-1 leading-relaxed">
+                      {serviceDrawer.faixaPrazo || drawerFallback?.faixaPrazo || t.services.drawer.defaultTimeline}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="px-6 py-4 bg-[#FAF9F6] border-t border-[#E5DFD2] space-y-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setServiceDrawer(null);
-                  onNavigate('/diagnostico');
-                }}
-                className="w-full py-3 px-4 btn-radius text-xs font-bold text-white inline-flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                Fazer Diagnóstico para Este Serviço
-                <ArrowRight className="w-3.5 h-3.5 text-[#E5C76B]" />
-              </button>
-              <a
-                href={buildWhatsAppUrl(
-                  empresa.whatsapp,
-                  `Olá! Gostaria de saber mais sobre o serviço: ${serviceDrawer.titulo}.`,
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
-              >
-                <MessageCircle className="w-4 h-4 text-[#146B43]" />
-                Consultar no WhatsApp
-              </a>
+              <div className="px-6 py-4 bg-[#FAF9F6] border-t border-[#E5DFD2] space-y-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServiceDrawer(null);
+                    onNavigate('/diagnostico');
+                  }}
+                  className="w-full py-3 px-4 btn-radius text-xs font-bold text-white inline-flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  {t.services.drawer.ctaDiagnostic}
+                  <ArrowRight className="w-3.5 h-3.5 text-[#E5C76B]" />
+                </button>
+                <a
+                  href={buildWhatsAppUrl(
+                    empresa.whatsapp,
+                    t.services.drawer.waGreeting(serviceDrawer.titulo),
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#146B43]" />
+                  {t.services.drawer.ctaWhatsapp}
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </MotionConfig>
   );
 };
 

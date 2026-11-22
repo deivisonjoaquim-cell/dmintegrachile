@@ -5,6 +5,7 @@ import { GlobalErrorToast } from './components/GlobalErrorToast';
 import { PublicLayout } from './components/PublicLayout';
 import { SkeletonBlock } from './components/ui/DesignSystem';
 import { AppProvider } from './contexts/AppContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { installGlobalErrorHandlers } from './services/errorService';
 
 const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
@@ -170,10 +171,12 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <RouterView />
-        <GlobalErrorToast />
-      </AppProvider>
+      <LanguageProvider>
+        <AppProvider>
+          <RouterView />
+          <GlobalErrorToast />
+        </AppProvider>
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }

@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { CommunicationLog } from '../src/types/domain.ts';
-import type { ExpirationSeverity } from '../src/utils/documentExpiration.ts';
+import type { ExpirationItemKind, ExpirationSeverity } from '../src/utils/documentExpiration.ts';
 import { formatDateBR } from '../src/utils/formatters.ts';
 
 export interface SmtpRuntimeConfig {
@@ -11,12 +11,14 @@ export interface SmtpRuntimeConfig {
   pass: string;
   from: string;
   replyTo?: string;
+  alertDays: number;
   cooldownDays: number;
   configured: boolean;
 }
 
 export interface EmailReminderItemPayload {
   docId: string;
+  itemKind?: ExpirationItemKind;
   caseId: string;
   caseTitle: string;
   clientId: string;
@@ -35,6 +37,7 @@ export interface EmailReminderItemPayload {
 }
 
 export interface EmailTransportLike {
+  verify?: () => Promise<unknown>;
   sendMail(mailOptions: {
     from: string;
     to: string;
@@ -75,6 +78,7 @@ export interface EmailDispatchItemOutcome {
 export interface EmailDispatchBatchResult {
   ok: boolean;
   smtpConfigured: boolean;
+  alertDays: number;
   sentEmails: number;
   coveredDocs: number;
   skippedCooldown: number;
@@ -88,6 +92,17 @@ export interface EmailDispatchBatchResult {
   createdLogs: CommunicationLog[];
 }
 
+export interface SmtpVerificationResult {
+  ok: boolean;
+  smtpConfigured: boolean;
+  hostLabel: string;
+  port: number;
+  secure: boolean;
+  alertDays: number;
+  cooldownDays: number;
+  message: string;
+}
+
 export function getSmtpConfigFromEnv(env: Record<string, string | undefined> = process.env): SmtpRuntimeConfig {
   const host = (env.SMTP_HOST || '').trim();
   const portRaw = Number(env.SMTP_PORT || '587');
@@ -96,8 +111,13 @@ export function getSmtpConfigFromEnv(env: Record<string, string | undefined> = p
   const secure = secureEnv === 'true' || secureEnv === '1' || port === 465;
   const user = (env.SMTP_USER || '').trim();
   const pass = (env.SMTP_PASS || '').trim();
-  const from = (env.SMTP_FROM || (user ? `D&M Integra Chile <${user}>` : 'D&M Integra Chile <noreply@dmintegrachile.com>')).trim();
+  const from = (
+    env.SMTP_FROM ||
+    (user ? `D&M Integra Chile <${user}>` : 'D&M Integra Chile <noreply@dmintegrachile.com>')
+  ).trim();
   const replyTo = (env.SMTP_REPLY_TO || '').trim() || undefined;
+  const alertRaw = Number(env.EXPIRATION_ALERT_DAYS || '30');
+  const alertDays = Number.isFinite(alertRaw) && alertRaw >= 1 && alertRaw <= 180 ? Math.round(alertRaw) : 30;
   const cooldownRaw = Number(env.EXPIRATION_EMAIL_COOLDOWN_DAYS || '7');
   const cooldownDays = Number.isFinite(cooldownRaw) && cooldownRaw >= 1 ? Math.round(cooldownRaw) : 7;
 
@@ -110,6 +130,7 @@ export function getSmtpConfigFromEnv(env: Record<string, string | undefined> = p
     pass,
     from,
     replyTo,
+    alertDays,
     cooldownDays,
     configured,
   };
@@ -117,7 +138,27 @@ export function getSmtpConfigFromEnv(env: Record<string, string | undefined> = p
 
 export function isValidEmailAddress(email?: string): boolean {
   if (!email) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  const trimmed = email.trim();
+  if (/[\r\n]/.test(trimmed) || trimmed.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed);
+}
+
+export function sanitizeHeaderLine(raw: string): string {
+  return String(raw || '').replace(/[\r\n]+/g, ' ').trim();
+}
+
+export function sanitizeHttpUrl(raw?: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      return parsed.toString();
+    }
+    return '';
+  } catch {
+    return '';
+  }
 }
 
 export function escapeHtml(raw: string): string {
@@ -193,38 +234,63 @@ export function buildExpirationEmailTemplate(params: {
   items: EmailReminderItemPayload[];
   portalUrl?: string;
   replyTo?: string;
+  alertDays?: number;
 }): { subject: string; html: string; text: string } {
-  const { brandName, clientName, caseTitle, items, portalUrl = '', replyTo } = params;
+  const {
+    brandName,
+    clientName,
+    caseTitle,
+    items,
+    portalUrl = '',
+    replyTo,
+    alertDays = 30,
+  } = params;
   const safeBrand = escapeHtml(brandName || 'D&M Integra Chile – Relocation & Assessoria');
   const safeClient = escapeHtml(clientName || 'Cliente');
   const safeCase = escapeHtml(caseTitle || 'Processo Migratório');
+  const cleanPortalUrl = sanitizeHttpUrl(portalUrl);
 
   const hasUrgent = items.some((i) => i.severity === 'vencido' || i.severity === 'critico');
-  const subject =
+  const hasVisaItem = items.some((i) => i.itemKind === 'visto' || i.itemKind === 'prazo_visto');
+  const cleanBrandLine = sanitizeHeaderLine(brandName || 'D&M Integra Chile');
+  const subjectPrefix = hasUrgent ? '[URGENTE] ' : hasVisaItem ? '[ALERTA DE VISTO · 30 DIAS] ' : '';
+
+  const subject = sanitizeHeaderLine(
     items.length === 1
-      ? `${hasUrgent ? '[URGENTE] ' : ''}Lembrete de Vencimento: ${items[0].nomeDocumento} — ${brandName}`
-      : `${hasUrgent ? '[URGENTE] ' : ''}Lembrete de Vencimento (${items.length} documentos) — ${brandName}`;
+      ? `${subjectPrefix}Lembrete de Vencimento: ${items[0].nomeDocumento} — ${cleanBrandLine}`
+      : `${subjectPrefix}Lembrete de Vencimento (${items.length} itens ≤ ${alertDays} dias) — ${cleanBrandLine}`,
+  );
 
   const rowsHtml = items
     .map((item) => {
       const badgeColor =
-        item.severity === 'vencido' || item.severity === 'critico' ? '#B91C1C' : '#B45309';
+        item.severity === 'vencido' || item.severity === 'critico' ? '#A61C2B' : '#8C6D14';
       const badgeBg =
-        item.severity === 'vencido' || item.severity === 'critico' ? '#FEF2F2' : '#FFFBEB';
-      const reqLabel = item.obrigatorio ? 'Obrigatório' : 'Complementar';
+        item.severity === 'vencido' || item.severity === 'critico' ? '#FEF2F2' : '#FEF9EC';
+      const kindLabel =
+        item.itemKind === 'visto'
+          ? 'Visto / Residência'
+          : item.itemKind === 'prazo_visto'
+            ? 'Prazo Migratório'
+            : item.obrigatorio
+              ? 'Documento Obrigatório'
+              : 'Documento Complementar';
       const emissaoBr = item.dataEmissao ? formatDateBR(item.dataEmissao) : '—';
       return `
         <tr>
-          <td style="padding:12px 14px;border-bottom:1px solid #E2E8F0;vertical-align:top;">
-            <div style="font-weight:700;color:#0F172A;font-size:14px;">${escapeHtml(item.nomeDocumento)}</div>
-            <div style="font-size:12px;color:#64748B;margin-top:2px;">Titular/Pessoa: ${escapeHtml(item.pessoa)} · ${reqLabel}</div>
+          <td style="padding:12px 14px;border-bottom:1px solid #E5DFD2;vertical-align:top;">
+            <div style="font-size:10px;letter-spacing:0.8px;text-transform:uppercase;color:${
+              item.itemKind === 'visto' || item.itemKind === 'prazo_visto' ? '#146B43' : '#8C6D14'
+            };font-weight:700;margin-bottom:3px;">${escapeHtml(kindLabel)}</div>
+            <div style="font-weight:700;color:#0B1F33;font-size:14px;">${escapeHtml(item.nomeDocumento)}</div>
+            <div style="font-size:12px;color:#4A5A6D;margin-top:2px;">Titular/Pessoa: ${escapeHtml(item.pessoa)}</div>
           </td>
-          <td style="padding:12px 14px;border-bottom:1px solid #E2E8F0;font-size:13px;color:#334155;white-space:nowrap;vertical-align:top;">
-            <div>Emissão: ${escapeHtml(emissaoBr)}</div>
-            <div style="font-weight:700;color:#0F172A;margin-top:2px;">Validade: ${escapeHtml(item.dataValidadeBR)}</div>
+          <td style="padding:12px 14px;border-bottom:1px solid #E5DFD2;font-size:13px;color:#334155;white-space:nowrap;vertical-align:top;">
+            <div>Emissão/Ref.: ${escapeHtml(emissaoBr)}</div>
+            <div style="font-weight:700;color:#0B1F33;margin-top:2px;">Validade: ${escapeHtml(item.dataValidadeBR)}</div>
           </td>
-          <td style="padding:12px 14px;border-bottom:1px solid #E2E8F0;vertical-align:top;text-align:right;">
-            <span style="display:inline-block;padding:4px 9px;border-radius:6px;background:${badgeBg};color:${badgeColor};font-weight:700;font-size:12px;white-space:nowrap;">
+          <td style="padding:12px 14px;border-bottom:1px solid #E5DFD2;vertical-align:top;text-align:right;">
+            <span style="display:inline-block;padding:4px 9px;border-radius:6px;background:${badgeBg};color:${badgeColor};font-weight:700;font-size:12px;white-space:nowrap;border:1px solid ${badgeColor}33;">
               ${escapeHtml(item.statusLabel)}
             </span>
           </td>
@@ -233,31 +299,39 @@ export function buildExpirationEmailTemplate(params: {
     })
     .join('');
 
-  const portalSectionHtml = portalUrl
+  const portalSectionHtml = cleanPortalUrl
     ? `<div style="margin:24px 0 8px 0;">
-        <a href="${escapeHtml(portalUrl)}" style="display:inline-block;background:#0F2537;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:8px;">
+        <a href="${escapeHtml(cleanPortalUrl)}" style="display:inline-block;background:#0B1F33;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:8px;border-bottom:2px solid #C8A236;">
           Acessar Portal do Cliente
         </a>
       </div>`
     : '';
 
+  const introContext = hasVisaItem
+    ? `Identificamos no processo <strong>${safeCase}</strong> alerta(s) crítico(s) de vencimento de visto, residência ou documento dentro da janela preventiva de <strong>${alertDays} dias</strong>. Recomendamos iniciar imediatamente os procedimentos de prorrogação, emissão ou envio no Portal do Cliente para preservar sua regularidade junto ao SERMIG (Chile).`
+    : `Identificamos no processo <strong>${safeCase}</strong> ${
+        items.length === 1
+          ? `um documento exigido com validade vencida ou expirando dentro de ${alertDays} dias`
+          : `${items.length} documentos exigidos com validade vencida ou expirando dentro de ${alertDays} dias`
+      }. Recomendamos providenciar a reemissão ou o envio da versão atualizada para evitar atrasos junto ao SERMIG.`;
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8" /></head>
-<body style="margin:0;padding:0;background:#F1F5F9;font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif;color:#0F172A;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F1F5F9;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#F7F5F0;font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif;color:#0B1523;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F7F5F0;padding:24px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="620" cellspacing="0" cellpadding="0" style="max-width:620px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E2E8F0;">
+        <table role="presentation" width="620" cellspacing="0" cellpadding="0" style="max-width:620px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E5DFD2;">
           <tr>
-            <td style="height:6px;background:linear-gradient(90deg,#0F2537 75%,#D4AF37 75%);font-size:0;line-height:0;">&nbsp;</td>
+            <td style="height:5px;background:linear-gradient(90deg,#146B43 0%,#146B43 24%,#C8A236 24%,#C8A236 42%,#0B1F33 42%,#0B1F33 78%,#A61C2B 78%,#A61C2B 100%);font-size:0;line-height:0;">&nbsp;</td>
           </tr>
           <tr>
-            <td style="padding:24px 28px;border-bottom:1px solid #E2E8F0;background:#0F2537;color:#FFFFFF;">
-              <div style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#D4AF37;font-weight:700;">
-                Lembrete Automático de Vencimento (&lt; 30 dias)
+            <td style="padding:24px 28px;border-bottom:1px solid #1C324B;background:#0B1F33;color:#FFFFFF;">
+              <div style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#E5C76B;font-weight:700;">
+                Alerta Preventivo Automático · Janela de ${alertDays} Dias
               </div>
-              <div style="font-size:20px;font-weight:800;margin-top:4px;color:#FFFFFF;">
+              <div style="font-size:21px;font-weight:800;margin-top:4px;color:#FFFFFF;font-family:Georgia,serif;">
                 ${safeBrand}
               </div>
             </td>
@@ -268,15 +342,15 @@ export function buildExpirationEmailTemplate(params: {
                 Olá, <strong>${safeClient}</strong>,
               </p>
               <p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:#334155;">
-                Identificamos no processo <strong>${safeCase}</strong> ${items.length === 1 ? 'um documento exigido com validade vencida ou próxima do vencimento (menos de 30 dias)' : `${items.length} documentos exigidos com validade vencida ou próxima do vencimento (menos de 30 dias)`}. Recomendamos providenciar a reemissão ou o envio da versão atualizada para evitar atrasos junto ao SERMIG.
+                ${introContext}
               </p>
 
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;border-collapse:collapse;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #E5DFD2;border-radius:8px;overflow:hidden;border-collapse:collapse;">
                 <thead>
-                  <tr style="background:#F8FAFC;border-bottom:1px solid #CBD5E1;">
-                    <th align="left" style="padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#475569;">Documento</th>
-                    <th align="left" style="padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#475569;">Datas</th>
-                    <th align="right" style="padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#475569;">Prazo</th>
+                  <tr style="background:#FAF9F6;border-bottom:1px solid #E5DFD2;">
+                    <th align="left" style="padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#4A5A6D;">Item / Documento</th>
+                    <th align="left" style="padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#4A5A6D;">Datas</th>
+                    <th align="right" style="padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#4A5A6D;">Prazo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -286,14 +360,14 @@ export function buildExpirationEmailTemplate(params: {
 
               ${portalSectionHtml}
 
-              <p style="margin:18px 0 0 0;font-size:12.5px;line-height:1.5;color:#64748B;">
-                Caso você já tenha reemitido ou apostilado ${items.length === 1 ? 'este documento' : 'estes documentos'}, basta anexar o novo arquivo diretamente no Portal do Cliente${replyTo ? ` ou responder a este e-mail (${escapeHtml(replyTo)})` : ''}.
+              <p style="margin:18px 0 0 0;font-size:12.5px;line-height:1.5;color:#4A5A6D;">
+                Caso você já tenha renovado, reemitido ou apostilado ${items.length === 1 ? 'este item' : 'estes itens'}, basta anexar o novo arquivo diretamente no Portal do Cliente${replyTo ? ` ou responder a este e-mail (${escapeHtml(replyTo)})` : ''}.
               </p>
             </td>
           </tr>
           <tr>
-            <td style="padding:14px 28px;background:#F8FAFC;border-top:1px solid #E2E8F0;font-size:11px;color:#64748B;">
-              ${safeBrand} · Notificação automática de acompanhamento documental.
+            <td style="padding:14px 28px;background:#FAF9F6;border-top:1px solid #E5DFD2;font-size:11px;color:#64748B;">
+              ${safeBrand} · Monitoramento automático de vistos e prazos migratórios (SERMIG · Ley Nº 21.325).
             </td>
           </tr>
         </table>
@@ -304,17 +378,19 @@ export function buildExpirationEmailTemplate(params: {
 </html>`;
 
   const lines = [
-    `${brandName} — Lembrete de Vencimento (< 30 dias)`,
+    `${brandName} — Alerta Preventivo de Vencimento (≤ ${alertDays} dias)`,
     '',
     `Olá, ${clientName || 'Cliente'},`,
-    `No processo "${caseTitle || 'Processo Migratório'}", identificamos o(s) seguinte(s) documento(s) com vencimento próximo ou vencido:`,
+    `No processo "${caseTitle || 'Processo Migratório'}", identificamos o(s) seguinte(s) visto(s)/documento(s) com vencimento em até ${alertDays} dias ou vencidos:`,
     '',
     ...items.map(
       (i) =>
-        `- ${i.nomeDocumento} (${i.pessoa}): ${i.statusLabel} | Validade: ${i.dataValidadeBR}`,
+        `- [${i.itemKind === 'visto' ? 'VISTO' : i.itemKind === 'prazo_visto' ? 'PRAZO' : 'DOC'}] ${i.nomeDocumento} (${i.pessoa}): ${i.statusLabel} | Validade: ${i.dataValidadeBR}`,
     ),
     '',
-    portalUrl ? `Envie o documento atualizado pelo Portal do Cliente: ${portalUrl}` : 'Envie o documento atualizado pelo Portal do Cliente.',
+    cleanPortalUrl
+      ? `Envie a atualização pelo Portal do Cliente: ${cleanPortalUrl}`
+      : 'Envie a atualização pelo Portal do Cliente.',
   ];
 
   return { subject, html, text: lines.join('\n') };
@@ -333,6 +409,142 @@ export function createNodemailerTransporter(config: SmtpRuntimeConfig): EmailTra
     greetingTimeout: 10000,
     socketTimeout: 15000,
   });
+}
+
+export async function verifySmtpConnection(params?: {
+  smtpOverride?: SmtpRuntimeConfig;
+  transporterOverride?: EmailTransportLike;
+}): Promise<SmtpVerificationResult> {
+  const smtp = params?.smtpOverride ?? getSmtpConfigFromEnv();
+  const hostLabel = smtp.host ? `${smtp.host}:${smtp.port}` : 'Não configurado';
+
+  if (!smtp.configured && !params?.transporterOverride) {
+    return {
+      ok: false,
+      smtpConfigured: false,
+      hostLabel,
+      port: smtp.port,
+      secure: smtp.secure,
+      alertDays: smtp.alertDays,
+      cooldownDays: smtp.cooldownDays,
+      message:
+        'Defina SMTP_HOST, SMTP_USER e SMTP_PASS nos segredos do servidor (conforme .env.example) para habilitar o envio real pelo Nodemailer.',
+    };
+  }
+
+  const transporter = params?.transporterOverride ?? createNodemailerTransporter(smtp);
+  try {
+    if (typeof transporter.verify === 'function') {
+      await transporter.verify();
+    }
+    return {
+      ok: true,
+      smtpConfigured: true,
+      hostLabel,
+      port: smtp.port,
+      secure: smtp.secure,
+      alertDays: smtp.alertDays,
+      cooldownDays: smtp.cooldownDays,
+      message: `Conexão SMTP validada com sucesso (${hostLabel}). Alertas automáticos configurados para ≤ ${smtp.alertDays} dias antes do vencimento.`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      smtpConfigured: smtp.configured,
+      hostLabel,
+      port: smtp.port,
+      secure: smtp.secure,
+      alertDays: smtp.alertDays,
+      cooldownDays: smtp.cooldownDays,
+      message:
+        err instanceof Error
+          ? `Falha na autenticação/conexão SMTP: ${err.message}`
+          : 'Não foi possível validar a conexão com o servidor SMTP.',
+    };
+  }
+}
+
+export async function sendTestExpirationEmail(params: {
+  toEmail: string;
+  brandName?: string;
+  portalUrl?: string;
+  smtpOverride?: SmtpRuntimeConfig;
+  transporterOverride?: EmailTransportLike;
+}): Promise<{ ok: boolean; smtpConfigured: boolean; message: string; messageId?: string }> {
+  const smtp = params.smtpOverride ?? getSmtpConfigFromEnv();
+  if (!isValidEmailAddress(params.toEmail)) {
+    return {
+      ok: false,
+      smtpConfigured: smtp.configured,
+      message: 'Informe um endereço de e-mail válido para receber o teste.',
+    };
+  }
+
+  if (!smtp.configured && !params.transporterOverride) {
+    return {
+      ok: false,
+      smtpConfigured: false,
+      message:
+        'SMTP do Nodemailer não configurado no ambiente (defina SMTP_HOST, SMTP_USER e SMTP_PASS nos segredos do servidor).',
+    };
+  }
+
+  const sampleDate = new Date(Date.now() + smtp.alertDays * 86400000);
+  const sampleIso = sampleDate.toISOString().slice(0, 10);
+  const sampleItems: EmailReminderItemPayload[] = [
+    {
+      docId: 'test_visa_30d',
+      itemKind: 'visto',
+      caseId: 'case_test',
+      caseTitle: 'Teste de Alerta Automático — Residência Temporal Mercosul',
+      clientId: 'cli_test',
+      clientName: 'Teste Administrativo',
+      clientEmail: params.toEmail.trim(),
+      nomeDocumento: 'Visto / Residência Temporal (Subcategoria 15 — Mercosul)',
+      pessoa: 'Titular',
+      obrigatorio: true,
+      status: 'Aprovado',
+      severity: 'atencao',
+      daysRemaining: smtp.alertDays,
+      dataValidadeEfetiva: sampleIso,
+      dataValidadeBR: formatDateBR(sampleIso),
+      statusLabel: `Expira em ${smtp.alertDays} dias`,
+    },
+  ];
+
+  const tpl = buildExpirationEmailTemplate({
+    brandName: params.brandName || 'D&M Integra Chile – Relocation & Assessoria',
+    clientName: 'Equipe / Teste de Automação',
+    caseTitle: 'Validação de Envio Automático (Nodemailer SMTP)',
+    items: sampleItems,
+    portalUrl: params.portalUrl,
+    replyTo: smtp.replyTo,
+    alertDays: smtp.alertDays,
+  });
+
+  const transporter = params.transporterOverride ?? createNodemailerTransporter(smtp);
+  try {
+    const info = await transporter.sendMail({
+      from: smtp.from,
+      to: params.toEmail.trim(),
+      replyTo: smtp.replyTo,
+      subject: `[TESTE SMTP] ${tpl.subject}`,
+      text: tpl.text,
+      html: tpl.html,
+    });
+    return {
+      ok: true,
+      smtpConfigured: true,
+      messageId: info.messageId,
+      message: `E-mail de teste enviado com sucesso para ${params.toEmail.trim()} via Nodemailer.`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      smtpConfigured: true,
+      message: err instanceof Error ? `Erro SMTP ao enviar teste: ${err.message}` : 'Falha ao enviar e-mail de teste.',
+    };
+  }
 }
 
 async function persistCommunicationLogViaRest(params: {
@@ -384,7 +596,11 @@ export async function dispatchExpirationReminderEmails(
   const communicationLogs = input.communicationLogs || [];
 
   const eligibleItems = input.items.filter(
-    (i) => i.severity === 'vencido' || i.severity === 'critico' || i.severity === 'atencao',
+    (i) =>
+      i.severity === 'vencido' ||
+      i.severity === 'critico' ||
+      i.severity === 'atencao' ||
+      (typeof i.daysRemaining === 'number' && i.daysRemaining <= smtp.alertDays),
   );
 
   const outcomes: EmailDispatchItemOutcome[] = [];
@@ -445,12 +661,13 @@ export async function dispatchExpirationReminderEmails(
       return {
         ok: false,
         smtpConfigured: smtp.configured,
+        alertDays: smtp.alertDays,
         sentEmails: 0,
         coveredDocs: 0,
         skippedCooldown,
         skippedNoEmail,
         failedCount: 0,
-        warning: 'Não há documentos com vencimento menor que 30 dias para pré-visualizar.',
+        warning: `Não há vistos ou documentos com vencimento em até ${smtp.alertDays} dias para pré-visualizar.`,
         outcomes,
         createdLogs: [],
       };
@@ -462,10 +679,12 @@ export async function dispatchExpirationReminderEmails(
       items: previewSource,
       portalUrl: input.portalUrl,
       replyTo: smtp.replyTo,
+      alertDays: smtp.alertDays,
     });
     return {
       ok: true,
       smtpConfigured: smtp.configured,
+      alertDays: smtp.alertDays,
       sentEmails: 0,
       coveredDocs: previewSource.length,
       skippedCooldown,
@@ -487,6 +706,7 @@ export async function dispatchExpirationReminderEmails(
     return {
       ok: true,
       smtpConfigured: smtp.configured,
+      alertDays: smtp.alertDays,
       sentEmails: 0,
       coveredDocs: 0,
       skippedCooldown,
@@ -495,7 +715,7 @@ export async function dispatchExpirationReminderEmails(
       warning:
         skippedCooldown > 0
           ? 'Todos os lembretes elegíveis já receberam e-mail recentemente dentro da janela de controle.'
-          : 'Nenhum documento elegível com e-mail válido para envio neste momento.',
+          : 'Nenhum visto ou documento elegível com e-mail válido para envio neste momento.',
       outcomes,
       createdLogs: [],
     };
@@ -505,6 +725,7 @@ export async function dispatchExpirationReminderEmails(
     return {
       ok: false,
       smtpConfigured: false,
+      alertDays: smtp.alertDays,
       sentEmails: 0,
       coveredDocs: 0,
       skippedCooldown,
@@ -532,6 +753,7 @@ export async function dispatchExpirationReminderEmails(
       items: groupItems,
       portalUrl: input.portalUrl,
       replyTo: smtp.replyTo,
+      alertDays: smtp.alertDays,
     });
 
     try {
@@ -565,13 +787,19 @@ export async function dispatchExpirationReminderEmails(
         });
 
         const logId = `comm_email_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const kindTag =
+          item.itemKind === 'visto'
+            ? 'Alerta de Visto (≤ 30d)'
+            : item.itemKind === 'prazo_visto'
+              ? 'Alerta de Prazo Migratório'
+              : 'Lembrete de Vencimento';
         const logEntry: CommunicationLog = {
           id: logId,
           clientId: item.clientId,
           caseId: item.caseId,
           canal: 'E-mail',
-          assunto: `Lembrete de Vencimento: ${item.nomeDocumento}`,
-          mensagem: `E-mail automático enviado para ${item.clientEmail} (${item.statusLabel} · Validade: ${item.dataValidadeBR}).`,
+          assunto: `${kindTag}: ${item.nomeDocumento}`,
+          mensagem: `E-mail automático enviado via Nodemailer para ${item.clientEmail} (${item.statusLabel} · Validade: ${item.dataValidadeBR}).`,
           autorNome: input.staffName || 'Automação de E-mails (Nodemailer)',
           origem: 'equipe',
           remetenteUid: input.staffUid,
@@ -610,6 +838,7 @@ export async function dispatchExpirationReminderEmails(
   return {
     ok: failedCount === 0,
     smtpConfigured: true,
+    alertDays: smtp.alertDays,
     sentEmails,
     coveredDocs,
     skippedCooldown,

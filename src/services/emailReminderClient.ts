@@ -1,6 +1,6 @@
 import { auth } from '../firebase';
 import type { CommunicationLog } from '../types/domain';
-import type { ExpirationReminderItem } from '../utils/documentExpiration';
+import type { ExpirationItemKind, ExpirationReminderItem } from '../utils/documentExpiration';
 
 async function getFirebaseIdToken(): Promise<string> {
   const user = auth.currentUser;
@@ -13,12 +13,28 @@ async function getFirebaseIdToken(): Promise<string> {
 export interface EmailServiceHealth {
   ok: boolean;
   smtpConfigured: boolean;
+  hostConfigured?: boolean;
+  port?: number;
+  secure?: boolean;
   from?: string;
+  alertDays: number;
   cooldownDays: number;
+}
+
+export interface SmtpVerificationResponse {
+  ok: boolean;
+  smtpConfigured: boolean;
+  hostLabel: string;
+  port: number;
+  secure: boolean;
+  alertDays: number;
+  cooldownDays: number;
+  message: string;
 }
 
 export interface EmailReminderPayloadItem {
   docId: string;
+  itemKind?: ExpirationItemKind;
   caseId: string;
   caseTitle: string;
   clientId: string;
@@ -39,6 +55,7 @@ export interface EmailReminderPayloadItem {
 export interface EmailDispatchResponse {
   ok: boolean;
   smtpConfigured: boolean;
+  alertDays?: number;
   sentEmails: number;
   coveredDocs: number;
   skippedCooldown: number;
@@ -61,6 +78,7 @@ export interface EmailDispatchResponse {
 export function mapReminderItemsToEmailPayload(items: ExpirationReminderItem[]): EmailReminderPayloadItem[] {
   return items.map((item) => ({
     docId: item.doc.id,
+    itemKind: item.itemKind,
     caseId: item.caseObj.id,
     caseTitle: item.caseObj.titulo,
     clientId: item.client?.id || item.doc.clientId,
@@ -90,16 +108,78 @@ export function findLatestEmailLogForDoc(
 
 export async function fetchEmailAutomationHealth(): Promise<EmailServiceHealth> {
   if (!auth.currentUser) {
-    return { ok: false, smtpConfigured: false, cooldownDays: 7 };
+    return { ok: false, smtpConfigured: false, alertDays: 30, cooldownDays: 7 };
   }
   const token = await getFirebaseIdToken();
   const resp = await fetch('/api/emails/health', {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok) {
-    return { ok: false, smtpConfigured: false, cooldownDays: 7 };
+    return { ok: false, smtpConfigured: false, alertDays: 30, cooldownDays: 7 };
   }
-  return (await resp.json()) as EmailServiceHealth;
+  const data = (await resp.json()) as Partial<EmailServiceHealth>;
+  return {
+    ok: Boolean(data.ok),
+    smtpConfigured: Boolean(data.smtpConfigured),
+    hostConfigured: Boolean(data.hostConfigured),
+    port: data.port,
+    secure: data.secure,
+    from: data.from,
+    alertDays: Number(data.alertDays || 30),
+    cooldownDays: Number(data.cooldownDays || 7),
+  };
+}
+
+export async function verifySmtpConnectionClient(): Promise<SmtpVerificationResponse> {
+  const token = await getFirebaseIdToken();
+  const resp = await fetch('/api/emails/verify-smtp', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = (await resp.json().catch(() => ({}))) as Partial<SmtpVerificationResponse> & { error?: string };
+  if (!resp.ok) {
+    throw new Error(data.error || 'Falha ao verificar a conexão SMTP do servidor.');
+  }
+  return data as SmtpVerificationResponse;
+}
+
+export async function sendTestReminderEmailClient(params?: {
+  toEmail?: string;
+  brandName?: string;
+}): Promise<{ ok: boolean; smtpConfigured: boolean; message: string; messageId?: string }> {
+  const token = await getFirebaseIdToken();
+  const portalUrl =
+    typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/portal`
+      : '';
+  const resp = await fetch('/api/emails/test', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      toEmail: params?.toEmail,
+      brandName: params?.brandName,
+      portalUrl,
+    }),
+  });
+  const data = (await resp.json().catch(() => ({}))) as {
+    ok?: boolean;
+    smtpConfigured?: boolean;
+    message?: string;
+    messageId?: string;
+    error?: string;
+  };
+  return {
+    ok: Boolean(resp.ok && data.ok),
+    smtpConfigured: Boolean(data.smtpConfigured),
+    message: data.message || data.error || 'Não foi possível enviar o e-mail de teste.',
+    messageId: data.messageId,
+  };
 }
 
 export async function sendExpirationReminderEmails(params: {
