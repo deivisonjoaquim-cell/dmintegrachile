@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, Check, Compass, FileCheck2, Scale, ShieldCheck } from 'lucide-react';
+import { motion } from 'motion/react';
 import { BrandRibbon } from '../BrandLogo';
 import type { DiagnosticAnswers } from '../../types/domain';
 import type { DiagnosticResult } from '../../utils/diagnosticEngine';
@@ -112,9 +113,11 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                         <span className="font-mono font-semibold text-white tabular-nums shrink-0">{pct}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-200"
-                          style={{ width: `${Math.max(4, pct)}%`, backgroundColor: fill }}
+                        <motion.div
+                          className="h-full rounded-full"
+                          initial={false}
+                          animate={{ width: `${Math.max(4, pct)}%`, backgroundColor: fill }}
+                          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                         />
                       </div>
                     </div>
@@ -206,11 +209,14 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
             const done = item.num < step;
             const active = item.num === step;
             return (
-              <div
+              <motion.div
                 key={item.num}
+                layout
+                animate={{ scale: active ? 1.01 : 1 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border transition-colors ${
                   active
-                    ? 'border-[#0B1F33] bg-[#F7F5F0] font-semibold text-[#0B1F33]'
+                    ? 'border-[#0B1F33] bg-[#F7F5F0] font-semibold text-[#0B1F33] shadow-[0_3px_10px_rgba(11,31,51,0.06)]'
                     : done
                       ? 'border-emerald-200/90 bg-emerald-50/40 text-[#146B43]'
                       : 'border-[#EDE8DC] bg-white text-slate-500'
@@ -222,7 +228,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                 </span>
                 {done && <Check className="w-3.5 h-3.5 text-[#146B43] shrink-0" />}
                 {active && <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D14]">Atual</span>}
-              </div>
+              </motion.div>
             );
           })}
         </div>

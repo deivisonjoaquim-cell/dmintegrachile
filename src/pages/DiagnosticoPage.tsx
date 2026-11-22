@@ -13,6 +13,7 @@ import {
   Trash2,
   Wrench,
 } from 'lucide-react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { BrandRibbon } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../components/DiagnosticReportView';
@@ -144,16 +145,24 @@ const ContextualHelp: React.FC<{
         <HelpCircle className="w-3.5 h-3.5" />
         {title}
       </button>
-      {open && (
-        <div className="mt-2 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2] text-xs text-[#4A5A6D] leading-relaxed space-y-1.5 shadow-[0_6px_18px_rgba(11,31,51,0.06)]">
-          <p className="text-[#0B1F33]">{text}</p>
-          {sourceLabel && (
-            <p className="text-[11px] font-semibold text-[#8C6D14] font-mono">
-              Base normativa: {sourceLabel}
-            </p>
-          )}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: -4 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-2 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2] text-xs text-[#4A5A6D] leading-relaxed space-y-1.5 shadow-[0_6px_18px_rgba(11,31,51,0.06)] origin-top"
+          >
+            <p className="text-[#0B1F33]">{text}</p>
+            {sourceLabel && (
+              <p className="text-[11px] font-semibold text-[#8C6D14] font-mono">
+                Base normativa: {sourceLabel}
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -166,7 +175,7 @@ const BooleanChoice: React.FC<{
   helpText?: string;
   sourceLabel?: string;
 }> = ({ label, value, onChange, helpTitle, helpText, sourceLabel }) => (
-  <div className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] space-y-2.5">
+  <div className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] space-y-2.5 transition-colors duration-200 hover:border-[#D4C9B3]">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <p className="text-sm font-semibold text-[#0B1F33] leading-snug">{label}</p>
       {helpTitle && helpText && <ContextualHelp title={helpTitle} text={helpText} sourceLabel={sourceLabel} />}
@@ -178,18 +187,21 @@ const BooleanChoice: React.FC<{
       ].map((opt) => {
         const active = value === opt.val;
         return (
-          <button
+          <motion.button
             key={opt.label}
             type="button"
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ duration: 0.14 }}
             onClick={() => onChange(opt.val)}
             className={`px-5 py-2 rounded-lg text-xs font-bold border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#0B1F33]/30 ${
               active
-                ? 'bg-[#0B1F33] text-white border-[#0B1F33] shadow-xs'
+                ? 'bg-[#0B1F33] text-white border-[#0B1F33] shadow-[0_4px_12px_rgba(11,31,51,0.18)]'
                 : 'bg-white text-slate-700 border-[#DDD6C7] hover:border-[#C8A236] hover:text-[#0B1F33]'
             }`}
           >
             {opt.label}
-          </button>
+          </motion.button>
         );
       })}
     </div>
@@ -218,7 +230,16 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   } = useFirestore({ realtime: false });
 
   const [step, setStep] = useState(1);
+  const [stepDirection, setStepDirection] = useState<1 | -1>(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
+
+  const navigateToStep = useCallback((nextStep: number) => {
+    setStep((current) => {
+      const clamped = Math.min(6, Math.max(1, nextStep));
+      setStepDirection(clamped >= current ? 1 : -1);
+      return clamped;
+    });
+  }, []);
   const [answers, setAnswers] = useState<DiagnosticAnswers>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -639,7 +660,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   const handleNext = async () => {
     if (!validateStep()) return;
     const nextStep = Math.min(6, step + 1);
-    setStep(nextStep);
+    navigateToStep(nextStep);
     setMaxStepReached((prev) => Math.max(prev, nextStep));
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (step === 1 || savedLeadId) {
@@ -978,8 +999,14 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   if (result) {
     const effectiveMode: 'public' | 'consultant' = isAdmin && adminViewFull ? 'consultant' : 'public';
     return (
-      <div className="py-10 lg:py-14 bg-[var(--color-bg)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-5">
+      <MotionConfig reducedMotion="user">
+        <div className="py-10 lg:py-14 bg-[var(--color-bg)]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.982, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-6xl mx-auto px-4 sm:px-6 space-y-5"
+          >
           {isAdmin && (
             <div className="no-print bg-white border border-[#E5DFD2] rounded-xl overflow-hidden shadow-xs">
               <BrandRibbon className="h-[2.5px] w-full" />
@@ -1033,22 +1060,24 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             onNavigate={onNavigate}
             onSimulatePublicAnswers={handleSimulatePublicAnswers}
           />
+          </motion.div>
+          <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} />
+          {isAdmin && (
+            <LegalBaseModal
+              open={lawOpen}
+              onClose={() => setLawOpen(false)}
+              title="Base Legal Consultada — Legislação Chilena, Brasileira e Mercosul"
+              sources={result.fontesLegais}
+            />
+          )}
         </div>
-        <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} />
-        {isAdmin && (
-          <LegalBaseModal
-            open={lawOpen}
-            onClose={() => setLawOpen(false)}
-            title="Base Legal Consultada — Legislação Chilena, Brasileira e Mercosul"
-            sources={result.fontesLegais}
-          />
-        )}
-      </div>
+      </MotionConfig>
     );
   }
 
   return (
-    <div className="py-8 lg:py-12 bg-[var(--color-bg)]">
+    <MotionConfig reducedMotion="user">
+      <div className="py-8 lg:py-12 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
         {/* Cabeçalho Executivo em Azul Marinho & Ouro */}
         <section className="rounded-2xl overflow-hidden border border-[#1E3349] bg-[#0B1F33] text-white shadow-[0_14px_34px_rgba(11,31,51,0.12)]">
@@ -1091,9 +1120,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               aria-valuemin={0}
               aria-valuemax={100}
             >
-              <div
-                className="h-full rounded-full transition-all duration-200 bg-[#C8A236]"
-                style={{ width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%` }}
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-[#C8A236] via-[#E6C55A] to-[#C8A236]"
+                initial={false}
+                animate={{ width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%` }}
+                transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
               />
             </div>
 
@@ -1104,19 +1135,22 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 const isReachable = item.num <= maxStepReached;
                 const isDone = item.num < step;
                 return (
-                  <button
+                  <motion.button
                     key={item.num}
                     type="button"
                     disabled={!isReachable}
+                    whileHover={isReachable ? { y: -1.5, scale: 1.01 } : undefined}
+                    whileTap={isReachable ? { scale: 0.98 } : undefined}
+                    transition={{ duration: 0.16 }}
                     onClick={() => {
                       if (isReachable) {
                         setStepError(null);
-                        setStep(item.num);
+                        navigateToStep(item.num);
                       }
                     }}
-                    className={`px-3 py-2.5 rounded-xl border text-left text-xs transition-all duration-150 ${
+                    className={`px-3 py-2.5 rounded-xl border text-left text-xs transition-colors duration-200 ${
                       isCurrent
-                        ? 'bg-white text-[#0B1F33] border-[#C8A236] font-bold shadow-xs'
+                        ? 'bg-white text-[#0B1F33] border-[#C8A236] font-bold shadow-[0_6px_18px_rgba(200,162,54,0.22)]'
                         : isDone
                           ? 'bg-white/10 text-white border-emerald-400/40 hover:bg-white/15 font-medium'
                           : isReachable
@@ -1129,7 +1163,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       {isDone && <Check className="w-3 h-3 text-emerald-400" />}
                     </span>
                     <span className="block truncate mt-0.5">{item.title}</span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </nav>
@@ -1199,11 +1233,21 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               />
             </div>
 
-            {stepError && (
-              <div role="alert" className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-[#A61C2B]">
-                {stepError}
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {stepError && (
+                <motion.div
+                  key="step-error"
+                  role="alert"
+                  initial={{ opacity: 0, scale: 0.98, y: -6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: -6 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-[#A61C2B]"
+                >
+                  {stepError}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Contradições com correção automática em 1 clique */}
             {step > 1 && contradictions.length > 0 && (
@@ -1238,6 +1282,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               </div>
             )}
 
+            {/* Transição suave (fade-in + scale-up) entre as 6 etapas do Diagnóstico Inteligente */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={`diag-step-${step}`}
+                initial={{ opacity: 0, scale: 0.975, y: stepDirection > 0 ? 14 : -12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.985, y: stepDirection > 0 ? -10 : 12 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              >
             {/* ETAPA 1 */}
             {step === 1 && (
               <div className="space-y-4">
@@ -2193,52 +2246,62 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 </div>
               </div>
             )}
+              </motion.div>
+            </AnimatePresence>
 
             {/* Barra de Navegação do Formulário (6 Etapas) */}
             <div className="pt-5 border-t border-[#E5DFD2] flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 {step > 1 && (
-                  <button
+                  <motion.button
                     type="button"
+                    whileHover={{ x: -1.5 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => {
                       setStepError(null);
-                      setStep((s) => Math.max(1, s - 1));
+                      navigateToStep(step - 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#DDD6C7] bg-white text-sm font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Voltar
-                  </button>
+                  </motion.button>
                 )}
-                <button
+                <motion.button
                   type="button"
+                  whileTap={{ scale: 0.98 }}
                   disabled={savingDraft}
                   onClick={() => void handleSaveAndCopyLink()}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-[#DDD6C7] bg-white text-xs font-semibold text-slate-700 hover:bg-[#FAF9F6] disabled:opacity-50 transition-colors"
                 >
                   <BookmarkCheck className="w-4 h-4 text-[#8C6D14]" />
                   {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
-                </button>
+                </motion.button>
               </div>
 
               {step < 6 ? (
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ y: -1, scale: 1.01 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => void handleNext()}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0B1F33] hover:bg-[#132E4A] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(11,31,51,0.16)] transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0B1F33] hover:bg-[#132E4A] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(11,31,51,0.16)] transition-colors"
                 >
                   Avançar para Etapa {step + 1}
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </motion.button>
               ) : (
-                <button
+                <motion.button
                   type="submit"
+                  whileHover={{ y: -1, scale: 1.01 }}
+                  whileTap={{ scale: 0.97 }}
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C8A236] hover:bg-[#d6b145] text-sm font-bold text-[#0B1523] shadow-[0_6px_18px_rgba(200,162,54,0.28)] disabled:opacity-50 transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C8A236] hover:bg-[#d6b145] text-sm font-bold text-[#0B1523] shadow-[0_6px_18px_rgba(200,162,54,0.28)] disabled:opacity-50 transition-colors"
                 >
                   {submitting ? 'Calculando Dossiê...' : 'Gerar Diagnóstico Completo & PDF'}
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </motion.button>
               )}
             </div>
           </form>
@@ -2257,28 +2320,40 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
       </div>
 
       {lgpdOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-xl max-w-2xl w-full p-6 max-h-[80vh] flex flex-col">
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">
-              Termo LGPD (Legislação Brasileira — Lei nº 13.709/2018)
-            </h2>
-            <p className="text-xs text-slate-500 mb-3">Versão {empresa.termoLgpdVersao || '1.0'}</p>
-            <div className="overflow-y-auto text-xs text-slate-700 whitespace-pre-wrap leading-relaxed border border-slate-200 rounded-lg p-4 bg-slate-50">
-              {empresa.termoLgpd}
+        <div className="fixed inset-0 z-50 bg-[#0B1F33]/65 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-white rounded-2xl border border-[#E5DFD2] max-w-2xl w-full overflow-hidden max-h-[82vh] flex flex-col shadow-[0_24px_64px_rgba(11,31,51,0.28)]"
+          >
+            <BrandRibbon className="h-[3px] w-full shrink-0" />
+            <div className="bg-[#0B1F33] text-white px-6 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#E5C76B]">
+                Proteção de Dados Pessoais · Versão {empresa.termoLgpdVersao || '1.0'}
+              </p>
+              <h2 className="font-display text-lg font-bold text-white mt-0.5">
+                Termo LGPD (Legislação Brasileira — Lei nº 13.709/2018)
+              </h2>
             </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setLgpdOpen(false)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                Fechar
-              </button>
+            <div className="p-6 flex flex-col min-h-0 flex-1">
+              <div className="overflow-y-auto text-xs text-[#334155] whitespace-pre-wrap leading-relaxed border border-[#E5DFD2] rounded-xl p-4 bg-[#FAF9F6]">
+                {empresa.termoLgpd}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setLgpdOpen(false)}
+                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-[#0B1F33] hover:bg-[#132E4A] transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>
+    </MotionConfig>
   );
 };

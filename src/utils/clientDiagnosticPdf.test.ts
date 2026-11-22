@@ -152,4 +152,21 @@ test('buildSimulatedPublicAnswers aplica cenários E-se sem mutar o perfil base 
     simulatedResult.viabilidade.total > baseResult.viabilidade.total,
     `Protocolar do Brasil com passaporte renovado deve elevar a viabilidade (base=${baseResult.viabilidade.total}, sim=${simulatedResult.viabilidade.total})`,
   );
+
+  // Gera Dossiê PDF executivo com Gráfico Radar vetorial comparando perfil base e cenário simulado
+  const baseSummary = buildBasicDiagnosticSummary(baseResult, touristBase);
+  const simSummary = buildBasicDiagnosticSummary(simulatedResult, simulatedAnswers);
+  const { doc: simPdfDoc, filename: simFilename } = buildClientDiagnosticDossierDoc({
+    empresa: DEFAULT_EMPRESA_CONFIG,
+    summary: baseSummary,
+    result: baseResult,
+    answers: touristBase,
+    protocolo: 'DM-RADAR-SIM',
+    simulatedDimensions: simSummary.dimensoes || null,
+  });
+
+  assert.equal(simPdfDoc.getNumberOfPages(), 2, 'O dossiê com gráfico radar e simulação deve manter 2 páginas A4');
+  assert.match(simFilename, /DM-RADAR-SIM\.pdf$/);
+  assert.ok(simPdfDoc.output('arraybuffer').byteLength > 2500, 'O PDF com radar vetorial e 4 fases deve conter geometria completa');
 });
+

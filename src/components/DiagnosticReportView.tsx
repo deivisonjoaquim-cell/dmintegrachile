@@ -234,8 +234,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           result,
           answers,
           protocolo: protocoloRef,
+          simulatedDimensions: publicSimulatedDimensions,
         });
-        setPdfFeedback(`Dossiê em PDF baixado (${filename}).`);
+        setPdfFeedback(`Dossiê executivo com Gráfico Radar e 4 Fases baixado (${filename}).`);
       } catch (err) {
         setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o Dossiê em PDF.');
       } finally {
@@ -255,12 +256,13 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           result,
           answers,
           protocolo: protocoloRef,
+          simulatedDimensions: publicSimulatedDimensions,
         });
         const blobUrl = URL.createObjectURL(blob);
         setPdfPreview((prev) => {
           if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
           return {
-            title: 'Dossiê Executivo de Elegibilidade Migratória (2 Páginas)',
+            title: 'Dossiê Executivo de Elegibilidade — Gráfico Radar & 4 Fases (2 Páginas)',
             filename,
             blobUrl,
           };
@@ -407,7 +409,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523] font-bold transition-colors disabled:opacity-50"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {pdfBusy === 'download' ? 'Gerando Dossiê PDF...' : 'Exportar Dossiê em PDF'}
+                  {pdfBusy === 'download' ? 'Gerando Dossiê PDF...' : 'Exportar Dossiê PDF (Radar + 4 Fases)'}
                 </button>
                 <button
                   type="button"
@@ -936,6 +938,27 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     }
   };
 
+  const handleDownloadExecutiveClientJsPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('download');
+    setPdfFeedback(null);
+    try {
+      const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+      const protocoloRef = savedLeadId ? savedLeadId.slice(-8).toUpperCase() : 'PRELIMINAR';
+      const filename = await exportClientDiagnosticPdf({
+        empresa,
+        result,
+        answers,
+        protocolo: protocoloRef,
+      });
+      setPdfFeedback(`Dossiê Executivo Cliente (jsPDF com Radar + 4 Fases) baixado (${filename}).`);
+    } catch (err) {
+      setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o Dossiê Executivo em PDF.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
   const handlePreviewReactPdf = async () => {
     if (pdfBusy) return;
     setPdfBusy('preview');
@@ -1130,12 +1153,21 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           <button
             type="button"
             disabled={pdfBusy !== null}
+            onClick={() => void handleDownloadExecutiveClientJsPdf()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-[#0B1523] bg-[#C8A236] hover:bg-[#d6b145] whitespace-nowrap shrink-0 disabled:opacity-50 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {pdfBusy === 'download' ? 'Gerando...' : 'Dossiê Cliente (Radar PDF)'}
+          </button>
+          <button
+            type="button"
+            disabled={pdfBusy !== null}
             onClick={() => void handleDownloadReactPdf()}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             <Download className="w-3.5 h-3.5" />
-            {pdfBusy === 'download' ? 'Gerando PDF...' : 'Baixar PDF A4'}
+            {pdfBusy === 'download' ? 'Gerando PDF...' : 'Baixar PDF A4 (Interno)'}
           </button>
           <button
             type="button"

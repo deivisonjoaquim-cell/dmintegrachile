@@ -6,6 +6,7 @@ import { formatDateBR } from './formatters';
 import {
   buildBasicDiagnosticSummary,
   CONSULTANCY_PLANS,
+  type BasicDiagnosticDimension,
   type BasicDiagnosticSummary,
 } from './portalAccess';
 
@@ -16,14 +17,18 @@ export interface ClientDiagnosticPdfInput {
   answers?: Partial<DiagnosticAnswers>;
   protocolo?: string;
   logoDataUrl?: string;
+  simulatedDimensions?: BasicDiagnosticDimension[] | null;
 }
 
 const NAVY: [number, number, number] = [11, 31, 51];
 const NAVY_SOFT: [number, number, number] = [22, 50, 79];
+const NAVY_TINT: [number, number, number] = [217, 226, 236];
 const GOLD: [number, number, number] = [200, 162, 54];
 const GOLD_DARK: [number, number, number] = [140, 109, 20];
 const EMERALD: [number, number, number] = [20, 107, 67];
+const EMERALD_TINT: [number, number, number] = [223, 241, 232];
 const AMBER: [number, number, number] = [180, 118, 22];
+const CRIMSON: [number, number, number] = [166, 28, 43];
 const IVORY: [number, number, number] = [247, 245, 240];
 const BORDER: [number, number, number] = [224, 218, 204];
 const INK: [number, number, number] = [15, 23, 42];
@@ -64,12 +69,26 @@ function getProtocolJurisdictionLabel(permite?: 'Sim' | 'Não' | 'Condicional'):
   return 'Sob validação técnica';
 }
 
+function abbreviateRadarLabel(name: string): string {
+  const trimmed = safeText(name, 'Pilar');
+  const map: Record<string, string> = {
+    'Compatibilidade de Perfil': 'Perfil & Obj.',
+    'Conformidade de Localização': 'Jurisdição',
+    'Prontidão Documental': 'Documentos',
+    'Elegibilidade Normativa': 'Elegibilidade',
+    'Regularidade Migratória': 'Histórico',
+    'Vínculo / Comprovação': 'Vínculo/Renda',
+    'Consistência das Respostas': 'Consistência',
+  };
+  if (map[trimmed]) return map[trimmed];
+  return trimmed.length <= 14 ? trimmed : `${trimmed.slice(0, 12).trim()}.`;
+}
+
 async function resolveBrandLogoForDarkHeader(empresa: EmpresaConfig): Promise<string | undefined> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return undefined;
   }
   const { resolvePdfLogoDataUrl } = await import('../components/pdf/ClientPortalPdfDocuments');
-  // Prefer official dark-surface horizontal logo so wordmark stays bright on the #0B1F33 header
   const candidates = [
     BRAND_ASSETS.logoDarkPng,
     BRAND_ASSETS.logoLightPng,
@@ -85,14 +104,13 @@ async function resolveBrandLogoForDarkHeader(empresa: EmpresaConfig): Promise<st
 
 function drawTricolorRibbon(doc: jsPDF, y: number, height = 2.2) {
   const pageW = doc.internal.pageSize.getWidth();
-  // Brazil emerald -> Gold guide star -> Deep navy -> Andean crimson accent
   doc.setFillColor(20, 107, 67);
   doc.rect(0, y, pageW * 0.28, height, 'F');
   doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
   doc.rect(pageW * 0.28, y, pageW * 0.34, height, 'F');
   doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
   doc.rect(pageW * 0.62, y, pageW * 0.26, height, 'F');
-  doc.setFillColor(166, 28, 43);
+  doc.setFillColor(CRIMSON[0], CRIMSON[1], CRIMSON[2]);
   doc.rect(pageW * 0.88, y, pageW * 0.12, height, 'F');
 }
 
@@ -100,7 +118,7 @@ function drawFooter(doc: jsPDF, empresa: EmpresaConfig, pageNum: number, totalPa
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 14;
-  const footerY = pageH - 13;
+  const footerY = pageH - 12.5;
 
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
   doc.setLineWidth(0.3);
@@ -134,28 +152,225 @@ function drawFooter(doc: jsPDF, empresa: EmpresaConfig, pageNum: number, totalPa
 
 function drawSectionEyebrow(doc: jsPDF, x: number, y: number, eyebrow: string, title: string): number {
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
   doc.text(eyebrow.toUpperCase(), x, y);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11.5);
+  doc.setFontSize(11);
   doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text(title, x, y + 4.8);
+  doc.text(title, x, y + 4.5);
 
-  return y + 7.2;
+  return y + 6.6;
+}
+
+function drawPolygonPath(
+  doc: jsPDF,
+  points: Array<{ x: number; y: number }>,
+  style: 'S' | 'F' | 'FD' | 'DF',
+) {
+  if (points.length < 3) return;
+  const relativeSegments: Array<[number, number]> = [];
+  for (let i = 1; i < points.length; i++) {
+    relativeSegments.push([
+      Number((points[i].x - points[i - 1].x).toFixed(2)),
+      Number((points[i].y - points[i - 1].y).toFixed(2)),
+    ]);
+  }
+  doc.lines(relativeSegments, Number(points[0].x.toFixed(2)), Number(points[0].y.toFixed(2)), [1, 1], style, true);
+}
+
+/**
+ * Desenha o Gráfico Radar Vetorial de Pilares de Viabilidade diretamente em jsPDF,
+ * com anéis concêntricos (25/50/75/100%), eixos radiais, polígono preenchido do perfil
+ * atual, nós dourados nos vértices e sobreposição opcional do cenário simulado ("E se...").
+ */
+function drawVectorRadarChart(
+  doc: jsPDF,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
+  rawDims: BasicDiagnosticDimension[],
+  simulatedDimensions?: BasicDiagnosticDimension[] | null,
+) {
+  const dims: BasicDiagnosticDimension[] =
+    rawDims.length >= 3
+      ? rawDims
+      : [
+          ...rawDims,
+          ...Array.from({ length: Math.max(0, 3 - rawDims.length) }, (_, idx) => ({
+            nome: `Pilar ${idx + 1}`,
+            pontos: 0,
+            maximo: 10,
+            percentual: 0,
+            observacao: 'Indicador complementar.',
+          })),
+        ];
+
+  // Cartão container do gráfico radar
+  doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 2.2, 2.2, 'FD');
+
+  // Título interno do radar
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+  doc.text('GRÁFICO RADAR DE PILARES', boxX + boxW / 2, boxY + 5.2, { align: 'center' });
+
+  const cx = boxX + boxW / 2;
+  const cy = boxY + boxH / 2 + 1.2;
+  const maxR = Math.min(boxW * 0.275, (boxH - 22) * 0.44);
+  const count = dims.length;
+
+  const getPt = (index: number, pct: number, radiusOverride?: number) => {
+    const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
+    const r = radiusOverride !== undefined ? radiusOverride : (Math.max(8, Math.min(100, pct)) / 100) * maxR;
+    return {
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+      angle,
+    };
+  };
+
+  // Anéis concêntricos (100%, 75%, 50%, 25%) desenhados de fora para dentro
+  [100, 75, 50, 25].forEach((ring) => {
+    const ringPts = dims.map((_, i) => getPt(i, ring));
+    doc.setDrawColor(ring === 100 ? 208 : 228, ring === 100 ? 200 : 222, ring === 100 ? 184 : 208);
+    doc.setLineWidth(ring === 100 ? 0.35 : 0.2);
+    if (ring === 100) {
+      doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
+      drawPolygonPath(doc, ringPts, 'FD');
+    } else {
+      drawPolygonPath(doc, ringPts, 'S');
+    }
+  });
+
+  // Eixos radiais do centro até cada vértice externo
+  doc.setDrawColor(222, 215, 200);
+  doc.setLineWidth(0.2);
+  dims.forEach((_, i) => {
+    const end = getPt(i, 100);
+    doc.line(cx, cy, end.x, end.y);
+  });
+
+  // Marcações sutis de escala (50% e 100%)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.4);
+  doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('50%', cx + 1.2, cy - maxR * 0.5 + 1);
+  doc.text('100%', cx + 1.2, cy - maxR + 1.2);
+
+  // Polígono do Cenário Simulado ("E se...") quando fornecido
+  const hasSim = Boolean(simulatedDimensions && simulatedDimensions.length > 0);
+  if (hasSim && simulatedDimensions) {
+    const simPts = dims.map((dim, i) => {
+      const match = simulatedDimensions.find((s) => s.nome === dim.nome) || simulatedDimensions[i];
+      const pct = match ? Math.round(match.percentual) : Math.round(dim.percentual);
+      return getPt(i, pct);
+    });
+    doc.setFillColor(EMERALD_TINT[0], EMERALD_TINT[1], EMERALD_TINT[2]);
+    doc.setDrawColor(EMERALD[0], EMERALD[1], EMERALD[2]);
+    doc.setLineWidth(0.45);
+    drawPolygonPath(doc, simPts, 'FD');
+  }
+
+  // Polígono Principal (Perfil Atual do Solicitante)
+  const dataPts = dims.map((dim, i) => getPt(i, Math.round(dim.percentual)));
+  doc.setFillColor(NAVY_TINT[0], NAVY_TINT[1], NAVY_TINT[2]);
+  doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.setLineWidth(0.65);
+  drawPolygonPath(doc, dataPts, 'FD');
+
+  // Re-desenha contorno fino do cenário simulado por cima para visibilidade
+  if (hasSim && simulatedDimensions) {
+    const simPts = dims.map((dim, i) => {
+      const match = simulatedDimensions.find((s) => s.nome === dim.nome) || simulatedDimensions[i];
+      const pct = match ? Math.round(match.percentual) : Math.round(dim.percentual);
+      return getPt(i, pct);
+    });
+    doc.setDrawColor(EMERALD[0], EMERALD[1], EMERALD[2]);
+    doc.setLineWidth(0.5);
+    drawPolygonPath(doc, simPts, 'S');
+    simPts.forEach((pt) => {
+      doc.setFillColor(EMERALD[0], EMERALD[1], EMERALD[2]);
+      doc.circle(pt.x, pt.y, 0.9, 'F');
+    });
+  }
+
+  // Vértices dourados/marinho do perfil atual
+  dataPts.forEach((pt, idx) => {
+    const pct = Math.round(dims[idx].percentual);
+    doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
+    doc.circle(pt.x, pt.y, 1.5, 'F');
+    if (pct >= 75) {
+      doc.setFillColor(EMERALD[0], EMERALD[1], EMERALD[2]);
+    } else if (pct >= 50) {
+      doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
+    } else {
+      doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+    }
+    doc.circle(pt.x, pt.y, 1.05, 'F');
+  });
+
+  // Rótulos perimetrais e percentuais
+  const labelRadius = maxR + 5.8;
+  dims.forEach((dim, i) => {
+    const pt = getPt(i, 100, labelRadius);
+    const cos = Math.cos(pt.angle);
+    const sin = Math.sin(pt.angle);
+    const align: 'left' | 'center' | 'right' =
+      Math.abs(cos) < 0.22 ? 'center' : cos > 0 ? 'left' : 'right';
+    const yAdjust = sin < -0.7 ? -1.4 : sin > 0.7 ? 1.8 : 0;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.2);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(abbreviateRadarLabel(dim.nome), pt.x, pt.y + yAdjust, { align });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+    doc.text(`${Math.round(dim.percentual)}%`, pt.x, pt.y + yAdjust + 2.8, { align });
+  });
+
+  // Legenda inferior do Radar
+  const legendY = boxY + boxH - 3.2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  if (hasSim) {
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.rect(boxX + 10, legendY - 1.8, 3.2, 1.4, 'F');
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text('Perfil atual', boxX + 14.5, legendY - 0.5);
+
+    doc.setFillColor(EMERALD[0], EMERALD[1], EMERALD[2]);
+    doc.rect(boxX + boxW / 2 + 1, legendY - 1.8, 3.2, 1.4, 'F');
+    doc.setTextColor(EMERALD[0], EMERALD[1], EMERALD[2]);
+    doc.text('Simulação ("E se...")', boxX + boxW / 2 + 5.5, legendY - 0.5);
+  } else {
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.rect(boxX + boxW / 2 - 22, legendY - 1.8, 3.5, 1.4, 'F');
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text('Aderência por pilar (0% a 100%)', boxX + boxW / 2 - 17, legendY - 0.5);
+  }
 }
 
 /**
  * Constrói o Dossiê Executivo de 2 Páginas do Cliente em vetor nativo (jsPDF),
- * contendo identidade visual oficial D&M Integra Chile, gráfico vetorial dos
- * pilares de viabilidade e roteiro macro em 4 fases.
+ * capturando os dados completos do usuário e renderizando:
+ * - Página 1: Cabeçalho executivo com logo, ficha do solicitante, rota recomendada,
+ *   índice de viabilidade, 4 parâmetros SERMIG, Gráfico Radar Vetorial + Scorecard de Pilares.
+ * - Página 2: Forças & Pontos de Verificação, Roteiro Macro em 4 Fases, Radar de
+ *   Validades Críticas SERMIG, Rotas Secundárias e Modalidades de Assessoria.
  */
 export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput): {
   doc: jsPDF;
   filename: string;
 } {
-  const { empresa, result, answers, logoDataUrl } = input;
+  const { empresa, result, answers, logoDataUrl, simulatedDimensions } = input;
   const summary: BasicDiagnosticSummary =
     input.summary ||
     (result
@@ -175,6 +390,16 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   const protocoloRef = safeText(input.protocolo, 'PRELIMINAR').toUpperCase();
   const emissaoBR = formatDateBR(summary.dataCalculo || new Date().toISOString());
   const titularNome = safeText(summary.nome || answers?.nome, 'Solicitante');
+  const titularContato = [answers?.whatsapp, answers?.email]
+    .map((v) => (v || '').trim())
+    .filter(Boolean)
+    .join(' · ');
+  const titularOrigemLoc = [
+    answers?.cidadeUf?.trim(),
+    summary.perfilResumo?.localizacao || answers?.localizacao,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const filename = `Dossie-Diagnostico-DM-Integra-${slugifyToken(titularNome)}-${slugifyToken(protocoloRef)}.pdf`;
 
   const doc = new jsPDF({
@@ -189,13 +414,13 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   const contentW = pageW - margin * 2; // 182mm
 
   // =========================================================================
-  // PÁGINA 1: SUMÁRIO EXECUTIVO & RAIO-X DE VIABILIDADE
+  // PÁGINA 1: SUMÁRIO EXECUTIVO, PERFIL DO USUÁRIO & GRÁFICO RADAR VETORIAL
   // =========================================================================
   drawTricolorRibbon(doc, 0, 2.4);
 
   // Cabeçalho Executivo em Azul Marinho
   const headerTop = 2.4;
-  const headerH = 34;
+  const headerH = 31.5;
   doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
   doc.rect(0, headerTop, pageW, headerH, 'F');
 
@@ -206,81 +431,96 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   // Logo oficial à esquerda
   if (logoDataUrl) {
     try {
-      doc.addImage(logoDataUrl, 'PNG', margin, headerTop + 6.5, 58, 19, undefined, 'FAST');
+      doc.addImage(logoDataUrl, 'PNG', margin, headerTop + 6, 56, 18.5, undefined, 'FAST');
     } catch {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
+      doc.setFontSize(14.5);
       doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-      doc.text(safeText(empresa.nome_empresa, 'D&M Integra Chile'), margin, headerTop + 17);
+      doc.text(safeText(empresa.nome_empresa, 'D&M Integra Chile'), margin, headerTop + 16);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.8);
       doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-      doc.text('RELOCATION & ASSESSORIA MIGRATÓRIA', margin, headerTop + 22.5);
+      doc.text('RELOCATION & ASSESSORIA MIGRATÓRIA', margin, headerTop + 21.5);
     }
   } else {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
+    doc.setFontSize(14.5);
     doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-    doc.text(safeText(empresa.nome_empresa, 'D&M Integra Chile'), margin, headerTop + 17);
+    doc.text(safeText(empresa.nome_empresa, 'D&M Integra Chile'), margin, headerTop + 16);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.8);
     doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-    doc.text('RELOCATION & ASSESSORIA MIGRATÓRIA', margin, headerTop + 22.5);
+    doc.text('RELOCATION & ASSESSORIA MIGRATÓRIA', margin, headerTop + 21.5);
   }
 
   // Metadados do documento à direita
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text('DOSSIÊ DE ELEGIBILIDADE MIGRATÓRIA', pageW - margin, headerTop + 11.5, { align: 'right' });
+  doc.text('DOSSIÊ EXECUTIVO DE ELEGIBILIDADE MIGRATÓRIA', pageW - margin, headerTop + 10.5, { align: 'right' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text(`Protocolo #${protocoloRef}`, pageW - margin, headerTop + 18, { align: 'right' });
+  doc.text(`Protocolo #${protocoloRef}`, pageW - margin, headerTop + 16.8, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.6);
   doc.setTextColor(203, 213, 225);
-  doc.text(`Emitido em ${emissaoBR} · Base Ley Nº 21.325 & Mercosul`, pageW - margin, headerTop + 24, {
+  doc.text(`Emitido em ${emissaoBR} · Ley Nº 21.325 & Acordo Mercosul`, pageW - margin, headerTop + 22.8, {
     align: 'right',
   });
 
-  // Faixa de Perfil do Solicitante (Ivory card)
-  let y = headerTop + headerH + 6;
+  // Faixa Completa de Dados do Usuário (Ivory card)
+  let y = headerTop + headerH + 5;
+  const profileH = titularContato ? 21 : 15;
   doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin, y, contentW, 15.5, 2, 2, 'FD');
+  doc.roundedRect(margin, y, contentW, profileH, 2, 2, 'FD');
 
   const profileCols = [
     { label: 'TITULAR', value: titularNome },
-    { label: 'LOCALIZAÇÃO ATUAL', value: safeText(summary.perfilResumo?.localizacao || answers?.localizacao) },
-    { label: 'COMPOSIÇÃO', value: safeText(summary.familiaResumo || summary.perfilResumo?.familia) },
-    { label: 'HORIZONTE', value: safeText(summary.perfilResumo?.prazo || answers?.prazoPretendido) },
+    { label: 'LOCALIZAÇÃO & ORIGEM', value: safeText(titularOrigemLoc, 'Não informado') },
+    { label: 'COMPOSIÇÃO FAMILIAR', value: safeText(summary.familiaResumo || summary.perfilResumo?.familia) },
+    { label: 'HORIZONTE DE PROTOCOLO', value: safeText(summary.perfilResumo?.prazo || answers?.prazoPretendido) },
   ];
   const pColW = contentW / profileCols.length;
   profileCols.forEach((col, i) => {
-    const cx = margin + i * pColW + 3.5;
+    const cx = margin + i * pColW + 3.2;
     if (i > 0) {
       doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
-      doc.line(margin + i * pColW, y + 2.5, margin + i * pColW, y + 13);
+      doc.line(margin + i * pColW, y + 2.2, margin + i * pColW, y + 13.5);
     }
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.4);
+    doc.setFontSize(6.1);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    doc.text(col.label, cx, y + 5.5);
+    doc.text(col.label, cx, y + 5.2);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.2);
+    doc.setFontSize(7.9);
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    const truncated = doc.splitTextToSize(col.value, pColW - 6)[0] || col.value;
-    doc.text(truncated, cx, y + 11);
+    const truncated = doc.splitTextToSize(col.value, pColW - 5.5)[0] || col.value;
+    doc.text(truncated, cx, y + 10.6);
   });
 
+  if (titularContato) {
+    doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+    doc.line(margin + 3, y + 14.5, margin + contentW - 3, y + 14.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.2);
+    doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+    doc.text('CONTATO DO TITULAR:', margin + 3.2, y + 18.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.2);
+    doc.setTextColor(INK[0], INK[1], INK[2]);
+    const contactTrunc = doc.splitTextToSize(safeText(titularContato), contentW - 36)[0] || safeText(titularContato);
+    doc.text(contactTrunc, margin + 33, y + 18.8);
+  }
+
   // Bloco Principal: Rota Recomendada (Esquerda) + Placar de Viabilidade (Direita)
-  y += 20;
-  const heroBoxH = 44;
+  y += profileH + 4.5;
+  const heroBoxH = 42;
   const scoreBoxW = 54;
   const routeBoxW = contentW - scoreBoxW - 4;
 
@@ -289,36 +529,35 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
   doc.roundedRect(margin, y, routeBoxW, heroBoxH, 2.2, 2.2, 'FD');
 
-  // Filete superior dourado interno
   doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
   doc.rect(margin, y, routeBoxW, 1.2, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
-  doc.text(`ROTA PRINCIPAL INDICADA · CÓD. ${safeText(summary.subcategoriaCodigo)}`, margin + 4.5, y + 6.8);
+  doc.text(`ROTA PRINCIPAL INDICADA · CÓD. ${safeText(summary.subcategoriaCodigo)}`, margin + 4.2, y + 6.4);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(12.5);
   doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  const titleLines = doc.splitTextToSize(safeText(summary.subcategoriaNome), routeBoxW - 9).slice(0, 2);
-  doc.text(titleLines, margin + 4.5, y + 13);
+  const titleLines = doc.splitTextToSize(safeText(summary.subcategoriaNome), routeBoxW - 8.5).slice(0, 2);
+  doc.text(titleLines, margin + 4.2, y + 12.2);
 
-  let routeTextY = y + 13 + titleLines.length * 5.2;
+  let routeTextY = y + 12.2 + titleLines.length * 4.9;
   if (summary.subcategoriaEspanhol) {
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.4);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    const esLine = doc.splitTextToSize(`SERMIG: ${safeText(summary.subcategoriaEspanhol)}`, routeBoxW - 9)[0];
-    doc.text(esLine, margin + 4.5, routeTextY);
-    routeTextY += 4.6;
+    const esLine = doc.splitTextToSize(`SERMIG: ${safeText(summary.subcategoriaEspanhol)}`, routeBoxW - 8.5)[0];
+    doc.text(esLine, margin + 4.2, routeTextY);
+    routeTextY += 4.2;
   }
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.7);
   doc.setTextColor(INK[0], INK[1], INK[2]);
-  const summaryLines = doc.splitTextToSize(safeText(summary.resumoBasico), routeBoxW - 9).slice(0, 4);
-  doc.text(summaryLines, margin + 4.5, routeTextY + 0.5);
+  const summaryLines = doc.splitTextToSize(safeText(summary.resumoBasico), routeBoxW - 8.5).slice(0, 4);
+  doc.text(summaryLines, margin + 4.2, routeTextY + 0.4);
 
   // Cartão do Índice de Viabilidade (Azul Marinho)
   const scoreX = margin + routeBoxW + 4;
@@ -326,46 +565,45 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   doc.roundedRect(scoreX, y, scoreBoxW, heroBoxH, 2.2, 2.2, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
+  doc.setFontSize(6.6);
   doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text('ÍNDICE DE VIABILIDADE', scoreX + 4.5, y + 7);
+  doc.text('ÍNDICE DE VIABILIDADE', scoreX + 4.5, y + 6.6);
 
   const scoreVal = Math.max(0, Math.min(100, Math.round(summary.notaViabilidade || 0)));
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(28);
+  doc.setFontSize(26);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text(String(scoreVal), scoreX + 4.5, y + 20.5);
+  doc.text(String(scoreVal), scoreX + 4.5, y + 19.2);
 
   const numWidth = doc.getTextWidth(String(scoreVal));
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(148, 163, 184);
-  doc.text('/100', scoreX + 5.5 + numWidth, y + 20.5);
+  doc.text('/100', scoreX + 5.5 + numWidth, y + 19.2);
 
-  // Barra vetorial de score
   const barX = scoreX + 4.5;
   const barW = scoreBoxW - 9;
-  const barY = y + 24;
+  const barY = y + 22.5;
   doc.setFillColor(NAVY_SOFT[0], NAVY_SOFT[1], NAVY_SOFT[2]);
-  doc.roundedRect(barX, barY, barW, 2.6, 1.3, 1.3, 'F');
+  doc.roundedRect(barX, barY, barW, 2.4, 1.2, 1.2, 'F');
   const scoreFill = scoreVal >= 75 ? [34, 197, 94] : scoreVal >= 50 ? GOLD : [245, 158, 11];
   doc.setFillColor(scoreFill[0], scoreFill[1], scoreFill[2]);
-  doc.roundedRect(barX, barY, Math.max(3, (barW * scoreVal) / 100), 2.6, 1.3, 1.3, 'F');
+  doc.roundedRect(barX, barY, Math.max(3, (barW * scoreVal) / 100), 2.4, 1.2, 1.2, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.6);
+  doc.setFontSize(7.4);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
   const verdictLines = doc.splitTextToSize(safeText(summary.veredito), barW).slice(0, 2);
-  doc.text(verdictLines, barX, y + 32);
+  doc.text(verdictLines, barX, y + 30);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(203, 213, 225);
-  doc.text(`Confiança da análise: ${safeText(summary.confianca)}`, barX, y + 40.5);
+  doc.text(`Confiança: ${safeText(summary.confianca)}`, barX, y + 38.8);
 
   // Grade dos 4 Parâmetros Estratégicos
-  y += heroBoxH + 5;
-  const paramsH = 18;
+  y += heroBoxH + 4.2;
+  const paramsH = 16.5;
   doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
   doc.roundedRect(margin, y, contentW, paramsH, 2, 2, 'FD');
@@ -400,154 +638,151 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   ];
   const paramColW = contentW / 4;
   paramItems.forEach((p, idx) => {
-    const px = margin + idx * paramColW + 3.5;
+    const px = margin + idx * paramColW + 3.2;
     if (idx > 0) {
       doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
-      doc.line(margin + idx * paramColW, y + 2.5, margin + idx * paramColW, y + paramsH - 2.5);
+      doc.line(margin + idx * paramColW, y + 2.2, margin + idx * paramColW, y + paramsH - 2.2);
     }
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.2);
+    doc.setFontSize(6);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    doc.text(p.label, px, y + 5.6);
+    doc.text(p.label, px, y + 5.2);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.4);
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    const pLines = doc.splitTextToSize(p.value, paramColW - 6).slice(0, 2);
-    doc.text(pLines, px, y + 10.5);
+    const pLines = doc.splitTextToSize(p.value, paramColW - 5.5).slice(0, 2);
+    doc.text(pLines, px, y + 9.6);
   });
 
-  // Gráfico Vetorial dos Pilares de Viabilidade
-  y += paramsH + 9;
+  // Seção Dual-Panel: Gráfico Radar Vetorial (Esquerda) + Decomposição dos Pilares (Direita)
+  y += paramsH + 7.5;
   y = drawSectionEyebrow(
     doc,
     margin,
     y,
-    'Decomposição Técnica da Pontuação',
-    'Gráfico de Pilares de Viabilidade Migratória',
+    'Raio-X de Viabilidade · Análise Multidimensional',
+    'Gráfico Radar & Decomposição Técnica dos Pilares',
   );
 
-  const dims = summary.dimensoes && summary.dimensoes.length > 0
-    ? summary.dimensoes
-    : [
-        {
-          nome: 'Aderência Geral ao Enquadramento',
-          pontos: scoreVal,
-          maximo: 100,
-          percentual: scoreVal,
-          observacao: 'Pontuação consolidada a partir das informações do diagnóstico.',
-        },
-      ];
+  const dims: BasicDiagnosticDimension[] =
+    summary.dimensoes && summary.dimensoes.length > 0
+      ? summary.dimensoes
+      : [
+          {
+            nome: 'Aderência Geral ao Enquadramento',
+            pontos: scoreVal,
+            maximo: 100,
+            percentual: scoreVal,
+            observacao: 'Pontuação consolidada a partir das informações do diagnóstico.',
+          },
+        ];
 
-  const chartBoxTop = y + 1;
-  const rowPitch = Math.min(16.5, Math.max(12.5, Math.floor(114 / Math.max(dims.length, 1))));
-  const chartBoxH = dims.length * rowPitch + 10;
+  const dualTop = y + 1;
+  const dualH = summary.temAlertaCritico && summary.alertaGeral ? 98 : 108;
+  const radarW = 84;
+  const pillarsX = margin + radarW + 4;
+  const pillarsW = contentW - radarW - 4;
+
+  // Painel Esquerdo: Gráfico Radar Vetorial nativo
+  drawVectorRadarChart(doc, margin, dualTop, radarW, dualH, dims, simulatedDimensions);
+
+  // Painel Direito: Scorecard Executivo dos Pilares
   doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
-  doc.roundedRect(margin, chartBoxTop, contentW, chartBoxH, 2.2, 2.2, 'FD');
+  doc.setLineWidth(0.3);
+  doc.roundedRect(pillarsX, dualTop, pillarsW, dualH, 2.2, 2.2, 'FD');
 
-  // Linhas de grade verticais (25%, 50%, 75%, 100%) na área das barras
-  const labelW = 62;
-  const chartBarX = margin + labelW;
-  const chartBarW = contentW - labelW - 24;
-  [0.25, 0.5, 0.75, 1].forEach((ratio) => {
-    const gx = chartBarX + chartBarW * ratio;
-    doc.setDrawColor(238, 234, 224);
-    doc.setLineWidth(0.2);
-    doc.line(gx, chartBoxTop + 4, gx, chartBoxTop + chartBoxH - 6);
-  });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+  doc.text('DETALHAMENTO POR PILAR', pillarsX + 4, dualTop + 5.2);
 
-  dims.forEach((dim, idx) => {
-    const ry = chartBoxTop + 8 + idx * rowPitch;
+  const visibleDims = dims.slice(0, 7);
+  const availH = dualH - 11;
+  const rowPitch = availH / Math.max(visibleDims.length, 1);
+
+  visibleDims.forEach((dim, idx) => {
+    const ry = dualTop + 10.5 + idx * rowPitch;
     const pct = Math.max(0, Math.min(100, Math.round(dim.percentual)));
     const fillCol = getBarColor(pct);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.2);
+    doc.setFontSize(7.4);
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    const dimTitle = doc.splitTextToSize(safeText(dim.nome), labelW - 6)[0];
-    doc.text(dimTitle, margin + 4, ry);
+    const dimTitle = doc.splitTextToSize(safeText(dim.nome), pillarsW - 30)[0];
+    doc.text(dimTitle, pillarsX + 4, ry);
 
-    // Trilha da barra
-    doc.setFillColor(238, 235, 228);
-    doc.roundedRect(chartBarX, ry - 3, chartBarW, 3.6, 1.5, 1.5, 'F');
-
-    // Preenchimento proporcional
-    const fillW = Math.max(2.5, (chartBarW * pct) / 100);
-    doc.setFillColor(fillCol[0], fillCol[1], fillCol[2]);
-    doc.roundedRect(chartBarX, ry - 3, fillW, 3.6, 1.5, 1.5, 'F');
-
-    // Rótulo numérico tabular à direita
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.2);
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    doc.text(`${dim.pontos}/${dim.maximo} (${pct}%)`, margin + contentW - 4, ry, { align: 'right' });
+    doc.text(`${dim.pontos}/${dim.maximo} (${pct}%)`, pillarsX + pillarsW - 4, ry, { align: 'right' });
 
-    // Observação concisa logo abaixo
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    const obsLine = doc.splitTextToSize(safeText(dim.observacao, ''), contentW - 10)[0] || '';
-    if (obsLine) {
-      doc.text(obsLine, margin + 4, ry + 4.4);
+    // Mini barra proporcional
+    const miniBarW = pillarsW - 8;
+    doc.setFillColor(238, 235, 228);
+    doc.roundedRect(pillarsX + 4, ry + 1.4, miniBarW, 2.2, 1.1, 1.1, 'F');
+    doc.setFillColor(fillCol[0], fillCol[1], fillCol[2]);
+    doc.roundedRect(pillarsX + 4, ry + 1.4, Math.max(2, (miniBarW * pct) / 100), 2.2, 1.1, 1.1, 'F');
+
+    // Observação técnica curta
+    if (rowPitch >= 12.2) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.3);
+      doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+      const obsLine = doc.splitTextToSize(safeText(dim.observacao, ''), miniBarW)[0] || '';
+      if (obsLine) {
+        doc.text(obsLine, pillarsX + 4, ry + 6.4);
+      }
     }
   });
 
-  // Legenda da escala na base do gráfico
-  const scaleY = chartBoxTop + chartBoxH - 2.2;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text('0%', chartBarX, scaleY);
-  doc.text('50%', chartBarX + chartBarW * 0.5, scaleY, { align: 'center' });
-  doc.text('100%', chartBarX + chartBarW, scaleY, { align: 'right' });
-
-  // Alerta prioritário (se couber na Página 1)
-  const afterChartY = chartBoxTop + chartBoxH + 5;
-  if (summary.temAlertaCritico && summary.alertaGeral && afterChartY < 260) {
+  // Alerta prioritário na base da Página 1 (quando aplicável)
+  const afterDualY = dualTop + dualH + 4.5;
+  if (summary.temAlertaCritico && summary.alertaGeral && afterDualY < 262) {
     doc.setFillColor(255, 250, 235);
     doc.setDrawColor(232, 195, 108);
-    doc.roundedRect(margin, afterChartY, contentW, 18, 2, 2, 'FD');
+    doc.roundedRect(margin, afterDualY, contentW, 17, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(146, 64, 14);
-    doc.text('PONTO DE ATENÇÃO PRIORITÁRIO', margin + 4, afterChartY + 5.5);
+    doc.text('PONTO DE ATENÇÃO PRIORITÁRIO NO PERFIL', margin + 4, afterDualY + 5.2);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.5);
     doc.setTextColor(120, 53, 15);
     const alertLines = doc.splitTextToSize(safeText(summary.alertaGeral), contentW - 8).slice(0, 2);
-    doc.text(alertLines, margin + 4, afterChartY + 10.5);
+    doc.text(alertLines, margin + 4, afterDualY + 10);
   }
 
   drawFooter(doc, empresa, 1, 2);
 
   // =========================================================================
-  // PÁGINA 2: ESTRATÉGIA, ROTEIRO EM 4 FASES & MODALIDADES
+  // PÁGINA 2: ESTRATÉGIA, ROTEIRO EM 4 FASES, RADAR SERMIG & MODALIDADES
   // =========================================================================
   doc.addPage('a4', 'portrait');
   drawTricolorRibbon(doc, 0, 2.2);
 
   // Cabeçalho compacto da página 2
   doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.rect(0, 2.2, pageW, 16, 'F');
+  doc.rect(0, 2.2, pageW, 15.5, 'F');
   doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.rect(0, 18.2, pageW, 0.6, 'F');
+  doc.rect(0, 17.7, pageW, 0.6, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8.8);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text(`${safeText(empresa.nome_empresa, 'D&M Integra Chile')}  ·  Dossiê Estratégico`, margin, 11.5);
+  doc.text(`${safeText(empresa.nome_empresa, 'D&M Integra Chile')}  ·  Dossiê Estratégico (4 Fases)`, margin, 11.2);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.8);
   doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text(`Protocolo #${protocoloRef}  ·  ${titularNome}`, pageW - margin, 11.5, { align: 'right' });
+  doc.text(`Protocolo #${protocoloRef}  ·  ${titularNome}`, pageW - margin, 11.2, { align: 'right' });
 
-  let y2 = 26;
+  let y2 = 24.5;
 
-  // Bloco Comparativo: Pontos Fortes x Pontos de Atenção
+  // Bloco Comparativo: Pontos Fortes x Pontos de Verificação
   y2 = drawSectionEyebrow(
     doc,
     margin,
@@ -557,7 +792,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   );
 
   const halfW = (contentW - 5) / 2;
-  const qualBoxH = 54;
+  const qualBoxH = 48;
 
   // Esquerda: Pontos Fortes
   doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
@@ -565,26 +800,26 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   doc.roundedRect(margin, y2 + 1, halfW, qualBoxH, 2.2, 2.2, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(EMERALD[0], EMERALD[1], EMERALD[2]);
-  doc.text('POR QUE ESTA ROTA SE DESTACA', margin + 4, y2 + 7);
+  doc.text('POR QUE ESTA ROTA SE DESTACA', margin + 4, y2 + 6.5);
 
   const fortes =
     summary.pontosFortes && summary.pontosFortes.length > 0
       ? summary.pontosFortes
       : ['Enquadramento preliminar compatível com as normas vigentes do SERMIG.'];
 
-  let fy = y2 + 12.5;
+  let fy = y2 + 11.8;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
+  doc.setFontSize(7.5);
   doc.setTextColor(INK[0], INK[1], INK[2]);
   fortes.slice(0, 4).forEach((item) => {
-    if (fy > y2 + qualBoxH - 5) return;
+    if (fy > y2 + qualBoxH - 4) return;
     doc.setFillColor(EMERALD[0], EMERALD[1], EMERALD[2]);
-    doc.circle(margin + 5.2, fy - 1.1, 0.9, 'F');
-    const lines = doc.splitTextToSize(safeText(item), halfW - 11).slice(0, 2);
-    doc.text(lines, margin + 8, fy);
-    fy += lines.length * 4 + 2.4;
+    doc.circle(margin + 5, fy - 1, 0.85, 'F');
+    const lines = doc.splitTextToSize(safeText(item), halfW - 10.5).slice(0, 2);
+    doc.text(lines, margin + 7.8, fy);
+    fy += lines.length * 3.7 + 2.1;
   });
 
   // Direita: Pontos de Atenção
@@ -594,9 +829,9 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   doc.roundedRect(rightX, y2 + 1, halfW, qualBoxH, 2.2, 2.2, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
-  doc.text('PONTOS DE VERIFICAÇÃO PRIORITÁRIOS', rightX + 4, y2 + 7);
+  doc.text('PONTOS DE VERIFICAÇÃO PRIORITÁRIOS', rightX + 4, y2 + 6.5);
 
   const atencoes =
     summary.pontosAtencao && summary.pontosAtencao.length > 0
@@ -606,21 +841,21 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
           'Confirmar traduções juramentadas e sequência cronológica de protocolo no portal SERMIG.',
         ];
 
-  let ay = y2 + 12.5;
+  let ay = y2 + 11.8;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
+  doc.setFontSize(7.5);
   doc.setTextColor(INK[0], INK[1], INK[2]);
   atencoes.slice(0, 4).forEach((item) => {
-    if (ay > y2 + qualBoxH - 5) return;
+    if (ay > y2 + qualBoxH - 4) return;
     doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-    doc.circle(rightX + 5.2, ay - 1.1, 0.9, 'F');
-    const lines = doc.splitTextToSize(safeText(item), halfW - 11).slice(0, 2);
-    doc.text(lines, rightX + 8, ay);
-    ay += lines.length * 4 + 2.4;
+    doc.circle(rightX + 5, ay - 1, 0.85, 'F');
+    const lines = doc.splitTextToSize(safeText(item), halfW - 10.5).slice(0, 2);
+    doc.text(lines, rightX + 7.8, ay);
+    ay += lines.length * 3.7 + 2.1;
   });
 
   // Roteiro Macro em 4 Fases
-  y2 += qualBoxH + 10;
+  y2 += qualBoxH + 8;
   y2 = drawSectionEyebrow(
     doc,
     margin,
@@ -661,13 +896,13 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
 
   const phaseGap = 3.5;
   const phaseW = (contentW - phaseGap * 3) / 4;
-  const phaseH = 54;
-  const phaseTop = y2 + 2;
+  const phaseH = 50;
+  const phaseTop = y2 + 1.5;
 
   // Linha conectora dourada entre as 4 fases
   doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
   doc.setLineWidth(0.7);
-  doc.line(margin + phaseW * 0.5, phaseTop + 7.5, margin + contentW - phaseW * 0.5, phaseTop + 7.5);
+  doc.line(margin + phaseW * 0.5, phaseTop + 7, margin + contentW - phaseW * 0.5, phaseTop + 7);
 
   fases.forEach((f, idx) => {
     const fx = margin + idx * (phaseW + phaseGap);
@@ -676,155 +911,198 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
     doc.setLineWidth(0.3);
     doc.roundedRect(fx, phaseTop, phaseW, phaseH, 2.2, 2.2, 'FD');
 
-    // Selo numérico da fase
     doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-    doc.roundedRect(fx + 3.5, phaseTop + 3.5, 16, 6.2, 1.2, 1.2, 'F');
+    doc.roundedRect(fx + 3.2, phaseTop + 3.2, 16, 6, 1.2, 1.2, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
-    doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-    doc.text(`FASE 0${f.fase}`, fx + 11.5, phaseTop + 7.7, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.6);
-    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    const focoLine = doc.splitTextToSize(safeText(f.foco), phaseW - 7)[0];
-    doc.text(focoLine, fx + 3.5, phaseTop + 14.5);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.4);
-    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    const fTitleLines = doc.splitTextToSize(safeText(f.titulo), phaseW - 7).slice(0, 2);
-    doc.text(fTitleLines, fx + 3.5, phaseTop + 19.5);
+    doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+    doc.text(`FASE 0${f.fase}`, fx + 11.2, phaseTop + 7.2, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.4);
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    const focoLine = doc.splitTextToSize(safeText(f.foco), phaseW - 6.5)[0];
+    doc.text(focoLine, fx + 3.2, phaseTop + 13.6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    const fTitleLines = doc.splitTextToSize(safeText(f.titulo), phaseW - 6.5).slice(0, 2);
+    doc.text(fTitleLines, fx + 3.2, phaseTop + 18.2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
     doc.setTextColor(INK[0], INK[1], INK[2]);
-    const fDescLines = doc.splitTextToSize(safeText(f.resumo), phaseW - 7).slice(0, 6);
-    doc.text(fDescLines, fx + 3.5, phaseTop + 19.5 + fTitleLines.length * 4 + 1.5);
+    const fDescLines = doc.splitTextToSize(safeText(f.resumo), phaseW - 6.5).slice(0, 6);
+    doc.text(fDescLines, fx + 3.2, phaseTop + 18.2 + fTitleLines.length * 3.8 + 1.4);
   });
 
-  y2 = phaseTop + phaseH + 9;
+  // Faixa Especialista: Radar de Validades & Prazos Críticos SERMIG
+  y2 = phaseTop + phaseH + 5;
+  const radarSermigH = 19.5;
+  doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.roundedRect(margin, y2, contentW, radarSermigH, 2, 2, 'FD');
+
+  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.roundedRect(margin, y2, contentW, 5.4, 2, 2, 'F');
+  doc.rect(margin, y2 + 3.2, contentW, 2.2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.4);
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.text('RADAR DE VALIDADES & PRAZOS CRÍTICOS · SERMIG / LEY Nº 21.325', margin + 3.5, y2 + 3.8);
+
+  const sermigItems: Array<{ kpi: string; title: string; sub: string; color: [number, number, number] }> = [
+    { kpi: '60 dias', title: 'Antecedentes PF', sub: 'Emitir por último antes do protocolo', color: CRIMSON },
+    { kpi: 'Haia CNJ', title: 'Apostila da Haia', sub: 'Obrigatória em certidões do Brasil', color: GOLD_DARK },
+    { kpi: '90 dias', title: 'Pós-Estampado', sub: 'Prazo legal para ingresso no Chile', color: NAVY },
+    { kpi: '30 dias', title: 'PDI & Cédula', sub: 'Registro obrigatório após entrada', color: EMERALD },
+  ];
+  const sColW = contentW / 4;
+  sermigItems.forEach((item, idx) => {
+    const sx = margin + idx * sColW + 3.2;
+    if (idx > 0) {
+      doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+      doc.line(margin + idx * sColW, y2 + 6.5, margin + idx * sColW, y2 + radarSermigH - 1.5);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.2);
+    doc.setTextColor(item.color[0], item.color[1], item.color[2]);
+    doc.text(item.kpi, sx, y2 + 10.6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(item.title, sx, y2 + 14.2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.1);
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    const sSub = doc.splitTextToSize(item.sub, sColW - 5.5)[0];
+    doc.text(sSub, sx, y2 + 17.5);
+  });
+
+  y2 += radarSermigH + 6;
 
   // Tabela de Rotas Alternativas Avaliadas (se houver)
-  if (summary.alternativasMapeadas && summary.alternativasMapeadas.length > 0) {
+  if (summary.alternativasMapeadas && summary.alternativasMapeadas.length > 0 && y2 < 194) {
     y2 = drawSectionEyebrow(doc, margin, y2, 'Matriz Comparativa Inicial', 'Rotas Secundárias Avaliadas');
 
-    const tblTop = y2 + 1;
-    const rowH = 8.5;
+    const tblTop = y2 + 0.8;
+    const rowH = 7.4;
     const rows = summary.alternativasMapeadas.slice(0, 2);
-    const tblH = 7.5 + rows.length * rowH;
+    const tblH = 6.5 + rows.length * rowH;
 
     doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
     doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
     doc.roundedRect(margin, tblTop, contentW, tblH, 2, 2, 'FD');
 
-    // Cabeçalho da tabela
     doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
-    doc.rect(margin + 0.2, tblTop + 0.2, contentW - 0.4, 7.2, 'F');
+    doc.rect(margin + 0.2, tblTop + 0.2, contentW - 0.4, 6.2, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(6.6);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    doc.text('SUBCATEGORIA ALTERNATIVA', margin + 4, tblTop + 5);
-    doc.text('PEDIDO DENTRO DO CHILE', margin + 108, tblTop + 5);
-    doc.text('ADERÊNCIA', margin + contentW - 4, tblTop + 5, { align: 'right' });
+    doc.text('SUBCATEGORIA ALTERNATIVA', margin + 4, tblTop + 4.4);
+    doc.text('PEDIDO DENTRO DO CHILE', margin + 108, tblTop + 4.4);
+    doc.text('ADERÊNCIA', margin + contentW - 4, tblTop + 4.4, { align: 'right' });
 
     rows.forEach((alt, idx) => {
-      const ry = tblTop + 7.5 + idx * rowH;
+      const ry = tblTop + 6.5 + idx * rowH;
       doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
       doc.line(margin, ry, margin + contentW, ry);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(7.6);
       doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-      doc.text(`${safeText(alt.codigo)} · ${safeText(alt.nome)}`, margin + 4, ry + 5.6);
+      doc.text(`${safeText(alt.codigo)} · ${safeText(alt.nome)}`, margin + 4, ry + 5);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.6);
       doc.setTextColor(INK[0], INK[1], INK[2]);
-      doc.text(safeText(alt.permiteDentroChile), margin + 108, ry + 5.6);
+      doc.text(safeText(alt.permiteDentroChile), margin + 108, ry + 5);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.2);
+      doc.setFontSize(7.8);
       doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-      doc.text(`${Math.round(alt.aderencia)}/100`, margin + contentW - 4, ry + 5.6, { align: 'right' });
+      doc.text(`${Math.round(alt.aderencia)}/100`, margin + contentW - 4, ry + 5, { align: 'right' });
     });
 
-    y2 = tblTop + tblH + 8;
+    y2 = tblTop + tblH + 5.5;
   }
 
   // Bloco Executivo de Próximo Passo: Modalidades de Assessoria
-  const ctaTop = Math.min(y2, 214);
-  const ctaH = 56;
+  const ctaTop = Math.min(Math.max(y2, 188), 214);
+  const ctaH = 54;
   const planOri = CONSULTANCY_PLANS.orientativa;
   const planComp = CONSULTANCY_PLANS.completa;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
   doc.text('PRÓXIMO PASSO · ASSESSORIA ESPECIALIZADA', margin, ctaTop);
 
   // Cartão 1: Consultoria Orientativa (Claro)
   doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
-  doc.roundedRect(margin, ctaTop + 3, halfW, ctaH - 3, 2.2, 2.2, 'FD');
+  doc.roundedRect(margin, ctaTop + 2.8, halfW, ctaH - 2.8, 2.2, 2.2, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text(safeText(planOri.badgeLabel).toUpperCase(), margin + 4, ctaTop + 9);
+  doc.text(safeText(planOri.badgeLabel).toUpperCase(), margin + 4, ctaTop + 8.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(10);
   doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text(planOri.nome, margin + 4, ctaTop + 14.5);
+  doc.text(planOri.nome, margin + 4, ctaTop + 13.8);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.4);
+  doc.setFontSize(7.2);
   doc.setTextColor(INK[0], INK[1], INK[2]);
   const oriLines = doc.splitTextToSize(planOri.subtitulo, halfW - 8).slice(0, 2);
-  doc.text(oriLines, margin + 4, ctaTop + 19.5);
+  doc.text(oriLines, margin + 4, ctaTop + 18.6);
 
-  let py1 = ctaTop + 28.5;
+  let py1 = ctaTop + 27.2;
   planOri.inclui.slice(0, 3).forEach((item) => {
-    const l = doc.splitTextToSize(`• ${safeText(item)}`, halfW - 8).slice(0, 2);
+    const l = doc.splitTextToSize(`* ${safeText(item)}`, halfW - 8).slice(0, 2);
     doc.text(l, margin + 4, py1);
-    py1 += l.length * 3.6 + 1.5;
+    py1 += l.length * 3.5 + 1.4;
   });
 
   // Cartão 2: Consultoria Completa (Azul Marinho + Ouro)
   doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.roundedRect(rightX, ctaTop + 3, halfW, ctaH - 3, 2.2, 2.2, 'F');
+  doc.roundedRect(rightX, ctaTop + 2.8, halfW, ctaH - 2.8, 2.2, 2.2, 'F');
   doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.rect(rightX, ctaTop + 3, halfW, 1.3, 'F');
+  doc.rect(rightX, ctaTop + 2.8, halfW, 1.3, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text(`${safeText(planComp.badgeLabel).toUpperCase()} · EXECUÇÃO INTEGRAL`, rightX + 4, ctaTop + 9.5);
+  doc.text(`${safeText(planComp.badgeLabel).toUpperCase()} · EXECUÇÃO INTEGRAL`, rightX + 4, ctaTop + 9);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(10);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text(planComp.nome, rightX + 4, ctaTop + 15);
+  doc.text(planComp.nome, rightX + 4, ctaTop + 14.3);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.4);
+  doc.setFontSize(7.2);
   doc.setTextColor(215, 224, 236);
   const compLines = doc.splitTextToSize(planComp.subtitulo, halfW - 8).slice(0, 2);
-  doc.text(compLines, rightX + 4, ctaTop + 20);
+  doc.text(compLines, rightX + 4, ctaTop + 19.1);
 
-  let py2 = ctaTop + 29;
+  let py2 = ctaTop + 27.7;
   planComp.inclui.slice(0, 3).forEach((item) => {
-    const l = doc.splitTextToSize(`• ${safeText(item)}`, halfW - 8).slice(0, 2);
+    const l = doc.splitTextToSize(`* ${safeText(item)}`, halfW - 8).slice(0, 2);
     doc.text(l, rightX + 4, py2);
-    py2 += l.length * 3.6 + 1.5;
+    py2 += l.length * 3.5 + 1.4;
   });
 
-  // Nota Legal / Contato acima do rodapé
-  const legalY = ctaTop + ctaH + 4.5;
-  if (legalY < 276) {
+  // Nota Legal acima do rodapé
+  const legalY = ctaTop + ctaH + 4;
+  if (legalY < 278) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.6);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     const legalNotice = doc
       .splitTextToSize(

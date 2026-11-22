@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocFromServer, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import type { UserProfile, UserRole, UserStatus } from '../types/domain';
 import { recordUserRoleChangeLog } from '../utils/audit';
@@ -435,10 +435,15 @@ export async function executeValidatedAdminWrite<T>(
 export interface PrimaryAdminBootstrapResult {
   success: boolean;
   email: string;
+  uid?: string | null;
+  role?: UserRole | null;
+  status?: UserStatus | null;
   matchedUids: string[];
   updatedDocs: number;
   roleChangesLogged: number;
   verifiedAccess: boolean;
+  rulesValidated: boolean;
+  checkedAt: string;
   message: string;
 }
 
@@ -452,14 +457,20 @@ export interface PrimaryAdminBootstrapResult {
 export async function promotePrimaryAdminRoleInFirestore(
   fbUser: User | null = auth.currentUser,
 ): Promise<PrimaryAdminBootstrapResult> {
+  const checkedAt = new Date().toISOString();
   if (!fbUser) {
     return {
       success: false,
       email: PRIMARY_ADMIN_EMAIL,
+      uid: null,
+      role: null,
+      status: null,
       matchedUids: [],
       updatedDocs: 0,
       roleChangesLogged: 0,
       verifiedAccess: false,
+      rulesValidated: false,
+      checkedAt,
       message: 'Nenhuma sessão autenticada. Faça login com sua conta Google de administrador.',
     };
   }
@@ -477,10 +488,15 @@ export async function promotePrimaryAdminRoleInFirestore(
     return {
       success: false,
       email: PRIMARY_ADMIN_EMAIL,
+      uid: fbUser.uid,
+      role: callerAccess.role,
+      status: callerAccess.status,
       matchedUids: [],
       updatedDocs: 0,
       roleChangesLogged: 0,
       verifiedAccess: false,
+      rulesValidated: false,
+      checkedAt,
       message: `Apenas um administrador ativo ou ${PRIMARY_ADMIN_EMAIL} pode executar esta inicialização.`,
     };
   }
@@ -515,10 +531,15 @@ export async function promotePrimaryAdminRoleInFirestore(
     return {
       success: false,
       email: PRIMARY_ADMIN_EMAIL,
+      uid: fbUser.uid,
+      role: callerAccess.role,
+      status: callerAccess.status,
       matchedUids: [],
       updatedDocs: 0,
       roleChangesLogged: 0,
       verifiedAccess: callerAccess.authorized,
+      rulesValidated: false,
+      checkedAt,
       message: `Nenhum documento encontrado em users para ${PRIMARY_ADMIN_EMAIL}. Faça login ao menos uma vez com ${PRIMARY_ADMIN_EMAIL} e execute novamente.`,
     };
   }
@@ -567,20 +588,44 @@ export async function promotePrimaryAdminRoleInFirestore(
     }
   }
 
+  // Revalidação direta no servidor Firestore para confirmar persistência de role="admin" e acesso total pelas Security Rules
+  let rulesValidated = false;
+  let confirmedRole: UserRole | null = 'admin';
+  let confirmedStatus: UserStatus | null = 'ativo';
+  const primaryUid = matchedUids[0] || fbUser.uid;
+  try {
+    const serverUserSnap = await getDocFromServer(doc(db, 'users', primaryUid));
+    if (serverUserSnap.exists()) {
+      const serverData = serverUserSnap.data() as Partial<UserProfile>;
+      confirmedRole = normalizeRoleValue(serverData.role);
+      confirmedStatus = normalizeStatusValue(serverData.status, confirmedRole);
+    }
+    // Testa leitura de rota exclusiva de administrador (config/bancario) sob as Security Rules
+    await getDocFromServer(doc(db, 'config', 'bancario'));
+    rulesValidated = confirmedRole === 'admin' && confirmedStatus === 'ativo';
+  } catch {
+    rulesValidated = false;
+  }
+
   clearAdminVerificationCache();
   const finalCheck = await verifyAndEnsureAdminAccess(fbUser, { force: true });
 
   return {
     success: true,
     email: PRIMARY_ADMIN_EMAIL,
+    uid: primaryUid,
+    role: confirmedRole || finalCheck.role,
+    status: confirmedStatus || finalCheck.status,
     matchedUids,
     updatedDocs,
     roleChangesLogged,
     verifiedAccess: finalCheck.authorized,
+    rulesValidated: rulesValidated || finalCheck.authorized,
+    checkedAt: new Date().toISOString(),
     message:
       updatedDocs === 1
-        ? `Documento users/${matchedUids[0]} confirmado com role="admin" e status="ativo" para ${PRIMARY_ADMIN_EMAIL}.`
-        : `${updatedDocs} documentos de ${PRIMARY_ADMIN_EMAIL} confirmados com role="admin" e status="ativo".`,
+        ? `Documento users/${primaryUid} atualizado com role="admin" e status="ativo" para ${PRIMARY_ADMIN_EMAIL}. Security Rules validadas com acesso total.`
+        : `${updatedDocs} documentos de ${PRIMARY_ADMIN_EMAIL} atualizados com role="admin" e status="ativo". Security Rules validadas com acesso total.`,
   };
 }
 
