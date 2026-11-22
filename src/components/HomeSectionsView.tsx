@@ -8,10 +8,12 @@ import {
   ChevronDown,
   Compass,
   FileCheck2,
+  MapPin,
   MessageCircle,
   Quote,
   Radar,
   ShieldCheck,
+  Star,
   X,
 } from 'lucide-react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
@@ -24,6 +26,10 @@ import type {
   SiteSectionKey,
 } from '../types/domain';
 import { buildWhatsAppUrl, openExternalSafe, sanitizeHtml } from '../utils/formatters';
+import {
+  translatePartnerCategory,
+  translatePartnerCountry,
+} from '../utils/partnerHelpers';
 import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
 import { OptimizedImage } from './OptimizedImage';
@@ -195,7 +201,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   onOpenCalendly,
   previewMode = false,
 }) => {
-  const { t, translateText } = useLanguage();
+  const { locale, t, translateText } = useLanguage();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [serviceDrawer, setServiceDrawer] = useState<ServiceItemMeta | null>(null);
   const [compLocal, setCompLocal] = useState<'brasil' | 'turista_chile' | 'residente_chile'>('brasil');
@@ -484,16 +490,16 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'suave');
     const maxItens = Math.max(1, Number(meta.maxItens || 3));
     return (
-      <section key={keyId} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
+      <section key={keyId} className={`cv-auto ${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div className="max-w-2xl">
               {Boolean(meta.eyebrow) && (
-                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-1.5 ${theme.eyebrowClass}`}>
+                <p className={`text-xs font-semibold mb-1.5 ${theme.eyebrowClass}`}>
                   {translateText(String(meta.eyebrow))}
                 </p>
               )}
-              <h2 className={`text-2xl sm:text-3xl font-bold mb-2 ${theme.headingClass}`}>
+              <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>
                 {translateText(sec.titulo)}
               </h2>
               <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
@@ -503,9 +509,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             </div>
             <button
               type="button"
+              onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+              onFocus={() => prefetchRouteChunk('/parceiros')}
               onClick={() => navigateAction(sec.ctaDestino || '/parceiros')}
               className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                theme.isDark ? 'text-white' : ''
+                theme.isDark ? 'text-[#E5C76B]' : ''
               }`}
               style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
             >
@@ -516,14 +524,53 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {partnersPublic.slice(0, maxItens).map((p) => (
-              <div key={p.id} className={`${theme.cardClass} card-radius p-6`}>
-                <p className={`text-[11px] font-bold uppercase tracking-[0.1em] mb-1.5 ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
-                  {p.categoria} · {p.pais}
-                </p>
-                <h3 className={`text-base font-bold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
-                <p className={`text-sm leading-relaxed mb-3 ${theme.subClass}`}>{p.descricaoPublica}</p>
-                <p className={`text-xs ${theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D]'}`}>{p.cidadeRegiao}</p>
-              </div>
+              <article
+                key={p.id}
+                className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-colors hover:border-[#C8A236]/80`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 text-xs mb-2">
+                    <span className={`font-semibold ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
+                      {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 font-mono font-semibold tabular-nums ${
+                        theme.isDark ? 'text-white' : 'text-[#0B1F33]'
+                      }`}
+                    >
+                      <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                      {Number(p.avaliacao || 5).toFixed(1)}/5
+                    </span>
+                  </div>
+                  <h3 className={`text-base font-bold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
+                  <p className={`text-sm leading-relaxed mb-4 ${theme.subClass}`}>{p.descricaoPublica}</p>
+                </div>
+
+                <div
+                  className={`pt-3.5 border-t flex items-center justify-between gap-3 ${
+                    theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'
+                  }`}
+                >
+                  <span
+                    className={`inline-flex items-center gap-1 text-xs truncate ${
+                      theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D]'
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                    <span className="truncate">{p.cidadeRegiao}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                    onClick={() => navigateAction('/parceiros')}
+                    className={`text-xs font-semibold whitespace-nowrap shrink-0 hover:underline ${
+                      theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33]'
+                    }`}
+                  >
+                    {locale === 'es-CL' ? 'Ver red →' : 'Ver rede →'}
+                  </button>
+                </div>
+              </article>
             ))}
           </div>
         </div>

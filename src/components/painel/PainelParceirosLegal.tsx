@@ -63,6 +63,12 @@ import type {
 import { buildWhatsAppUrl, formatDateBR, toIsoDate } from '../../utils/formatters';
 import { isLegalSourceOutdated } from '../../utils/legalSync';
 import {
+  computePartnerNetworkMetrics,
+  isPartnerPublishedPublicly,
+  normalizePartnerExternalUrl,
+  PARTNER_CATEGORIES,
+} from '../../utils/partnerHelpers';
+import {
   clearAiDraftCache,
   compactLegalSourcesForAi,
   compactSourceForAi,
@@ -165,10 +171,18 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     }
   });
 
-  // IA Proposta
+  // IA Proposta & Filtros Parceiros / Propostas
   const [aiPropLoadingId, setAiPropLoadingId] = useState<string | null>(null);
   const [aiPropProgress, setAiPropProgress] = useState<string | null>(null);
   const [approvingPropId, setApprovingPropId] = useState<string | null>(null);
+  const [proposalSearch, setProposalSearch] = useState('');
+  const [proposalStatusFilter, setProposalStatusFilter] = useState<'Todas' | PartnerProposal['status']>('Todas');
+
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [partnerPaisFilter, setPartnerPaisFilter] = useState<'Todos' | 'Brasil' | 'Chile' | 'Ambos'>('Todos');
+  const [partnerCatFilter, setPartnerCatFilter] = useState<string>('Todas');
+  const [partnerVisibilityFilter, setPartnerVisibilityFilter] = useState<'Todos' | 'publicados' | 'ocultos'>('Todos');
+  const [togglingPartnerId, setTogglingPartnerId] = useState<string | null>(null);
 
   // Novo / Edição Parceiro
   const [partnerModal, setPartnerModal] = useState<Partial<Partner> | null>(null);
@@ -381,6 +395,64 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       await onRefreshPublic();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Não foi possível atualizar favorito da norma.');
+    }
+  };
+
+  // ===========================================================================
+  // Métricas, Filtros e Ações de Parceiros & Propostas
+  // ===========================================================================
+  const partnerMetrics = useMemo(
+    () => computePartnerNetworkMetrics(partners, partnerProposals),
+    [partners, partnerProposals],
+  );
+
+  const filteredProposals = useMemo(() => {
+    const q = proposalSearch.trim().toLowerCase();
+    return partnerProposals.filter((p) => {
+      if (proposalStatusFilter !== 'Todas' && p.status !== proposalStatusFilter) return false;
+      if (!q) return true;
+      return `${p.nome_empresa} ${p.responsavel} ${p.categoria} ${p.pais} ${p.cidade} ${p.email} ${p.proposta}`
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [partnerProposals, proposalSearch, proposalStatusFilter]);
+
+  const filteredPanelPartners = useMemo(() => {
+    const q = partnerSearch.trim().toLowerCase();
+    return partners.filter((p) => {
+      if (partnerPaisFilter !== 'Todos' && p.pais !== partnerPaisFilter) return false;
+      if (partnerCatFilter !== 'Todas' && p.categoria !== partnerCatFilter) return false;
+      const published = isPartnerPublishedPublicly(p);
+      if (partnerVisibilityFilter === 'publicados' && !published) return false;
+      if (partnerVisibilityFilter === 'ocultos' && published) return false;
+      if (!q) return true;
+      return `${p.nome} ${p.categoria} ${p.pais} ${p.cidadeRegiao} ${p.contato} ${p.email} ${p.tabelaValoresComissao}`
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [partners, partnerSearch, partnerPaisFilter, partnerCatFilter, partnerVisibilityFilter]);
+
+  const handleTogglePartnerPublic = async (partner: Partner) => {
+    if (togglingPartnerId) return;
+    setTogglingPartnerId(partner.id);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const currentlyPublished = isPartnerPublishedPublicly(partner);
+      const updated: Partner = currentlyPublished
+        ? { ...partner, recomendadoAosClientes: false }
+        : { ...partner, recomendadoAosClientes: true, statusHomologacao: 'Ativo/Indicado' };
+      await syncPartnerAndPublic(updated, false, role);
+      setFeedback(
+        currentlyPublished
+          ? `Parceiro "${partner.nome}" ocultado da vitrine pública (/parceiros).`
+          : `Parceiro "${partner.nome}" publicado na vitrine pública (/parceiros).`,
+      );
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível alterar a visibilidade do parceiro.');
+    } finally {
+      setTogglingPartnerId(null);
     }
   };
 
@@ -1144,86 +1216,227 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         </div>
       )}
 
+      {/* KPI STRIP DO MÓDULO DE PARCEIROS */}
+      {(tab === 'propostas' || tab === 'parceiros') && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setTab('propostas');
+              setProposalStatusFilter('Nova');
+            }}
+            className="text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 transition-colors"
+          >
+            <p className="text-xs text-slate-500">Propostas pendentes</p>
+            <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums mt-1">
+              {partnerMetrics.pendingProposals}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+              {partnerMetrics.approvedProposals} aprovada(s) · {partnerMetrics.rejectedProposals} recusada(s)
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTab('parceiros');
+              setPartnerVisibilityFilter('publicados');
+            }}
+            className="text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 transition-colors"
+          >
+            <p className="text-xs text-slate-500">Publicados em /parceiros</p>
+            <p className="text-2xl font-bold text-[#146B43] font-mono tabular-nums mt-1">
+              {partnerMetrics.publishedCount}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+              {partnerMetrics.hiddenCount} oculto(s) ou em análise
+            </p>
+          </button>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <p className="text-xs text-slate-500">Cobertura binacional</p>
+            <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums mt-1">
+              {partnerMetrics.brazilCount} BR · {partnerMetrics.chileCount} CL
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+              {partnerMetrics.binationalCount} binacional(is) · {partnerMetrics.uniqueCategories} especialidade(s)
+            </p>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <p className="text-xs text-slate-500">Avaliação média da rede</p>
+            <p className="text-2xl font-bold text-[#8C6D14] font-mono tabular-nums mt-1">
+              {partnerMetrics.averageRating > 0 ? `${partnerMetrics.averageRating.toFixed(1)}/5` : '—'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+              Base de {partnerMetrics.totalPartners} parceiro(s) cadastrado(s)
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* PROPOSTAS */}
       {tab === 'propostas' && (
         <div className="space-y-4">
-          {partnerProposals.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
-              Nenhuma proposta de parceria recebida ainda.
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={proposalSearch}
+                onChange={(e) => setProposalSearch(e.target.value)}
+                placeholder="Buscar proposta por empresa, responsável, cidade ou categoria..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto">
+              {(['Todas', 'Nova', 'Em Análise', 'Aprovada', 'Recusada'] as const).map((st) => {
+                const count =
+                  st === 'Todas'
+                    ? partnerProposals.length
+                    : partnerProposals.filter((item) => item.status === st).length;
+                const active = proposalStatusFilter === st;
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setProposalStatusFilter(st)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 tabular-nums transition-colors ${
+                      active
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {st} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {filteredProposals.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-800">
+                {partnerProposals.length === 0
+                  ? 'Nenhuma proposta de parceria recebida ainda.'
+                  : 'Nenhuma proposta corresponde aos filtros selecionados.'}
+              </p>
+              {proposalStatusFilter !== 'Todas' || proposalSearch.trim() !== '' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProposalStatusFilter('Todas');
+                    setProposalSearch('');
+                  }}
+                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline"
+                >
+                  Limpar filtros
+                </button>
+              ) : null}
             </div>
           ) : (
-            partnerProposals.map((p) => (
-              <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500">
-                      {p.categoria} · {p.pais} ({p.cidade}) · Moeda {p.moeda} · Status: {p.status}
-                    </p>
-                    <h3 className="text-base font-bold text-slate-900">{p.nome_empresa}</h3>
-                    <p className="text-xs text-slate-600">
-                      Responsável: {p.responsavel} · {p.whatsapp} · {p.email}
-                    </p>
+            filteredProposals.map((p) => {
+              const statusTone =
+                p.status === 'Aprovada'
+                  ? 'text-[#146B43]'
+                  : p.status === 'Recusada'
+                    ? 'text-[#C82333]'
+                    : p.status === 'Em Análise'
+                      ? 'text-amber-700'
+                      : 'text-[var(--color-primary)]';
+
+              return (
+                <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3.5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <p className="text-xs text-slate-500">
+                        <span>{p.categoria}</span>
+                        <span aria-hidden="true"> · </span>
+                        <span>{p.pais}{p.cidade ? ` (${p.cidade})` : ''}</span>
+                        <span aria-hidden="true"> · </span>
+                        <span className="font-mono">Moeda {p.moeda}</span>
+                        <span aria-hidden="true"> · </span>
+                        <strong className={statusTone}>{p.status}</strong>
+                        {p.createdAt ? ` · ${formatDateBR(p.createdAt)}` : ''}
+                      </p>
+                      <h3 className="text-base font-bold text-slate-900">{p.nome_empresa}</h3>
+                      <p className="text-xs text-slate-600">
+                        Responsável: <strong className="font-semibold text-slate-800">{p.responsavel}</strong> · {p.whatsapp} · {p.email}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={aiPropLoadingId !== null}
+                        onClick={() => void handleAnalyzeProposalIa(p)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap shrink-0"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                        {aiPropLoadingId === p.id ? aiPropProgress || 'Analisando...' : 'Avaliar com IA'}
+                      </button>
+                      {p.status !== 'Aprovada' && (
+                        <button
+                          type="button"
+                          disabled={approvingPropId !== null}
+                          onClick={() => void handleApproveProposal(p)}
+                          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#146B43] hover:bg-[#115a38] disabled:opacity-50 whitespace-nowrap shrink-0"
+                        >
+                          {approvingPropId === p.id ? 'Homologando...' : 'Aprovar e Publicar'}
+                        </button>
+                      )}
+                      {p.status !== 'Aprovada' && p.status !== 'Recusada' && (
+                        <button
+                          type="button"
+                          onClick={() => requestRejectProposal(p)}
+                          className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
+                        >
+                          Recusar
+                        </button>
+                      )}
+                      <a
+                        href={buildWhatsAppUrl(p.whatsapp, `Olá, ${p.responsavel}! Recebemos sua proposta de parceria da ${p.nome_empresa} na D&M Integra Chile.`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Responder
+                      </a>
+                      {role === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteProposal(p)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={aiPropLoadingId !== null}
-                      onClick={() => void handleAnalyzeProposalIa(p)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                      {aiPropLoadingId === p.id ? aiPropProgress || 'Analisando...' : 'Avaliar com IA'}
-                    </button>
-                    {p.status !== 'Aprovada' && (
-                      <button
-                        type="button"
-                        disabled={approvingPropId !== null}
-                        onClick={() => void handleApproveProposal(p)}
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] disabled:opacity-50"
-                      >
-                        {approvingPropId === p.id ? 'Homologando...' : 'Aprovar e Converter em Parceiro'}
-                      </button>
-                    )}
-                    {p.status !== 'Aprovada' && p.status !== 'Recusada' && (
-                      <button
-                        type="button"
-                        onClick={() => requestRejectProposal(p)}
-                        className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                      >
-                        Recusar
-                      </button>
-                    )}
-                    <a
-                      href={buildWhatsAppUrl(p.whatsapp, `Olá, ${p.responsavel}! Recebemos sua proposta de parceria da ${p.nome_empresa} na D&M Integra Chile.`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      Responder
-                    </a>
-                    {role === 'admin' && (
-                      <button
-                        type="button"
-                        onClick={() => requestDeleteProposal(p)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Excluir
-                      </button>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
+                    <div className="text-xs text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                      <p className="font-semibold text-slate-900 mb-1">Proposta comercial</p>
+                      <p className="leading-relaxed whitespace-pre-wrap">{p.proposta || 'Não informada.'}</p>
+                    </div>
+                    {p.mensagem && (
+                      <div className="text-xs text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                        <p className="font-semibold text-slate-900 mb-1">Apresentação institucional</p>
+                        <p className="leading-relaxed whitespace-pre-wrap">{p.mensagem}</p>
+                      </div>
                     )}
                   </div>
+
+                  {p.parecerIa && (
+                    <div className="text-xs text-slate-800 bg-amber-50/70 p-3.5 rounded-lg border border-amber-200 space-y-1">
+                      <p className="font-semibold text-amber-950">Parecer técnico automatizado</p>
+                      <p className="whitespace-pre-wrap leading-relaxed">{p.parecerIa}</p>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <strong>Proposta comercial:</strong> {p.proposta}
-                </p>
-                {p.parecerIa && (
-                  <p className="text-xs text-slate-700 bg-amber-50 p-3 rounded-lg border border-amber-200 whitespace-pre-wrap">
-                    {p.parecerIa}
-                  </p>
-                )}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -1231,7 +1444,48 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       {/* PARCEIROS */}
       {tab === 'parceiros' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={partnerSearch}
+                onChange={(e) => setPartnerSearch(e.target.value)}
+                placeholder="Buscar parceiro por nome, cidade, contato ou condição comercial..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+              />
+            </div>
+            <select
+              value={partnerPaisFilter}
+              onChange={(e) => setPartnerPaisFilter(e.target.value as typeof partnerPaisFilter)}
+              className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+            >
+              <option value="Todos">País: Todos</option>
+              <option value="Brasil">Brasil</option>
+              <option value="Chile">Chile</option>
+              <option value="Ambos">Brasil &amp; Chile</option>
+            </select>
+            <select
+              value={partnerCatFilter}
+              onChange={(e) => setPartnerCatFilter(e.target.value)}
+              className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+            >
+              <option value="Todas">Categoria: Todas</option>
+              {PARTNER_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <select
+              value={partnerVisibilityFilter}
+              onChange={(e) => setPartnerVisibilityFilter(e.target.value as typeof partnerVisibilityFilter)}
+              className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+            >
+              <option value="Todos">Vitrine: Todos</option>
+              <option value="publicados">Publicados em /parceiros</option>
+              <option value="ocultos">Ocultos / Em análise</option>
+            </select>
             <button
               type="button"
               onClick={() =>
@@ -1247,7 +1501,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   statusHomologacao: 'Ativo/Indicado',
                 })
               }
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -1255,58 +1509,157 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
             </button>
           </div>
 
-          {partners.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
-              Nenhum parceiro cadastrado ainda.
+          {filteredPanelPartners.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-800">
+                {partners.length === 0
+                  ? 'Nenhum parceiro cadastrado ainda.'
+                  : 'Nenhum parceiro corresponde aos filtros aplicados.'}
+              </p>
+              {partners.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPartnerSearch('');
+                    setPartnerPaisFilter('Todos');
+                    setPartnerCatFilter('Todas');
+                    setPartnerVisibilityFilter('Todos');
+                  }}
+                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline"
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {partners.map((p) => (
-                <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs text-slate-500">
-                        {p.categoria} · {p.pais}
-                        {p.cidadeRegiao ? ` (${p.cidadeRegiao})` : ''} · {p.statusHomologacao}
-                      </p>
-                      <h3 className="text-base font-bold text-slate-900">{p.nome}</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filteredPanelPartners.map((p) => {
+                const published = isPartnerPublishedPublicly(p);
+                const safeExternal = normalizePartnerExternalUrl(p.siteInstagram);
+
+                return (
+                  <div
+                    key={p.id}
+                    className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between gap-4"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-slate-500">
+                            <span className="font-semibold text-[#8C6D14]">{p.categoria}</span>
+                            <span aria-hidden="true"> · </span>
+                            <span>{p.pais}{p.cidadeRegiao ? ` (${p.cidadeRegiao})` : ''}</span>
+                            <span aria-hidden="true"> · </span>
+                            <strong className={published ? 'text-[#146B43]' : 'text-amber-700'}>
+                              {p.statusHomologacao}
+                            </strong>
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <h3 className="text-base font-bold text-slate-900 truncate">{p.nome}</h3>
+                            <span className="inline-flex items-center gap-0.5 text-xs font-mono font-semibold text-slate-700 tabular-nums shrink-0">
+                              <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                              {Number(p.avaliacao || 5).toFixed(1)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setPartnerModal(p)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                          >
+                            Editar
+                          </button>
+                          {role === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() => requestDeletePartner(p)}
+                              aria-label={`Excluir parceiro ${p.nome}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Excluir
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {(p.contato || p.whatsapp || p.email) && (
+                        <p className="text-xs text-slate-600">
+                          {p.contato ? `Contato: ${p.contato}` : ''}
+                          {p.whatsapp ? `${p.contato ? ' · ' : ''}${p.whatsapp}` : ''}
+                          {p.email ? ` · ${p.email}` : ''}
+                        </p>
+                      )}
+
+                      {p.descricaoPublica && (
+                        <p className="text-xs text-slate-600 leading-relaxed">{p.descricaoPublica}</p>
+                      )}
+
+                      <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-1 text-xs">
+                        <p className="font-semibold text-slate-800">
+                          Comissão interna ({p.moedaNegociacao}) — Confidencial
+                        </p>
+                        <p className="text-slate-700 leading-relaxed">
+                          {p.tabelaValoresComissao || 'Sem regra de comissão cadastrada.'}
+                        </p>
+                        {p.condicoesParceria && (
+                          <p className="text-slate-500 pt-1 border-t border-slate-200/80">
+                            Condições: {p.condicoesParceria}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+
+                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={published ? 'font-semibold text-[#146B43]' : 'text-slate-500'}>
+                          Vitrine /parceiros: {published ? 'Publicado' : 'Oculto'}
+                        </span>
+                        {p.whatsapp && (
+                          <a
+                            href={buildWhatsAppUrl(p.whatsapp, `Olá ${p.contato || p.nome}, contato da equipe D&M Integra Chile.`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[#146B43] font-semibold hover:underline"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            WhatsApp
+                          </a>
+                        )}
+                        {safeExternal && (
+                          <a
+                            href={safeExternal}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-slate-600 font-semibold hover:underline"
+                          >
+                            Site/IG
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => setPartnerModal(p)}
-                        className="px-3 py-1 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        disabled={togglingPartnerId === p.id}
+                        onClick={() => void handleTogglePartnerPublic(p)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 ${
+                          published
+                            ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                            : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                        }`}
                       >
-                        Editar
+                        {togglingPartnerId === p.id
+                          ? 'Atualizando...'
+                          : published
+                            ? 'Ocultar da vitrine'
+                            : 'Publicar em /parceiros'}
                       </button>
-                      {role === 'admin' && (
-                        <button
-                          type="button"
-                          onClick={() => requestDeletePartner(p)}
-                          aria-label={`Excluir parceiro ${p.nome}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Excluir
-                        </button>
-                      )}
                     </div>
                   </div>
-                  {(p.contato || p.whatsapp || p.email) && (
-                    <p className="text-xs text-slate-600">
-                      {p.contato ? `Contato: ${p.contato}` : ''}
-                      {p.whatsapp ? `${p.contato ? ' · ' : ''}${p.whatsapp}` : ''}
-                      {p.email ? ` · ${p.email}` : ''}
-                    </p>
-                  )}
-                  <p className="text-xs text-slate-700">
-                    <strong>Comissão interna ({p.moedaNegociacao}):</strong> {p.tabelaValoresComissao || 'Não cadastrada'}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Vitrine pública: {p.recomendadoAosClientes && p.statusHomologacao === 'Ativo/Indicado' ? 'Sim (Publicado em /parceiros)' : 'Oculto do público'}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2019,15 +2372,11 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   onChange={(e) => setPartnerModal({ ...partnerModal, categoria: e.target.value as PartnerCategory })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
                 >
-                  <option value="Tradutor">Tradutor</option>
-                  <option value="Cartório">Cartório</option>
-                  <option value="Corretor de Imóveis">Corretor de Imóveis</option>
-                  <option value="Escritório de Advocacia">Escritório de Advocacia</option>
-                  <option value="Contabilidade">Contabilidade</option>
-                  <option value="Despachante">Despachante</option>
-                  <option value="Transporte/Mudança">Transporte/Mudança</option>
-                  <option value="Banco/Câmbio">Banco/Câmbio</option>
-                  <option value="Outro">Outro</option>
+                  {PARTNER_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
