@@ -34,6 +34,12 @@ import {
   type SermigSourceCheckInput,
 } from './server/sermigLegalService.ts';
 import { loadFirebaseServerConfig } from './server/firebaseServerConfig.ts';
+import {
+  assertPathInsideBaseDir,
+  getCompanionMobileWebpFilename,
+  isRasterImageUpload,
+  preprocessUploadedImageToWebp,
+} from './server/imagePreprocessor.ts';
 import type { CommunicationLog } from './src/types/domain.ts';
 
 const firebaseConfig = loadFirebaseServerConfig();
@@ -294,7 +300,17 @@ function sanitizeSvgContent(raw: string): string {
 // =============================================================================
 const app = express();
 app.use(express.json({ limit: '12mb' }));
-app.use('/uploads', express.static(UPLOAD_DIR));
+app.use(
+  '/uploads',
+  express.static(UPLOAD_DIR, {
+    maxAge: '365d',
+    setHeaders: (res, filePath) => {
+      if (/\.(webp|svg|png|jpe?g|ico)$/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }),
+);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
@@ -460,7 +476,7 @@ app.post('/api/auth/check-admin', requireAuth, (req: AuthedRequest, res: Respons
 });
 
 app.post('/api/upload', requireAuth, (req: AuthedRequest, res: Response) => {
-  upload.single('file')(req, res, (err: unknown) => {
+  upload.single('file')(req, res, async (err: unknown) => {
     if (err) {
       const msg = err instanceof Error ? err.message : 'Falha no upload do arquivo.';
       res.status(400).json({ error: msg });
@@ -472,17 +488,58 @@ app.post('/api/upload', requireAuth, (req: AuthedRequest, res: Response) => {
     }
     if (req.file.mimetype === 'image/svg+xml' || req.file.originalname.toLowerCase().endsWith('.svg')) {
       try {
-        const rawSvg = fs.readFileSync(req.file.path, 'utf8');
-        fs.writeFileSync(req.file.path, sanitizeSvgContent(rawSvg), 'utf8');
+        const safeSvgPath = assertPathInsideBaseDir(req.file.path, UPLOAD_DIR);
+        const rawSvg = fs.readFileSync(safeSvgPath, 'utf8');
+        fs.writeFileSync(safeSvgPath, sanitizeSvgContent(rawSvg), 'utf8');
       } catch {
         // ignore if read fails
       }
+      res.json({
+        url: `/uploads/${req.file.filename}`,
+        filename: req.file.originalname,
+        size: req.file.size,
+        mimeType: req.file.mimetype,
+        convertedToWebp: false,
+      });
+      return;
     }
+
+    if (isRasterImageUpload(req.file.mimetype, req.file.originalname)) {
+      try {
+        const processed = await preprocessUploadedImageToWebp({
+          inputPath: req.file.path,
+          uploadDir: UPLOAD_DIR,
+        });
+        const originalBase = path.basename(req.file.originalname, path.extname(req.file.originalname));
+        res.json({
+          url: processed.url,
+          mobileUrl: processed.mobileUrl,
+          filename: `${originalBase}.webp`,
+          size: processed.sizeBytes,
+          originalSize: processed.originalSizeBytes,
+          savedPercent: processed.savedPercent,
+          width: processed.width,
+          height: processed.height,
+          mimeType: processed.mimeType,
+          convertedToWebp: true,
+        });
+        return;
+      } catch (conversionErr) {
+        const msg =
+          conversionErr instanceof Error
+            ? conversionErr.message
+            : 'Falha ao pré-processar a imagem enviada para WebP.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+    }
+
     res.json({
       url: `/uploads/${req.file.filename}`,
       filename: req.file.originalname,
       size: req.file.size,
       mimeType: req.file.mimetype,
+      convertedToWebp: false,
     });
   });
 });
@@ -491,51 +548,69 @@ app.get('/api/media', requireAuth, requireRole(['admin', 'consultor', 'assistent
   try {
     const entries = fs.readdirSync(UPLOAD_DIR, { withFileTypes: true });
     const items = entries
-      .filter((e) => e.isFile() && /\.(png|jpe?g|webp|svg|ico)$/i.test(e.name))
+      .filter(
+        (e) =>
+          e.isFile() &&
+          /\.(png|jpe?g|webp|svg|ico)$/i.test(e.name) &&
+          !e.name.toLowerCase().endsWith('-640w.webp'),
+      )
       .map((e) => {
-        const st = fs.statSync(path.join(UPLOAD_DIR, e.name));
+        const st = fs.statSync(assertPathInsideBaseDir(path.join(UPLOAD_DIR, e.name), UPLOAD_DIR));
         return {
           filename: e.name,
           url: `/uploads/${e.name}`,
           size: st.size,
+          createdAt: st.mtime.toISOString(),
           updatedAt: st.mtime.toISOString(),
         };
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    res.json({ items });
+    res.json({ items, files: items });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao listar mídias.' });
   }
 });
 
-app.delete('/api/media/:filename', requireAuth, requireRole(['admin']), (req: AuthedRequest, res: Response) => {
-  const safeName = path.basename(req.params.filename || '');
-  if (!safeName || safeName.includes('..')) {
-    res.status(400).json({ error: 'Nome de arquivo inválido.' });
-    return;
+function deleteUploadedFileWithCompanion(rawFilename: string): boolean {
+  const safeName = path.basename(rawFilename || '');
+  if (!safeName || safeName.includes('..') || safeName !== rawFilename) {
+    throw new Error('Nome de arquivo inválido.');
   }
-  const fullPath = path.join(UPLOAD_DIR, safeName);
+  const fullPath = assertPathInsideBaseDir(path.join(UPLOAD_DIR, safeName), UPLOAD_DIR);
   if (!fs.existsSync(fullPath)) {
-    res.status(404).json({ error: 'Arquivo não encontrado.' });
-    return;
+    return false;
   }
   fs.unlinkSync(fullPath);
-  res.json({ ok: true });
+  const companion = getCompanionMobileWebpFilename(safeName);
+  if (companion) {
+    const companionPath = assertPathInsideBaseDir(path.join(UPLOAD_DIR, companion), UPLOAD_DIR);
+    if (fs.existsSync(companionPath)) {
+      fs.unlinkSync(companionPath);
+    }
+  }
+  return true;
+}
+
+app.delete('/api/media/:filename', requireAuth, requireRole(['admin']), (req: AuthedRequest, res: Response) => {
+  try {
+    const deleted = deleteUploadedFileWithCompanion(req.params.filename || '');
+    if (!deleted) {
+      res.status(404).json({ error: 'Arquivo não encontrado.' });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Nome de arquivo inválido.' });
+  }
 });
 
 app.delete('/api/uploads/:filename', requireAuth, requireRole(['admin', 'consultor']), (req: AuthedRequest, res: Response) => {
-  const safeName = path.basename(req.params.filename || '');
-  if (!safeName || safeName.includes('..')) {
-    res.status(400).json({ error: 'Nome de arquivo inválido.' });
-    return;
+  try {
+    const deleted = deleteUploadedFileWithCompanion(req.params.filename || '');
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Nome de arquivo inválido.' });
   }
-  const fullPath = path.join(UPLOAD_DIR, safeName);
-  if (!fs.existsSync(fullPath)) {
-    res.json({ ok: true, deleted: false });
-    return;
-  }
-  fs.unlinkSync(fullPath);
-  res.json({ ok: true, deleted: true });
 });
 
 // -----------------------------------------------------------------------------

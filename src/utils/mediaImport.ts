@@ -180,25 +180,29 @@ export async function processImportedImageFile(
     if (!ctx) throw new Error('Canvas indisponível no navegador.');
     ctx.drawImage(img, 0, 0, targetW, targetH);
 
-    // Keep alpha transparency for logos/favicons, use high-efficiency WebP for photos
-    const preferPng = preset === 'favicon' || (preset === 'logo' && file.type === 'image/png');
-    let outMime = preferPng ? 'image/png' : 'image/webp';
-    let dataUrl = canvas.toDataURL(outMime, preferPng ? undefined : 0.86);
+    // Always convert raster uploads to WebP (supports full alpha transparency for logos & favicons)
+    let outMime = 'image/webp';
+    const initialQuality = preset === 'logo' || preset === 'favicon' ? 0.9 : 0.84;
+    let dataUrl = canvas.toDataURL('image/webp', initialQuality);
 
-    // If PNG logo is still heavy for inline persistence, try WebP with alpha support
-    if (dataUrl.length > 210000 && outMime === 'image/png') {
-      outMime = 'image/webp';
-      dataUrl = canvas.toDataURL('image/webp', 0.9);
+    // Fallback gracefully only if a legacy browser lacks canvas WebP encoding
+    if (!dataUrl.startsWith('data:image/webp')) {
+      outMime = preset === 'favicon' || (preset === 'logo' && file.type === 'image/png') ? 'image/png' : 'image/jpeg';
+      dataUrl = canvas.toDataURL(outMime, outMime === 'image/png' ? undefined : 0.84);
     }
+
     // Second pass compression if needed for larger photos
-    if (dataUrl.length > 210000) {
+    if (dataUrl.length > 210000 && outMime === 'image/webp') {
       dataUrl = canvas.toDataURL('image/webp', 0.72);
     }
+
+    const webpDisplayName =
+      outMime === 'image/webp' ? file.name.replace(/\.(jpe?g|png)$/i, '.webp') : file.name;
 
     if (dataUrl.length <= 220000) {
       return {
         url: dataUrl,
-        nome: file.name,
+        nome: webpDisplayName,
         mimeType: outMime,
         largura: targetW,
         altura: targetH,
@@ -207,15 +211,15 @@ export async function processImportedImageFile(
       };
     }
 
-    // Fallback to Express disk upload for very large ultra-detailed imagery
+    // Fallback to Express disk upload (which also runs sharp WebP + 640w preprocessing automatically)
     const up = await uploadFileToServer(file);
     return {
       url: up.url,
-      nome: file.name,
-      mimeType: file.type || 'image/webp',
-      largura: img.width,
-      altura: img.height,
-      tamanhoBytes: file.size,
+      nome: up.filename || webpDisplayName,
+      mimeType: up.mimeType || 'image/webp',
+      largura: up.width || targetW,
+      altura: up.height || targetH,
+      tamanhoBytes: up.size || file.size,
       storedInFirestore: false,
     };
   } finally {

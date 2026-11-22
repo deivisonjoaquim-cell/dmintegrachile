@@ -9,7 +9,7 @@ import {
   buildDocumentReviewMetadata,
   validateClientUploadFile,
 } from '../utils/documentUploadMetadata';
-import { uploadFileToServer } from './firestoreService';
+import { convertRasterImageFileToWebp, uploadFileToServer } from './firestoreService';
 
 export interface SecureClientDocumentUploadResult {
   downloadUrl: string;
@@ -109,17 +109,25 @@ export async function uploadClientDocumentSecure(params: {
     throw new Error(validation.error || 'Arquivo inválido para envio.');
   }
 
+  // Pré-processa imagens enviadas (JPG/PNG) automaticamente para WebP mantendo legibilidade documental
+  const preparedFile =
+    validation.mimeType === 'application/pdf'
+      ? params.file
+      : await convertRasterImageFileToWebp(params.file, 1600, 0.85);
+  const effectiveMimeType =
+    preparedFile.type === 'image/webp' ? 'image/webp' : validation.mimeType;
+
   const nextVersion = params.docItem.arquivoUrl ? Math.max(1, params.docItem.versao || 1) + 1 : Math.max(1, params.docItem.versao || 1);
   const nowIso = new Date().toISOString();
 
   const built = buildDocumentReviewMetadata({
     doc: params.docItem,
     file: {
-      name: params.file.name,
-      type: params.file.type,
-      size: params.file.size,
+      name: preparedFile.name,
+      type: effectiveMimeType,
+      size: preparedFile.size,
     },
-    mimeType: validation.mimeType,
+    mimeType: effectiveMimeType,
     nextVersion,
     uploadedByUid: params.uploadedByUid,
     uploadedByEmail: params.uploadedByEmail,
@@ -130,9 +138,9 @@ export async function uploadClientDocumentSecure(params: {
 
   try {
     const downloadUrl = await uploadToFirebaseStorageWithProgress({
-      file: params.file,
+      file: preparedFile,
       storagePath: built.storagePath,
-      contentType: validation.mimeType,
+      contentType: effectiveMimeType,
       customMetadata: built.customMetadata,
       onProgress: params.onProgress,
     });
@@ -142,8 +150,8 @@ export async function uploadClientDocumentSecure(params: {
       storagePath: built.storagePath,
       storageBackend: 'firebase_storage',
       arquivoNome: built.sanitizedFileName,
-      arquivoMimeType: validation.mimeType,
-      arquivoTamanhoBytes: params.file.size,
+      arquivoMimeType: effectiveMimeType,
+      arquivoTamanhoBytes: preparedFile.size,
       metadataTags: built.metadataTags,
       reviewMetadata: built.reviewMetadata,
       nextVersion,
@@ -156,7 +164,7 @@ export async function uploadClientDocumentSecure(params: {
       storageErr instanceof Error ? storageErr.message : String(storageErr),
     );
     params.onProgress?.(45);
-    const fallbackRes = await uploadFileToServer(params.file);
+    const fallbackRes = await uploadFileToServer(preparedFile);
     const fallbackUrl = fallbackRes.url;
     params.onProgress?.(100);
 
@@ -168,9 +176,9 @@ export async function uploadClientDocumentSecure(params: {
       downloadUrl: fallbackUrl,
       storagePath: undefined,
       storageBackend: backend,
-      arquivoNome: built.sanitizedFileName,
-      arquivoMimeType: validation.mimeType,
-      arquivoTamanhoBytes: params.file.size,
+      arquivoNome: fallbackRes.filename || built.sanitizedFileName,
+      arquivoMimeType: fallbackRes.mimeType || effectiveMimeType,
+      arquivoTamanhoBytes: fallbackRes.size || preparedFile.size,
       metadataTags: built.metadataTags,
       reviewMetadata: {
         ...built.reviewMetadata,

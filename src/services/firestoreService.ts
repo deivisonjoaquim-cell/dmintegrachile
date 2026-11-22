@@ -1982,7 +1982,59 @@ function readFileAsDataUrl(file: Blob): Promise<string> {
   });
 }
 
-async function compressImageToDataUrl(file: File, maxDimension = 1400, quality = 0.78): Promise<string> {
+export async function convertRasterImageFileToWebp(
+  file: File,
+  maxDimension = 1600,
+  quality = 0.84,
+): Promise<File> {
+  const ext = file.name.toLowerCase().split('.').pop() || '';
+  const isConvertible =
+    ['image/jpeg', 'image/jpg', 'image/png'].includes(file.type.toLowerCase()) ||
+    ['jpg', 'jpeg', 'png'].includes(ext);
+
+  if (!isConvertible || typeof document === 'undefined' || typeof Image === 'undefined') {
+    return file;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('Falha ao decodificar imagem para WebP.'));
+      el.src = objectUrl;
+    });
+
+    const ratio = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
+    const width = Math.max(1, Math.round(img.width * ratio));
+    const height = Math.max(1, Math.round(img.height * ratio));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((result) => resolve(result), 'image/webp', quality),
+    );
+    if (!blob || blob.type !== 'image/webp') {
+      return file;
+    }
+
+    const webpName = file.name.replace(/\.(jpe?g|png)$/i, '.webp');
+    return new File([blob], webpName, {
+      type: 'image/webp',
+      lastModified: file.lastModified,
+    });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function compressImageToDataUrl(file: File, maxDimension = 1280, quality = 0.8): Promise<string> {
   const originalUrl = await readFileAsDataUrl(file);
   if (typeof document === 'undefined' || typeof Image === 'undefined') return originalUrl;
 
@@ -2001,16 +2053,29 @@ async function compressImageToDataUrl(file: File, maxDimension = 1400, quality =
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      const targetMime = file.type === 'image/png' ? 'image/webp' : 'image/jpeg';
-      const compressed = canvas.toDataURL(targetMime, quality);
-      resolve(compressed.length < originalUrl.length ? compressed : originalUrl);
+      let compressed = canvas.toDataURL('image/webp', quality);
+      if (!compressed.startsWith('data:image/webp')) {
+        compressed = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve(compressed.length < originalUrl.length || compressed.startsWith('data:image/webp') ? compressed : originalUrl);
     };
     img.onerror = () => resolve(originalUrl);
     img.src = originalUrl;
   });
 }
 
-export async function uploadFileToServer(file: File): Promise<{ url: string; filename: string }> {
+export interface ServerUploadResult {
+  url: string;
+  filename: string;
+  mobileUrl?: string;
+  mimeType?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  convertedToWebp?: boolean;
+}
+
+export async function uploadFileToServer(file: File): Promise<ServerUploadResult> {
   const user = auth.currentUser;
   if (!user) throw new Error('Faça login para enviar arquivos.');
   const allowed = [
@@ -2031,7 +2096,7 @@ export async function uploadFileToServer(file: File): Promise<{ url: string; fil
     throw new Error('O arquivo excede o limite máximo de 10 MB.');
   }
 
-  // 1. Tenta o endpoint /api/upload quando disponível (servidor local/Node)
+  // 1. Tenta o endpoint /api/upload quando disponível (converte imagens automaticamente para WebP + 640w via sharp)
   try {
     const token = await user.getIdToken();
     const formData = new FormData();
@@ -2043,27 +2108,59 @@ export async function uploadFileToServer(file: File): Promise<{ url: string; fil
     });
     const contentType = (resp.headers.get('content-type') || '').toLowerCase();
     if (resp.ok && contentType.includes('application/json')) {
-      const data = (await resp.json()) as { url?: string; filename?: string; error?: string };
+      const data = (await resp.json()) as {
+        url?: string;
+        mobileUrl?: string;
+        filename?: string;
+        mimeType?: string;
+        size?: number;
+        width?: number;
+        height?: number;
+        convertedToWebp?: boolean;
+        error?: string;
+      };
       if (data.url) {
-        return { url: data.url, filename: data.filename || file.name };
+        return {
+          url: data.url,
+          mobileUrl: data.mobileUrl,
+          filename: data.filename || file.name,
+          mimeType: data.mimeType,
+          size: data.size,
+          width: data.width,
+          height: data.height,
+          convertedToWebp: data.convertedToWebp,
+        };
       }
     }
   } catch {
     // Em hospedagem estática (Vercel Free), /api/upload não usa disco local — segue para fallback seguro
   }
 
-  // 2. Fallback compatível com Vercel Free (sem disco local): otimização local + DataURL segura para Firestore
+  // 2. Fallback compatível com Vercel Free (sem disco local): conversão automática para WebP + DataURL segura para Firestore
   const isRasterImage = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
   if (isRasterImage) {
+    const webpName = file.name.replace(/\.(jpe?g|png)$/i, '.webp');
     const dataUrl = await compressImageToDataUrl(file);
     if (dataUrl.length > 650_000) {
-      const smaller = await compressImageToDataUrl(file, 960, 0.62);
+      const smaller = await compressImageToDataUrl(file, 960, 0.64);
       if (smaller.length > 680_000) {
-        throw new Error('A imagem ficou grande demais para armazenamento direto na hospedagem gratuita. Reduza a resolução ou envie em formato JPG menor.');
+        throw new Error('A imagem ficou grande demais para armazenamento direto na hospedagem gratuita. Reduza a resolução ou envie em formato menor.');
       }
-      return { url: smaller, filename: file.name };
+      return {
+        url: smaller,
+        filename: webpName,
+        mimeType: smaller.startsWith('data:image/webp') ? 'image/webp' : file.type,
+        size: Math.round((smaller.length * 3) / 4),
+        convertedToWebp: smaller.startsWith('data:image/webp'),
+      };
     }
-    return { url: dataUrl, filename: file.name };
+    return {
+      url: dataUrl,
+      filename: webpName,
+      mimeType: dataUrl.startsWith('data:image/webp') ? 'image/webp' : file.type,
+      size: Math.round((dataUrl.length * 3) / 4),
+      convertedToWebp: dataUrl.startsWith('data:image/webp'),
+    };
   }
 
   if (file.size > 480 * 1024) {
@@ -2072,7 +2169,7 @@ export async function uploadFileToServer(file: File): Promise<{ url: string; fil
     );
   }
   const dataUrl = await readFileAsDataUrl(file);
-  return { url: dataUrl, filename: file.name };
+  return { url: dataUrl, filename: file.name, mimeType: file.type, size: file.size };
 }
 
 export async function fetchMediaAssetsStaff(): Promise<MediaAsset[]> {

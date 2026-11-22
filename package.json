@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.ts",
-    "prebuild": "tsc --noEmit",
+    "prebuild": "tsx scripts/preprocess-images.ts && tsc --noEmit",
+    "optimize:images": "tsx scripts/preprocess-images.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -36,6 +37,7 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "recharts": "^3.11.0",
+    "sharp": "^0.35.5",
     "vite": "^8.3.0",
     "vite-plugin-node-polyfills": "^0.28.0"
   },
