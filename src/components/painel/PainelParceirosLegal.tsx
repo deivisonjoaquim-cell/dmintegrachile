@@ -66,6 +66,7 @@ import { buildWhatsAppUrl, formatDateBR, toIsoDate } from '../../utils/formatter
 import { isLegalSourceOutdated } from '../../utils/legalSync';
 import {
   computePartnerNetworkMetrics,
+  extractPartnerWebsiteFromMessage,
   isPartnerPublishedPublicly,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
@@ -525,6 +526,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     setFeedback(null);
     try {
       const partnerId = makeId('part');
+      const { siteInstagram: extractedSite, cleanedMessage } = extractPartnerWebsiteFromMessage(prop.mensagem);
       const newPartner: Partner = {
         id: partnerId,
         nome: String(prop.nome_empresa || '').slice(0, 200),
@@ -535,15 +537,15 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         contato: prop.responsavel,
         whatsapp: String(prop.whatsapp || '').slice(0, 40),
         email: prop.email,
-        siteInstagram: '',
+        siteInstagram: extractedSite.slice(0, 300),
         logoUrl: (prop.logoUrl || '').trim().slice(0, 800000),
         moedaNegociacao: prop.moeda,
         tabelaValoresComissao: String(prop.proposta || '').slice(0, 2000),
-        condicoesParceria: String(prop.mensagem || prop.proposta || '').slice(0, 2000),
+        condicoesParceria: String(cleanedMessage || prop.proposta || '').slice(0, 2000),
         recomendadoAosClientes: true,
         avaliacao: 5,
         statusHomologacao: 'Ativo/Indicado',
-        descricaoPublica: String(prop.textoIndicacao || prop.mensagem || prop.proposta || '').slice(0, 1000),
+        descricaoPublica: String(prop.textoIndicacao || cleanedMessage || prop.proposta || '').slice(0, 1000),
         observacoes: String(prop.parecerIa || 'Convertido a partir de proposta recebida no site.').slice(0, 3000),
       };
       await syncPartnerAndPublic(newPartner, true, role);

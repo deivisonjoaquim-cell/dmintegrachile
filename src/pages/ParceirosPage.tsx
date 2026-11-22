@@ -1,10 +1,14 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import {
-  ArrowDown,
+  ArrowRight,
+  Award,
+  Briefcase,
   Building2,
   Check,
   CheckCircle2,
+  ChevronDown,
+  Clock,
   Copy,
   ExternalLink,
   FileCheck2,
@@ -16,6 +20,7 @@ import {
   Languages,
   Landmark,
   Loader2,
+  Lock,
   MapPin,
   MessageCircle,
   Scale,
@@ -23,6 +28,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  TrendingUp,
   Upload,
   X,
 } from 'lucide-react';
@@ -47,8 +53,96 @@ import {
   sanitizePartnerImageUrl,
   translatePartnerCategory,
   translatePartnerCountry,
+  validatePartnerProposalInput,
   type PublicPartnerSort,
 } from '../utils/partnerHelpers';
+
+const HERO_PARTNERS_IMAGE = '/src/assets/images/partners_executive_santiago_1795383896419.jpg';
+
+interface DemandAreaConfig {
+  category: PartnerCategory;
+  defaultPais: 'Brasil' | 'Chile' | 'Ambos';
+  defaultMoeda: CurrencyCode;
+  demandPt: string;
+  demandEs: string;
+  stagePt: string;
+  stageEs: string;
+}
+
+const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
+  {
+    category: 'Tradutor Juramentado',
+    defaultPais: 'Brasil',
+    defaultMoeda: 'BRL',
+    demandPt: 'Certidões civis, diplomas e antecedentes exigidos antes do protocolo de visto.',
+    demandEs: 'Certificados civiles, diplomas y antecedentes requeridos antes de solicitar visa.',
+    stagePt: 'Pré-embarque · Brasil',
+    stageEs: 'Pre-embarque · Brasil',
+  },
+  {
+    category: 'Cartório / Apostilamento',
+    defaultPais: 'Brasil',
+    defaultMoeda: 'BRL',
+    demandPt: 'Emissão de 2ª via atualizada e Apostila de Haia com envio ágil para famílias.',
+    demandEs: 'Emisión de actas actualizadas y Apostilla de La Haya con despacho ágil.',
+    stagePt: 'Documentação · CNJ',
+    stageEs: 'Documentación · Haya',
+  },
+  {
+    category: 'Imobiliária',
+    defaultPais: 'Chile',
+    defaultMoeda: 'CLP',
+    demandPt: 'Locação em Santiago e regiões para recém-chegados sem histórico de crédito local.',
+    demandEs: 'Arriendo en Santiago y regiones para recién llegados sin historial crediticio local.',
+    stagePt: 'Chegada · Moradia',
+    stageEs: 'Llegada · Vivienda',
+  },
+  {
+    category: 'Contabilidade / Abertura Empresa',
+    defaultPais: 'Chile',
+    defaultMoeda: 'CLP',
+    demandPt: 'Constituição de SpA, RUT empresarial, início de atividades no SII e tributação.',
+    demandEs: 'Constitución de SpA, RUT empresarial, inicio de actividades SII y tributación.',
+    stagePt: 'Negócios · SII',
+    stageEs: 'Negocios · SII',
+  },
+  {
+    category: 'Escritório de Advocacia',
+    defaultPais: 'Ambos',
+    defaultMoeda: 'USD',
+    demandPt: 'Estruturação societária, contratos internacionais, recursos e planejamento patrimonial.',
+    demandEs: 'Estructuración societaria, contratos internacionales y planificación patrimonial.',
+    stagePt: 'Jurídico · Binacional',
+    stageEs: 'Legal · Binacional',
+  },
+  {
+    category: 'Seguradora / Saúde',
+    defaultPais: 'Ambos',
+    defaultMoeda: 'CLP',
+    demandPt: 'Seguro viagem obrigatório, planos Isapre, seguros residenciais e proteção familiar.',
+    demandEs: 'Seguro de viaje obligatorio, planes Isapre, seguros de hogar y protección familiar.',
+    stagePt: 'Proteção · Saúde',
+    stageEs: 'Protección · Salud',
+  },
+  {
+    category: 'Escola / Universidade',
+    defaultPais: 'Chile',
+    defaultMoeda: 'CLP',
+    demandPt: 'Matrícula bilíngue para filhos, cursos de espanhol e programas de pós-graduação.',
+    demandEs: 'Matrícula bilingüe para hijos, cursos de español y programas de posgrado.',
+    stagePt: 'Educação · Família',
+    stageEs: 'Educación · Familia',
+  },
+  {
+    category: 'Despachante',
+    defaultPais: 'Ambos',
+    defaultMoeda: 'CLP',
+    demandPt: 'Trâmites veiculares, validações presenciais, pet relocation e logística documental.',
+    demandEs: 'Trámites vehiculares, gestiones presenciales, traslado de mascotas y logística.',
+    stagePt: 'Operacional · Relocation',
+    stageEs: 'Operativo · Relocation',
+  },
+];
 
 function getCategoryIcon(category: string) {
   switch (category) {
@@ -83,6 +177,7 @@ export const ParceirosPage: React.FC = () => {
   const [selectedPartner, setSelectedPartner] = useState<PartnerPublic | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [synergyResult, setSynergyResult] = useState<PartnerSynergyResult | null>(null);
+  const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(0);
 
   // Formulário Seja um Parceiro
   const [nomeEmpresa, setNomeEmpresa] = useState('');
@@ -97,6 +192,7 @@ export const ParceirosPage: React.FC = () => {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const companyInputRef = useRef<HTMLInputElement | null>(null);
   const [moeda, setMoeda] = useState<CurrencyCode>('CLP');
   const [proposta, setProposta] = useState('');
   const [mensagem, setMensagem] = useState('');
@@ -104,8 +200,29 @@ export const ParceirosPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [prefilledNotice, setPrefilledNotice] = useState<PartnerCategory | null>(null);
+
+  // Close Partner Detail Modal on Escape key
+  useEffect(() => {
+    if (!selectedPartner) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedPartner(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedPartner]);
 
   const metrics = useMemo(() => computePartnerNetworkMetrics(partnersPublic), [partnersPublic]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of partnersPublic) {
+      counts.set(p.categoria, (counts.get(p.categoria) || 0) + 1);
+    }
+    return counts;
+  }, [partnersPublic]);
 
   const synergyByPartnerId = useMemo(() => {
     const map = new Map<string, { score: number; prioridade: string }>();
@@ -153,6 +270,21 @@ export const ParceirosPage: React.FC = () => {
     setSortBy('avaliacao');
   };
 
+  const handleApplyForArea = (area: DemandAreaConfig) => {
+    setCategoria(area.category);
+    setPais(area.defaultPais);
+    setMoeda(area.defaultMoeda);
+    setPrefilledNotice(area.category);
+    setFormError(null);
+    const sectionEl = document.getElementById('seja-parceiro');
+    if (sectionEl) {
+      sectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    setTimeout(() => {
+      companyInputRef.current?.focus({ preventScroll: true });
+    }, 550);
+  };
+
   const buildReferralMessage = (partner: PartnerPublic): string =>
     isEs
       ? `¡Hola! Recibí la recomendación oficial de D&M Integra Chile para contactar a ${partner.nome}. Me gustaría consultar por sus servicios.`
@@ -178,7 +310,7 @@ export const ParceirosPage: React.FC = () => {
       if (processed.url.length > 295000) {
         setLogoUploadError(
           isEs
-            ? 'La imagen es demasiado grande. Intenta con un logo más ligero (idealmente PNG/WebP menor a 300 KB).'
+            ? 'La imagen es demasiado grande. Intenta con un logo más ligero (PNG/JPG/WebP menor a 300 KB).'
             : 'A imagem ficou acima do limite permitido. Envie um arquivo mais leve (PNG, JPG ou WebP).',
         );
       } else {
@@ -201,47 +333,28 @@ export const ParceirosPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (honeypot.trim() !== '') {
-      setFormError(
-        isEs
-          ? 'Envío bloqueado por validación anti-spam.'
-          : 'Envio bloqueado por validação anti-spam.',
-      );
-      return;
-    }
-    if (!nomeEmpresa.trim() || !responsavel.trim() || !whatsapp.trim() || !email.includes('@')) {
-      setFormError(
-        isEs
-          ? 'Completa nombre de la empresa, responsable, WhatsApp y un correo corporativo válido.'
-          : 'Preencha nome da empresa, responsável, WhatsApp e um e-mail corporativo válido.',
-      );
-      return;
-    }
-    if (siteOuInstagram.trim() && !normalizePartnerExternalUrl(siteOuInstagram)) {
-      setFormError(
-        isEs
-          ? 'Ingresa un sitio web válido (https://...) o un usuario de Instagram (@perfil).'
-          : 'Informe um site válido (https://...) ou um perfil de Instagram (@usuario).',
-      );
-      return;
-    }
 
-    const sanitizedProposalLogo = logoUrl.trim() ? sanitizePartnerImageUrl(logoUrl) : null;
-    if (logoUrl.trim() && !sanitizedProposalLogo) {
-      setFormError(
-        isEs
-          ? 'Ingresa una URL de imagen válida (https://...) o sube un archivo de imagen.'
-          : 'Informe uma URL de imagem válida (https://...) ou envie um arquivo de imagem.',
-      );
+    const validation = validatePartnerProposalInput({
+      nomeEmpresa,
+      responsavel,
+      whatsapp,
+      email,
+      siteOuInstagram,
+      logoUrl,
+      honeypot,
+      locale,
+    });
+
+    if (!validation.ok) {
+      setFormError(validation.error);
       return;
     }
 
     setSubmitting(true);
     try {
-      const normalizedSite = normalizePartnerExternalUrl(siteOuInstagram);
       const composedMessage = [
         mensagem.trim(),
-        normalizedSite ? `Site/Instagram: ${normalizedSite}` : '',
+        validation.normalizedSite ? `Site/Instagram: ${validation.normalizedSite}` : '',
       ]
         .filter(Boolean)
         .join('\n');
@@ -257,10 +370,11 @@ export const ParceirosPage: React.FC = () => {
         moeda,
         proposta: proposta.trim(),
         mensagem: composedMessage,
-        logoUrl: sanitizedProposalLogo || '',
+        logoUrl: validation.sanitizedLogo || '',
         honeypot: '',
       });
       setSubmittedId(id);
+      setPrefilledNotice(null);
       setNomeEmpresa('');
       setCidade('');
       setResponsavel('');
@@ -284,157 +398,539 @@ export const ParceirosPage: React.FC = () => {
     }
   };
 
-  const homologationSteps = isEs
+  const onboardingSteps = isEs
     ? [
         {
           num: '01.',
-          title: 'Curaduría Técnica',
-          desc: 'Evaluamos experiencia comprobada en clientes brasileños y extranjeros que migran o invierten en Chile.',
+          title: 'Postulación en 2 minutos',
+          desc: 'Envía los datos de tu empresa, especialidad, logo oficial y propuesta comercial confidencial.',
         },
         {
           num: '02.',
-          title: 'Validación Documental',
-          desc: 'Verificamos registros profesionales, plazos de entrega y cumplimiento normativo en ambos países.',
+          title: 'Curaduría en hasta 48h hábiles',
+          desc: 'Nuestra dirección valida trayectoria, registros profesionales y calidad de atención a brasileños.',
         },
         {
           num: '03.',
-          title: 'Condiciones Claras',
-          desc: 'Establecemos tiempos de respuesta prioritarios y transparencia total en honorarios antes de recomendar.',
+          title: 'Alineación comercial privada',
+          desc: 'Definimos plazos prioritarios y beneficios o acuerdos en BRL, CLP o USD bajo total reserva.',
         },
         {
           num: '04.',
-          title: 'Seguimiento Continuo',
-          desc: 'Monitoreamos la satisfacción de los clientes atendidos y revisamos la homologación periódicamente.',
+          title: 'Vitrina oficial + Indicaciones IA',
+          desc: 'Tu marca se publica con logo en el directorio y comienza a recibir derivaciones calificadas.',
         },
       ]
     : [
         {
           num: '01.',
-          title: 'Curadoria Técnica',
-          desc: 'Avaliamos histórico comprovado no atendimento a brasileiros que residem, trabalham ou investem no Chile.',
+          title: 'Cadastro objetivo em 2 min',
+          desc: 'Envie os dados da empresa, especialidade, logo oficial e condições comerciais em sigilo.',
         },
         {
           num: '02.',
-          title: 'Verificação Documental',
-          desc: 'Conferimos registros profissionais, validade jurídica dos documentos e aderência às exigências do SERMIG e CNJ.',
+          title: 'Curadoria em até 48h úteis',
+          desc: 'Nossa diretoria verifica histórico, registros profissionais e padrão de atendimento ao público Brasil–Chile.',
         },
         {
           num: '03.',
-          title: 'Condições Transparentes',
-          desc: 'Alinhamos prazos de entrega, atendimento prioritário e clareza de valores antes da publicação na rede.',
+          title: 'Alinhamento comercial privado',
+          desc: 'Definimos prazos prioritários e benefícios ou comissionamento em BRL, CLP ou USD em ambiente confidencial.',
         },
         {
           num: '04.',
-          title: 'Monitoramento Contínuo',
-          desc: 'Acompanhamos o retorno dos clientes indicados e revisamos periodicamente a avaliação de cada parceiro.',
+          title: 'Vitrine oficial + Indicações via IA',
+          desc: 'Sua marca entra no diretório com logo e passa a ser recomendada aos clientes com perfil compatível.',
+        },
+      ];
+
+  const partnerFaqs = isEs
+    ? [
+        {
+          q: '¿Tiene algún costo mensual o membresía formar parte de la red?',
+          a: 'No. La postulación y permanencia en la red homologada de D&M Integra Chile no tiene cuota mensual. Los acuerdos comerciales (beneficios exclusivos para clientes o esquemas de derivación) se alinean caso a caso de forma transparente.',
+        },
+        {
+          q: '¿Mis tarifas, comisiones o condiciones comerciales se publican en el sitio?',
+          a: 'Nunca. Toda condición financiera, tabla referencial o acuerdo de comisión permanece estrictamente confidencial en nuestro panel administrativo privado. En la vitrina pública solo se muestra tu marca, especialidad, ubicación y canales oficiales.',
+        },
+        {
+          q: '¿Puedo postular si atiendo 100% online desde Brasil o desde regiones de Chile?',
+          a: 'Sí. Muchos servicios críticos —como traducción juramentada, apostilla, contabilidad, asesoría jurídica o seguros— operan de forma remota en ambos países. Solo indica "Online" junto a tu ciudad al completar el formulario.',
+        },
+        {
+          q: '¿Cómo llegan los clientes hasta mi empresa tras la homologación?',
+          a: 'Por tres frentes complementarios: recomendación directa de nuestros consultores durante el seguimiento del proceso migratorio, sugerencias automatizadas del Analizador de Sinergia con IA y contacto directo vía WhatsApp desde la vitrina oficial.',
+        },
+      ]
+    : [
+        {
+          q: 'Existe alguma mensalidade ou taxa fixa para integrar a rede homologada?',
+          a: 'Não. O credenciamento e a permanência na vitrine oficial da D&M Integra Chile não têm mensalidade fixa. Trabalhamos com condições transparentes — seja benefício diferenciado ao cliente indicado ou acordo de indicação alinhado caso a caso.',
+        },
+        {
+          q: 'Meus valores, comissões ou tabela comercial ficam visíveis ao público?',
+          a: 'Jamais. Todas as condições comerciais, percentuais e notas de negociação ficam protegidas em ambiente administrativo sigiloso. Na vitrine pública aparecem apenas sua marca/logo, especialidade, região e canais oficiais.',
+        },
+        {
+          q: 'Empresas que atendem 100% online no Brasil ou em regiões do Chile podem participar?',
+          a: 'Sim. Grande parte da demanda — tradução juramentada, cartório/apostilamento, contabilidade, advocacia, seguros e assessoria imobiliária — funciona em modelo remoto ou híbrido. Basta informar sua cidade e indicar atendimento online.',
+        },
+        {
+          q: 'Como os clientes chegam até a minha empresa após a homologação?',
+          a: 'Por três canais integrados: indicação consultiva ativa durante a jornada de visto e relocation, recomendação inteligente do módulo de Sinergia IA conforme o perfil do cliente e acesso direto ao seu WhatsApp na vitrine oficial.',
         },
       ];
 
   const brandName = empresa.nome_empresa || 'D&M Integra Chile';
   const safeFormLogoPreview = sanitizePartnerImageUrl(logoUrl);
+  const PreviewCategoryIcon = getCategoryIcon(categoria);
 
   return (
     <MotionConfig reducedMotion="user">
       <div className="bg-[var(--color-bg)]">
-        {/* Executive Navy Hero Band */}
+        {/* Executive Split Hero Band */}
         <section className="bg-[#0B1F33] text-white border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 lg:py-16">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-end">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-10 lg:pt-14 lg:pb-12 space-y-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
+              {/* Left Strategic Copy & Dual CTAs */}
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-8 space-y-4"
+                className="lg:col-span-7 flex flex-col justify-between gap-6 py-1"
               >
-                <p className="text-xs font-semibold tracking-[0.14em] uppercase text-[#E5C76B]">
-                  {isEs ? 'Red homologada · Brasil y Chile' : 'Rede homologada · Brasil & Chile'}
-                </p>
-                <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] font-bold leading-[1.12] text-white text-balance max-w-3xl">
-                  {isEs
-                    ? 'Aliados verificados para cada etapa de tu migración y establecimiento en Chile'
-                    : 'Parceiros verificados para cada etapa da sua jornada entre Brasil e Chile'}
-                </h1>
-                <p className="text-base text-slate-300 leading-relaxed max-w-2xl">
-                  {isEs
-                    ? 'Reunimos estudios jurídicos, traductores oficiales, notarías, corredoras y servicios de relocation evaluados por nuestro equipo técnico para reducir riesgos y acelerar tus trámites.'
-                    : 'Reunimos tradutores juramentados, cartórios, escritórios jurídicos, imobiliárias e especialistas em relocation avaliados pela nossa diretoria para dar segurança do Brasil à vida no Chile.'}
-                </p>
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <a
-                    href="#sinergia-ia"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#C8A236] hover:bg-[#b5912c] text-[#0B1F33] text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    {isEs ? 'Analizar sinergia con IA' : 'Analisar sinergia com IA'}
-                  </a>
-                  <a
-                    href="#diretorio-parceiros"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/25 hover:bg-white/10 text-white text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
-                  >
-                    {isEs ? 'Explorar directorio' : 'Explorar rede homologada'}
-                    <ArrowDown className="w-4 h-4" />
-                  </a>
-                  <a
-                    href="#seja-parceiro"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-slate-200 hover:text-[#E5C76B] text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <Handshake className="w-4 h-4 text-[#E5C76B]" />
-                    {isEs ? 'Postular como aliado' : 'Quero ser parceiro'}
-                  </a>
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold tracking-[0.14em] uppercase text-[#E5C76B]">
+                    {isEs
+                      ? 'Programa de Alianzas B2B · Brasil y Chile'
+                      : 'Programa de Parcerias B2B · Brasil & Chile'}
+                  </p>
+                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.7rem] font-bold leading-[1.12] text-white text-balance">
+                    {isEs
+                      ? 'Conecta tu empresa con clientes calificados que migran e invierten en Chile'
+                      : 'Conecte sua empresa a clientes qualificados em mudança e negócios no Chile'}
+                  </h1>
+                  <p className="text-base text-slate-300 leading-relaxed max-w-2xl">
+                    {isEs
+                      ? 'Integra la red homologada de D&M Integra Chile: destaca tu marca en nuestra vitrina oficial, recibe derivaciones de alto valor desde el Diagnóstico Inteligente y opera sin cuota mensual en ambos países.'
+                      : 'Integre a rede homologada da D&M Integra Chile: destaque sua marca na vitrine oficial, receba indicações qualificadas vindas do nosso Diagnóstico Inteligente e cresça no eixo Brasil–Chile sem mensalidade fixa.'}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a
+                      href="#seja-parceiro"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#C8A236] hover:bg-[#b5912c] text-[#0B1F33] text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+                    >
+                      <Handshake className="w-4 h-4" />
+                      {isEs ? 'Quiero ser aliado homologado' : 'Quero ser parceiro homologado'}
+                      <ArrowRight className="w-4 h-4" />
+                    </a>
+                    <a
+                      href="#diretorio-parceiros"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-white/25 hover:bg-white/10 text-white text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+                    >
+                      {isEs ? 'Explorar red e IA' : 'Explorar rede & IA'}
+                    </a>
+                  </div>
+
+                  <p className="text-xs text-slate-300 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="text-[#E5C76B] font-semibold">
+                      {isEs ? 'Sin cuota mensual' : 'Zero mensalidade'}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>{isEs ? 'Revisión en 48h hábiles' : 'Análise em até 48h úteis'}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      {isEs ? 'Acuerdos confidenciales en BRL / CLP / USD' : 'Sigilo comercial em BRL · CLP · USD'}
+                    </span>
+                  </p>
                 </div>
               </motion.div>
 
-              {/* Quantified Live Network Summary (computed from real published partners) */}
+              {/* Right Executive Editorial Visual */}
               <motion.div
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-4 grid grid-cols-2 gap-4 border-t lg:border-t-0 lg:border-l border-white/15 pt-6 lg:pt-0 lg:pl-8"
+                className="lg:col-span-5 relative rounded-2xl overflow-hidden border border-white/15 min-h-[260px] sm:min-h-[300px] bg-[#081726]"
               >
-                <div>
-                  <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
-                    {metrics.totalPartners}
+                <OptimizedImage
+                  src={HERO_PARTNERS_IMAGE}
+                  alt={
+                    isEs
+                      ? 'Sala ejecutiva de alianzas corporativas en Santiago con vista a la Cordillera de los Andes'
+                      : 'Sala executiva de parcerias corporativas em Santiago com vista para a Cordilheira dos Andes'
+                  }
+                  priority
+                  placeholderTone="dark"
+                  sizes="(max-width: 1024px) 100vw, 42vw"
+                  containerClassName="relative w-full h-full min-h-[260px] sm:min-h-[300px]"
+                  className="w-full h-full object-cover"
+                />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/92 via-[#0B1F33]/35 to-transparent"
+                />
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E5C76B]">
+                    {isEs ? 'Ecosistema Corporativo · Santiago & Brasil' : 'Ecossistema Corporativo · Santiago & Brasil'}
                   </p>
-                  <p className="text-xs text-slate-300 mt-1">
-                    {isEs ? 'Aliados homologados activos' : 'Parceiros ativos na rede'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-2xl sm:text-3xl font-bold text-[#E5C76B] font-mono tabular-nums">
-                    {metrics.uniqueCategories}
-                  </p>
-                  <p className="text-xs text-slate-300 mt-1">
-                    {isEs ? 'Especialidades cubiertas' : 'Especialidades atendidas'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
-                    {metrics.averageRating > 0 ? `${metrics.averageRating.toFixed(1)}/5` : '—'}
-                  </p>
-                  <p className="text-xs text-slate-300 mt-1">
-                    {isEs ? 'Evaluación interna media' : 'Avaliação técnica média'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
-                    2
-                  </p>
-                  <p className="text-xs text-slate-300 mt-1">
-                    {isEs ? 'Países integrados (BR / CL)' : 'Países integrados (BR / CL)'}
+                  <p className="text-sm font-medium text-white mt-1 leading-snug">
+                    {isEs
+                      ? 'Curaduría selectiva de despachos, traductores, corredoras y especialistas en relocation.'
+                      : 'Curadoria seletiva de escritórios, tradutores, imobiliárias, contabilidades e especialistas em relocation.'}
                   </p>
                 </div>
               </motion.div>
             </div>
+
+            {/* Full-Width 4-Column Quantified Network Strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-8 border-t border-white/15">
+              <div>
+                <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
+                  {metrics.totalPartners}
+                </p>
+                <p className="text-xs text-slate-300 mt-1">
+                  {isEs ? 'Aliados homologados activos' : 'Parceiros homologados ativos'}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl sm:text-3xl font-bold text-[#E5C76B] font-mono tabular-nums">
+                  {metrics.uniqueCategories}/8
+                </p>
+                <p className="text-xs text-slate-300 mt-1">
+                  {isEs ? 'Especialidades con demanda activa' : 'Especialidades com demanda ativa'}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
+                  {metrics.averageRating > 0 ? `${metrics.averageRating.toFixed(1)}/5` : '5.0/5'}
+                </p>
+                <p className="text-xs text-slate-300 mt-1">
+                  {isEs ? 'Evaluación técnica de la red' : 'Avaliação técnica média da rede'}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
+                  48h
+                </p>
+                <p className="text-xs text-slate-300 mt-1">
+                  {isEs ? 'Retorno inicial de postulaciones' : 'Prazo de retorno inicial (úteis)'}
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
+        {/* Clean Single-Line Section Jump Bar */}
+        <nav
+          aria-label={isEs ? 'Secciones de alianzas' : 'Seções de parcerias'}
+          className="bg-white border-b border-[#E5DFD2]"
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-4 overflow-x-auto">
+            {[
+              { href: '#programa-b2b', label: isEs ? 'Por qué ser aliado' : 'Por que ser parceiro' },
+              { href: '#areas-demanda', label: isEs ? 'Áreas en demanda' : 'Áreas em demanda' },
+              { href: '#sinergia-ia', label: isEs ? 'Sinergia IA' : 'Sinergia IA' },
+              { href: '#diretorio-parceiros', label: isEs ? 'Directorio' : 'Diretório' },
+              { href: '#seja-parceiro', label: isEs ? 'Enviar propuesta' : 'Enviar proposta' },
+              { href: '#faq-parceiros', label: isEs ? 'Preguntas B2B' : 'Dúvidas B2B' },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold text-[#4A5A6D] hover:text-[#0B1F33] hover:bg-[#F7F5F0] transition-colors whitespace-nowrap shrink-0"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 lg:py-16 space-y-16">
+          {/* B2B Partner Value Proposition — Asymmetric Bento Grid */}
+          <section id="programa-b2b" className="scroll-mt-24 space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+              <div className="max-w-2xl">
+                <p className="brand-kicker mb-1.5">
+                  {isEs ? 'Beneficios para empresas y especialistas' : 'Benefícios para empresas e especialistas'}
+                </p>
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] text-balance">
+                  {isEs
+                    ? 'Por qué los mejores especialistas eligen operar con D&M Integra Chile'
+                    : 'Por que especialistas de referência escolhem atuar com a D&M Integra Chile'}
+                </h2>
+              </div>
+              <a
+                href="#seja-parceiro"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#8C6D14] hover:text-[#0B1F33] transition-colors whitespace-nowrap shrink-0"
+              >
+                {isEs ? 'Postular mi empresa ahora' : 'Cadastrar minha empresa agora'}
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* Bento 1: Qualified Client Pipeline (Wide) */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                className="lg:col-span-7 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6"
+              >
+                <div className="space-y-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#8C6D14]">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#0B1F33] font-brand-sans">
+                    {isEs
+                      ? 'Flujo continuo de clientes con necesidad real y presupuesto definido'
+                      : 'Fluxo qualificado de clientes com demanda real em cada fase da mudança'}
+                  </h3>
+                  <p className="text-sm text-[#4A5A6D] leading-relaxed">
+                    {isEs
+                      ? 'Nuestros clientes llegan perfilados desde el Diagnóstico Inteligente y el acompañamiento de visa. Recibes contactos en el momento exacto en que necesitan traducir documentos, arrendar vivienda, abrir una empresa SpA o contratar salud.'
+                      : 'Nossos clientes chegam mapeados pelo Diagnóstico Inteligente e pelo pipeline de assessoria migratória. Sua empresa é acionada no momento exato de decisão — sem perder tempo com leads curiosos.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#F1EDE4]">
+                  <div>
+                    <p className="text-xs font-mono font-bold text-[#8C6D14]">01 · BRASIL</p>
+                    <p className="text-xs text-[#4A5A6D] mt-0.5">
+                      {isEs ? 'Documentos, apostilla y traducción' : 'Cartório, apostilamento e tradução'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-mono font-bold text-[#8C6D14]">02 · TRANSICIÓN</p>
+                    <p className="text-xs text-[#4A5A6D] mt-0.5">
+                      {isEs ? 'Visado, seguros y planificación' : 'Visto, seguros, jurídico e planejamento'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-mono font-bold text-[#8C6D14]">03 · CHILE</p>
+                    <p className="text-xs text-[#4A5A6D] mt-0.5">
+                      {isEs ? 'Vivienda, empresa SpA, colegios' : 'Imóveis, empresa SpA, escolas e saúde'}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Bento 2: Brand Showcase + AI Synergy (Navy Accent) */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.38, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
+                className="lg:col-span-5 bg-[#0B1F33] text-white border border-[#0B1F33] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6"
+              >
+                <div className="space-y-3">
+                  <div className="w-10 h-10 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#E5C76B]">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white font-brand-sans">
+                    {isEs
+                      ? 'Tu logo en la vitrina oficial + recomendación inteligente por IA'
+                      : 'Sua marca na vitrine oficial + recomendação inteligente via IA'}
+                  </h3>
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    {isEs
+                      ? 'Además de figurar con tu logo y enlace directo a WhatsApp, nuestro Analizador de Sinergia con IA recomienda automáticamente a tu empresa cuando el perfil del cliente coincide con tu especialidad.'
+                      : 'Além de exibir sua logo e botão direto de WhatsApp no diretório público, nosso Analisador de Sinergia com IA recomenda sua empresa automaticamente para clientes compatíveis.'}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-white/15 flex items-center justify-between gap-3 text-xs">
+                  <span className="text-[#E5C76B] font-semibold">
+                    {isEs ? 'Sello Oficial Homologado' : 'Selo Oficial Homologado'}
+                  </span>
+                  <a
+                    href="#sinergia-ia"
+                    className="text-white hover:text-[#E5C76B] font-semibold transition-colors whitespace-nowrap shrink-0"
+                  >
+                    {isEs ? 'Probar módulo IA →' : 'Ver módulo IA →'}
+                  </a>
+                </div>
+              </motion.div>
+
+              {/* Bento 3: Zero Monthly Fee & Commercial Confidentiality */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.38, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                className="lg:col-span-5 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 space-y-3"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#0B1F33]">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-bold text-[#0B1F33] font-brand-sans">
+                  {isEs
+                    ? 'Cero costo fijo y confidencialidad comercial'
+                    : 'Zero mensalidade fixa e sigilo comercial absoluto'}
+                </h3>
+                <p className="text-sm text-[#4A5A6D] leading-relaxed">
+                  {isEs
+                    ? 'No cobramos mensualidad por presencia en la red. Los acuerdos de beneficios al cliente o referidos en BRL, CLP o USD quedan resguardados exclusivamente en nuestro panel interno.'
+                    : 'Não cobramos mensalidade para compor a rede. Suas tabelas referenciais, condições preferenciais ou acordos de indicação em BRL, CLP ou USD permanecem em sigilo interno.'}
+                </p>
+              </motion.div>
+
+              {/* Bento 4: 4 Executive Pillars */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.38, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
+                className="lg:col-span-7 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-2 gap-5"
+              >
+                <div className="flex items-start gap-3">
+                  <Award className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                      {isEs ? 'Posicionamiento de autoridad' : 'Autoridade perante o cliente'}
+                    </h4>
+                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                      {isEs
+                        ? 'Los clientes te contactan ya con confianza institucional por la recomendación directa de nuestra consultora.'
+                        : 'O cliente chega já confiando no seu trabalho graças à curadoria e indicação direta da consultoria.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Globe2 className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                      {isEs ? 'Alcance binacional BR–CL' : 'Alcance binacional BR–CL'}
+                    </h4>
+                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                      {isEs
+                        ? 'Sitio bilingüe (portugués y español chileno) listo para captar familias, ejecutivos e inversionistas.'
+                        : 'Plataforma bilíngue (português e espanhol chileno) desenhada para famílias, profissionais e investidores.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                      {isEs ? 'Aprobación ágil en 48h hábiles' : 'Aprovação ágil em até 48h úteis'}
+                    </h4>
+                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                      {isEs
+                        ? 'Proceso sin burocracia: analizamos tu propuesta y coordinamos el alta directamente con los socios.'
+                        : 'Processo sem burocracia: analisamos sua proposta e fazemos o alinhamento direto com a diretoria.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Briefcase className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                      {isEs ? 'Sin exclusividad restrictiva' : 'Sem exclusividade restritiva'}
+                    </h4>
+                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                      {isEs
+                        ? 'Mantienes total autonomía operativa y comercial sobre tu cartera y precios de atención.'
+                        : 'Você mantém total autonomia sobre sua operação, agenda e carteira de clientes.'}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </section>
+
+          {/* High-Demand Specialties — Interactive Partner Recruitment Cards */}
+          <section id="areas-demanda" className="scroll-mt-24 space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+              <div className="max-w-2xl">
+                <p className="brand-kicker mb-1.5">
+                  {isEs ? 'Especialidades con demanda abierta' : 'Especialidades com demanda aberta'}
+                </p>
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] text-balance">
+                  {isEs
+                    ? '¿Actúas en alguna de estas áreas? Tenemos clientes buscando tu servicio'
+                    : 'Atua em alguma destas áreas? Temos clientes buscando seu serviço'}
+                </h2>
+              </div>
+              <p className="text-xs text-[#4A5A6D]">
+                {isEs
+                  ? 'Selecciona tu especialidad para prellenar tu postulación'
+                  : 'Clique na sua área para pré-preencher a candidatura'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {HIGH_DEMAND_AREAS.map((area, idx) => {
+                const AreaIcon = getCategoryIcon(area.category);
+                const activeCount = categoryCounts.get(area.category) || 0;
+
+                return (
+                  <motion.div
+                    key={area.category}
+                    initial={{ opacity: 0, y: 14 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.12 }}
+                    transition={{
+                      duration: 0.34,
+                      delay: Math.min(idx * 0.04, 0.2),
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="bg-white border border-[#E5DFD2] hover:border-[#C8A236] rounded-xl p-5 flex flex-col justify-between gap-4 transition-colors"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="w-9 h-9 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#0B1F33]">
+                          <AreaIcon className="w-4 h-4 text-[#8C6D14]" />
+                        </div>
+                        <span className="text-[11px] font-mono font-semibold text-[#4A5A6D] tabular-nums">
+                          {activeCount > 0
+                            ? isEs
+                              ? `${activeCount} activo(s)`
+                              : `${activeCount} ativo(s)`
+                            : isEs
+                              ? 'Cupos abiertos'
+                              : 'Vagas abertas'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8C6D14]">
+                          {isEs ? area.stageEs : area.stagePt}
+                        </p>
+                        <h3 className="text-sm font-bold text-[#0B1F33] mt-0.5 leading-snug">
+                          {translatePartnerCategory(area.category, locale)}
+                        </h3>
+                        <p className="text-xs text-[#4A5A6D] mt-1.5 leading-relaxed">
+                          {isEs ? area.demandEs : area.demandPt}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyForArea(area)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B1F33] hover:text-[#8C6D14] transition-colors pt-3 border-t border-[#F1EDE4] whitespace-nowrap shrink-0"
+                    >
+                      {isEs ? 'Postular en esta área' : 'Candidatar nesta área'}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </section>
+
           {/* AI Partner Synergy Module */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.1 }}
-            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
             <PartnerSynergyAnalyzer
               partnersPublic={partnersPublic}
@@ -449,10 +945,10 @@ export const ParceirosPage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
               <div>
                 <p className="brand-kicker mb-1.5">
-                  {isEs ? 'Directorio verificado' : 'Diretório verificado'}
+                  {isEs ? 'Vitrina oficial verificada' : 'Vitrine oficial verificada'}
                 </p>
                 <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33]">
-                  {isEs ? 'Especialistas recomendados por área' : 'Especialistas recomendados por área'}
+                  {isEs ? 'Aliados homologados por especialidad' : 'Parceiros homologados por área'}
                 </h2>
               </div>
               <p className="text-xs text-[#4A5A6D] tabular-nums">
@@ -588,12 +1084,12 @@ export const ParceirosPage: React.FC = () => {
               )}
             </div>
 
-            {/* Partner Grid with Framer Motion Fade-In + Slide-Up Transitions */}
+            {/* Partner Grid — Uses animate (not whileInView) so dynamically filtered cards never get stuck hidden */}
             {filteredPartners.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.28 }}
                 className="bg-white border border-[#E5DFD2] rounded-xl p-10 text-center space-y-3"
               >
                 <p className="text-base font-semibold text-[#0B1F33]">
@@ -603,18 +1099,26 @@ export const ParceirosPage: React.FC = () => {
                 </p>
                 <p className="text-sm text-[#4A5A6D] max-w-md mx-auto">
                   {isEs
-                    ? 'Intenta limpiar los filtros o solicita una recomendación directa a nuestro equipo de consultoría.'
-                    : 'Tente limpar os filtros ou solicite uma indicação personalizada diretamente à nossa equipe.'}
+                    ? 'Intenta limpiar los filtros o postula tu empresa si ofreces este servicio entre Brasil y Chile.'
+                    : 'Tente limpar os filtros ou cadastre sua empresa caso atue nesta especialidade no eixo Brasil–Chile.'}
                 </p>
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F33] text-white text-xs font-semibold hover:opacity-95"
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F33] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
+                    >
+                      {isEs ? 'Ver todos los aliados' : 'Ver todos os parceiros'}
+                    </button>
+                  )}
+                  <a
+                    href="#seja-parceiro"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#DDD6C7] text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0] whitespace-nowrap shrink-0"
                   >
-                    {isEs ? 'Ver todos los aliados' : 'Ver todos os parceiros'}
-                  </button>
-                )}
+                    {isEs ? 'Postular mi empresa' : 'Cadastrar minha empresa'}
+                  </a>
+                </div>
               </motion.div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -629,13 +1133,12 @@ export const ParceirosPage: React.FC = () => {
                       <motion.article
                         key={p.id}
                         layout
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 12 }}
-                        viewport={{ once: true, amount: 0.1 }}
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
                         transition={{
-                          duration: 0.38,
-                          delay: Math.min(index * 0.05, 0.25),
+                          duration: 0.34,
+                          delay: Math.min(index * 0.04, 0.2),
                           ease: [0.22, 1, 0.36, 1],
                         }}
                         className={`bg-white border rounded-xl p-6 flex flex-col justify-between transition-colors ${
@@ -669,7 +1172,7 @@ export const ParceirosPage: React.FC = () => {
                               {synergyMatch && (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold font-mono tabular-nums text-[#146B43]">
                                   <Sparkles className="w-3 h-3 text-[#C8A236]" />
-                                  {isEs ? 'Sinergia' : 'Sinergia'} {synergyMatch.score}%
+                                  Sinergia {synergyMatch.score}%
                                 </span>
                               )}
                             </div>
@@ -741,30 +1244,51 @@ export const ParceirosPage: React.FC = () => {
                 </AnimatePresence>
               </div>
             )}
+
+            {/* Inline B2B Conversion Prompt Below Directory */}
+            <div className="rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-sm text-[#0B1F33]">
+                <span className="font-semibold">
+                  {isEs ? '¿Tu marca aún no aparece aquí?' : 'Sua marca ainda não está na vitrine?'}
+                </span>{' '}
+                <span className="text-[#4A5A6D]">
+                  {isEs
+                    ? 'Envía tu propuesta comercial y suma tu logo a nuestra red binacional.'
+                    : 'Envie sua proposta comercial e coloque sua logo diante de clientes em mudança para o Chile.'}
+                </span>
+              </p>
+              <a
+                href="#seja-parceiro"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D14] hover:text-[#0B1F33] transition-colors whitespace-nowrap shrink-0"
+              >
+                {isEs ? 'Solicitar homologación' : 'Solicitar homologação'}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </section>
 
-          {/* Homologation Protocol — 4-Step Editorial Rhythm with Staggered Fade-In & Slide-Up */}
+          {/* 4-Step Partner Onboarding Timeline */}
           <section className="bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-10">
             <div className="max-w-2xl mb-8">
               <p className="brand-kicker mb-1.5">
-                {isEs ? 'Criterios de homologación' : 'Critérios de homologação'}
+                {isEs ? 'Proceso de acreditación' : 'Processo de credenciamento'}
               </p>
               <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] text-balance">
                 {isEs
-                  ? 'Cómo seleccionamos cada profesional de nuestra red'
-                  : 'Como selecionamos cada profissional da nossa rede'}
+                  ? 'Del registro a las primeras indicaciones en cuatro pasos claros'
+                  : 'Do cadastro às primeiras indicações em quatro etapas transparentes'}
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-              {homologationSteps.map((step, idx) => (
+              {onboardingSteps.map((step, idx) => (
                 <motion.div
                   key={step.num}
-                  initial={{ opacity: 0, y: 18 }}
+                  initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.15 }}
                   transition={{
-                    duration: 0.36,
-                    delay: idx * 0.06,
+                    duration: 0.34,
+                    delay: idx * 0.05,
                     ease: [0.22, 1, 0.36, 1],
                   }}
                   className="space-y-2 pt-4 border-t border-[#E5DFD2]"
@@ -777,55 +1301,111 @@ export const ParceirosPage: React.FC = () => {
             </div>
           </section>
 
-          {/* Seja um Parceiro Homologado — Architectural Split Layout */}
+          {/* Seja um Parceiro Homologado — Architectural Split Layout with LIVE Showcase Preview */}
           <motion.section
             id="seja-parceiro"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.1 }}
-            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            viewport={{ once: true, amount: 0.08 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="scroll-mt-24 bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden"
           >
             <BrandRibbon className="h-[3px] w-full" />
             <div className="grid grid-cols-1 lg:grid-cols-12">
-              {/* Left Navy Value Column */}
-              <div className="lg:col-span-4 bg-[#0B1F33] text-white p-6 sm:p-8 lg:p-10 flex flex-col justify-between gap-8">
+              {/* Left Navy Value Column + Real-Time Live Partner Card Preview */}
+              <div className="lg:col-span-5 bg-[#0B1F33] text-white p-6 sm:p-8 lg:p-10 flex flex-col justify-between gap-8">
                 <div className="space-y-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#E5C76B]">
-                    {isEs ? 'Acreditación B2B · Brasil y Chile' : 'Credenciamento B2B · Brasil & Chile'}
+                    {isEs ? 'Acreditación B2B · Sin costo fijo' : 'Credenciamento B2B · Zero mensalidade'}
                   </p>
                   <h2 className="font-display text-2xl sm:text-3xl font-bold text-white leading-tight">
                     {isEs ? 'Sé un Aliado Homologado' : 'Seja um Parceiro Homologado'}
                   </h2>
                   <p className="text-sm text-slate-300 leading-relaxed">
                     {isEs
-                      ? 'Si ofreces servicios jurídicos, traducciones oficiales, notarías, seguros, corretaje inmobiliario o contabilidad en Brasil o Chile, envía tu propuesta a nuestra dirección técnica.'
-                      : 'Oferece serviços jurídicos, cartoriais, de tradução juramentada, locação, saúde, contabilidade ou relocation no Brasil ou no Chile? Envie sua proposta para avaliação da nossa diretoria.'}
+                      ? 'Completa los datos de tu empresa y sube tu logo. Nuestra dirección revisará tu postulación en hasta 48 horas hábiles.'
+                      : 'Preencha os dados da sua empresa e envie sua logo. Nossa diretoria avalia sua candidatura e retorna em até 48 horas úteis.'}
                   </p>
 
-                  <div className="pt-4 border-t border-white/15 space-y-3 text-xs text-slate-200">
+                  {/* Real-Time Live Showcase Card Preview */}
+                  <div className="pt-3 space-y-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#E5C76B]">
+                      {isEs ? 'Vista previa en la vitrina oficial' : 'Pré-visualização na vitrine oficial'}
+                    </p>
+                    <div className="rounded-xl bg-white text-[#0B1F33] p-4 border border-white/20 shadow-lg space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        {safeFormLogoPreview ? (
+                          <div className="h-12 w-20 rounded-lg bg-white border border-[#E5DFD2] flex items-center justify-center overflow-hidden shrink-0">
+                            <OptimizedImage
+                              src={safeFormLogoPreview}
+                              alt={nomeEmpresa || 'Logo'}
+                              sizes="80px"
+                              containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                              className="max-w-full max-h-full object-contain p-1"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center shrink-0">
+                            <PreviewCategoryIcon className="w-5 h-5 text-[#8C6D14]" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 text-xs font-semibold text-[#0B1F33] font-mono tabular-nums">
+                          <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                          <span>5.0/5</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] text-[#4A5A6D]">
+                          <span className="font-semibold text-[#8C6D14]">
+                            {translatePartnerCategory(categoria, locale)}
+                          </span>{' '}
+                          ·{' '}
+                          <span className="font-medium text-[#0B1F33]">
+                            {translatePartnerCountry(pais, locale)}
+                          </span>
+                        </p>
+                        <p className="text-base font-bold text-[#0B1F33] leading-snug mt-0.5 truncate">
+                          {nomeEmpresa.trim() ||
+                            (isEs ? 'Nombre de tu empresa aquí' : 'Nome da sua empresa aqui')}
+                        </p>
+                        <p className="text-xs text-[#4A5A6D] mt-1 line-clamp-2 leading-relaxed">
+                          {mensagem.trim() ||
+                            (isEs
+                              ? 'Tu presentación institucional aparecerá destacada para los clientes en proceso de migración y relocation.'
+                              : 'Sua apresentação institucional aparecerá em destaque para clientes em processo de visto e relocation.')}
+                        </p>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-[#F1EDE4] flex items-center justify-between text-[11px]">
+                        <span className="inline-flex items-center gap-1 text-slate-500 truncate">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">
+                            {cidade.trim() || (pais === 'Brasil' ? 'São Paulo / Online' : 'Santiago / Online')}
+                          </span>
+                        </span>
+                        <span className="font-semibold text-[#146B43] whitespace-nowrap shrink-0">
+                          WhatsApp · {isEs ? 'Ver ficha →' : 'Ver detalhes →'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/15 space-y-2.5 text-xs text-slate-200">
                     <div className="flex items-start gap-2.5">
                       <ShieldCheck className="w-4 h-4 text-[#E5C76B] shrink-0 mt-0.5" />
                       <span>
                         {isEs
-                          ? 'Indicación calificada a clientes en proceso activo de migración y relocation.'
-                          : 'Indicação qualificada para clientes em processo ativo de visto e relocation.'}
+                          ? 'Derivaciones calificadas desde el Diagnóstico Inteligente y consultoría.'
+                          : 'Indicações qualificadas vindas do Diagnóstico Inteligente e consultoria.'}
                       </span>
                     </div>
                     <div className="flex items-start gap-2.5">
-                      <Globe2 className="w-4 h-4 text-[#E5C76B] shrink-0 mt-0.5" />
+                      <Lock className="w-4 h-4 text-[#E5C76B] shrink-0 mt-0.5" />
                       <span>
                         {isEs
-                          ? 'Presencia oficial en nuestro directorio público y portal de clientes.'
-                          : 'Presença oficial em nossa vitrine pública e nas orientações do Portal do Cliente.'}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2.5">
-                      <Handshake className="w-4 h-4 text-[#E5C76B] shrink-0 mt-0.5" />
-                      <span>
-                        {isEs
-                          ? 'Condiciones comerciales confidenciales gestionadas en ambiente privado.'
-                          : 'Condições comerciais e acordos de comissão mantidos em sigilo interno.'}
+                          ? 'Condiciones comerciales y acuerdos privados jamás se exponen al público.'
+                          : 'Condições comerciais e acordos mantidos em sigilo no painel interno.'}
                       </span>
                     </div>
                   </div>
@@ -834,7 +1414,7 @@ export const ParceirosPage: React.FC = () => {
                 {empresa.whatsapp && (
                   <div className="pt-5 border-t border-white/15 space-y-2">
                     <p className="text-xs text-slate-300">
-                      {isEs ? '¿Prefieres conversar antes de postular?' : 'Prefere conversar antes de enviar?'}
+                      {isEs ? '¿Prefieres conversar antes de postular?' : 'Prefere alinhar antes de enviar?'}
                     </p>
                     <a
                       href={buildWhatsAppUrl(
@@ -855,7 +1435,27 @@ export const ParceirosPage: React.FC = () => {
               </div>
 
               {/* Right Clean Form Column */}
-              <div className="lg:col-span-8 p-6 sm:p-8 lg:p-10">
+              <div className="lg:col-span-7 p-6 sm:p-8 lg:p-10">
+                {prefilledNotice && (
+                  <div className="mb-5 px-4 py-3 rounded-xl bg-[#FBF8EE] border border-[#E5DFD2] text-xs text-[#0B1F33] flex items-center justify-between gap-3">
+                    <span>
+                      {isEs ? 'Área preseleccionada:' : 'Área pré-selecionada:'}{' '}
+                      <strong className="text-[#8C6D14]">
+                        {translatePartnerCategory(prefilledNotice, locale)}
+                      </strong>
+                      . {isEs ? 'Completa tus datos para enviar la candidatura.' : 'Complete seus dados para enviar a candidatura.'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPrefilledNotice(null)}
+                      aria-label={isEs ? 'Cerrar aviso' : 'Fechar aviso'}
+                      className="text-slate-400 hover:text-slate-700 shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 {submittedId && (
                   <div className="mb-6 p-4 sm:p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
@@ -868,8 +1468,8 @@ export const ParceirosPage: React.FC = () => {
                           {isEs ? 'Protocolo de registro:' : 'Protocolo de registro:'}{' '}
                           <span className="font-mono font-semibold">{submittedId}</span>.{' '}
                           {isEs
-                            ? 'Nuestro equipo revisará los antecedentes y se pondrá en contacto.'
-                            : 'Nossa diretoria analisará os dados e retornará em breve.'}
+                            ? 'Nuestro equipo revisará los antecedentes en hasta 48h hábiles.'
+                            : 'Nossa diretoria analisará os dados e retornará em até 48h úteis.'}
                         </p>
                       </div>
                     </div>
@@ -918,8 +1518,10 @@ export const ParceirosPage: React.FC = () => {
                       {isEs ? 'Nombre de empresa o profesional *' : 'Nome da empresa ou profissional *'}
                     </label>
                     <input
+                      ref={companyInputRef}
                       id="p-empresa"
                       required
+                      maxLength={140}
                       value={nomeEmpresa}
                       onChange={(e) => setNomeEmpresa(e.target.value)}
                       placeholder={isEs ? 'Ej.: Estudio Jurídico Andes' : 'Ex.: Andes Traduções Juramentadas'}
@@ -972,9 +1574,10 @@ export const ParceirosPage: React.FC = () => {
                     </label>
                     <input
                       id="p-cidade"
+                      maxLength={120}
                       value={cidade}
                       onChange={(e) => setCidade(e.target.value)}
-                      placeholder={isEs ? 'Ej.: Santiago (Providencia) / Online' : 'Ex.: São Paulo - SP / Santiago'}
+                      placeholder={isEs ? 'Ej.: Santiago (Providencia) / Online' : 'Ex.: São Paulo - SP / Santiago / Online'}
                       className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
                     />
                   </div>
@@ -986,6 +1589,7 @@ export const ParceirosPage: React.FC = () => {
                     <input
                       id="p-resp"
                       required
+                      maxLength={140}
                       value={responsavel}
                       onChange={(e) => setResponsavel(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
@@ -999,6 +1603,7 @@ export const ParceirosPage: React.FC = () => {
                     <input
                       id="p-whats"
                       required
+                      maxLength={40}
                       value={whatsapp}
                       onChange={(e) => setWhatsapp(formatPhoneByCountry(e.target.value, pais))}
                       placeholder={pais === 'Chile' ? '+56 9 8888 0000' : '+55 (11) 99999-0000'}
@@ -1014,6 +1619,7 @@ export const ParceirosPage: React.FC = () => {
                       id="p-email"
                       type="email"
                       required
+                      maxLength={200}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="contato@empresa.com"
@@ -1043,6 +1649,7 @@ export const ParceirosPage: React.FC = () => {
                       </label>
                       <input
                         id="p-site"
+                        maxLength={200}
                         value={siteOuInstagram}
                         onChange={(e) => setSiteOuInstagram(e.target.value)}
                         placeholder="@perfil ou https://..."
@@ -1056,8 +1663,8 @@ export const ParceirosPage: React.FC = () => {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="text-xs font-semibold text-[#0B1F33]" htmlFor="p-logo-url">
                         {isEs
-                          ? 'Logo o imagen representativa (opcional)'
-                          : 'Logo ou imagem representativa (opcional)'}
+                          ? 'Logo o imagen representativa (aparecerá en la vista previa y vitrina)'
+                          : 'Logo ou imagem representativa (aparece na prévia e na vitrine)'}
                       </label>
                       {logoUrl && (
                         <button
@@ -1155,6 +1762,7 @@ export const ParceirosPage: React.FC = () => {
                     <textarea
                       id="p-prop"
                       rows={3}
+                      maxLength={2500}
                       value={proposta}
                       onChange={(e) => setProposta(e.target.value)}
                       placeholder={
@@ -1175,6 +1783,7 @@ export const ParceirosPage: React.FC = () => {
                     <textarea
                       id="p-msg"
                       rows={2}
+                      maxLength={2500}
                       value={mensagem}
                       onChange={(e) => setMensagem(e.target.value)}
                       placeholder={
@@ -1189,31 +1798,89 @@ export const ParceirosPage: React.FC = () => {
                   <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
                     <p className="text-xs text-slate-500">
                       {isEs
-                        ? 'Tus datos comerciales se revisan de forma confidencial.'
-                        : 'Seus valores e condições comerciais são analisados em sigilo.'}
+                        ? 'Sin cuota mensual · Revisión confidencial en hasta 48h hábiles.'
+                        : 'Zero mensalidade · Análise confidencial em até 48h úteis.'}
                     </p>
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="px-6 py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
-                      {submitting
-                        ? isEs
-                          ? 'Enviando propuesta...'
-                          : 'Enviando proposta...'
-                        : isEs
-                          ? 'Enviar propuesta de alianza'
-                          : 'Enviar proposta de parceria'}
+                      {submitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {isEs ? 'Enviando propuesta...' : 'Enviando proposta...'}
+                        </>
+                      ) : (
+                        <>
+                          {isEs ? 'Enviar propuesta de alianza' : 'Enviar proposta de parceria'}
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
               </div>
             </div>
           </motion.section>
+
+          {/* Interactive B2B Partner FAQ Accordion */}
+          <section id="faq-parceiros" className="scroll-mt-24 space-y-6">
+            <div className="max-w-2xl">
+              <p className="brand-kicker mb-1.5">
+                {isEs ? 'Preguntas frecuentes de aliados' : 'Perguntas frequentes de parceiros'}
+              </p>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33]">
+                {isEs
+                  ? 'Dudas habituales sobre el programa B2B'
+                  : 'Dúvidas frequentes sobre o programa B2B'}
+              </h2>
+            </div>
+
+            <div className="bg-white border border-[#E5DFD2] rounded-2xl divide-y divide-[#E5DFD2]">
+              {partnerFaqs.map((item, idx) => {
+                const isOpen = openFaqIdx === idx;
+                return (
+                  <div key={item.q}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenFaqIdx(isOpen ? null : idx)}
+                      aria-expanded={isOpen}
+                      className="w-full px-6 py-5 flex items-center justify-between gap-4 text-left hover:bg-[#FAF9F6] transition-colors"
+                    >
+                      <span className="text-sm sm:text-base font-bold text-[#0B1F33] leading-snug">
+                        {item.q}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-[#8C6D14] shrink-0 transition-transform duration-200 ${
+                          isOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                          className="overflow-hidden"
+                        >
+                          <p className="px-6 pb-5 text-sm text-[#4A5A6D] leading-relaxed max-w-4xl">
+                            {item.a}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        {/* Partner Details Modal with Framer Motion Entrance */}
+        {/* Partner Details Modal with Escape Key + Framer Motion Entrance */}
         <AnimatePresence>
           {selectedPartner && (() => {
             const Icon = getCategoryIcon(selectedPartner.categoria);
@@ -1239,7 +1906,7 @@ export const ParceirosPage: React.FC = () => {
                   initial={{ opacity: 0, y: 18, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                  transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
                   className="bg-white border border-[#E5DFD2] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1288,8 +1955,7 @@ export const ParceirosPage: React.FC = () => {
                       </span>
                       <span className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] font-mono tabular-nums">
                         <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
-                        {Number(selectedPartner.avaliacao || 5).toFixed(1)}/5 ·{' '}
-                        {isEs ? 'Homologado' : 'Homologado'}
+                        {Number(selectedPartner.avaliacao || 5).toFixed(1)}/5 · Homologado
                       </span>
                     </div>
 

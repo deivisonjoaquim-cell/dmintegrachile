@@ -259,3 +259,130 @@ export function formatPhoneByCountry(raw: string, country: 'Brasil' | 'Chile' | 
   }
   return cleaned;
 }
+
+/**
+ * Extracts a normalized external URL stored inside a proposal message
+ * (e.g., "Site/Instagram: https://...") and returns both the URL and cleaned message.
+ */
+export function extractPartnerWebsiteFromMessage(rawMessage?: string | null): {
+  siteInstagram: string;
+  cleanedMessage: string;
+} {
+  const text = (rawMessage || '').trim();
+  if (!text) return { siteInstagram: '', cleanedMessage: '' };
+
+  const lines = text.split(/\r?\n/);
+  let extractedUrl = '';
+  const remaining: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\s*Site\/Instagram\s*:\s*(.+)$/i);
+    if (match && !extractedUrl) {
+      const normalized = normalizePartnerExternalUrl(match[1]);
+      if (normalized) {
+        extractedUrl = normalized;
+        continue;
+      }
+    }
+    remaining.push(line);
+  }
+
+  return {
+    siteInstagram: extractedUrl,
+    cleanedMessage: remaining.join('\n').trim(),
+  };
+}
+
+export interface PartnerProposalValidationInput {
+  nomeEmpresa: string;
+  responsavel: string;
+  whatsapp: string;
+  email: string;
+  siteOuInstagram?: string;
+  logoUrl?: string;
+  honeypot?: string;
+  locale: 'pt-BR' | 'es-CL';
+}
+
+export function validatePartnerProposalInput(
+  input: PartnerProposalValidationInput,
+): { ok: true; normalizedSite: string | null; sanitizedLogo: string | null } | { ok: false; error: string } {
+  const isEs = input.locale === 'es-CL';
+
+  if ((input.honeypot || '').trim() !== '') {
+    return {
+      ok: false,
+      error: isEs ? 'Envío bloqueado por validación anti-spam.' : 'Envio bloqueado por validação anti-spam.',
+    };
+  }
+
+  if (input.nomeEmpresa.trim().length < 2) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'Ingresa el nombre completo de tu empresa o consulta profesional.'
+        : 'Informe o nome completo da empresa ou profissional.',
+    };
+  }
+
+  if (input.responsavel.trim().length < 2) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'Ingresa el nombre de la persona responsable.'
+        : 'Informe o nome completo do responsável.',
+    };
+  }
+
+  const phoneDigits = input.whatsapp.replace(/\D/g, '');
+  if (phoneDigits.length < 8 || input.whatsapp.trim().length > 40) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'Ingresa un número de WhatsApp válido con código de país y área (mínimo 8 dígitos).'
+        : 'Informe um WhatsApp válido com DDD/DDI (mínimo de 8 dígitos).',
+    };
+  }
+
+  const emailTrimmed = input.email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailTrimmed) || emailTrimmed.length > 200) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'Ingresa un correo electrónico corporativo válido.'
+        : 'Informe um e-mail corporativo válido.',
+    };
+  }
+
+  const siteTrimmed = (input.siteOuInstagram || '').trim();
+  const normalizedSite = siteTrimmed ? normalizePartnerExternalUrl(siteTrimmed) : null;
+  if (siteTrimmed && !normalizedSite) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'Ingresa un sitio web válido (https://...) o un usuario de Instagram (@perfil).'
+        : 'Informe um site válido (https://...) ou um perfil de Instagram (@usuario).',
+    };
+  }
+
+  const logoTrimmed = (input.logoUrl || '').trim();
+  const sanitizedLogo = logoTrimmed ? sanitizePartnerImageUrl(logoTrimmed) : null;
+  if (logoTrimmed && !sanitizedLogo) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'Ingresa una URL de imagen válida (https://...) o sube un archivo de imagen.'
+        : 'Informe uma URL de imagem válida (https://...) ou envie um arquivo de imagem.',
+    };
+  }
+  if (sanitizedLogo && sanitizedLogo.length > 300000) {
+    return {
+      ok: false,
+      error: isEs
+        ? 'La imagen supera el tamaño máximo permitido (300 KB). Intenta con un archivo más ligero.'
+        : 'A imagem excede o limite permitido (300 KB). Envie um arquivo mais leve.',
+    };
+  }
+
+  return { ok: true, normalizedSite, sanitizedLogo };
+}

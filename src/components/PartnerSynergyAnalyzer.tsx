@@ -189,11 +189,16 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
     [isEs],
   );
 
-  const [objetivo, setObjetivo] = useState(objetivoOptions[0]);
-  const [etapaAtual, setEtapaAtual] = useState(etapaOptions[1]);
-  const [composicaoFamiliar, setComposicaoFamiliar] = useState(familiaOptions[0]);
-  const [urgencia, setUrgencia] = useState(urgenciaOptions[1]);
+  const [objetivoIdx, setObjetivoIdx] = useState(0);
+  const [etapaIdx, setEtapaIdx] = useState(1);
+  const [familiaIdx, setFamiliaIdx] = useState(0);
+  const [urgenciaIdx, setUrgenciaIdx] = useState(1);
   const [necessidadesExtras, setNecessidadesExtras] = useState('');
+
+  const objetivo = objetivoOptions[objetivoIdx] || objetivoOptions[0];
+  const etapaAtual = etapaOptions[etapaIdx] || etapaOptions[0];
+  const composicaoFamiliar = familiaOptions[familiaIdx] || familiaOptions[0];
+  const urgencia = urgenciaOptions[urgenciaIdx] || urgenciaOptions[0];
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -210,9 +215,21 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
 
   const handleImportDiagnostic = () => {
     if (!savedDiagnostic) return;
-    if (savedDiagnostic.objetivo) setObjetivo(savedDiagnostic.objetivo);
-    if (savedDiagnostic.etapaAtual) setEtapaAtual(savedDiagnostic.etapaAtual);
-    if (savedDiagnostic.composicaoFamiliar) setComposicaoFamiliar(savedDiagnostic.composicaoFamiliar);
+    if (savedDiagnostic.objetivo) {
+      if (/trabalho/i.test(savedDiagnostic.objetivo)) setObjetivoIdx(1);
+      else if (/empreender/i.test(savedDiagnostic.objetivo)) setObjetivoIdx(2);
+      else if (/estudo/i.test(savedDiagnostic.objetivo)) setObjetivoIdx(3);
+      else if (/aposentadoria/i.test(savedDiagnostic.objetivo)) setObjetivoIdx(4);
+      else setObjetivoIdx(0);
+    }
+    if (savedDiagnostic.etapaAtual) {
+      setEtapaIdx(/já estou no chile/i.test(savedDiagnostic.etapaAtual) ? 3 : 1);
+    }
+    if (savedDiagnostic.composicaoFamiliar) {
+      if (/filhos/i.test(savedDiagnostic.composicaoFamiliar)) setFamiliaIdx(2);
+      else if (/casal/i.test(savedDiagnostic.composicaoFamiliar)) setFamiliaIdx(1);
+      else setFamiliaIdx(0);
+    }
     if (savedDiagnostic.necessidadesExtras) setNecessidadesExtras(savedDiagnostic.necessidadesExtras);
     setImportedDiagnostic(true);
   };
@@ -350,12 +367,12 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
             </label>
             <select
               id="syn-objetivo"
-              value={objetivo}
-              onChange={(e) => setObjetivo(e.target.value)}
+              value={objetivoIdx}
+              onChange={(e) => setObjetivoIdx(Number(e.target.value))}
               className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
             >
-              {objetivoOptions.map((opt) => (
-                <option key={opt} value={opt}>
+              {objetivoOptions.map((opt, idx) => (
+                <option key={opt} value={idx}>
                   {opt}
                 </option>
               ))}
@@ -368,12 +385,12 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
             </label>
             <select
               id="syn-etapa"
-              value={etapaAtual}
-              onChange={(e) => setEtapaAtual(e.target.value)}
+              value={etapaIdx}
+              onChange={(e) => setEtapaIdx(Number(e.target.value))}
               className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
             >
-              {etapaOptions.map((opt) => (
-                <option key={opt} value={opt}>
+              {etapaOptions.map((opt, idx) => (
+                <option key={opt} value={idx}>
                   {opt}
                 </option>
               ))}
@@ -386,12 +403,12 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
             </label>
             <select
               id="syn-familia"
-              value={composicaoFamiliar}
-              onChange={(e) => setComposicaoFamiliar(e.target.value)}
+              value={familiaIdx}
+              onChange={(e) => setFamiliaIdx(Number(e.target.value))}
               className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
             >
-              {familiaOptions.map((opt) => (
-                <option key={opt} value={opt}>
+              {familiaOptions.map((opt, idx) => (
+                <option key={opt} value={idx}>
                   {opt}
                 </option>
               ))}
@@ -404,12 +421,12 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
             </label>
             <select
               id="syn-urgencia"
-              value={urgencia}
-              onChange={(e) => setUrgencia(e.target.value)}
+              value={urgenciaIdx}
+              onChange={(e) => setUrgenciaIdx(Number(e.target.value))}
               className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
             >
-              {urgenciaOptions.map((opt) => (
-                <option key={opt} value={opt}>
+              {urgenciaOptions.map((opt, idx) => (
+                <option key={opt} value={idx}>
                   {opt}
                 </option>
               ))}

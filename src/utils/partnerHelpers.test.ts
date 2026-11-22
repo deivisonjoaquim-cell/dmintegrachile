@@ -3,11 +3,13 @@ import { describe, it } from 'node:test';
 import type { Partner, PartnerProposal, PartnerPublic } from '../types/domain';
 import {
   computePartnerNetworkMetrics,
+  extractPartnerWebsiteFromMessage,
   filterAndSortPublicPartners,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
   sanitizePartnerImageUrl,
   translatePartnerCategory,
+  validatePartnerProposalInput,
 } from './partnerHelpers';
 
 const SAMPLE_PUBLIC: PartnerPublic[] = [
@@ -123,4 +125,74 @@ describe('partnerHelpers — URL safety, filtering, sorting & metrics', () => {
     assert.ok(PARTNER_CATEGORIES.includes('Tradutor Juramentado'));
     assert.equal(translatePartnerCategory('Imobiliária', 'es-CL'), 'Corretaje Inmobiliario');
   });
+
+  it('extracts Site/Instagram metadata cleanly from proposal messages', () => {
+    const extracted = extractPartnerWebsiteFromMessage(
+      'Atendimento bilíngue em Santiago.\nSite/Instagram: https://escritorioandes.cl\nEquipe com 10 anos de mercado.',
+    );
+    assert.equal(extracted.siteInstagram, 'https://escritorioandes.cl/');
+    assert.equal(
+      extracted.cleanedMessage,
+      'Atendimento bilíngue em Santiago.\nEquipe com 10 anos de mercado.',
+    );
+
+    const noSite = extractPartnerWebsiteFromMessage('Apenas apresentação institucional.');
+    assert.equal(noSite.siteInstagram, '');
+    assert.equal(noSite.cleanedMessage, 'Apenas apresentação institucional.');
+  });
+
+  it('validates partner proposal submissions matching Firestore security rules in PT-BR and ES-CL', () => {
+    const valid = validatePartnerProposalInput({
+      nomeEmpresa: 'Estudio Andes Legal',
+      responsavel: 'Camila Rojas',
+      whatsapp: '+56 9 8888 7766',
+      email: 'contacto@andeslegal.cl',
+      siteOuInstagram: '@andeslegal',
+      logoUrl: 'https://cdn.andeslegal.cl/logo.webp',
+      honeypot: '',
+      locale: 'pt-BR',
+    });
+    assert.equal(valid.ok, true);
+    if (valid.ok) {
+      assert.equal(valid.normalizedSite, 'https://instagram.com/andeslegal');
+      assert.equal(valid.sanitizedLogo, 'https://cdn.andeslegal.cl/logo.webp');
+    }
+
+    const shortPhone = validatePartnerProposalInput({
+      nomeEmpresa: 'Empresa Teste',
+      responsavel: 'João Silva',
+      whatsapp: '1234',
+      email: 'joao@empresa.com',
+      siteOuInstagram: '',
+      logoUrl: '',
+      honeypot: '',
+      locale: 'pt-BR',
+    });
+    assert.equal(shortPhone.ok, false);
+
+    const badEmailEs = validatePartnerProposalInput({
+      nomeEmpresa: 'Empresa Chile',
+      responsavel: 'Matías Pérez',
+      whatsapp: '+56 9 8765 4321',
+      email: 'invalido',
+      siteOuInstagram: '',
+      logoUrl: '',
+      honeypot: '',
+      locale: 'es-CL',
+    });
+    assert.equal(badEmailEs.ok, false);
+
+    const botTrap = validatePartnerProposalInput({
+      nomeEmpresa: 'Spam Bot Co',
+      responsavel: 'Bot',
+      whatsapp: '+55 11 99999-0000',
+      email: 'bot@spam.com',
+      siteOuInstagram: '',
+      logoUrl: '',
+      honeypot: 'http://spam.link',
+      locale: 'pt-BR',
+    });
+    assert.equal(botTrap.ok, false);
+  });
 });
+

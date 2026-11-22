@@ -22,6 +22,7 @@ const KNOWN_RESPONSIVE_PHOTO_BASES = new Set([
   '/src/assets/images/quem_somos_founder_1794993847940',
   '/src/assets/images/service_relocation_chile_1794944013551',
   '/src/assets/images/service_relocation_chile_1794997277886',
+  '/src/assets/images/partners_executive_santiago_1795383896419',
 ]);
 
 const KNOWN_AISTUDIO_WEBP_BASES = new Set([
