@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { makeId, saveDocumentAudited } from '../services/firestoreService';
+import { BrandRibbon } from './BrandLogo';
 
 interface CalendlyModalProps {
   open: boolean;
@@ -71,22 +72,30 @@ export const CalendlyModal: React.FC<CalendlyModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#071320]/70 backdrop-blur-xs flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Agendar reunião no Calendly"
     >
-      <div className="bg-white border border-slate-200 rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <div className="flex items-center gap-2.5">
-            <Calendar className="w-5 h-5 text-[var(--color-primary)]" />
-            <h2 className="text-lg font-semibold text-slate-900">Agendar Atendimento</h2>
+      <div className="bg-white border border-[#E5DFD2] rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <BrandRibbon className="h-[3px] w-full" />
+        <div className="bg-[#0B1F33] text-white flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+              <Calendar className="w-4 h-4 text-[#E5C76B]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                Consultoria Migratória · Brasil &amp; Chile
+              </p>
+              <h2 className="font-display text-lg font-bold text-white truncate">Agendar Atendimento</h2>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar agendamento"
-            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100"
+            className="p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -95,19 +104,19 @@ export const CalendlyModal: React.FC<CalendlyModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5">
           {calendlyUrl ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-slate-600">Escolha o melhor horário abaixo ou abra o Calendly em uma nova aba.</p>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="text-sm text-[#4A5A6D]">Escolha o melhor horário abaixo ou abra o Calendly em uma nova aba.</p>
                 <a
                   href={calendlyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-[#F1EDE4] whitespace-nowrap shrink-0 transition-colors"
                 >
                   Abrir em nova aba
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-3.5 h-3.5 text-[#8C6D14]" />
                 </a>
               </div>
-              <div className="w-full h-[420px] rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+              <div className="w-full h-[420px] rounded-xl overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6]">
                 <iframe
                   title="Agenda Calendly"
                   src={calendlyUrl}
@@ -116,16 +125,17 @@ export const CalendlyModal: React.FC<CalendlyModalProps> = ({
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+            <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 text-sm text-amber-950 leading-relaxed">
               O agendamento automático online está temporariamente indisponível. Você pode registrar sua preferência de horário abaixo ou falar diretamente conosco pelo WhatsApp.
             </div>
           )}
 
-          <div className="pt-4 border-t border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 mb-3">Confirmar meu agendamento</h3>
+          <div className="pt-4 border-t border-[#E5DFD2]">
+            <p className="brand-kicker mb-1">Registro no Portal</p>
+            <h3 className="text-sm font-bold text-[#0B1F33] mb-3">Confirmar meu agendamento</h3>
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="calendly-confirm-dt">
+                <label className="block text-xs font-semibold text-[#0B1F33] mb-1" htmlFor="calendly-confirm-dt">
                   Data e horário escolhidos (horário de Brasília)
                 </label>
                 <input
@@ -133,26 +143,26 @@ export const CalendlyModal: React.FC<CalendlyModalProps> = ({
                   type="datetime-local"
                   value={dataHora}
                   onChange={(e) => setDataHora(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-sm text-[#0B1523] font-mono tabular-nums"
                 />
               </div>
               <button
                 type="button"
                 disabled={saving}
                 onClick={handleConfirmBooking}
-                className="px-4 py-2.5 rounded-lg text-sm font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50 hover:opacity-95 transition-opacity"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 {saving ? 'Confirmando...' : 'Confirmar meu agendamento'}
               </button>
             </div>
             {confirmed && (
-              <p className="mt-3 text-sm text-[#1E7E34] flex items-center gap-1.5 font-medium">
+              <p className="mt-3 text-sm text-[#146B43] flex items-center gap-1.5 font-semibold">
                 <CheckCircle2 className="w-4 h-4" />
                 Agendamento registrado com sucesso!
               </p>
             )}
-            {errorMsg && <p className="mt-2 text-xs text-[#C82333]">{errorMsg}</p>}
+            {errorMsg && <p className="mt-2 text-xs text-[#A61C2B] font-medium">{errorMsg}</p>}
           </div>
         </div>
       </div>

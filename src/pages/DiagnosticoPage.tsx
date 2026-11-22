@@ -145,9 +145,13 @@ const ContextualHelp: React.FC<{
         {title}
       </button>
       {open && (
-        <div className="mt-2 p-3 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-1">
-          <p>{text}</p>
-          {sourceLabel && <p className="text-[11px] font-semibold text-slate-600">Base normativa: {sourceLabel}</p>}
+        <div className="mt-2 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2] text-xs text-[#4A5A6D] leading-relaxed space-y-1.5 shadow-[0_6px_18px_rgba(11,31,51,0.06)]">
+          <p className="text-[#0B1F33]">{text}</p>
+          {sourceLabel && (
+            <p className="text-[11px] font-semibold text-[#8C6D14] font-mono">
+              Base normativa: {sourceLabel}
+            </p>
+          )}
         </div>
       )}
     </div>

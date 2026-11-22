@@ -59,6 +59,7 @@ import {
   maskCPF,
   maskPhoneBR,
   normalizeDigits,
+  openExternalSafe,
   toIsoDate,
 } from '../../utils/formatters';
 
@@ -278,7 +279,7 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
     const portalUrl = `${window.location.origin}/acompanhar`;
     const modality = normalizePaidModality(form.modalidadeConsultoria);
     const msg = `Olá, ${form.nomeCompleto}! Seu Portal do Cliente D&M Integra Chile (${CONSULTANCY_PLANS[modality].nome}) está liberado. Acesse em ${portalUrl} usando seu e-mail Google (${form.email}).`;
-    window.open(buildWhatsAppUrl(form.whatsapp, msg), '_blank', 'noopener,noreferrer');
+    openExternalSafe(buildWhatsAppUrl(form.whatsapp, msg));
     const now = new Date().toISOString();
     const res = await setClientPortalAccessAudited({
       client: form,
@@ -907,7 +908,7 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                     disabled={!commMsg.trim()}
                     onClick={async () => {
                       if (commCanal === 'WhatsApp' && form.whatsapp) {
-                        window.open(buildWhatsAppUrl(form.whatsapp, commMsg), '_blank', 'noopener,noreferrer');
+                        openExternalSafe(buildWhatsAppUrl(form.whatsapp, commMsg));
                       } else if (commCanal === 'E-mail' && form.email) {
                         window.location.href = `mailto:${form.email}?subject=${encodeURIComponent('D&M Integra Chile — Acompanhamento')}&body=${encodeURIComponent(commMsg)}`;
                       }

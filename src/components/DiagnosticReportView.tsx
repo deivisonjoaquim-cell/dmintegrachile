@@ -48,6 +48,7 @@ import {
   buildWhatsAppUrl,
   formatCurrency,
   formatDateBR,
+  openExternalSafe,
 } from '../utils/formatters';
 import {
   buildBasicDiagnosticSummary,
@@ -644,19 +645,62 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold tabular-nums text-[#8C6D14]">
+                          <span className="font-mono text-xs font-bold tabular-nums text-[#8C6D14]">
                             FASE 0{stepItem.fase}
                           </span>
-                          <span className="text-[11px] text-slate-500 truncate">{stepItem.foco}</span>
+                          <span className="text-[11px] text-[#4A5A6D] truncate">{stepItem.foco}</span>
                         </div>
                         <h3 className="text-sm font-bold text-[#0B1F33] leading-snug">{stepItem.titulo}</h3>
-                        <p className="text-xs text-slate-600 leading-relaxed">{stepItem.resumo}</p>
+                        <p className="text-xs text-[#4A5A6D] leading-relaxed">{stepItem.resumo}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* 4B. RADAR DE PRAZOS & VALIDADES CRÍTICAS SERMIG (Especialista em Imigração) */}
+            <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] overflow-hidden">
+              <div className="px-5 py-3.5 bg-[#0B1F33] text-white flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#E5C76B]" />
+                  <p className="text-xs font-bold uppercase tracking-[0.12em]">
+                    Radar de Validades &amp; Prazos Críticos — SERMIG / Ley Nº 21.325
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono text-slate-300">Referência operacional Brasil – Chile</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#E5DFD2]">
+                <div className="p-4 space-y-1">
+                  <p className="font-mono text-base font-bold tabular-nums text-[#A61C2B]">60 dias</p>
+                  <p className="text-xs font-bold text-[#0B1F33]">Antecedentes Polícia Federal</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Certidão vence rápido no SERMIG; deve ser emitida por último, imediatamente antes do protocolo.
+                  </p>
+                </div>
+                <div className="p-4 space-y-1">
+                  <p className="font-mono text-base font-bold tabular-nums text-[#8C6D14]">Haia CNJ</p>
+                  <p className="text-xs font-bold text-[#0B1F33]">Apostilamento Obrigatório</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Certidões civis e antecedentes emitidos no Brasil exigem Apostila da Haia com QR Code legível.
+                  </p>
+                </div>
+                <div className="p-4 space-y-1">
+                  <p className="font-mono text-base font-bold tabular-nums text-[#0B1F33]">90 dias</p>
+                  <p className="text-xs font-bold text-[#0B1F33]">Ingresso pós-Estampado</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Após aprovação e download do Estampado Electrónico, respeite o prazo legal para entrada no Chile.
+                  </p>
+                </div>
+                <div className="p-4 space-y-1">
+                  <p className="font-mono text-base font-bold tabular-nums text-[#146B43]">30 dias</p>
+                  <p className="text-xs font-bold text-[#0B1F33]">Registro PDI &amp; Cédula</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Prazo legal após o ingresso no Chile para registrar a residência na PDI e solicitar Cédula/RUT.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* 5. ROTAS ALTERNATIVAS MAPEADAS */}
             {basic.alternativasMapeadas && basic.alternativasMapeadas.length > 0 && (
@@ -816,9 +860,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <button
                   type="button"
                   onClick={onOpenCalendly}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] hover:border-[#C8A236]/60 transition-colors"
                 >
-                  <Calendar className="w-3.5 h-3.5" />
+                  <Calendar className="w-3.5 h-3.5 text-[#8C6D14]" />
                   Agendar conversa inicial
                 </button>
               )}
@@ -826,9 +870,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('/acompanhar')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] hover:border-[#C8A236]/60 transition-colors"
                 >
-                  <UserCheck className="w-3.5 h-3.5" />
+                  <UserCheck className="w-3.5 h-3.5 text-[#0B1F33]" />
                   Já contratei — acessar Portal
                 </button>
               )}
@@ -837,7 +881,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               <button
                 type="button"
                 onClick={onRestart}
-                className="inline-flex items-center gap-1.5 text-slate-600 hover:text-[#0B1F33] font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 text-[#4A5A6D] hover:text-[#0B1F33] font-semibold transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Refazer diagnóstico
@@ -925,7 +969,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
   const handleSendWhatsApp = async () => {
     const targetPhone = mode === 'consultant' ? answers.whatsapp || empresa.whatsapp : empresa.whatsapp;
     const url = buildWhatsAppUrl(targetPhone, waMessage);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openExternalSafe(url);
     if (onLogWhatsApp) {
       await onLogWhatsApp(`Resumo Diagnóstico: ${answers.nome || 'Lead'}`, waMessage);
     }
@@ -1390,12 +1434,12 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                       savedLeadId && savedLeadId !== 'local-preview' ? ` (Protocolo ${savedLeadId})` : ''
                     }.\nPerfil: ${answers.nome || 'Visitante'} · ${numPessoas} pessoa(s) · Subcategoria sugerida: ${recommendedTitle} (Viabilidade ${result.viabilidade.total}/100).\nGostaria de consultar os honorários e receber a proposta personalizada para minha assessoria.`;
                     const targetPhone = mode === 'consultant' ? answers.whatsapp || empresa.whatsapp : empresa.whatsapp;
-                    window.open(buildWhatsAppUrl(targetPhone, msgProposta), '_blank', 'noopener,noreferrer');
+                    openExternalSafe(buildWhatsAppUrl(targetPhone, msgProposta));
                     if (onLogWhatsApp) {
                       void onLogWhatsApp(`Solicitação de Honorários: ${answers.nome || 'Lead'}`, msgProposta);
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#1E7E34] text-white text-xs font-semibold hover:opacity-95"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#146B43] text-white text-xs font-semibold hover:opacity-95"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
                   Consultar honorários no WhatsApp

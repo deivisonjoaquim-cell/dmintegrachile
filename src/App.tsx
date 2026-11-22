@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { BrandRibbon } from './components/BrandLogo';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { GlobalErrorToast } from './components/GlobalErrorToast';
 import { PublicLayout } from './components/PublicLayout';
@@ -35,28 +36,33 @@ const PageLoader: React.FC = () => (
 );
 
 const NotFoundView: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
-  <div className="py-20 px-4 text-center max-w-lg mx-auto space-y-4">
-    <p className="text-xs font-semibold tracking-wide text-slate-500">Página não encontrada</p>
-    <h1 className="text-3xl font-bold text-slate-900">Este endereço não está disponível.</h1>
-    <p className="text-sm text-slate-600">
-      O caminho acessado foi movido ou não existe mais. Retorne à página inicial ou inicie o diagnóstico gratuito.
-    </p>
-    <div className="flex flex-wrap justify-center gap-3 pt-2">
-      <button
-        type="button"
-        onClick={() => onNavigate('/')}
-        className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white"
-        style={{ backgroundColor: 'var(--color-primary)' }}
-      >
-        Voltar ao Início
-      </button>
-      <button
-        type="button"
-        onClick={() => onNavigate('/diagnostico')}
-        className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800"
-      >
-        Fazer Diagnóstico Gratuito
-      </button>
+  <div className="py-16 sm:py-24 px-4">
+    <div className="max-w-lg mx-auto bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
+      <BrandRibbon className="h-[3px] w-full" />
+      <div className="p-8 sm:p-10 space-y-4">
+        <p className="brand-kicker">Erro 404 · Página não encontrada</p>
+        <h1 className="font-display text-3xl font-bold text-[#0B1F33]">Este endereço não está disponível.</h1>
+        <p className="text-sm text-[#4A5A6D] leading-relaxed">
+          O caminho acessado foi movido ou não existe mais. Retorne à página inicial ou inicie o diagnóstico migratório completo.
+        </p>
+        <div className="flex flex-wrap justify-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('/')}
+            className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white hover:opacity-95 transition-opacity"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Voltar ao Início
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('/diagnostico')}
+            className="px-5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] hover:bg-[#F1EDE4] text-xs font-semibold text-[#0B1F33] transition-colors"
+          >
+            Fazer Diagnóstico Completo
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 );

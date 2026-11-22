@@ -97,6 +97,7 @@ import {
   maskCPF,
   maskPhoneBR,
   normalizeDigits,
+  openExternalSafe,
   parseFlexibleDate,
   toIsoDate,
 } from '../../utils/formatters';
@@ -741,7 +742,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     const modality = normalizePaidModality(cl.modalidadeConsultoria);
     const msg = `Olá, ${cl.nomeCompleto}! Seu acesso ao Portal do Cliente D&M Integra Chile (${CONSULTANCY_PLANS[modality].nome}) está liberado. Acesse com o e-mail Google ${cl.email} em: ${portalUrl}`;
     if (cl.whatsapp) {
-      window.open(buildWhatsAppUrl(cl.whatsapp, msg), '_blank', 'noopener,noreferrer');
+      openExternalSafe(buildWhatsAppUrl(cl.whatsapp, msg));
     }
     const nowIso = new Date().toISOString();
     await setClientPortalAccessAudited({
@@ -1940,7 +1941,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     e.preventDefault();
     if (!activeCase || !activeClient || !commMsg.trim()) return;
     if (commCanal === 'WhatsApp' && activeClient.whatsapp) {
-      window.open(buildWhatsAppUrl(activeClient.whatsapp, commMsg), '_blank', 'noopener,noreferrer');
+      openExternalSafe(buildWhatsAppUrl(activeClient.whatsapp, commMsg));
     }
     await onLogWhatsApp(activeClient.id, activeCase.id, `${commCanal}: ${activeCase.titulo}`, commMsg);
     setCommMsg('');
@@ -3154,7 +3155,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  window.open(buildWhatsAppUrl(activeClient.whatsapp, whatsDocMsg), '_blank', 'noopener,noreferrer');
+                                  openExternalSafe(buildWhatsAppUrl(activeClient.whatsapp, whatsDocMsg));
                                   await onLogWhatsApp(activeClient.id, activeCase.id, `Cobrança Doc: ${d.nomeDocumento}`, whatsDocMsg);
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"

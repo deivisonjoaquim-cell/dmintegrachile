@@ -49,6 +49,7 @@ import {
   exportToCSV,
   formatCurrency,
   formatDateBR,
+  openExternalSafe,
   toIsoDate,
 } from '../../utils/formatters';
 
@@ -545,7 +546,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                         type="button"
                         onClick={async () => {
                           const msg = `Olá, ${cl.nomeCompleto}! Segue o resumo do seu orçamento ${b.numeroOrcamento} (${b.titulo}): Total ${formatCurrency(b.totalGeral, b.moedaPrincipal)}. ${b.condicoesPagamento}. Você pode aprová-lo diretamente no Portal do Cliente.`;
-                          window.open(buildWhatsAppUrl(cl.whatsapp, msg), '_blank', 'noopener,noreferrer');
+                          openExternalSafe(buildWhatsAppUrl(cl.whatsapp, msg));
                           await onLogWhatsApp(cl.id, b.caseId, `Orçamento ${b.numeroOrcamento}`, msg);
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"

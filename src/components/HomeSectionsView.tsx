@@ -19,7 +19,8 @@ import type {
   SiteContent,
   SiteSectionKey,
 } from '../types/domain';
-import { buildWhatsAppUrl, sanitizeHtml } from '../utils/formatters';
+import { BrandRibbon } from './BrandLogo';
+import { buildWhatsAppUrl, openExternalSafe, sanitizeHtml } from '../utils/formatters';
 import { CONSULTANCY_PLANS } from '../utils/portalAccess';
 
 export interface ServiceItemMeta {
@@ -139,44 +140,68 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     if (compLocal === 'residente_chile') {
       return {
         titulo: 'Prorrogação ou Residência Definitiva',
-        resumo: 'Avaliamos seu tempo de residência vigente, ausências do país e a janela legal de 90 a 10 dias antes do vencimento.',
-        alerta: 'Mantenha o protocolo dentro da janela legal para preservar a regularidade migratória.',
+        baseLegal: 'Ley Nº 21.325 · Arts. 78–80 · Decreto Nº 177/2022',
+        protocoloRegra: 'Portal SERMIG dentro do Chile',
+        trabalho: 'Mantém direito laboral vigente',
+        prazoEstimado: 'Janela legal: 90 a 10 dias antes do vencimento',
+        resumo: 'Avaliamos seu tempo de residência vigente, contagem de ausências do território chileno e enquadramento para Residência Definitiva.',
+        alerta: 'Mantenha o protocolo estritamente dentro da janela de 90 a 10 dias antes do vencimento para preservar a regularidade migratória.',
       };
     }
     if (compVinculo === 'sim' || compObj === 'familia') {
       return {
         titulo: 'Reunificação Familiar (Subcategoria 01)',
-        resumo: 'Com vínculo formalizado (casamento, AUC ou filho chileno), permite análise inclusive para quem está no Chile.',
-        alerta: compLocal === 'turista_chile' ? 'Se o vínculo ainda não estiver formalizado em registro civil, aplica-se a saída pelo Mercosul.' : undefined,
+        baseLegal: 'Ley Nº 21.325 · Art. 19 · Decreto Nº 177/2022 (Subcat. 01)',
+        protocoloRegra: compLocal === 'turista_chile' ? 'Pode ser avaliada dentro do Chile (se vínculo formalizado)' : 'Exterior ou território chileno (conforme registro)',
+        trabalho: 'Autoriza trabalho lícito após Estampado',
+        prazoEstimado: 'Preparação 15–30d · SERMIG 3–7 meses',
+        resumo: 'Com vínculo formalizado (casamento, Acordo de União Civil ou filho chileno), permite análise inclusive para quem já está no Chile.',
+        alerta: compLocal === 'turista_chile' ? 'Se o vínculo ainda não estiver formalizado em registro civil, aplica-se a regra geral de protocolo pelo exterior (Mercosul).' : undefined,
       };
     }
     if (compObj === 'trabalho_oferta') {
       return {
         titulo: 'Mercosul (Cód. 15) vs. Atividades Lícitas (Cód. 02)',
-        resumo: 'Para brasileiros, o Acordo Mercosul costuma oferecer maior liberdade laboral (sem vínculo com único empregador); comparamos ambos no diagnóstico.',
-        alerta: compLocal === 'turista_chile' ? 'Protocolo inicial exige saída do território chileno.' : undefined,
+        baseLegal: 'Acordo Mercosul (Dec. BR 6.975/2009) vs. Dec. 177/2022 (Subcat. 02)',
+        protocoloRegra: 'Protocolo obrigatório do exterior (fora do Chile)',
+        trabalho: 'Mercosul: livre · Cód. 02: exige contrato formal',
+        prazoEstimado: 'Preparação 15–30d · SERMIG 3–8 meses',
+        resumo: 'Para brasileiros, o Acordo Mercosul costuma oferecer maior liberdade laboral (sem vínculo a único empregador); comparamos ambos no diagnóstico.',
+        alerta: compLocal === 'turista_chile' ? 'Protocolo inicial exige saída prévia do território chileno.' : undefined,
       };
     }
     if (compObj === 'estudar') {
       return {
         titulo: 'Mercosul (Cód. 15) vs. Estudantes (Cód. 03)',
-        resumo: 'Quem tem nacionalidade brasileira pode optar pelo Mercosul (que dá acesso mais amplo ao mercado de trabalho e à Definitiva) ou Visto de Estudante.',
-        alerta: compLocal === 'turista_chile' ? 'Solicitação inicial feita do exterior.' : undefined,
+        baseLegal: 'Acordo Mercosul (Subcat. 15) vs. Dec. 177/2022 (Subcat. 03)',
+        protocoloRegra: 'Protocolo do exterior (fora do Chile)',
+        trabalho: 'Mercosul: integral · Estudante: até 30h/sem',
+        prazoEstimado: 'Preparação 15–30d · SERMIG 3–7 meses',
+        resumo: 'Quem tem nacionalidade brasileira pode optar pelo Mercosul (acesso irrestrito ao mercado de trabalho e caminho direto à Definitiva) ou Visto de Estudante.',
+        alerta: compLocal === 'turista_chile' ? 'Solicitação inicial feita fora do território chileno.' : undefined,
       };
     }
     if (compObj === 'renda') {
       return {
         titulo: 'Mercosul (Cód. 15) ou Aposentados/Rentistas (Cód. 11)',
-        resumo: 'Avaliamos se a renda passiva exige comprovação adicional ou se a via Mercosul simplifica a documentação.',
-        alerta: compLocal === 'turista_chile' ? 'Regra geral exige envio do pedido fora do Chile.' : undefined,
+        baseLegal: 'Acordo Mercosul (Subcat. 15) vs. Dec. 177/2022 (Subcat. 11)',
+        protocoloRegra: 'Protocolo do exterior (fora do Chile)',
+        trabalho: 'Mercosul: liberado · Rentista: renda passiva',
+        prazoEstimado: 'Preparação 15–35d · SERMIG 3–8 meses',
+        resumo: 'Avaliamos se a comprovação de renda passiva/aposentadoria agrega vantagem ou se a via Mercosul simplifica a documentação e a Apostila CNJ.',
+        alerta: compLocal === 'turista_chile' ? 'Regra geral da Ley 21.325 exige envio do pedido fora do Chile.' : undefined,
       };
     }
     return {
       titulo: 'Acordo Mercosul — Subcategoria 15',
-      resumo: 'Principal caminho para brasileiros: não exige emprego prévio nem comprovação de renda e permite trabalhar licitamente no Chile.',
+      baseLegal: 'Decreto BR Nº 6.975/2009 · Ley Nº 21.325 · Dec. 177/2022',
+      protocoloRegra: 'Protocolo 100% digital a partir do Brasil/Exterior',
+      trabalho: 'Trabalho formal, autônomo ou empresa liberados',
+      prazoEstimado: 'Antecedentes PF (60d) · SERMIG 3–8 meses',
+      resumo: 'Principal caminho para brasileiros: não exige oferta prévia de emprego nem comprovação de renda, com acesso direto à Residência Definitiva após 24 meses.',
       alerta:
         compLocal === 'turista_chile'
-          ? 'Atenção: estando como turista no Chile sem vínculo formalizado, será necessário sair do país para protocolar.'
+          ? 'Atenção: estando como turista no Chile sem vínculo formalizado, a Ley 21.325 exige saída do país para protocolar a Subcategoria 15.'
           : undefined,
     };
   }, [compLocal, compObj, compVinculo]);
@@ -189,7 +214,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   const navigateAction = (dest: string) => {
     if (previewMode) return;
     if (dest.startsWith('http')) {
-      window.open(dest, '_blank', 'noopener,noreferrer');
+      openExternalSafe(dest);
     } else {
       onNavigate(dest);
     }
@@ -231,12 +256,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {partnersPublic.slice(0, maxItens).map((p) => (
               <div key={p.id} className={`${theme.cardClass} card-radius p-6`}>
-                <p className={`text-xs font-medium mb-1.5 ${theme.isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.1em] mb-1.5 ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
                   {p.categoria} · {p.pais}
                 </p>
-                <h3 className={`text-base font-semibold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
+                <h3 className={`text-base font-bold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
                 <p className={`text-sm leading-relaxed mb-3 ${theme.subClass}`}>{p.descricaoPublica}</p>
-                <p className={`text-xs ${theme.isDark ? 'text-slate-300' : 'text-slate-500'}`}>{p.cidadeRegiao}</p>
+                <p className={`text-xs ${theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D]'}`}>{p.cidadeRegiao}</p>
               </div>
             ))}
           </div>
@@ -540,12 +565,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>{item.titulo}</h3>
                       <p className={`text-sm leading-relaxed ${theme.subClass}`}>{item.descricao}</p>
                     </div>
-                    <div className="shrink-0 pt-2 border-t border-slate-100/80">
+                    <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'}`}>
                       <button
                         type="button"
                         onClick={() => !previewMode && setServiceDrawer(item)}
                         className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
-                          theme.isDark ? 'text-white' : ''
+                          theme.isDark ? 'text-[#E5C76B]' : ''
                         }`}
                         style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
                       >
@@ -702,25 +727,25 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <div className="lg:col-span-7 p-6 sm:p-8 space-y-5 flex flex-col justify-center">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <Compass className="w-4 h-4 text-[#8F6F16]" />
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8F6F16]">
-                          Simulador Orientativo
+                        <Compass className="w-4 h-4 text-[#8C6D14]" />
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
+                          Simulador Orientativo · Ley Nº 21.325 &amp; SERMIG
                         </p>
                       </div>
-                      <h3 className="text-xl font-bold tracking-tight text-slate-900">
+                      <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-[#0B1F33]">
                         Qual caminho serve para mim?
                       </h3>
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                        Simule em 3 seleções rápidas qual rota migratória costuma se aplicar ao seu momento antes de iniciar o diagnóstico completo.
+                      <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed">
+                        Simule em 3 seleções rápidas a rota migratória, base normativa e regra de protocolo aplicáveis antes de iniciar o diagnóstico completo com radar de 7 pilares.
                       </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1.5">Onde você está?</label>
+                        <label className="block font-semibold text-[#0B1F33] mb-1.5">Onde você está?</label>
                         <select
                           value={compLocal}
                           onChange={(e) => setCompLocal(e.target.value as typeof compLocal)}
-                          className="w-full px-3 py-2.5 btn-radius border border-slate-300 bg-white text-slate-900 focus:border-[var(--color-primary)] focus:outline-none transition-colors"
+                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
                         >
                           <option value="brasil">No Brasil / Exterior</option>
                           <option value="turista_chile">No Chile como turista</option>
@@ -728,11 +753,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1.5">Principal objetivo</label>
+                        <label className="block font-semibold text-[#0B1F33] mb-1.5">Principal objetivo</label>
                         <select
                           value={compObj}
                           onChange={(e) => setCompObj(e.target.value as typeof compObj)}
-                          className="w-full px-3 py-2.5 btn-radius border border-slate-300 bg-white text-slate-900 focus:border-[var(--color-primary)] focus:outline-none transition-colors"
+                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
                         >
                           <option value="morar_trabalhar">Morar / Empreender (BR)</option>
                           <option value="trabalho_oferta">Contrato formal no Chile</option>
@@ -742,11 +767,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1.5">Vínculo formal no Chile?</label>
+                        <label className="block font-semibold text-[#0B1F33] mb-1.5">Vínculo formal no Chile?</label>
                         <select
                           value={compVinculo}
                           onChange={(e) => setCompVinculo(e.target.value as typeof compVinculo)}
-                          className="w-full px-3 py-2.5 btn-radius border border-slate-300 bg-white text-slate-900 focus:border-[var(--color-primary)] focus:outline-none transition-colors"
+                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
                         >
                           <option value="nao">Não possuo</option>
                           <option value="sim">Sim (cônjuge / filho chileno)</option>
@@ -756,19 +781,38 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   </div>
 
                   <div
-                    className="lg:col-span-5 p-6 sm:p-8 text-white flex flex-col justify-between space-y-4"
+                    className="lg:col-span-5 p-6 sm:p-8 text-white flex flex-col justify-between space-y-5 border-t lg:border-t-0 lg:border-l border-white/10"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                        Rota indicativa inicial
-                      </p>
-                      <p className="text-lg font-bold tracking-tight text-white leading-snug">
-                        {comparatorRecommendation.titulo}
-                      </p>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                          Rota indicativa preliminar
+                        </p>
+                        <p className="font-display text-lg sm:text-xl font-bold tracking-tight text-white leading-snug">
+                          {comparatorRecommendation.titulo}
+                        </p>
+                        <p className="text-[11px] font-mono text-slate-300">
+                          {comparatorRecommendation.baseLegal}
+                        </p>
+                      </div>
                       <p className="text-xs sm:text-[13px] text-slate-200 leading-relaxed">
                         {comparatorRecommendation.resumo}
                       </p>
+                      <dl className="grid grid-cols-1 gap-2 pt-2.5 border-t border-white/15 text-[11px]">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="text-slate-400">Protocolo:</dt>
+                          <dd className="text-right font-semibold text-white">{comparatorRecommendation.protocoloRegra}</dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="text-slate-400">Trabalho:</dt>
+                          <dd className="text-right font-semibold text-emerald-300">{comparatorRecommendation.trabalho}</dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="text-slate-400">Referência:</dt>
+                          <dd className="text-right font-mono tabular-nums text-[#E5C76B]">{comparatorRecommendation.prazoEstimado}</dd>
+                        </div>
+                      </dl>
                       {comparatorRecommendation.alerta && (
                         <p className="text-[11px] font-medium text-amber-100 bg-amber-500/15 border border-amber-400/35 rounded-lg p-2.5 leading-relaxed">
                           {comparatorRecommendation.alerta}
@@ -805,7 +849,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
             {!noImage && (
               <div className={`lg:col-span-5 ${imageRight ? 'lg:order-2' : 'lg:order-1'}`}>
-                <div className="h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-slate-200 bg-slate-100">
+                <div className="h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
                   <img
                     src={sec.imagemUrl}
                     alt={sec.titulo}
@@ -816,15 +860,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
             )}
             <div className={`${noImage ? 'lg:col-span-12 max-w-4xl mx-auto' : 'lg:col-span-7'} flex flex-col justify-center ${imageRight ? 'lg:order-1' : 'lg:order-2'}`}>
-              <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+              <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
                 {(meta.eyebrow as string) || 'Metodologia operacional'}
               </p>
               <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>{sec.titulo}</h2>
               <p className={`text-base mb-8 ${theme.subClass}`}>{sec.subtitulo}</p>
               <div className="space-y-6">
                 {difItens.map((d, idx) => (
-                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/15' : 'border-slate-200'} last:border-b-0 last:pb-0`}>
-                    <h3 className={`text-base font-semibold mb-1 ${theme.headingClass}`}>{d.titulo}</h3>
+                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2]'} last:border-b-0 last:pb-0`}>
+                    <h3 className={`text-base font-bold mb-1 ${theme.headingClass}`}>{d.titulo}</h3>
                     <p className={`text-sm leading-relaxed ${theme.subClass}`}>{d.descricao}</p>
                   </div>
                 ))}
@@ -869,11 +913,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               {passos.map((p) => (
                 <div key={p.passo} className={`${theme.cardClass} card-radius p-6 sm:p-7 flex flex-col justify-between`}>
                   <div>
-                    <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
-                      <p className="text-2xl font-bold tracking-tight tabular-nums" style={{ color: 'var(--color-accent)' }}>
+                    <div className={`flex items-center justify-between gap-2 mb-4 pb-3 border-b ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'}`}>
+                      <p className="font-mono text-2xl font-bold tracking-tight tabular-nums" style={{ color: 'var(--color-accent)' }}>
                         {p.passo}
                       </p>
-                      <span className="h-[2px] w-6 bg-slate-200" aria-hidden="true" />
+                      <span className={`h-[2px] w-6 ${theme.isDark ? 'bg-white/25' : 'bg-[#DDD6C7]'}`} aria-hidden="true" />
                     </div>
                     <h3 className={`text-base font-bold tracking-tight mb-2 ${theme.headingClass}`}>{p.titulo}</h3>
                     <p className={`text-sm leading-relaxed ${theme.subClass}`}>{p.descricao}</p>
@@ -893,14 +937,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <section className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               <div className="lg:col-span-7">
-                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
                   {(meta.eyebrow as string) || 'Quem Somos'}
                 </p>
                 <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>{sec.titulo}</h2>
                 <p className={`text-base mb-4 ${theme.subClass}`}>{sec.subtitulo}</p>
                 {sec.conteudoHtml && (
                   <div
-                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-slate-700'}`}
+                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#4A5A6D]'}`}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
                   />
                 )}
@@ -910,7 +954,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   className={`inline-flex items-center gap-2 px-5 py-2.5 btn-radius border text-sm font-semibold transition-colors ${
                     theme.isDark
                       ? 'border-white/30 text-white hover:bg-white/10'
-                      : 'border-slate-300 text-slate-900 hover:bg-slate-50'
+                      : 'border-[#DDD6C7] text-[#0B1F33] hover:bg-[#FAF9F6] hover:border-[#C8A236]/60'
                   }`}
                 >
                   {sec.ctaTexto || 'Conhecer trajetória e credenciais'}
@@ -918,7 +962,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </button>
               </div>
               <div className="lg:col-span-5">
-                <div className="aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-slate-200 bg-slate-100">
+                <div className="aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
                   {sec.imagemUrl ? (
                     <img
                       src={sec.imagemUrl}
@@ -964,7 +1008,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <article key={dep.id} className={`${theme.cardClass} card-radius p-6 space-y-3`}>
                   <Quote className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
                   <p className={`text-sm leading-relaxed ${theme.subClass}`}>&ldquo;{dep.depoimento}&rdquo;</p>
-                  <div className="pt-2 border-t border-slate-200/70 text-xs">
+                  <div className={`pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2]'} text-xs`}>
                     <p className={`font-bold ${theme.headingClass}`}>{dep.nome}</p>
                     <p className={theme.eyebrowClass}>{[dep.cidadeOrigem, dep.subcategoria].filter(Boolean).join(' · ')}</p>
                   </div>
@@ -1172,56 +1216,62 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       {orderedSections.map((sec) => renderSection(sec))}
 
       {serviceDrawer && !previewMode && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex justify-end" role="dialog" aria-modal="true">
-          <div className="bg-white w-full max-w-md h-full p-6 sm:p-8 flex flex-col justify-between overflow-y-auto shadow-2xl">
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 tabular-nums">Serviço {serviceDrawer.numero}</p>
-                  <h3 className="text-lg font-bold text-slate-900 mt-0.5">{serviceDrawer.titulo}</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setServiceDrawer(null)}
-                  aria-label="Fechar detalhes do serviço"
-                  className="p-2 btn-radius text-slate-500 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end" role="dialog" aria-modal="true">
+          <div className="bg-white w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2]">
+            <BrandRibbon className="h-[3px] w-full shrink-0" />
+            <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B] font-mono tabular-nums">
+                  Serviço {serviceDrawer.numero} · Assessoria Migratória
+                </p>
+                <h3 className="font-display text-lg font-bold text-white mt-1 leading-snug">{serviceDrawer.titulo}</h3>
               </div>
-              <p className="text-sm text-slate-700 leading-relaxed">{serviceDrawer.descricao}</p>
-              <div className="space-y-3 text-xs pt-2">
-                <div className="p-3.5 card-radius bg-slate-50 border border-slate-200">
-                  <p className="font-bold text-slate-900">Para quem é indicado</p>
-                  <p className="text-slate-600 mt-1">
+              <button
+                type="button"
+                onClick={() => setServiceDrawer(null)}
+                aria-label="Fechar detalhes do serviço"
+                className="p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              <p className="text-sm text-[#4A5A6D] leading-relaxed">{serviceDrawer.descricao}</p>
+              <div className="space-y-3 text-xs pt-1">
+                <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">Para quem é indicado</p>
+                  <p className="text-[#0B1F33] mt-1 leading-relaxed">
                     {serviceDrawer.paraQuem || SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.paraQuem || 'Avaliado individualmente no diagnóstico.'}
                   </p>
                 </div>
-                <div className="p-3.5 card-radius bg-slate-50 border border-slate-200">
-                  <p className="font-bold text-slate-900">Enquadramento e documentos típicos</p>
-                  <p className="text-slate-600 mt-1">
+                <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">Enquadramento e documentos típicos</p>
+                  <p className="text-[#0B1F33] mt-1 leading-relaxed">
                     {serviceDrawer.subcategoriaTipica || SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.subcategoriaTipica || 'Conforme normativa vigente SERMIG.'}
                   </p>
                 </div>
-                <div className="p-3.5 card-radius bg-slate-50 border border-slate-200">
-                  <p className="font-bold text-slate-900">Faixa referencial de prazos</p>
-                  <p className="text-slate-600 mt-1">
+                <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">Faixa referencial de prazos</p>
+                  <p className="text-[#0B1F33] font-mono tabular-nums mt-1 leading-relaxed">
                     {serviceDrawer.faixaPrazo || SERVICE_DETAILS_FALLBACK[serviceDrawer.numero]?.faixaPrazo || 'Definido conforme fila do SERMIG.'}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="pt-6 border-t border-slate-200 space-y-2">
+
+            <div className="px-6 py-4 bg-[#FAF9F6] border-t border-[#E5DFD2] space-y-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setServiceDrawer(null);
                   onNavigate('/diagnostico');
                 }}
-                className="w-full py-2.5 px-4 btn-radius text-xs font-semibold text-white"
+                className="w-full py-3 px-4 btn-radius text-xs font-bold text-white inline-flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 Fazer Diagnóstico para Este Serviço
+                <ArrowRight className="w-3.5 h-3.5 text-[#E5C76B]" />
               </button>
               <a
                 href={buildWhatsAppUrl(
@@ -1230,9 +1280,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
               >
-                <MessageCircle className="w-4 h-4 text-[#1E7E34]" />
+                <MessageCircle className="w-4 h-4 text-[#146B43]" />
                 Consultar no WhatsApp
               </a>
             </div>

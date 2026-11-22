@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
 import { isCompleteHorizontalBrandLogo } from '../constants/brandAssets';
 import { useApp } from '../contexts/AppContext';
-import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
+import { buildWhatsAppUrl, formatDateBR, openExternalSafe } from '../utils/formatters';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
 
 interface PublicLayoutProps {
@@ -43,7 +43,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
     ) {
       onNavigate('/painel');
     } else if (headerCtaDest.startsWith('http')) {
-      window.open(headerCtaDest, '_blank', 'noopener,noreferrer');
+      openExternalSafe(headerCtaDest);
     } else {
       onNavigate(headerCtaDest);
     }
@@ -292,7 +292,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Falar com ${brandShortName} no WhatsApp`}
-          className="hidden md:inline-flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4.5 py-3 rounded-full bg-[#1E7E34] text-white text-xs font-semibold shadow-[0_8px_24px_rgba(11,31,51,0.22)] hover:shadow-[0_10px_28px_rgba(11,31,51,0.28)] hover:-translate-y-0.5 transition-all duration-150 no-print"
+          className="hidden md:inline-flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4.5 py-3 rounded-full bg-[#146B43] hover:bg-[#0F5434] text-white text-xs font-semibold border border-white/15 shadow-[0_10px_26px_rgba(11,31,51,0.24)] hover:-translate-y-0.5 transition-all duration-150 no-print"
         >
           <MessageCircle className="w-4 h-4" />
           WhatsApp

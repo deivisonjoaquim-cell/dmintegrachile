@@ -32,7 +32,7 @@ import {
   collectExpirationReminders,
   type ExpirationReminderItem,
 } from '../../utils/documentExpiration';
-import { buildWhatsAppUrl, formatDateBR } from '../../utils/formatters';
+import { buildWhatsAppUrl, formatDateBR, openExternalSafe } from '../../utils/formatters';
 
 interface PainelLembretesVencimentoProps {
   docs: CaseDocument[];
@@ -258,7 +258,7 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
           : `o documento "${item.doc.nomeDocumento}" (${item.doc.pessoa}) expira em ${item.daysRemaining} dia(s) (${item.dataValidadeBR})`;
       const msg = `Olá${clientName}! Lembrete de vencimento D&M Integra Chile: ${detail}. Caso já tenha atualizado, envie pelo Portal do Cliente.`;
       if (item.client?.whatsapp) {
-        window.open(buildWhatsAppUrl(item.client.whatsapp, msg), '_blank', 'noopener,noreferrer');
+        openExternalSafe(buildWhatsAppUrl(item.client.whatsapp, msg));
       }
       await onLogWhatsApp(
         item.client?.id || item.doc.clientId,

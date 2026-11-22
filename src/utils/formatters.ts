@@ -347,3 +347,15 @@ export function valorPorExtenso(valor: number, moeda: CurrencyCode = 'BRL'): str
   return base;
 }
 
+export function openExternalSafe(url: string): void {
+  if (typeof document === 'undefined' || !url) return;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return;
+  const anchor = document.createElement('a');
+  anchor.href = trimmed;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}

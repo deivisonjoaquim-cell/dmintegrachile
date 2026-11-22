@@ -44,33 +44,33 @@ export const GlobalErrorToast: React.FC = () => {
         const isWarning = entry.level === 'warning';
 
         const containerClass = isError
-          ? 'bg-white border-red-300 text-slate-900 shadow-lg'
+          ? 'bg-white border-red-200 text-[#0B1523] shadow-[0_12px_30px_rgba(11,31,51,0.12)]'
           : isWarning
-            ? 'bg-white border-amber-300 text-slate-900 shadow-lg'
-            : 'bg-white border-sky-300 text-slate-900 shadow-lg';
+            ? 'bg-white border-amber-200 text-[#0B1523] shadow-[0_12px_30px_rgba(11,31,51,0.12)]'
+            : 'bg-white border-[#E5DFD2] text-[#0B1523] shadow-[0_12px_30px_rgba(11,31,51,0.12)]';
 
-        const barClass = isError ? 'bg-[#C82333]' : isWarning ? 'bg-amber-600' : 'bg-[#0F2537]';
+        const topBarClass = isError ? 'bg-[#A61C2B]' : isWarning ? 'bg-[#C8A236]' : 'bg-[#0B1F33]';
 
         return (
           <div
             key={entry.id}
             role={isError ? 'alert' : 'status'}
-            className={`pointer-events-auto rounded-xl border overflow-hidden flex items-stretch ${containerClass}`}
+            className={`pointer-events-auto rounded-xl border overflow-hidden flex flex-col ${containerClass}`}
           >
-            <div className={`w-1.5 shrink-0 ${barClass}`} aria-hidden="true" />
-            <div className="p-3.5 flex-1 min-w-0 flex items-start gap-2.5">
+            <div className={`h-[2.5px] w-full ${topBarClass}`} aria-hidden="true" />
+            <div className="p-3.5 flex items-start gap-2.5">
               <div className="mt-0.5 shrink-0">
                 {isError ? (
-                  <AlertCircle className="w-4 h-4 text-[#C82333]" aria-hidden="true" />
+                  <AlertCircle className="w-4 h-4 text-[#A61C2B]" aria-hidden="true" />
                 ) : isWarning ? (
-                  <AlertTriangle className="w-4 h-4 text-amber-600" aria-hidden="true" />
+                  <AlertTriangle className="w-4 h-4 text-[#B45309]" aria-hidden="true" />
                 ) : (
-                  <Info className="w-4 h-4 text-[#0F2537]" aria-hidden="true" />
+                  <Info className="w-4 h-4 text-[#0B1F33]" aria-hidden="true" />
                 )}
               </div>
               <div className="min-w-0 flex-1 space-y-0.5">
-                <p className="text-xs font-bold text-slate-900 leading-snug">{entry.title}</p>
-                <p className="text-xs text-slate-700 leading-relaxed">{entry.message}</p>
+                <p className="text-xs font-bold text-[#0B1F33] leading-snug">{entry.title}</p>
+                <p className="text-xs text-[#4A5A6D] leading-relaxed">{entry.message}</p>
                 {entry.actionHint && (
                   <p className="text-[11px] text-slate-500 leading-snug pt-0.5">{entry.actionHint}</p>
                 )}
@@ -79,7 +79,7 @@ export const GlobalErrorToast: React.FC = () => {
                 type="button"
                 onClick={() => dismissAppError(entry.id)}
                 aria-label={`Fechar aviso: ${entry.title}`}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0"
+                className="p-1 rounded-md text-slate-400 hover:text-[#0B1F33] hover:bg-[#F7F5F0] shrink-0 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

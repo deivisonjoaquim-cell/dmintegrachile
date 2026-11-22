@@ -28,7 +28,7 @@ import type {
 } from '../../types/domain';
 import { calcularTermometroDocumentos, calcularUrgencias } from '../../utils/caseMetrics';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../../utils/documentChat';
-import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, toIsoDate } from '../../utils/formatters';
+import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, openExternalSafe, toIsoDate } from '../../utils/formatters';
 import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../utils/funnelModel';
 import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
@@ -220,7 +220,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   const handleNotifyUrgency = async (u: (typeof urgencias)[number]) => {
     const text = `Olá${u.clientNome ? `, ${u.clientNome}` : ''}! Alerta operacional D&M Integra Chile: ${u.titulo} — ${u.detalhe} (Data ref.: ${u.dataReferenciaBR}).`;
     if (u.clientWhatsapp) {
-      window.open(buildWhatsAppUrl(u.clientWhatsapp, text), '_blank', 'noopener,noreferrer');
+      openExternalSafe(buildWhatsAppUrl(u.clientWhatsapp, text));
     }
     await onLogWhatsApp(u.clientId, u.caseId, `Alerta WhatsApp: ${u.categoria}`, text);
   };

@@ -33,7 +33,7 @@ import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
-import { BrandLogo } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
 import { useFirestore } from '../hooks/useFirestore';
 import { subscribeStaffDocumentChat } from '../services/chatService';
 import { reportAppError } from '../services/errorService';
@@ -638,29 +638,27 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     return (
       <div className={`min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)] ${panelThemeClass}`}>
         <div
-          className="border border-slate-200/90 dark:border-slate-800 max-w-md w-full overflow-hidden shadow-[0_12px_36px_rgba(11,31,51,0.08)]"
+          className="border border-[#E5DFD2] dark:border-[#1C324B] max-w-md w-full overflow-hidden shadow-[0_16px_42px_rgba(11,31,51,0.1)]"
           style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-card, 16px)' }}
         >
-          <div className="flex h-1.5 w-full" aria-hidden="true">
-            <div className="flex-[3] bg-[var(--color-primary)]" />
-            <div className="flex-1 bg-[var(--color-accent)]" />
-          </div>
+          <BrandRibbon className="h-[3px] w-full" />
           <div className="p-8 sm:p-10 text-center space-y-5">
-            <div
-              className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white tracking-tight shadow-xs"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-              aria-hidden="true"
-            >
-              D&amp;M
+            <div className="mx-auto flex justify-center">
+              <BrandLogo
+                src={empresa.faviconUrl}
+                alt={empresa.nome_empresa}
+                variant={isDark ? 'emblem-dark' : 'emblem'}
+                imgClassName="h-14 w-14 object-contain"
+              />
             </div>
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9A7B1C] dark:text-amber-400">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
                 Consultoria Migratória · Área Restrita
               </p>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              <h1 className="font-display text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-slate-100">
                 Painel Interno da Equipe
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-sm text-[#4A5A6D] dark:text-slate-400 leading-relaxed">
                 Acesso exclusivo para consultores e administradores ativos da {empresa.nome_empresa}.
               </p>
             </div>
@@ -668,7 +666,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => onNavigate('/entrar-equipe')}
-                className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 shadow-[0_2px_6px_rgba(11,31,51,0.18)]"
+                className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 shadow-[0_2px_8px_rgba(11,31,51,0.2)]"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 Entrar como Equipe
@@ -676,7 +674,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => onNavigate('/')}
-                className="px-5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                className="px-5 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-slate-800 transition-colors"
               >
                 Voltar ao Site
               </button>
@@ -703,14 +701,15 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           : null;
 
   return (
-    <div className={`min-h-screen flex bg-[var(--color-bg)] text-slate-900 dark:text-slate-100 transition-colors ${panelThemeClass}`}>
+    <div className={`min-h-screen flex bg-[var(--color-bg)] text-[#0B1F33] dark:text-slate-100 transition-colors ${panelThemeClass}`}>
       {/* Sidebar Desktop Enxuta (6 hubs práticos em vez de 15 itens espalhados) */}
       <aside
-        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0F1629] border-r border-slate-200/90 dark:border-slate-800 shrink-0 no-print transition-all ${
+        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
           sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
         }`}
       >
-        <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+        <BrandRibbon className="h-[3px] w-full shrink-0" />
+        <div className="h-14 px-4 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-2">
           <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
             <BrandLogo
               src={sidebarCollapsed ? empresa.faviconUrl : activeLogoUrl}
@@ -732,7 +731,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
             aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
+            className="p-1.5 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] shrink-0"
           >
             {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
@@ -752,19 +751,19 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
                 } py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'text-white font-semibold'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                    ? 'text-white font-semibold shadow-[0_4px_12px_rgba(11,31,51,0.16)]'
+                    : 'text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] hover:text-[#0B1F33] dark:hover:text-white'
                 }`}
                 style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
               >
                 <span className="flex items-center gap-2.5 min-w-0">
-                  {HUB_ICONS[hub.id]}
+                  <span className={isActive ? 'text-[#E5C76B]' : ''}>{HUB_ICONS[hub.id]}</span>
                   {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
                 </span>
                 {!sidebarCollapsed && badge > 0 && (
                   <span
-                    className={`text-xs font-semibold tabular-nums shrink-0 ${
-                      isActive ? 'text-white/90' : 'text-slate-400 dark:text-slate-500'
+                    className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
+                      isActive ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-slate-400'
                     }`}
                   >
                     {badge}
@@ -775,8 +774,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           })}
 
           {!sidebarCollapsed && recents.length > 0 && (
-            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 space-y-1">
-              <p className="px-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+            <div className="pt-4 mt-4 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-1">
+              <p className="px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-slate-400 flex items-center gap-1.5">
                 <Clock className="w-3 h-3" /> Processos recentes
               </p>
               {recents.map((r) => (
@@ -784,7 +783,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   key={r.id}
                   type="button"
                   onClick={() => handleOpenCase(r.caseId)}
-                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 truncate"
+                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-[#4A5A6D] dark:text-slate-400 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] hover:text-[#0B1F33] dark:hover:text-white truncate"
                 >
                   {r.label}
                 </button>
@@ -793,11 +792,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
         </nav>
 
-        <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+        <div className="p-3 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-2.5">
           {!sidebarCollapsed && (
             <div className="px-1">
-              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{userProfile.nome}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <p className="text-xs font-bold text-[#0B1F33] dark:text-slate-100 truncate">{userProfile.nome}</p>
+              <p className="text-[11px] font-medium text-[#8C6D14] dark:text-[#E5C76B] truncate">
                 {ROLE_DISPLAY[userProfile.role]}
               </p>
             </div>
@@ -809,7 +808,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               onClick={handleTogglePanelTheme}
               title={isDark ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
               aria-label={isDark ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
+              className="p-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] shrink-0"
             >
               {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
@@ -819,7 +818,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               disabled={refreshing}
               title="Sincronizar dados agora"
               aria-label="Sincronizar dados agora"
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 shrink-0"
+              className="p-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] disabled:opacity-50 shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -828,7 +827,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               onClick={() => void logout()}
               title="Sair do painel"
               aria-label="Sair do painel"
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] whitespace-nowrap"
             >
               <LogOut className="w-3.5 h-3.5 shrink-0" />
               {!sidebarCollapsed && <span>Sair</span>}
@@ -840,21 +839,21 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
-        <header className="bg-white/90 dark:bg-[#0F1629]/90 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
+        <header className="bg-white/92 dark:bg-[#0D1E31]/92 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Abrir menu do painel"
-              className="lg:hidden p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+              className="lg:hidden p-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#0B1F33] dark:text-slate-200"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
-            <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate" aria-label="Localização atual">
+            <nav className="flex items-center gap-1.5 text-xs text-[#4A5A6D] dark:text-slate-400 truncate" aria-label="Localização atual">
               <button
                 type="button"
                 onClick={() => handleSelectHub('hoje')}
-                className="hover:text-slate-900 dark:hover:text-slate-100 font-medium whitespace-nowrap"
+                className="hover:text-[#0B1F33] dark:hover:text-slate-100 font-medium whitespace-nowrap"
               >
                 Painel
               </button>
@@ -867,8 +866,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 }}
                 className={`truncate whitespace-nowrap ${
                   !activeSubTabLabel && !activeCaseTitle
-                    ? 'font-semibold text-slate-900 dark:text-slate-100'
-                    : 'hover:text-slate-900 dark:hover:text-slate-100'
+                    ? 'font-bold text-[#0B1F33] dark:text-slate-100'
+                    : 'hover:text-[#0B1F33] dark:hover:text-slate-100'
                 }`}
               >
                 {activeHubMeta?.label || 'Hoje'}
@@ -876,7 +875,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               {activeSubTabLabel && !activeCaseTitle && (
                 <>
                   <span aria-hidden="true">/</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100 truncate whitespace-nowrap">
+                  <span className="font-bold text-[#0B1F33] dark:text-slate-100 truncate whitespace-nowrap">
                     {activeSubTabLabel}
                   </span>
                 </>
@@ -884,7 +883,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               {activeCaseTitle && (
                 <>
                   <span aria-hidden="true">/</span>
-                  <span className="font-semibold text-[var(--color-primary)] dark:text-sky-400 truncate max-w-[240px]">
+                  <span className="font-bold text-[#8C6D14] dark:text-[#E5C76B] truncate max-w-[240px]">
                     {activeCaseTitle}
                   </span>
                 </>
@@ -908,19 +907,19 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               >
                 <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Portal</span>
-                <span className="tabular-nums">{unreadChatCount}</span>
+                <span className="font-mono tabular-nums">{unreadChatCount}</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setGlobalSearchOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/80 whitespace-nowrap"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-xs text-[#4A5A6D] dark:text-slate-300 hover:bg-white dark:hover:bg-[#16304C] whitespace-nowrap"
               aria-label="Busca rápida (pressione barra ou Ctrl+K)"
             >
-              <Search className="w-3.5 h-3.5" />
+              <Search className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" />
               <span className="hidden sm:inline">Buscar...</span>
-              <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded">
+              <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-[#0D1E31] border border-[#DDD6C7] dark:border-[#1C324B] rounded">
                 /
               </kbd>
             </button>
@@ -929,18 +928,18 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setQuickCreateOpen((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 hover:opacity-95"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 text-[#E5C76B]" />
                 <span>Novo</span>
               </button>
               {quickCreateOpen && (
-                <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-1.5 z-40 text-xs">
+                <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl shadow-xl p-1.5 z-40 text-xs">
                   <button
                     type="button"
                     onClick={() => triggerQuickCreate('new_case')}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F6] dark:hover:bg-[#142942] font-medium text-[#0B1F33] dark:text-slate-200"
                   >
                     Novo Processo
                   </button>
@@ -948,7 +947,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => triggerQuickCreate('new_client')}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F6] dark:hover:bg-[#142942] font-medium text-[#0B1F33] dark:text-slate-200"
                     >
                       Novo Cliente
                     </button>
@@ -956,24 +955,24 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => triggerQuickCreate('agenda')}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F6] dark:hover:bg-[#142942] font-medium text-[#0B1F33] dark:text-slate-200"
                   >
                     Tarefa, Prazo ou Reunião
                   </button>
                   {(role === 'admin' || role === 'consultor') && (
                     <>
-                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                      <div className="my-1 border-t border-[#E5DFD2] dark:border-[#1C324B]" />
                       <button
                         type="button"
                         onClick={() => triggerQuickCreate('contratos')}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F6] dark:hover:bg-[#142942] font-medium text-[#0B1F33] dark:text-slate-200"
                       >
                         Contrato / Recibo PDF
                       </button>
                       <button
                         type="button"
                         onClick={() => triggerQuickCreate('financeiro')}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-slate-800 dark:text-slate-200"
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F6] dark:hover:bg-[#142942] font-medium text-[#0B1F33] dark:text-slate-200"
                       >
                         Orçamento / Lançamento
                       </button>
@@ -1051,7 +1050,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
           {/* Barra de Sub-Abas Contextuais (Processos / Financeiro / Config) */}
           {activeHub === 'processos' && !selectedCaseId && (
-            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit max-w-full no-print">
+            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleProcessosTabs.map((tab) => {
                 const active = processosTab === tab.id;
                 const count =
@@ -1069,8 +1068,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     onClick={() => setProcessosTab(tab.id)}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
                       active
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                        ? 'bg-white dark:bg-[#0D1E31] text-[#0B1F33] dark:text-slate-100 shadow-xs'
+                        : 'text-[#4A5A6D] dark:text-slate-400 hover:text-[#0B1F33] dark:hover:text-slate-100'
                     }`}
                   >
                     {tab.label}
@@ -1082,7 +1081,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
 
           {activeHub === 'financeiro' && visibleFinanceiroTabs.length > 0 && (
-            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit max-w-full no-print">
+            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleFinanceiroTabs.map((tab) => {
                 const active = financeiroTab === tab.id;
                 return (
@@ -1092,8 +1091,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     onClick={() => setFinanceiroTab(tab.id)}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
                       active
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                        ? 'bg-white dark:bg-[#0D1E31] text-[#0B1F33] dark:text-slate-100 shadow-xs'
+                        : 'text-[#4A5A6D] dark:text-slate-400 hover:text-[#0B1F33] dark:hover:text-slate-100'
                     }`}
                   >
                     {tab.label}
@@ -1104,7 +1103,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
 
           {activeHub === 'config' && visibleConfigTabs.length > 1 && (
-            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit max-w-full no-print">
+            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleConfigTabs.map((tab) => {
                 const active = configTab === tab.id;
                 const count =
@@ -1120,8 +1119,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     onClick={() => setConfigTab(tab.id)}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
                       active
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                        ? 'bg-white dark:bg-[#0D1E31] text-[#0B1F33] dark:text-slate-100 shadow-xs'
+                        : 'text-[#4A5A6D] dark:text-slate-400 hover:text-[#0B1F33] dark:hover:text-slate-100'
                     }`}
                   >
                     {tab.label}
@@ -1377,7 +1376,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
         </main>
 
-        <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3.5 text-[11px] text-slate-500 dark:text-slate-400 text-center no-print">
+        <footer className="bg-white dark:bg-[#0D1E31] border-t border-[#E5DFD2] dark:border-[#1C324B] px-6 py-3.5 text-[11px] text-[#4A5A6D] dark:text-slate-400 text-center no-print">
           {empresa.avisoLegal}
         </footer>
       </div>
@@ -1385,36 +1384,37 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Modal de Busca Global */}
       {globalSearchOpen && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 flex items-start justify-center p-4 pt-16"
+          className="fixed inset-0 z-50 bg-[#071422]/70 dark:bg-slate-950/85 backdrop-blur-[2px] flex items-start justify-center p-4 pt-16"
           role="dialog"
           aria-modal="true"
           aria-label="Busca rápida"
         >
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-              <Search className="w-4 h-4 text-slate-400" />
+          <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
+            <BrandRibbon className="h-[3px] w-full" />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E5DFD2] dark:border-[#1C324B]">
+              <Search className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
               <input
                 ref={searchInputRef}
                 value={globalQuery}
                 onChange={(e) => setGlobalQuery(e.target.value)}
                 placeholder="Buscar cliente, processo, lead, tarefa ou norma..."
-                className="flex-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
+                className="flex-1 text-sm bg-transparent text-[#0B1F33] dark:text-slate-100 placeholder:text-[#4A5A6D] dark:placeholder:text-slate-400 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setGlobalSearchOpen(false)}
-                className="px-2 py-1 rounded text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="px-2 py-1 rounded text-xs font-mono text-[#4A5A6D] dark:text-slate-400 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]"
               >
                 Esc
               </button>
             </div>
-            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="max-h-80 overflow-y-auto divide-y divide-[#F1EDE4] dark:divide-[#1C324B]">
               {!globalQuery.trim() ? (
-                <p className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                <p className="p-6 text-center text-xs text-[#4A5A6D] dark:text-slate-400">
                   Digite um nome, CPF, e-mail, nº SERMIG, tarefa ou norma legal...
                 </p>
               ) : searchResults.length === 0 ? (
-                <p className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                <p className="p-6 text-center text-xs text-[#4A5A6D] dark:text-slate-400">
                   Nenhum resultado encontrado.
                 </p>
               ) : (
@@ -1423,13 +1423,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     key={res.id}
                     type="button"
                     onClick={res.onSelect}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center justify-between gap-3"
+                    className="w-full text-left px-4 py-3 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{res.title}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{res.subtitle}</p>
+                      <p className="text-xs font-bold text-[#0B1F33] dark:text-slate-100 truncate">{res.title}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 truncate">{res.subtitle}</p>
                     </div>
-                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0">
+                    <span className="text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B] shrink-0">
                       {res.category}
                     </span>
                   </button>

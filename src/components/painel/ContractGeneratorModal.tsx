@@ -38,6 +38,7 @@ import {
   formatDateBR,
   formatDateTimeBR,
   generateVerificationCode,
+  openExternalSafe,
   valorPorExtenso,
 } from '../../utils/formatters';
 import { CONSULTANCY_PLANS, normalizePaidModality } from '../../utils/portalAccess';
@@ -784,7 +785,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                       variant="success"
                       onClick={async () => {
                         const msg = `Olá, ${selectedClient.nomeCompleto}! O documento "${titulo}" (cód. ${verCode}) foi disponibilizado para você no Portal do Cliente.`;
-                        window.open(buildWhatsAppUrl(selectedClient.whatsapp, msg), '_blank', 'noopener,noreferrer');
+                        openExternalSafe(buildWhatsAppUrl(selectedClient.whatsapp, msg));
                         await onLogWhatsApp(selectedClient.id, caseId || undefined, `Envio Doc: ${titulo}`, msg);
                         if (currentDoc && currentDoc.status !== 'Assinado') {
                           await handleSave('Enviado');

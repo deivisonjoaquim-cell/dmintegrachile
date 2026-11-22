@@ -53,6 +53,7 @@ import {
   buildWhatsAppUrl,
   exportToCSV,
   formatDateBR,
+  openExternalSafe,
 } from '../../utils/formatters';
 import {
   loadAiDraftCache,
@@ -492,7 +493,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       valor: '',
       chave_pix: '',
     });
-    window.open(buildWhatsAppUrl(lead.whatsapp, text), '_blank', 'noopener,noreferrer');
+    openExternalSafe(buildWhatsAppUrl(lead.whatsapp, text));
     if (lead.statusFunil === 'Novo' && !lead.primeiroContatoEm) {
       await saveDocumentAudited(
         'leads',
