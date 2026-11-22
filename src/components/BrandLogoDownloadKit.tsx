@@ -13,6 +13,7 @@ interface OfficialAssetItem {
   titulo: string;
   descricao: string;
   previewSrc: string;
+  previewWebpSrc?: string;
   pngUrl: string;
   svgUrl: string;
   pngFileName: string;
@@ -27,6 +28,7 @@ const OFFICIAL_KIT_ITEMS: OfficialAssetItem[] = [
     titulo: 'Logo Completa — Fundo Claro',
     descricao: 'Cabeçalho do site, contratos, pareceres, propostas e PDFs',
     previewSrc: BRAND_ASSETS.logoLightPng,
+    previewWebpSrc: BRAND_ASSETS.logoLightWebp,
     pngUrl: BRAND_ASSETS.logoLightPng,
     svgUrl: BRAND_ASSETS.logoLightSvg,
     pngFileName: 'logo-dm-integra-completa-clara.png',
@@ -38,6 +40,7 @@ const OFFICIAL_KIT_ITEMS: OfficialAssetItem[] = [
     titulo: 'Logo Completa — Fundo Escuro',
     descricao: 'Rodapé institucional, modo escuro e apresentações',
     previewSrc: BRAND_ASSETS.logoDarkPng,
+    previewWebpSrc: BRAND_ASSETS.logoDarkWebp,
     pngUrl: BRAND_ASSETS.logoDarkPng,
     svgUrl: BRAND_ASSETS.logoDarkSvg,
     pngFileName: 'logo-dm-integra-completa-escura.png',
@@ -73,6 +76,7 @@ const OFFICIAL_KIT_ITEMS: OfficialAssetItem[] = [
     titulo: 'Avatar WhatsApp & Instagram',
     descricao: 'Foto de perfil otimizada para WhatsApp Business e redes sociais',
     previewSrc: BRAND_ASSETS.avatarPng,
+    previewWebpSrc: BRAND_ASSETS.avatarWebp,
     pngUrl: BRAND_ASSETS.avatarPng,
     svgUrl: BRAND_ASSETS.avatarSvg,
     pngFileName: 'logo-dm-integra-avatar-whatsapp-instagram.png',
@@ -150,15 +154,34 @@ export const BrandLogoDownloadKit: React.FC<BrandLogoDownloadKitProps> = ({ comp
                 item.darkSurface ? 'bg-[#081726]' : 'bg-[#F7F5F0]'
               }`}
             >
-              <img
-                src={item.previewSrc}
-                alt={item.titulo}
-                className={
-                  item.square
-                    ? 'h-28 w-28 object-contain'
-                    : 'max-h-24 w-auto max-w-full object-contain'
-                }
-              />
+              {item.previewWebpSrc ? (
+                <picture>
+                  <source srcSet={item.previewWebpSrc} type="image/webp" />
+                  <img
+                    src={item.previewSrc}
+                    alt={item.titulo}
+                    loading="lazy"
+                    decoding="async"
+                    className={
+                      item.square
+                        ? 'h-28 w-28 object-contain'
+                        : 'max-h-24 w-auto max-w-full object-contain'
+                    }
+                  />
+                </picture>
+              ) : (
+                <img
+                  src={item.previewSrc}
+                  alt={item.titulo}
+                  loading="lazy"
+                  decoding="async"
+                  className={
+                    item.square
+                      ? 'h-28 w-28 object-contain'
+                      : 'max-h-24 w-auto max-w-full object-contain'
+                  }
+                />
+              )}
             </div>
 
             <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">

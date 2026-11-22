@@ -4,6 +4,7 @@ import { isCompleteHorizontalBrandLogo } from '../constants/brandAssets';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { buildWhatsAppUrl, formatDateBR, openExternalSafe } from '../utils/formatters';
+import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
 
 interface PublicLayoutProps {
@@ -97,6 +98,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               alt={empresa.nome_empresa}
               brandShortName={brandShortName}
               variant="light"
+              priority
               imgStyle={{ height: `${logoHeight}px` }}
               imgClassName="w-auto max-w-[230px] object-contain shrink-0"
             />
@@ -115,6 +117,9 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 <a
                   key={item.path}
                   href={`#${item.path}`}
+                  onMouseEnter={() => prefetchRouteChunk(item.path)}
+                  onFocus={() => prefetchRouteChunk(item.path)}
+                  onTouchStart={() => prefetchRouteChunk(item.path)}
                   onClick={(e) => {
                     e.preventDefault();
                     onNavigate(item.path);
@@ -192,6 +197,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               <a
                 key={item.path}
                 href={`#${item.path}`}
+                onTouchStart={() => prefetchRouteChunk(item.path)}
                 onClick={(e) => {
                   e.preventDefault();
                   setMobileMenuOpen(false);
@@ -206,6 +212,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             ))}
             <button
               type="button"
+              onTouchStart={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
               className="w-full mt-2 px-4 py-2.5 text-sm font-semibold text-white btn-radius text-center"
               style={{ backgroundColor: 'var(--color-primary)' }}
@@ -219,7 +226,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       <main className={`flex-1 ${showMobileCtaBar ? 'pb-16 md:pb-0' : ''}`}>{children}</main>
 
       <footer
-        className="text-slate-300 border-t border-white/10 no-print relative"
+        className="text-slate-300 border-t border-white/10 no-print relative cv-auto"
         style={{ backgroundColor: 'var(--color-footer-bg)' }}
       >
         <BrandRibbon className="h-[3px] w-full" />
@@ -231,6 +238,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 alt={empresa.nome_empresa}
                 brandShortName={brandShortName}
                 variant="dark"
+                lazy
                 imgClassName="h-12 w-auto max-w-[260px] object-contain"
               />
               {!isCompleteHorizontalBrandLogo(footerLogoSrc) && (
@@ -354,6 +362,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-[#E5DFD2] px-3 py-2 flex items-center gap-2 no-print shadow-lg">
           <button
             type="button"
+            onTouchStart={() => prefetchRouteChunk('/diagnostico')}
             onClick={() => onNavigate('/diagnostico')}
             className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 btn-radius text-xs font-semibold text-white min-h-[42px]"
             style={{ backgroundColor: 'var(--color-primary)' }}

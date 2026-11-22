@@ -188,6 +188,12 @@ h3, h4 {
   text-wrap: balance;
 }
 
+/* Defer layout and paint of below-the-fold sections on mobile for instant FCP/LCP */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 620px;
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,

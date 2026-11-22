@@ -6,16 +6,17 @@ import { PublicLayout } from './components/PublicLayout';
 import { SkeletonBlock } from './components/ui/DesignSystem';
 import { AppProvider } from './contexts/AppContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { HomePage } from './pages/HomePage';
 import { installGlobalErrorHandlers } from './services/errorService';
+import { routeLoaders } from './utils/routePrefetch';
 
-const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
-const QuemSomosPage = lazy(() => import('./pages/QuemSomosPage').then((m) => ({ default: m.QuemSomosPage })));
-const ParceirosPage = lazy(() => import('./pages/ParceirosPage').then((m) => ({ default: m.ParceirosPage })));
-const DiagnosticoPage = lazy(() => import('./pages/DiagnosticoPage').then((m) => ({ default: m.DiagnosticoPage })));
-const AuthGatePage = lazy(() => import('./pages/AuthGatePage').then((m) => ({ default: m.AuthGatePage })));
-const PortalClientePage = lazy(() => import('./pages/PortalClientePage').then((m) => ({ default: m.PortalClientePage })));
-const PainelPage = lazy(() => import('./pages/PainelPage').then((m) => ({ default: m.PainelPage })));
-const LogosPage = lazy(() => import('./pages/LogosPage').then((m) => ({ default: m.LogosPage })));
+const QuemSomosPage = lazy(() => routeLoaders['/quem-somos']().then((m) => ({ default: m.QuemSomosPage })));
+const ParceirosPage = lazy(() => routeLoaders['/parceiros']().then((m) => ({ default: m.ParceirosPage })));
+const DiagnosticoPage = lazy(() => routeLoaders['/diagnostico']().then((m) => ({ default: m.DiagnosticoPage })));
+const AuthGatePage = lazy(() => routeLoaders['/acompanhar']().then((m) => ({ default: m.AuthGatePage })));
+const PortalClientePage = lazy(() => routeLoaders['/portal']().then((m) => ({ default: m.PortalClientePage })));
+const PainelPage = lazy(() => routeLoaders['/painel']().then((m) => ({ default: m.PainelPage })));
+const LogosPage = lazy(() => routeLoaders['/logos']().then((m) => ({ default: m.LogosPage })));
 
 function normalizePath(raw: string): string {
   const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;

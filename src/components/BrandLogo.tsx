@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BRAND_ASSETS, isLegacyOrBrokenBrandUrl } from '../constants/brandAssets';
+import { getBrandWebpUrl } from '../utils/imageOptimization';
 
 export interface BrandLogoProps {
   src?: string | null;
@@ -13,6 +14,10 @@ export interface BrandLogoProps {
   fallbackClassName?: string;
   fallbackNode?: React.ReactNode;
   hideFallback?: boolean;
+  /** Set true for above-the-fold header logo (eager + high fetchPriority) */
+  priority?: boolean;
+  /** Set true for below-the-fold footer/closing logos (native lazy + low fetchPriority) */
+  lazy?: boolean;
 }
 
 export const BrandRibbon: React.FC<{ className?: string }> = ({ className = 'h-[3px] w-full' }) => (
@@ -27,8 +32,9 @@ export const BrandRibbon: React.FC<{ className?: string }> = ({ className = 'h-[
 );
 
 /**
- * Renders the official D&M Integra Chile logo with automatic multi-stage recovery:
- * 1) Configured URL (if custom & valid; legacy placeholder paths auto-upgrade to official assets)
+ * Renders the official D&M Integra Chile logo with automatic WebP delivery (<picture>)
+ * and multi-stage recovery:
+ * 1) Configured URL (auto-upgraded to crisp WebP when matching official raster assets)
  * 2) Official uploaded PNG/SVG matching the requested surface variant (`light`, `dark`, `emblem`, `emblem-dark`)
  * 3) Secondary official SVG/PNG backup so the logo never disappears on any route or theme
  */
@@ -42,6 +48,8 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   imgStyle,
   fallbackNode,
   hideFallback = false,
+  priority = false,
+  lazy = false,
 }) => {
   const isDarkVariant = variant === 'dark' || variant === 'emblem-dark';
   const isEmblemVariant = variant === 'emblem' || variant === 'emblem-dark';
@@ -64,7 +72,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
 
   const cleanSrc = typeof src === 'string' ? src.trim() : '';
 
-  // For emblem-dark, avoid showing the light emblem or wide horizontal logo
   const shouldUseOfficialForSlot =
     isLegacyOrBrokenBrandUrl(cleanSrc) ||
     (variant === 'emblem-dark' &&
@@ -102,10 +109,17 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
           : '';
 
   if (activeSrc && stage < 3) {
-    return (
+    const webpSrc = getBrandWebpUrl(activeSrc);
+    const loadingAttr: 'eager' | 'lazy' = priority ? 'eager' : lazy ? 'lazy' : 'eager';
+    const fetchPriorityAttr: 'high' | 'low' | 'auto' = priority ? 'high' : lazy ? 'low' : 'auto';
+
+    const imgEl = (
       <img
         src={activeSrc}
         alt={alt}
+        loading={loadingAttr}
+        decoding="async"
+        fetchPriority={fetchPriorityAttr}
         referrerPolicy="no-referrer"
         style={resolvedStyle}
         className={resolvedClass}
@@ -118,6 +132,17 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         }}
       />
     );
+
+    if (webpSrc && webpSrc !== activeSrc) {
+      return (
+        <picture className="inline-flex items-center shrink-0">
+          <source type="image/webp" srcSet={webpSrc} />
+          {imgEl}
+        </picture>
+      );
+    }
+
+    return imgEl;
   }
 
   if (hideFallback) {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Award, BookOpen, Briefcase, GraduationCap, Shield } from 'lucide-react';
 import { BrandRibbon } from '../components/BrandLogo';
 import { LegalBaseModal } from '../components/LegalBaseModal';
+import { OptimizedImage } from '../components/OptimizedImage';
 import { useSeoMetadata } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { sanitizeHtml } from '../utils/formatters';
@@ -35,10 +36,11 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             <div className="lg:col-span-5">
               <div className="aspect-[3/4] card-radius overflow-hidden border border-[#E5DFD2] bg-[#F1EDE4]">
                 {quemSomos?.imagemUrl ? (
-                  <img
+                  <OptimizedImage
                     src={quemSomos.imagemUrl}
                     alt={meta.responsavel || empresa.responsavel_tecnico}
-                    referrerPolicy="no-referrer"
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 420px"
                     className="w-full h-full object-cover"
                   />
                 ) : (

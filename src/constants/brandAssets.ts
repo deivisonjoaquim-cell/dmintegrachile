@@ -6,14 +6,19 @@
  */
 export const BRAND_ASSETS = {
   logoLightPng: '/assets/aistudio/logo-dm-integra-completa-clara_c33baf15.png',
+  logoLightWebp: '/assets/aistudio/logo-dm-integra-completa-clara_c33baf15.webp',
   logoLightSvg: '/assets/aistudio/logo-dm-integra-completa-clara_860282bc.svg',
   logoDarkPng: '/assets/aistudio/logo-dm-integra-completa-escura_7e8a55ea.png',
+  logoDarkWebp: '/assets/aistudio/logo-dm-integra-completa-escura_7e8a55ea.webp',
   logoDarkSvg: '/assets/aistudio/logo-dm-integra-completa-escura_993504ca.svg',
   emblemLightSvg: '/assets/aistudio/logo-dm-integra-emblema-claro_89e6f043.svg',
   emblemLightPng: '/assets/aistudio/logo-dm-integra-emblema-claro_17a30863.png',
+  emblemLightWebp: '/assets/aistudio/logo-dm-integra-emblema-claro_17a30863.webp',
   emblemDarkSvg: '/assets/aistudio/logo-dm-integra-emblema-escuro_f9384154.svg',
   emblemDarkPng: '/assets/aistudio/logo-dm-integra-emblema-escuro_1658e49b.png',
+  emblemDarkWebp: '/assets/aistudio/logo-dm-integra-emblema-escuro_1658e49b.webp',
   avatarPng: '/assets/aistudio/logo-dm-integra-avatar-whatsapp-instagram_54e22f47.png',
+  avatarWebp: '/assets/aistudio/logo-dm-integra-avatar-whatsapp-instagram_54e22f47.webp',
   avatarSvg: '/assets/aistudio/logo-dm-integra-avatar-whatsapp-instagram_e3b6fddf.svg',
 } as const;
 

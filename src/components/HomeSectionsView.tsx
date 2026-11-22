@@ -24,7 +24,9 @@ import type {
   SiteSectionKey,
 } from '../types/domain';
 import { buildWhatsAppUrl, openExternalSafe, sanitizeHtml } from '../utils/formatters';
+import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
+import { OptimizedImage } from './OptimizedImage';
 
 export interface ServiceItemMeta {
   numero: string;
@@ -411,6 +413,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <div className="flex items-center gap-3">
                   <BrandLogo
                     variant="emblem"
+                    lazy
                     alt={empresa.nome_empresa}
                     brandShortName={brandShortName}
                     imgClassName="w-11 h-11 object-contain shrink-0"
@@ -445,6 +448,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-2.5 lg:items-end justify-end">
                 <button
                   type="button"
+                  onMouseEnter={() => prefetchRouteChunk('/acompanhar')}
+                  onTouchStart={() => prefetchRouteChunk('/acompanhar')}
                   onClick={() => navigateAction('/acompanhar')}
                   className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap"
                   style={{ backgroundColor: 'var(--color-primary)' }}
@@ -454,6 +459,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </button>
                 <button
                   type="button"
+                  onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
+                  onTouchStart={() => prefetchRouteChunk('/diagnostico')}
                   onClick={() => navigateAction('/diagnostico')}
                   className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-[#FAF9F6] hover:bg-[#F1EDE4] transition-colors whitespace-nowrap"
                 >
@@ -551,11 +558,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <React.Fragment key={sec.id}>
             <section className="relative overflow-hidden bg-[#0B1F33] text-white border-b border-slate-800">
               {sec.imagemUrl && (
-                <img
+                <OptimizedImage
                   src={sec.imagemUrl}
                   alt={heroTitle}
-                  referrerPolicy="no-referrer"
-                  className="absolute inset-0 w-full h-full object-cover opacity-35"
+                  priority
+                  placeholderTone="dark"
+                  sizes="100vw"
+                  containerClassName="absolute inset-0 w-full h-full overflow-hidden"
+                  className="w-full h-full object-cover opacity-35"
                 />
               )}
               <div className="absolute inset-0 bg-gradient-to-r from-[#071422]/95 via-[#0B1F33]/80 to-[#0B1F33]/55" />
@@ -664,10 +674,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
                 {sec.imagemUrl && (
                   <div className="relative h-64 sm:h-96 card-radius overflow-hidden border border-[#E5DFD2] bg-[#0B1F33] text-left mt-8">
-                    <img
+                    <OptimizedImage
                       src={sec.imagemUrl}
                       alt={heroTitle}
-                      referrerPolicy="no-referrer"
+                      priority
+                      placeholderTone="dark"
+                      sizes="(max-width: 1024px) 100vw, 960px"
                       className={`w-full h-full ${imgFitClass}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/85 via-transparent to-transparent" />
@@ -741,6 +753,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <div className="flex flex-wrap items-center gap-3.5 pt-1">
                     <button
                       type="button"
+                      onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
+                      onTouchStart={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
                       onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
                       className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_10px_24px_rgba(11,31,51,0.22)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
                       style={{ backgroundColor: 'var(--color-primary)' }}
@@ -791,11 +805,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 >
                   <div className="relative h-full min-h-[430px] card-radius overflow-hidden border border-[#1E3A5F]/20 bg-[#0B1F33] shadow-[0_24px_56px_rgba(11,31,51,0.20)] flex flex-col justify-between">
                     {sec.imagemUrl ? (
-                      <img
+                      <OptimizedImage
                         src={sec.imagemUrl}
                         alt={heroTitle}
-                        referrerPolicy="no-referrer"
-                        className={`absolute inset-0 w-full h-full ${imgFitClass}`}
+                        priority
+                        placeholderTone="dark"
+                        sizes="(max-width: 1024px) 100vw, 42vw"
+                        containerClassName="absolute inset-0 w-full h-full overflow-hidden"
+                        className={`w-full h-full ${imgFitClass}`}
                       />
                     ) : null}
 
@@ -1211,15 +1228,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       const imageRight = variante === 'imagem-direita';
 
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
+        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} cv-auto`} style={theme.sectionStyle}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
             {!noImage && (
               <div className={`lg:col-span-5 ${imageRight ? 'lg:order-2' : 'lg:order-1'}`}>
                 <div className="h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
-                  <img
+                  <OptimizedImage
                     src={sec.imagemUrl}
                     alt={translateText(sec.titulo)}
-                    referrerPolicy="no-referrer"
+                    sizes="(max-width: 1024px) 100vw, 40vw"
                     className={`w-full h-full ${imgFitClass}`}
                   />
                 </div>
@@ -1304,7 +1321,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'claro');
       return (
         <React.Fragment key={sec.id}>
-          <section className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
+          <section className={`${sectionPad} ${theme.sectionClass} cv-auto`} style={theme.sectionStyle}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               <div className="lg:col-span-7">
                 <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
@@ -1322,6 +1339,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 )}
                 <button
                   type="button"
+                  onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/quem-somos')}
+                  onTouchStart={() => prefetchRouteChunk(sec.ctaDestino || '/quem-somos')}
                   onClick={() => navigateAction(sec.ctaDestino || '/quem-somos')}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 btn-radius border text-sm font-semibold transition-colors ${
                     theme.isDark
@@ -1336,10 +1355,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               <div className="lg:col-span-5">
                 <div className="aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
                   {sec.imagemUrl ? (
-                    <img
+                    <OptimizedImage
                       src={sec.imagemUrl}
                       alt={translateText(sec.titulo)}
-                      referrerPolicy="no-referrer"
+                      sizes="(max-width: 1024px) 92vw, 384px"
                       className={`w-full h-full ${imgFitClass}`}
                     />
                   ) : null}
@@ -1461,11 +1480,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     if (key === 'contato') {
       const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'escuro-primario');
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} relative overflow-hidden`} style={theme.sectionStyle}>
+        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} relative overflow-hidden cv-auto`} style={theme.sectionStyle}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-7">
             <div className="flex justify-center">
               <BrandLogo
                 variant="emblem-dark"
+                lazy
                 alt={empresa.nome_empresa}
                 brandShortName={brandShortName}
                 imgClassName="w-14 h-14 object-contain"
@@ -1574,10 +1594,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
                 <div className={`lg:col-span-5 ${imgLeft ? 'lg:order-1' : 'lg:order-2'}`}>
                   <div className="h-72 sm:h-80 card-radius overflow-hidden border border-slate-200/80 bg-slate-100">
-                    <img
+                    <OptimizedImage
                       src={sec.imagemUrl}
                       alt={translateText(sec.titulo)}
-                      referrerPolicy="no-referrer"
+                      sizes="(max-width: 1024px) 100vw, 40vw"
                       className={`w-full h-full ${imgFitClass}`}
                     />
                   </div>
@@ -1601,13 +1621,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   />
                 )}
                 {sec.imagemUrl && (
-                  <div className="pt-3">
-                    <img
-                      src={sec.imagemUrl}
-                      alt={translateText(sec.titulo)}
-                      referrerPolicy="no-referrer"
-                      className={`max-h-80 mx-auto card-radius border border-slate-200 ${imgFitClass}`}
-                    />
+                  <div className="pt-3 max-w-xl mx-auto">
+                    <div className="max-h-80 overflow-hidden card-radius border border-slate-200">
+                      <OptimizedImage
+                        src={sec.imagemUrl}
+                        alt={translateText(sec.titulo)}
+                        sizes="(max-width: 768px) 100vw, 576px"
+                        className={`w-full max-h-80 mx-auto ${imgFitClass}`}
+                      />
+                    </div>
                   </div>
                 )}
                 {sec.ctaTexto && (

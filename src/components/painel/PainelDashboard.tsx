@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -33,11 +33,25 @@ import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../util
 import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
 import { computeDailyPrioritySummary, type LegacyPanelSection } from '../../utils/panelNavigation';
-import { PainelAnalyticsRecharts } from './PainelAnalyticsRecharts';
-import { PainelFunnelConversionChart } from './PainelFunnelConversionChart';
 import { PainelFunnelPerformanceSummary } from './PainelFunnelPerformanceSummary';
 import { PainelLembretesVencimento } from './PainelLembretesVencimento';
-import { PainelProgressoTarefasChart } from './PainelProgressoTarefasChart';
+
+const PainelAnalyticsRecharts = lazy(() =>
+  import('./PainelAnalyticsRecharts').then((m) => ({ default: m.PainelAnalyticsRecharts })),
+);
+const PainelFunnelConversionChart = lazy(() =>
+  import('./PainelFunnelConversionChart').then((m) => ({ default: m.PainelFunnelConversionChart })),
+);
+const PainelProgressoTarefasChart = lazy(() =>
+  import('./PainelProgressoTarefasChart').then((m) => ({ default: m.PainelProgressoTarefasChart })),
+);
+
+const ChartSkeletonFallback: React.FC = () => (
+  <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#0F1629] p-6 space-y-3">
+    <div className="h-4 w-48 rounded bg-slate-200/70 dark:bg-slate-800" />
+    <div className="h-56 w-full rounded-lg bg-slate-100 dark:bg-slate-900" />
+  </div>
+);
 
 interface PainelDashboardProps {
   role: UserRole;
@@ -485,13 +499,15 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       </section>
 
       {/* Painel Estatístico Recharts: Diagnósticos/Mês, Taxa de Conversão e Perfis Migratórios */}
-      <PainelAnalyticsRecharts
-        leads={filteredLeads}
-        clients={clients}
-        cases={cases}
-        isDark={isDark}
-        onNavigateSection={onNavigateSection}
-      />
+      <Suspense fallback={<ChartSkeletonFallback />}>
+        <PainelAnalyticsRecharts
+          leads={filteredLeads}
+          clients={clients}
+          cases={cases}
+          isDark={isDark}
+          onNavigateSection={onNavigateSection}
+        />
+      </Suspense>
 
       {/* Fila de Trabalho Unificada em 4 Abas Práticas */}
       <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
@@ -896,31 +912,35 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                 onOpenKanban={onNavigateSection ? () => onNavigateSection('funil') : undefined}
               />
 
-              <PainelFunnelConversionChart
-                leads={filteredLeads}
-                cases={activeCases}
-                period={perfPeriod}
-                isDark={isDark}
-                onSelectStage={(stageId) => {
-                  if (onOpenFunnelStage) {
-                    onOpenFunnelStage(stageId);
-                  } else {
-                    onNavigateSection?.('funil');
-                  }
-                }}
-              />
+              <Suspense fallback={<ChartSkeletonFallback />}>
+                <PainelFunnelConversionChart
+                  leads={filteredLeads}
+                  cases={activeCases}
+                  period={perfPeriod}
+                  isDark={isDark}
+                  onSelectStage={(stageId) => {
+                    if (onOpenFunnelStage) {
+                      onOpenFunnelStage(stageId);
+                    } else {
+                      onNavigateSection?.('funil');
+                    }
+                  }}
+                />
+              </Suspense>
 
-              <PainelProgressoTarefasChart
-                empresa={empresa}
-                tasks={tasks}
-                cases={cases}
-                clients={clients}
-                docs={docs}
-                selectedCaseId={null}
-                isDark={isDark}
-                onOpenAgenda={() => onNavigateSection?.('agenda')}
-                onOpenCase={onOpenCase}
-              />
+              <Suspense fallback={<ChartSkeletonFallback />}>
+                <PainelProgressoTarefasChart
+                  empresa={empresa}
+                  tasks={tasks}
+                  cases={cases}
+                  clients={clients}
+                  docs={docs}
+                  selectedCaseId={null}
+                  isDark={isDark}
+                  onOpenAgenda={() => onNavigateSection?.('agenda')}
+                  onOpenCase={onOpenCase}
+                />
+              </Suspense>
             </div>
           )}
         </div>

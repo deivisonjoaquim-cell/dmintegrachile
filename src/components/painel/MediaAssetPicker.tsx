@@ -21,6 +21,7 @@ import {
   MediaAssetPreset,
   processImportedImageFile,
 } from '../../utils/mediaImport';
+import { resolveOptimizedImageSources } from '../../utils/imageOptimization';
 import { UiButton, UiModal } from '../ui/DesignSystem';
 
 interface MediaAssetPickerProps {
@@ -227,15 +228,25 @@ export function MediaAssetPicker({
             compact ? 'h-24' : 'h-28'
           }`}
         >
-          {value ? (
-            <img
-              src={value}
-              alt={label}
-              className={`max-h-full max-w-full ${
-                preset === 'logo' || preset === 'favicon' ? 'object-contain p-2.5' : 'h-full w-full object-cover'
-              }`}
-            />
-          ) : (
+          {value ? (() => {
+            const optimized = resolveOptimizedImageSources(value);
+            return (
+              <picture className="flex h-full w-full items-center justify-center">
+                {optimized.webpSrcSet && (
+                  <source srcSet={optimized.webpSrcSet} sizes="180px" type="image/webp" />
+                )}
+                <img
+                  src={value}
+                  alt={label}
+                  loading="lazy"
+                  decoding="async"
+                  className={`max-h-full max-w-full ${
+                    preset === 'logo' || preset === 'favicon' ? 'object-contain p-2.5' : 'h-full w-full object-cover'
+                  }`}
+                />
+              </picture>
+            );
+          })() : (
             <div className="flex flex-col items-center justify-center gap-1 text-slate-400 text-[11px] px-2 text-center">
               <ImageIcon className="h-5 w-5" />
               <span>Sem imagem</span>
@@ -402,6 +413,8 @@ export function MediaAssetPicker({
                               <img
                                 src={asset.url}
                                 alt={asset.nome}
+                                loading="lazy"
+                                decoding="async"
                                 className={
                                   asset.categoria === 'logo' || asset.categoria === 'favicon'
                                     ? 'max-h-full max-w-full object-contain p-2'
@@ -470,15 +483,27 @@ export function MediaAssetPicker({
                                 : 'bg-slate-100'
                             }`}
                           >
-                            <img
-                              src={item.url}
-                              alt={item.nome}
-                              className={
-                                item.categoria === 'logo' || item.categoria === 'favicon'
-                                  ? 'max-h-full max-w-full object-contain p-2.5'
-                                  : 'h-full w-full object-cover'
-                              }
-                            />
+                            {(() => {
+                              const optimized = resolveOptimizedImageSources(item.url);
+                              return (
+                                <picture className="flex h-full w-full items-center justify-center">
+                                  {optimized.webpSrcSet && (
+                                    <source srcSet={optimized.webpSrcSet} sizes="220px" type="image/webp" />
+                                  )}
+                                  <img
+                                    src={item.url}
+                                    alt={item.nome}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className={
+                                      item.categoria === 'logo' || item.categoria === 'favicon'
+                                        ? 'max-h-full max-w-full object-contain p-2.5'
+                                        : 'h-full w-full object-cover'
+                                    }
+                                  />
+                                </picture>
+                              );
+                            })()}
                           </div>
                           <div className="p-2 flex items-center justify-between gap-1">
                             <span className="truncate text-xs font-medium text-slate-800">{item.nome}</span>
@@ -516,7 +541,13 @@ export function MediaAssetPicker({
                             className="w-full text-left"
                           >
                             <div className="h-20 w-full bg-slate-50 flex items-center justify-center overflow-hidden">
-                              <img src={f.url} alt={f.filename} className="max-h-full max-w-full object-contain p-1" />
+                              <img
+                                src={f.url}
+                                alt={f.filename}
+                                loading="lazy"
+                                decoding="async"
+                                className="max-h-full max-w-full object-contain p-1"
+                              />
                             </div>
                             <div className="p-2">
                               <p className="truncate text-[11px] font-medium text-slate-700">{f.filename}</p>
