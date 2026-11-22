@@ -6,6 +6,7 @@ import {
   filterAndSortPublicPartners,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
+  sanitizePartnerImageUrl,
   translatePartnerCategory,
 } from './partnerHelpers';
 
@@ -59,6 +60,18 @@ describe('partnerHelpers — URL safety, filtering, sorting & metrics', () => {
     assert.equal(normalizePartnerExternalUrl('javascript:alert(1)'), null);
     assert.equal(normalizePartnerExternalUrl('data:text/html,<script>alert(1)</script>'), null);
     assert.equal(normalizePartnerExternalUrl('invalid text without dot'), null);
+  });
+
+  it('validates partner image/logo URLs safely and rejects dangerous schemes or traversal', () => {
+    assert.equal(sanitizePartnerImageUrl('https://cdn.example.com/logo.webp'), 'https://cdn.example.com/logo.webp');
+    assert.equal(sanitizePartnerImageUrl('/uploads/partner_logo.webp'), '/uploads/partner_logo.webp');
+    assert.equal(
+      sanitizePartnerImageUrl('data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA='),
+      'data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=',
+    );
+    assert.equal(sanitizePartnerImageUrl('/uploads/../secret.png'), null);
+    assert.equal(sanitizePartnerImageUrl('javascript:alert(1)'), null);
+    assert.equal(sanitizePartnerImageUrl('data:text/html;base64,PHNjcmlwdD4='), null);
   });
 
   it('filters public partners by country (including binational Ambos), category, search and sort order', () => {

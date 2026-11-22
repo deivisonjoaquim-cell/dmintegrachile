@@ -163,6 +163,7 @@
         "moeda": { "type": "string", "enum": ["BRL", "CLP", "USD"] },
         "proposta": { "type": "string", "maxLength": 3000 },
         "mensagem": { "type": "string", "maxLength": 3000 },
+        "logoUrl": { "type": "string", "maxLength": 300000 },
         "status": { "type": "string", "enum": ["Nova", "Em Análise", "Aprovada", "Recusada"] }
       },
       "required": ["nome_empresa", "categoria", "pais", "responsavel", "whatsapp", "email", "moeda", "status"]
@@ -181,6 +182,7 @@
         "whatsapp": { "type": "string", "maxLength": 40 },
         "email": { "type": "string", "maxLength": 200 },
         "siteInstagram": { "type": "string", "maxLength": 300 },
+        "logoUrl": { "type": "string", "maxLength": 800000 },
         "moedaNegociacao": { "type": "string", "enum": ["BRL", "CLP", "USD"] },
         "tabelaValoresComissao": { "type": "string", "maxLength": 2000 },
         "condicoesParceria": { "type": "string", "maxLength": 2000 },
@@ -201,6 +203,7 @@
         "cidadeRegiao": { "type": "string", "maxLength": 150 },
         "whatsapp": { "type": "string", "maxLength": 40 },
         "siteInstagram": { "type": "string", "maxLength": 300 },
+        "logoUrl": { "type": "string", "maxLength": 800000 },
         "avaliacao": { "type": "number" },
         "descricaoPublica": { "type": "string", "maxLength": 1000 },
         "recomendadoAosClientes": { "type": "boolean" },

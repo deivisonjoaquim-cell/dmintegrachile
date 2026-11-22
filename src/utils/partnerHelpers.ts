@@ -83,6 +83,41 @@ export function normalizePartnerExternalUrl(raw?: string | null): string | null 
   }
 }
 
+/**
+ * Validates partner logo / representative image URLs.
+ * Allows https/http URLs, local app asset paths (/uploads/, /assets/, /src/assets/, /images/),
+ * and inline base64 image data URLs (webp, png, jpeg, svg+xml, x-icon).
+ */
+export function sanitizePartnerImageUrl(raw?: string | null): string | null {
+  const trimmed = (raw || '').trim();
+  if (!trimmed || trimmed.length > 800000) return null;
+
+  if (/^data:image\/(?:webp|png|jpeg|jpg|svg\+xml|x-icon|vnd\.microsoft\.icon);base64,[a-zA-Z0-9+/=\s]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^\/(?:uploads|assets|src\/assets|images)\/[a-zA-Z0-9._\-/]+$/i.test(trimmed) && !trimmed.includes('..')) {
+    return trimmed;
+  }
+
+  if (/^(javascript|vbscript|file|data):/i.test(trimmed)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return null;
+    }
+    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export type PublicPartnerSort = 'avaliacao' | 'nome' | 'pais';
 
 export interface PublicPartnerFilters {

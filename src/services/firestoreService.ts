@@ -1659,19 +1659,25 @@ export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: Empresa
 }
 
 export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {
-  await saveDocumentAudited('partners', partner.id, partner as unknown as Record<string, unknown>, isNew, role);
-  const pubRef = doc(db, 'partnersPublic', partner.id);
-  if (partner.recomendadoAosClientes && partner.statusHomologacao === 'Ativo/Indicado') {
+  const cleanLogoUrl = (partner.logoUrl || '').trim().slice(0, 800000);
+  const partnerToSave: Partner = {
+    ...partner,
+    logoUrl: cleanLogoUrl,
+  };
+  await saveDocumentAudited('partners', partnerToSave.id, partnerToSave as unknown as Record<string, unknown>, isNew, role);
+  const pubRef = doc(db, 'partnersPublic', partnerToSave.id);
+  if (partnerToSave.recomendadoAosClientes && partnerToSave.statusHomologacao === 'Ativo/Indicado') {
     const pubPayload: PartnerPublic = sanitizeFirestoreData({
-      id: partner.id,
-      nome: partner.nome,
-      categoria: partner.categoria,
-      pais: partner.pais,
-      cidadeRegiao: partner.cidadeRegiao,
-      whatsapp: partner.whatsapp,
-      siteInstagram: partner.siteInstagram,
-      avaliacao: partner.avaliacao,
-      descricaoPublica: partner.descricaoPublica || partner.condicoesParceria || '',
+      id: partnerToSave.id,
+      nome: partnerToSave.nome,
+      categoria: partnerToSave.categoria,
+      pais: partnerToSave.pais,
+      cidadeRegiao: partnerToSave.cidadeRegiao,
+      whatsapp: partnerToSave.whatsapp,
+      siteInstagram: partnerToSave.siteInstagram,
+      logoUrl: cleanLogoUrl,
+      avaliacao: partnerToSave.avaliacao,
+      descricaoPublica: partnerToSave.descricaoPublica || partnerToSave.condicoesParceria || '',
       recomendadoAosClientes: true,
       statusHomologacao: 'Ativo/Indicado',
       updatedAt: new Date().toISOString(),

@@ -308,6 +308,7 @@ service cloud.firestore {
         && isOptString(data, 'cidade', 150)
         && isOptString(data, 'proposta', 3000)
         && isOptString(data, 'mensagem', 3000)
+        && isOptString(data, 'logoUrl', 300000)
         && (!('honeypot' in data) || data.honeypot == '');
     }
 
@@ -318,6 +319,7 @@ service cloud.firestore {
         && isReqString(data, 'pais', 1, 60)
         && data.recomendadoAosClientes is bool
         && data.statusHomologacao in ['Ativo/Indicado', 'Em Análise', 'Não Indicado/Suspenso']
+        && isOptString(data, 'logoUrl', 800000)
         && isOptString(data, 'tabelaValoresComissao', 2000)
         && isOptString(data, 'condicoesParceria', 2000)
         && isOptString(data, 'observacoes', 3000);
@@ -325,10 +327,11 @@ service cloud.firestore {
 
     function isValidPartnerPublic(data) {
       return data.keys().hasAll(['nome', 'categoria', 'pais', 'recomendadoAosClientes', 'statusHomologacao'])
-        && data.keys().hasOnly(['id', 'nome', 'categoria', 'pais', 'cidadeRegiao', 'whatsapp', 'siteInstagram', 'avaliacao', 'descricaoPublica', 'recomendadoAosClientes', 'statusHomologacao', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'nome', 'categoria', 'pais', 'cidadeRegiao', 'whatsapp', 'siteInstagram', 'logoUrl', 'avaliacao', 'descricaoPublica', 'recomendadoAosClientes', 'statusHomologacao', 'updatedAt'])
         && isReqString(data, 'nome', 1, 200)
         && isReqString(data, 'categoria', 1, 100)
         && isReqString(data, 'pais', 1, 60)
+        && isOptString(data, 'logoUrl', 800000)
         && data.recomendadoAosClientes is bool
         && data.statusHomologacao == 'Ativo/Indicado';
     }

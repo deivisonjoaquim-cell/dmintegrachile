@@ -93,6 +93,7 @@ export function getAiEngineHealthStatus(): AiEngineHealthStatus {
       'proposta',
       'norma',
       'norma-verificar',
+      'parceiros-sinergia',
     ],
   };
 }

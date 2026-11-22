@@ -27,6 +27,7 @@ import type {
 } from '../types/domain';
 import { buildWhatsAppUrl, openExternalSafe, sanitizeHtml } from '../utils/formatters';
 import {
+  sanitizePartnerImageUrl,
   translatePartnerCategory,
   translatePartnerCountry,
 } from '../utils/partnerHelpers';
@@ -523,55 +524,79 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {partnersPublic.slice(0, maxItens).map((p) => (
-              <article
-                key={p.id}
-                className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-colors hover:border-[#C8A236]/80`}
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 text-xs mb-2">
-                    <span className={`font-semibold ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
-                      {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
-                    </span>
+            {partnersPublic.slice(0, maxItens).map((p, idx) => {
+              const safeLogo = sanitizePartnerImageUrl(p.logoUrl);
+              return (
+                <motion.article
+                  key={p.id}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.15 }}
+                  transition={{
+                    duration: 0.36,
+                    delay: Math.min(idx * 0.06, 0.24),
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-colors hover:border-[#C8A236]/80`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 text-xs mb-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {safeLogo && (
+                          <div className="h-10 w-16 rounded-md bg-white border border-[#E5DFD2] flex items-center justify-center overflow-hidden shrink-0">
+                            <OptimizedImage
+                              src={safeLogo}
+                              alt={p.nome}
+                              sizes="64px"
+                              containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                              className="max-w-full max-h-full object-contain p-1"
+                            />
+                          </div>
+                        )}
+                        <span className={`font-semibold truncate ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
+                          {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
+                        </span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 font-mono font-semibold tabular-nums shrink-0 ${
+                          theme.isDark ? 'text-white' : 'text-[#0B1F33]'
+                        }`}
+                      >
+                        <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                        {Number(p.avaliacao || 5).toFixed(1)}/5
+                      </span>
+                    </div>
+                    <h3 className={`text-base font-bold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
+                    <p className={`text-sm leading-relaxed mb-4 ${theme.subClass}`}>{p.descricaoPublica}</p>
+                  </div>
+
+                  <div
+                    className={`pt-3.5 border-t flex items-center justify-between gap-3 ${
+                      theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'
+                    }`}
+                  >
                     <span
-                      className={`inline-flex items-center gap-1 font-mono font-semibold tabular-nums ${
-                        theme.isDark ? 'text-white' : 'text-[#0B1F33]'
+                      className={`inline-flex items-center gap-1 text-xs truncate ${
+                        theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D]'
                       }`}
                     >
-                      <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
-                      {Number(p.avaliacao || 5).toFixed(1)}/5
+                      <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                      <span className="truncate">{p.cidadeRegiao}</span>
                     </span>
+                    <button
+                      type="button"
+                      onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                      onClick={() => navigateAction('/parceiros')}
+                      className={`text-xs font-semibold whitespace-nowrap shrink-0 hover:underline ${
+                        theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33]'
+                      }`}
+                    >
+                      {locale === 'es-CL' ? 'Ver red →' : 'Ver rede →'}
+                    </button>
                   </div>
-                  <h3 className={`text-base font-bold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
-                  <p className={`text-sm leading-relaxed mb-4 ${theme.subClass}`}>{p.descricaoPublica}</p>
-                </div>
-
-                <div
-                  className={`pt-3.5 border-t flex items-center justify-between gap-3 ${
-                    theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'
-                  }`}
-                >
-                  <span
-                    className={`inline-flex items-center gap-1 text-xs truncate ${
-                      theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D]'
-                    }`}
-                  >
-                    <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                    <span className="truncate">{p.cidadeRegiao}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-                    onClick={() => navigateAction('/parceiros')}
-                    className={`text-xs font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                      theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33]'
-                    }`}
-                  >
-                    {locale === 'es-CL' ? 'Ver red →' : 'Ver rede →'}
-                  </button>
-                </div>
-              </article>
-            ))}
+                </motion.article>
+              );
+            })}
           </div>
         </div>
       </section>

@@ -26,7 +26,9 @@ import {
   X,
 } from 'lucide-react';
 import { LegalBaseModal } from '../LegalBaseModal';
+import { OptimizedImage } from '../OptimizedImage';
 import { ConfirmActionModal } from '../ui/DesignSystem';
+import { MediaAssetPicker } from './MediaAssetPicker';
 import {
   checkSermigOfficialLinksLive,
   type SermigBatchCheckResponse,
@@ -67,6 +69,7 @@ import {
   isPartnerPublishedPublicly,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
+  sanitizePartnerImageUrl,
 } from '../../utils/partnerHelpers';
 import {
   clearAiDraftCache,
@@ -533,6 +536,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         whatsapp: String(prop.whatsapp || '').slice(0, 40),
         email: prop.email,
         siteInstagram: '',
+        logoUrl: (prop.logoUrl || '').trim().slice(0, 800000),
         moedaNegociacao: prop.moeda,
         tabelaValoresComissao: String(prop.proposta || '').slice(0, 2000),
         condicoesParceria: String(prop.mensagem || prop.proposta || '').slice(0, 2000),
@@ -612,6 +616,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         whatsapp: (partnerModal.whatsapp || '').trim().slice(0, 40),
         email: (partnerModal.email || '').trim(),
         siteInstagram: (partnerModal.siteInstagram || '').trim(),
+        logoUrl: (partnerModal.logoUrl || '').trim().slice(0, 800000),
         moedaNegociacao: partnerModal.moedaNegociacao || 'BRL',
         tabelaValoresComissao: (partnerModal.tabelaValoresComissao || '').slice(0, 2000),
         condicoesParceria: (partnerModal.condicoesParceria || '').slice(0, 2000),
@@ -1345,24 +1350,39 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       ? 'text-amber-700'
                       : 'text-[var(--color-primary)]';
 
+              const safeProposalLogo = sanitizePartnerImageUrl(p.logoUrl);
+
               return (
                 <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3.5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <p className="text-xs text-slate-500">
-                        <span>{p.categoria}</span>
-                        <span aria-hidden="true"> · </span>
-                        <span>{p.pais}{p.cidade ? ` (${p.cidade})` : ''}</span>
-                        <span aria-hidden="true"> · </span>
-                        <span className="font-mono">Moeda {p.moeda}</span>
-                        <span aria-hidden="true"> · </span>
-                        <strong className={statusTone}>{p.status}</strong>
-                        {p.createdAt ? ` · ${formatDateBR(p.createdAt)}` : ''}
-                      </p>
-                      <h3 className="text-base font-bold text-slate-900">{p.nome_empresa}</h3>
-                      <p className="text-xs text-slate-600">
-                        Responsável: <strong className="font-semibold text-slate-800">{p.responsavel}</strong> · {p.whatsapp} · {p.email}
-                      </p>
+                    <div className="flex items-start gap-3 min-w-0">
+                      {safeProposalLogo && (
+                        <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                          <OptimizedImage
+                            src={safeProposalLogo}
+                            alt={p.nome_empresa}
+                            sizes="48px"
+                            containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                            className="max-w-full max-h-full object-contain p-1"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-xs text-slate-500">
+                          <span>{p.categoria}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span>{p.pais}{p.cidade ? ` (${p.cidade})` : ''}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span className="font-mono">Moeda {p.moeda}</span>
+                          <span aria-hidden="true"> · </span>
+                          <strong className={statusTone}>{p.status}</strong>
+                          {p.createdAt ? ` · ${formatDateBR(p.createdAt)}` : ''}
+                        </p>
+                        <h3 className="text-base font-bold text-slate-900">{p.nome_empresa}</h3>
+                        <p className="text-xs text-slate-600">
+                          Responsável: <strong className="font-semibold text-slate-800">{p.responsavel}</strong> · {p.whatsapp} · {p.email}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -1536,6 +1556,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
               {filteredPanelPartners.map((p) => {
                 const published = isPartnerPublishedPublicly(p);
                 const safeExternal = normalizePartnerExternalUrl(p.siteInstagram);
+                const safeLogo = sanitizePartnerImageUrl(p.logoUrl);
 
                 return (
                   <div
@@ -1544,22 +1565,35 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   >
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-start gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs text-slate-500">
-                            <span className="font-semibold text-[#8C6D14]">{p.categoria}</span>
-                            <span aria-hidden="true"> · </span>
-                            <span>{p.pais}{p.cidadeRegiao ? ` (${p.cidadeRegiao})` : ''}</span>
-                            <span aria-hidden="true"> · </span>
-                            <strong className={published ? 'text-[#146B43]' : 'text-amber-700'}>
-                              {p.statusHomologacao}
-                            </strong>
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <h3 className="text-base font-bold text-slate-900 truncate">{p.nome}</h3>
-                            <span className="inline-flex items-center gap-0.5 text-xs font-mono font-semibold text-slate-700 tabular-nums shrink-0">
-                              <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
-                              {Number(p.avaliacao || 5).toFixed(1)}
-                            </span>
+                        <div className="flex items-start gap-3 min-w-0">
+                          {safeLogo && (
+                            <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                              <OptimizedImage
+                                src={safeLogo}
+                                alt={p.nome}
+                                sizes="48px"
+                                containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                                className="max-w-full max-h-full object-contain p-1"
+                              />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs text-slate-500">
+                              <span className="font-semibold text-[#8C6D14]">{p.categoria}</span>
+                              <span aria-hidden="true"> · </span>
+                              <span>{p.pais}{p.cidadeRegiao ? ` (${p.cidadeRegiao})` : ''}</span>
+                              <span aria-hidden="true"> · </span>
+                              <strong className={published ? 'text-[#146B43]' : 'text-amber-700'}>
+                                {p.statusHomologacao}
+                              </strong>
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <h3 className="text-base font-bold text-slate-900 truncate">{p.nome}</h3>
+                              <span className="inline-flex items-center gap-0.5 text-xs font-mono font-semibold text-slate-700 tabular-nums shrink-0">
+                                <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                                {Number(p.avaliacao || 5).toFixed(1)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -2363,6 +2397,18 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   onChange={(e) => setPartnerModal({ ...partnerModal, nome: e.target.value })}
                   placeholder="Nome / Empresa"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <MediaAssetPicker
+                  label="Logo ou imagem representativa do parceiro"
+                  value={partnerModal.logoUrl || ''}
+                  onChange={(nextUrl) => setPartnerModal({ ...partnerModal, logoUrl: nextUrl })}
+                  preset="logo"
+                  role={role}
+                  actorEmail={userProfile.email}
+                  compact
+                  hint="Envie logo, selo ou foto representativa (PNG, JPG, WebP ou SVG — convertida automaticamente para WebP) ou cole uma URL pública."
                 />
               </div>
               <div>

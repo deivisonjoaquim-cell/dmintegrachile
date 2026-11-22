@@ -40,6 +40,10 @@ import {
   isRasterImageUpload,
   preprocessUploadedImageToWebp,
 } from './server/imagePreprocessor.ts';
+import {
+  analyzePartnerSynergy,
+  sanitizeSynergyInput,
+} from './server/partnerSynergyService.ts';
 import type { CommunicationLog } from './src/types/domain.ts';
 
 const firebaseConfig = loadFirebaseServerConfig();
@@ -238,6 +242,24 @@ function aiRateLimit(req: AuthedRequest, res: Response, next: NextFunction): voi
   }
   hits.push(now);
   rateWindows.set(key, hits);
+  next();
+}
+
+const publicSynergyRateWindows = new Map<string, number[]>();
+function publicSynergyRateLimit(req: Request, res: Response, next: NextFunction): void {
+  const key = req.ip || 'anon_synergy';
+  const now = Date.now();
+  const windowMs = 5 * 60 * 1000;
+  const maxReqs = 15;
+  const hits = (publicSynergyRateWindows.get(key) || []).filter((ts) => now - ts < windowMs);
+  if (hits.length >= maxReqs) {
+    res.status(429).json({
+      error: 'Limite temporário de análises de sinergia atingido. Aguarde alguns minutos e tente novamente.',
+    });
+    return;
+  }
+  hits.push(now);
+  publicSynergyRateWindows.set(key, hits);
   next();
 }
 
@@ -724,6 +746,36 @@ app.post(
     await runAiRouteExecution(req.authUser, wantsStream, res, buildNormaVerificarSpec(body), aiRouteDeps);
   },
 );
+
+// -----------------------------------------------------------------------------
+// 7b. /api/ai/parceiros-sinergia — Análise de sinergia perfil x parceiros (público)
+// -----------------------------------------------------------------------------
+app.post('/api/ai/parceiros-sinergia', publicSynergyRateLimit, async (req: Request, res: Response) => {
+  const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+  const rawSize = Buffer.byteLength(JSON.stringify(body), 'utf8');
+  if (rawSize > 64 * 1024) {
+    res.status(413).json({ error: 'Dados enviados excedem o limite permitido (64 KB).' });
+    return;
+  }
+
+  const sanitized = sanitizeSynergyInput(body);
+  if (!sanitized.ok) {
+    res.status(400).json({ error: sanitized.error });
+    return;
+  }
+
+  const outcome = await analyzePartnerSynergy({
+    profile: sanitized.profile,
+    partners: sanitized.partners,
+  });
+
+  if (!outcome.ok) {
+    res.status(outcome.statusCode).json({ error: outcome.error, code: outcome.code });
+    return;
+  }
+
+  res.status(200).json(outcome.data);
+});
 
 // -----------------------------------------------------------------------------
 // 8. /api/legal/sermig-check — Verificação HTTP ao vivo dos portais oficiais SERMIG / BCN / Gov

@@ -256,6 +256,7 @@ export interface PartnerProposal {
   moeda: CurrencyCode;
   proposta: string;
   mensagem: string;
+  logoUrl?: string;
   status: 'Nova' | 'Em Análise' | 'Aprovada' | 'Recusada';
   parecerIa?: string;
   decisaoConsultor?: string;
@@ -275,6 +276,7 @@ export interface Partner {
   whatsapp: string;
   email: string;
   siteInstagram: string;
+  logoUrl?: string;
   moedaNegociacao: CurrencyCode;
   tabelaValoresComissao: string;
   condicoesParceria: string;
@@ -295,6 +297,7 @@ export interface PartnerPublic {
   cidadeRegiao: string;
   whatsapp: string;
   siteInstagram: string;
+  logoUrl?: string;
   avaliacao: number;
   descricaoPublica: string;
   recomendadoAosClientes: boolean;
