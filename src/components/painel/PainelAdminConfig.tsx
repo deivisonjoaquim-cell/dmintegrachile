@@ -31,8 +31,11 @@ import { isCompleteHorizontalBrandLogo } from '../../constants/brandAssets';
 import {
   clearAdminVerificationCache,
   isPrimaryAdminEmail,
+  PRIMARY_ADMIN_EMAIL,
+  promotePrimaryAdminRoleInFirestore,
   verifyAndEnsureAdminAccess,
 } from '../../services/adminSecurityService';
+import { subscribeRoleChangeEvents } from '../../utils/audit';
 import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidConfig } from '../../services/notificationService';
 import { validateVapidPublicKey } from '../../utils/pushNotifications';
@@ -58,6 +61,7 @@ import type {
   LegalSource,
   NavLinkConfig,
   PartnerPublic,
+  RoleChangeAuditEvent,
   SiteContent,
   SiteLayoutConfig,
   UserProfile,
@@ -291,9 +295,12 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
 
   // Auditoria filter & inspection
   const [auditFilter, setAuditFilter] = useState('');
-  const [auditOpFilter, setAuditOpFilter] = useState<'all' | AdminLogOperationType | 'sensitive_all'>('all');
+  const [auditOpFilter, setAuditOpFilter] = useState<'all' | AdminLogOperationType | 'sensitive_all' | 'role_changes'>('all');
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
   const [refreshingAudit, setRefreshingAudit] = useState(false);
+  const [promotingPrimaryAdmin, setPromotingPrimaryAdmin] = useState(false);
+  const [roleChangeEvents, setRoleChangeEvents] = useState<RoleChangeAuditEvent[]>([]);
+  const [roleMonitorLoaded, setRoleMonitorLoaded] = useState(false);
 
   // Sincronização assíncrona caso empresa / siteContent / regras atualizem do servidor
   useEffect(() => {
@@ -414,7 +421,10 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const filteredLogs = useMemo(() => {
     const q = auditFilter.trim().toLowerCase();
     return enrichedAuditLogs.filter((l) => {
-      if (auditOpFilter === 'sensitive_all') {
+      if (auditOpFilter === 'role_changes') {
+        const isRoleEvent = Boolean(l.oldRole || l.newRole) || (l.entidade === 'users' && l.campo === 'alterar_permissao_role');
+        if (!isRoleEvent) return false;
+      } else if (auditOpFilter === 'sensitive_all') {
         if (!l.resolvedSensitive && l.resolvedOp !== 'permission' && l.resolvedOp !== 'sensitive') return false;
       } else if (auditOpFilter !== 'all' && l.resolvedOp !== auditOpFilter) {
         return false;
@@ -427,6 +437,10 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
         l.entidadeId.toLowerCase().includes(q) ||
         l.actorEmail.toLowerCase().includes(q) ||
         (l.actorNome || '').toLowerCase().includes(q) ||
+        (l.adminUid || '').toLowerCase().includes(q) ||
+        (l.targetEmail || '').toLowerCase().includes(q) ||
+        (l.oldRole || '').toLowerCase().includes(q) ||
+        (l.newRole || '').toLowerCase().includes(q) ||
         (l.campo || '').toLowerCase().includes(q) ||
         l.resolvedResumo.toLowerCase().includes(q)
       );
@@ -465,6 +479,22 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       }
     }
   }, [sectionGroup, effectiveRole, rulesLoaded, usersLoaded, bancario]);
+
+  // Monitoramento em tempo real da subcoleção `adminAudit/painel/logs` para alterações de role
+  useEffect(() => {
+    if (effectiveRole !== 'admin') return;
+    if (tab !== 'equipe' && tab !== 'auditoria') return;
+    const unsubscribe = subscribeRoleChangeEvents(
+      (events) => {
+        setRoleChangeEvents(events);
+        setRoleMonitorLoaded(true);
+      },
+      () => {
+        setRoleMonitorLoaded(true);
+      },
+    );
+    return () => unsubscribe();
+  }, [effectiveRole, tab]);
 
   if (effectiveRole !== 'admin') {
     return (
@@ -556,6 +586,28 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       setErrorMsg(formatActionError(err, 'Não foi possível sincronizar suas permissões agora.'));
     } finally {
       setSyncingPermissions(false);
+    }
+  };
+
+  const handlePromotePrimaryAdmin = async () => {
+    setPromotingPrimaryAdmin(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const res = await promotePrimaryAdminRoleInFirestore(auth.currentUser);
+      if (res.success) {
+        await loadUsers();
+        await onRefresh();
+        setFeedback(
+          `${res.message}${res.roleChangesLogged > 0 ? ` (${res.roleChangesLogged} alteração registrada em logs).` : ''}`,
+        );
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch (err) {
+      setErrorMsg(formatActionError(err, `Não foi possível atualizar o documento de ${PRIMARY_ADMIN_EMAIL}.`));
+    } finally {
+      setPromotingPrimaryAdmin(false);
     }
   };
 
@@ -2329,15 +2381,26 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 {' · '}Status: <strong className="text-emerald-700">{userProfile.status}</strong>
               </p>
             </div>
-            <button
-              type="button"
-              disabled={syncingPermissions}
-              onClick={() => void handleResyncAdminPermissions()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              {syncingPermissions ? 'Sincronizando...' : 'Sincronizar permissões'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={promotingPrimaryAdmin}
+                onClick={() => void handlePromotePrimaryAdmin()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B1F33] text-white text-xs font-semibold hover:bg-slate-800 disabled:opacity-60"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#E6C55A]" />
+                {promotingPrimaryAdmin ? 'Atualizando role...' : 'Garantir Role Admin no Firestore'}
+              </button>
+              <button
+                type="button"
+                disabled={syncingPermissions}
+                onClick={() => void handleResyncAdminPermissions()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                {syncingPermissions ? 'Sincronizando...' : 'Sincronizar permissões'}
+              </button>
+            </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
@@ -2374,13 +2437,17 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                         onChange={async (e) => {
                           if (isProtectedPrimaryAdmin) return;
                           const nextRole = e.target.value as UserRole;
+                          if (nextRole === u.role) return;
                           setErrorMsg(null);
                           try {
-                            await saveDocumentAudited('users', u.uid, { ...u, role: nextRole }, false, role, 'alterar_permissao_role', {
+                            await saveDocumentAudited('users', u.uid, { ...u, role: nextRole }, false, effectiveRole, 'alterar_permissao_role', {
                               role: u.role,
+                              email: u.email,
+                              nome: u.nome,
                             });
                             await loadUsers();
-                            setFeedback(`Papel de ${u.email} alterado para ${nextRole}.`);
+                            void onRefresh();
+                            setFeedback(`Papel de ${u.email} alterado de ${u.role} para ${nextRole} e registrado em logs.`);
                           } catch (err) {
                             setErrorMsg(formatActionError(err, 'Erro ao alterar papel do usuário.'));
                           }
@@ -2452,6 +2519,69 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Monitoramento em tempo real das alterações de role na subcoleção `logs` */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <History className="w-4 h-4 text-[var(--color-primary)]" />
+                  Monitoramento Automático de Alterações de Permissão (Role)
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Eventos gravados automaticamente em{' '}
+                  <code className="font-mono text-slate-700">adminAudit/painel/logs</code> e{' '}
+                  <code className="font-mono text-slate-700">users/{'{uid}'}/logs</code> com UID do administrador, data e transição de papel.
+                </p>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-600 tabular-nums">
+                {roleChangeEvents.length} {roleChangeEvents.length === 1 ? 'evento registrado' : 'eventos registrados'}
+              </span>
+            </div>
+
+            {!roleMonitorLoaded ? (
+              <div className="p-6 text-center text-xs text-slate-500">Conectando monitoramento de permissões...</div>
+            ) : roleChangeEvents.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                Nenhuma alteração de role registrada até o momento. Qualquer mudança de papel na tabela acima aparecerá aqui automaticamente.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[11px] text-slate-500 bg-white">
+                      <th className="py-2.5 px-4 font-semibold">Data da Alteração</th>
+                      <th className="py-2.5 px-4 font-semibold">Usuário Alterado</th>
+                      <th className="py-2.5 px-4 font-semibold">Permissão Antiga → Nova</th>
+                      <th className="py-2.5 px-4 font-semibold">Administrador (UID)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {roleChangeEvents.slice(0, 25).map((ev) => (
+                      <tr key={ev.id} className="hover:bg-slate-50/70">
+                        <td className="py-2.5 px-4 tabular-nums text-slate-600 whitespace-nowrap">
+                          {formatDateTimeBR(ev.changedAt || ev.createdAt)}
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <p className="font-semibold text-slate-900">{ev.targetEmail || ev.targetNome || ev.targetUid}</p>
+                          <p className="text-[10px] font-mono text-slate-500">UID: {ev.targetUid}</p>
+                        </td>
+                        <td className="py-2.5 px-4 whitespace-nowrap">
+                          <span className="font-mono font-semibold text-slate-600">{ev.oldRole}</span>
+                          <span className="mx-1.5 text-slate-400">→</span>
+                          <span className="font-mono font-bold text-[#0B1F33]">{ev.newRole}</span>
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <p className="text-slate-700 font-medium">{ev.adminEmail || ev.adminNome}</p>
+                          <p className="text-[10px] font-mono text-slate-500">UID: {ev.adminUid}</p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2546,6 +2676,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 {(
                   [
                     { id: 'all', label: 'Todos' },
+                    { id: 'role_changes', label: 'Alterações de Role' },
                     { id: 'create', label: 'Criação' },
                     { id: 'update', label: 'Edição' },
                     { id: 'delete', label: 'Exclusão' },
@@ -2611,6 +2742,13 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           <span className="text-slate-500 font-mono text-[11px]">({l.entidadeId})</span>
                         </div>
                         <p className="text-slate-700">{l.resolvedResumo}</p>
+                        {(l.oldRole || l.newRole) && (
+                          <p className="text-[11px] text-slate-600 font-mono pt-0.5">
+                            Permissão: <span className="text-slate-500">{l.oldRole || 'nenhuma'}</span> →{' '}
+                            <strong className="text-[#0B1F33]">{l.newRole}</strong>
+                            {' · '}Admin UID: <span className="text-slate-700">{l.adminUid || l.actorUid}</span>
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <div className="text-right text-slate-500">

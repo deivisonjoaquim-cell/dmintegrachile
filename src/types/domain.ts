@@ -208,7 +208,29 @@ export interface AuditLog {
   antes?: string;
   depois?: string;
   createdAt: string;
-  sourceSubcollection?: 'adminAudit/painel/logs' | 'auditLogs';
+  adminUid?: string;
+  targetUid?: string;
+  targetEmail?: string;
+  targetNome?: string;
+  oldRole?: UserRole | 'nenhuma';
+  newRole?: UserRole;
+  changedAt?: string;
+  sourceSubcollection?: 'adminAudit/painel/logs' | 'auditLogs' | 'users/logs';
+}
+
+export interface RoleChangeAuditEvent {
+  id: string;
+  adminUid: string;
+  adminEmail: string;
+  adminNome: string;
+  targetUid: string;
+  targetEmail: string;
+  targetNome: string;
+  oldRole: UserRole | 'nenhuma';
+  newRole: UserRole;
+  changedAt: string;
+  createdAt: string;
+  reason?: string;
 }
 
 export type PartnerCategory =

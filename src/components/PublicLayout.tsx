@@ -3,7 +3,7 @@ import { ArrowRight, Menu, MessageCircle, X } from 'lucide-react';
 import { isCompleteHorizontalBrandLogo } from '../constants/brandAssets';
 import { useApp } from '../contexts/AppContext';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
-import { BrandLogo } from './BrandLogo';
+import { BrandLogo, BrandRibbon } from './BrandLogo';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -62,21 +62,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white border-b border-slate-200/80 no-print'
+      ? 'bg-white border-b border-[#E5DFD2] no-print'
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-slate-200/90 shadow-[0_1px_3px_rgba(11,31,51,0.05)] no-print'
-        : 'sticky top-0 z-40 bg-white/88 backdrop-blur-xl border-b border-slate-200/75 shadow-[0_1px_2px_rgba(11,31,51,0.03)] no-print';
+        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E5DFD2] shadow-[0_2px_10px_rgba(11,31,51,0.04)] no-print'
+        : 'sticky top-0 z-40 bg-white/92 backdrop-blur-xl border-b border-[#E5DFD2] shadow-[0_2px_12px_rgba(11,31,51,0.035)] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const brandShortName = empresa.nome_empresa.split('–')[0].trim();
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
-      {/* Filete arquitetônico de identidade institucional */}
-      <div className="flex h-[2px] w-full no-print" aria-hidden="true">
-        <div className="flex-[4] bg-[var(--color-primary)]" />
-        <div className="flex-1 bg-[var(--color-accent)]" />
-      </div>
+      {/* Filete arquitetônico bilateral de identidade institucional */}
+      <BrandRibbon className="h-[3px] w-full no-print" />
 
       <header className={headerClass}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[72px] flex items-center justify-between gap-6">
@@ -150,7 +147,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-3 space-y-1 shadow-lg">
+          <div className="lg:hidden bg-white border-t border-[#E5DFD2] px-4 py-3 space-y-1 shadow-lg">
             {navItems.map((item) => (
               <a
                 key={item.path}
@@ -161,7 +158,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   onNavigate(item.path);
                 }}
                 className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
-                  currentPath === item.path ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+                  currentPath === item.path ? 'bg-[#F7F5F0] text-[#0B1F33] font-semibold' : 'text-slate-700 hover:bg-[#FAF9F6]'
                 }`}
               >
                 {item.label}
@@ -185,10 +182,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         className="text-slate-300 border-t border-white/10 no-print relative"
         style={{ backgroundColor: 'var(--color-footer-bg)' }}
       >
-        <div className="h-[2px] w-full flex" aria-hidden="true">
-          <div className="flex-[3] bg-white/10" />
-          <div className="flex-1 bg-[var(--color-accent)]/70" />
-        </div>
+        <BrandRibbon className="h-[3px] w-full" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-16">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-white/10">
             <div className="md:col-span-5 space-y-3">
@@ -227,6 +221,23 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     </a>
                   </li>
                 ))}
+                <li>
+                  <a
+                    href="#/entrar-equipe"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onNavigate(
+                        userProfile &&
+                          (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente')
+                          ? '/painel'
+                          : '/entrar-equipe',
+                      );
+                    }}
+                    className="text-slate-400 hover:text-[#E5C76B] transition-colors text-xs"
+                  >
+                    Área da Equipe
+                  </a>
+                </li>
               </ul>
             </div>
             <div className="md:col-span-4">
@@ -290,21 +301,21 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
       {/* Barra inferior fixa CTA no mobile */}
       {showMobileCtaBar && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 px-3 py-2 flex items-center gap-2 no-print shadow-lg">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-[#E5DFD2] px-3 py-2 flex items-center gap-2 no-print shadow-lg">
           <button
             type="button"
             onClick={() => onNavigate('/diagnostico')}
             className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 btn-radius text-xs font-semibold text-white min-h-[42px]"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
-            Diagnóstico Gratuito
+            Diagnóstico Inteligente
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
           <a
             href={waFloatingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius bg-[#1E7E34] text-white text-xs font-semibold min-h-[42px]"
+            className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius bg-[#146B43] text-white text-xs font-semibold min-h-[42px]"
           >
             <MessageCircle className="w-4 h-4" />
             WhatsApp

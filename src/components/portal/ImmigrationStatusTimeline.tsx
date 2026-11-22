@@ -58,18 +58,18 @@ function getMilestoneStyle(status: MilestoneVisualStatus) {
       };
     case 'current':
       return {
-        nodeClass: 'bg-[#0B1F33] text-white border-[#C8A236] ring-4 ring-amber-100/80',
-        railClass: 'bg-slate-200',
-        rowClass: 'border-slate-900/30 bg-slate-50',
+        nodeClass: 'bg-[#0B1F33] text-white border-[#C8A236] ring-4 ring-[#C8A236]/20',
+        railClass: 'bg-[#E5DFD2]',
+        rowClass: 'border-[#0B1F33]/35 bg-[#FAF9F6]',
         statusTextClass: 'text-[#0B1F33]',
         icon: Clock,
       };
     default:
       return {
-        nodeClass: 'bg-white text-slate-400 border-slate-300',
-        railClass: 'bg-slate-200',
-        rowClass: 'border-slate-200 bg-white',
-        statusTextClass: 'text-slate-500',
+        nodeClass: 'bg-white text-slate-400 border-[#DDD6C7]',
+        railClass: 'bg-[#E5DFD2]',
+        rowClass: 'border-[#E5DFD2] bg-white',
+        statusTextClass: 'text-[#4A5A6D]',
         icon: Circle,
       };
   }
@@ -203,26 +203,26 @@ export const ImmigrationStatusTimeline: React.FC<ImmigrationStatusTimelineProps>
   return (
     <div className="space-y-5">
       {/* Resumo ao vivo da linha do tempo */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50/75 p-4 sm:p-5 space-y-4">
+      <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
-              <span className="font-bold text-slate-900">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#4A5A6D]">
+              <span className="font-bold text-[#0B1F33]">
                 {modality === 'orientativa'
                   ? 'Linha do Tempo · Consultoria Orientativa (6 Etapas)'
                   : 'Linha do Tempo do Processo · SERMIG (15 Etapas)'}
               </span>
               {isLiveSynced && (
-                <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                <span className="inline-flex items-center gap-1 text-[#146B43] font-semibold">
                   <Radio className="w-3 h-3" aria-hidden="true" />
-                  Atualização em tempo real
+                  Sincronizado em tempo real
                 </span>
               )}
             </div>
             {timeline.currentMilestone && (
-              <p className="text-sm font-semibold text-slate-900 mt-1">
+              <p className="text-sm font-semibold text-[#0B1F33] mt-1">
                 Etapa atual:{' '}
-                <span className="tabular-nums">
+                <span className="font-mono tabular-nums text-[#8C6D14]">
                   {timeline.currentStepNumber}/{timeline.totalSteps}
                 </span>{' '}
                 — {timeline.currentMilestone.titulo}
@@ -230,13 +230,13 @@ export const ImmigrationStatusTimeline: React.FC<ImmigrationStatusTimelineProps>
             )}
           </div>
           <div className="text-left sm:text-right shrink-0">
-            <p className="text-xs text-slate-500">Avanço estimado do processo</p>
-            <p className="text-2xl font-bold text-slate-900 tabular-nums">{timeline.progressPercent}%</p>
+            <p className="text-xs text-[#4A5A6D]">Avanço estimado do processo</p>
+            <p className="text-2xl font-bold font-mono text-[#0B1F33] tabular-nums">{timeline.progressPercent}%</p>
           </div>
         </div>
 
         {/* Barra de progresso principal */}
-        <div className="h-2.5 rounded-full bg-slate-200 overflow-hidden" role="progressbar" aria-valuenow={timeline.progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso da linha do tempo do processo">
+        <div className="h-2.5 rounded-full bg-[#E5DFD2] overflow-hidden" role="progressbar" aria-valuenow={timeline.progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso da linha do tempo do processo">
           <div
             className="h-full rounded-full transition-all duration-300"
             style={{
@@ -245,7 +245,7 @@ export const ImmigrationStatusTimeline: React.FC<ImmigrationStatusTimelineProps>
                 timeline.currentMilestone?.status === 'attention'
                   ? '#D97706'
                   : timeline.progressPercent >= 100
-                    ? '#16A34A'
+                    ? '#146B43'
                     : 'var(--color-primary)',
             }}
           />
@@ -253,35 +253,35 @@ export const ImmigrationStatusTimeline: React.FC<ImmigrationStatusTimelineProps>
 
         {/* Metadados unboxed de status SERMIG, protocolo e próximo prazo */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">Status oficial</p>
+          <div className="rounded-lg border border-[#E5DFD2] bg-white px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-[#4A5A6D]">Status oficial</p>
             <p className={`text-xs font-bold mt-0.5 inline-flex items-center gap-1.5 ${sermigVisual.textClass}`}>
               <SermigIcon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>{timeline.sermigBadge.label}</span>
             </p>
             {timeline.sermigBadge.protocolNumber && (
-              <p className="text-[11px] text-slate-500 tabular-nums mt-0.5">
+              <p className="text-[11px] font-mono text-[#4A5A6D] tabular-nums mt-0.5">
                 Protocolo: {timeline.sermigBadge.protocolNumber}
               </p>
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">Etapas concluídas</p>
-            <p className="text-xs font-bold text-slate-900 mt-0.5 tabular-nums inline-flex items-center gap-1.5">
-              <FileCheck2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" aria-hidden="true" />
+          <div className="rounded-lg border border-[#E5DFD2] bg-white px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-[#4A5A6D]">Etapas concluídas</p>
+            <p className="text-xs font-bold text-[#0B1F33] mt-0.5 tabular-nums inline-flex items-center gap-1.5">
+              <FileCheck2 className="w-3.5 h-3.5 text-[#146B43] shrink-0" aria-hidden="true" />
               <span>
                 {timeline.completedStepsCount} de {timeline.totalSteps} marcos finalizados
               </span>
             </p>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">Próximo prazo</p>
+          <div className="rounded-lg border border-[#E5DFD2] bg-white px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-[#4A5A6D]">Próximo prazo</p>
             {timeline.nextDeadline ? (
               <>
-                <p className="text-xs font-bold text-slate-900 mt-0.5 inline-flex items-center gap-1.5 truncate">
-                  <CalendarClock className="w-3.5 h-3.5 text-slate-600 shrink-0" aria-hidden="true" />
+                <p className="text-xs font-bold text-[#0B1F33] mt-0.5 inline-flex items-center gap-1.5 truncate">
+                  <CalendarClock className="w-3.5 h-3.5 text-[#8C6D14] shrink-0" aria-hidden="true" />
                   <span className="truncate">{timeline.nextDeadline.titulo}</span>
                 </p>
                 <p
@@ -354,8 +354,8 @@ export const ImmigrationStatusTimeline: React.FC<ImmigrationStatusTimelineProps>
           onClick={() => setSelectedPhaseKey('all')}
           className={`px-3 min-h-[40px] rounded-lg border text-xs font-semibold whitespace-nowrap shrink-0 tabular-nums transition-colors ${
             selectedPhaseKey === 'all'
-              ? 'bg-slate-900 text-white border-slate-900'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
+              : 'bg-white text-[#0B1F33] border-[#DDD6C7] hover:bg-[#FAF9F6]'
           }`}
         >
           Todas as etapas ({timeline.totalSteps})
@@ -369,10 +369,10 @@ export const ImmigrationStatusTimeline: React.FC<ImmigrationStatusTimelineProps>
             onClick={() => setSelectedPhaseKey(ph.key)}
             className={`px-3 min-h-[40px] rounded-lg border text-xs font-semibold whitespace-nowrap shrink-0 tabular-nums transition-colors ${
               selectedPhaseKey === ph.key
-                ? 'bg-slate-900 text-white border-slate-900'
+                ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
                 : ph.hasAttention
                   ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100/70'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  : 'bg-white text-[#0B1F33] border-[#DDD6C7] hover:bg-[#FAF9F6]'
             }`}
           >
             {ph.label} ({ph.completedCount}/{ph.totalCount})

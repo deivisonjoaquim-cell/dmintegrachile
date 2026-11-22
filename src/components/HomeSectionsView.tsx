@@ -82,22 +82,22 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       isDark: false,
       sectionStyle: { backgroundColor: 'var(--color-bg)' } as React.CSSProperties,
       sectionClass: 'text-[var(--color-text)]',
-      headingClass: 'text-[var(--color-text)]',
-      subClass: 'text-slate-600',
-      eyebrowClass: 'text-[#8F6F16]',
+      headingClass: 'text-[#0B1F33]',
+      subClass: 'text-[#4A5A6D]',
+      eyebrowClass: 'text-[#8C6D14]',
       cardClass:
-        'bg-[var(--color-surface)] border border-slate-200/90 shadow-[0_1px_2px_rgba(11,31,51,0.03)] hover:border-slate-300 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
+        'bg-[var(--color-surface)] border border-[#E5DFD2] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
     };
   }
   return {
     isDark: false,
     sectionStyle: { backgroundColor: 'var(--color-surface)' } as React.CSSProperties,
-    sectionClass: 'border-y border-slate-200/80 text-[var(--color-text)]',
-    headingClass: 'text-[var(--color-text)]',
-    subClass: 'text-slate-600',
-    eyebrowClass: 'text-[#8F6F16]',
+    sectionClass: 'border-y border-[#E5DFD2] text-[var(--color-text)]',
+    headingClass: 'text-[#0B1F33]',
+    subClass: 'text-[#4A5A6D]',
+    eyebrowClass: 'text-[#8C6D14]',
     cardClass:
-      'bg-[var(--color-surface)] border border-slate-200/90 shadow-[0_1px_2px_rgba(11,31,51,0.03)] hover:border-slate-300 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all duration-200',
+      'bg-[var(--color-surface)] border border-[#E5DFD2] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
   };
 }
 
@@ -392,25 +392,25 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
       const imageFirst = variante === 'split-esquerda';
       return (
-        <section key={sec.id} className="bg-[var(--color-surface)] border-b border-slate-200/80 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-22">
+        <section key={sec.id} className="bg-[var(--color-surface)] border-b border-[#E5DFD2] relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-20">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-stretch">
               <div className={`lg:col-span-7 flex flex-col justify-center ${imageFirst ? 'lg:order-2' : 'lg:order-1'}`}>
                 <div className="flex items-center gap-3 mb-4">
                   <span className="h-[2px] w-7 shrink-0" style={{ backgroundColor: 'var(--color-accent)' }} aria-hidden="true" />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8F6F16]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
                     {eyebrow}
                   </p>
                 </div>
-                <h1 className="text-[clamp(2.15rem,3.6vw,3.35rem)] font-bold tracking-[-0.03em] text-[var(--color-text)] leading-[1.09] text-balance mb-5">
+                <h1 className="text-[clamp(2.15rem,3.6vw,3.35rem)] font-bold tracking-[-0.025em] text-[#0B1F33] leading-[1.09] text-balance mb-5">
                   {sec.titulo}
                 </h1>
-                <p className="text-base sm:text-[17px] text-slate-600 leading-[1.65] max-w-2xl mb-4">
+                <p className="text-base sm:text-[17px] text-[#4A5A6D] leading-[1.65] max-w-2xl mb-4">
                   {sec.subtitulo}
                 </p>
                 {sec.conteudoHtml && (
                   <div
-                    className="text-sm text-slate-600 leading-relaxed max-w-2xl mb-8"
+                    className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mb-7"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(sec.conteudoHtml) }}
                   />
                 )}
@@ -418,26 +418,42 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                    className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_6px_18px_rgba(11,31,51,0.18)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_8px_22px_rgba(11,31,51,0.2)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     {ctaPrimario}
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4 text-[#E5C76B]" />
                   </button>
                   <a
                     href={whatsappHeroUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-slate-800 border border-slate-300/90 bg-white hover:bg-slate-50 hover:border-slate-400 transition-all duration-150 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#FAF9F6] hover:border-[#C8A236]/60 transition-all duration-150 whitespace-nowrap shrink-0"
                   >
-                    <MessageCircle className="w-4 h-4 text-[#1E7E34]" />
+                    <MessageCircle className="w-4 h-4 text-[#146B43]" />
                     {ctaSecundario}
                   </a>
+                </div>
+
+                {/* Faixa técnica do motor de diagnóstico */}
+                <div className="mt-8 pt-6 border-t border-[#E5DFD2] grid grid-cols-3 gap-4 max-w-xl">
+                  <div>
+                    <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33]">6 Etapas</p>
+                    <p className="text-[11px] text-[#4A5A6D] mt-0.5">Diagnóstico completo ao vivo</p>
+                  </div>
+                  <div>
+                    <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14]">7 Pilares</p>
+                    <p className="text-[11px] text-[#4A5A6D] mt-0.5">Radar + Simulador de cenários</p>
+                  </div>
+                  <div>
+                    <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#146B43]">PDF 2 Págs</p>
+                    <p className="text-[11px] text-[#4A5A6D] mt-0.5">Dossiê oficial exportável</p>
+                  </div>
                 </div>
               </div>
 
               <div className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}>
-                <div className="relative h-72 sm:h-96 lg:h-full min-h-[380px] card-radius overflow-hidden border border-slate-200/90 bg-[#0B1F33] shadow-[0_18px_42px_rgba(11,31,51,0.14)]">
+                <div className="relative h-72 sm:h-96 lg:h-full min-h-[390px] card-radius overflow-hidden border border-[#E5DFD2] bg-[#0B1F33] shadow-[0_20px_48px_rgba(11,31,51,0.16)]">
                   {sec.imagemUrl ? (
                     <img
                       src={sec.imagemUrl}
@@ -450,7 +466,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       Santiago do Chile · Assessoria Internacional
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/88 via-[#071422]/25 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/90 via-[#071422]/25 to-transparent" />
                   <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="h-[2px] w-5" style={{ backgroundColor: 'var(--color-accent)' }} aria-hidden="true" />
@@ -465,11 +481,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             </div>
 
             {heroDestaques.length > 0 && (
-              <div className="mt-14 pt-8 border-t border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="mt-12 pt-7 border-t border-[#E5DFD2] grid grid-cols-1 md:grid-cols-3 gap-6">
                 {heroDestaques.map((item, idx) => (
                   <div key={idx} className="flex items-start gap-3">
                     <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                    <p className="text-sm font-medium text-slate-800 leading-snug">{item}</p>
+                    <p className="text-sm font-medium text-[#0B1F33] leading-snug">{item}</p>
                   </div>
                 ))}
               </div>
@@ -558,26 +574,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
                 {/* 1. Diagnóstico Gratuito */}
-                <div className="bg-white border border-slate-200/90 card-radius p-6 flex flex-col justify-between gap-6 text-slate-900 shadow-[0_2px_10px_rgba(11,31,51,0.04)]">
+                <div className="bg-white border border-[#E5DFD2] card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] shadow-[0_2px_12px_rgba(11,31,51,0.04)]">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                        Etapa inicial · Gratuito
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                        Etapa inicial · Gratuito · PDF incluso
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-slate-900">
+                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33]">
                         {CONSULTANCY_PLANS.diagnostico_gratuito.nome}
                       </h4>
-                      <p className="text-xs text-slate-600 leading-relaxed">
+                      <p className="text-xs text-[#4A5A6D] leading-relaxed">
                         {CONSULTANCY_PLANS.diagnostico_gratuito.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-slate-700 pt-3 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold text-[#0B1F33] pt-3 border-t border-[#F1EDE4]">
                       Escopo: {CONSULTANCY_PLANS.diagnostico_gratuito.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-700">
                       {CONSULTANCY_PLANS.diagnostico_gratuito.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#146B43] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -586,34 +602,34 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => navigateAction('/diagnostico')}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-900 hover:bg-slate-100 transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-[#F1EDE4] transition-colors"
                   >
-                    Fazer Diagnóstico Gratuito
+                    Iniciar Diagnóstico Completo
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {/* 2. Consultoria Orientativa */}
-                <div className="bg-white border border-[#1E3A5F]/35 card-radius p-6 flex flex-col justify-between gap-6 text-slate-900 shadow-[0_6px_22px_rgba(11,31,51,0.06)]">
+                <div className="bg-white border border-[#0B1F33]/30 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] shadow-[0_6px_22px_rgba(11,31,51,0.06)]">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1E3A5F]">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0B1F33]">
                         Modalidade 01 · Direcionamento técnico
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-slate-900">
+                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33]">
                         {CONSULTANCY_PLANS.orientativa.nome}
                       </h4>
-                      <p className="text-xs text-slate-600 leading-relaxed">
+                      <p className="text-xs text-[#4A5A6D] leading-relaxed">
                         {CONSULTANCY_PLANS.orientativa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-[#1E3A5F] pt-3 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold text-[#0B1F33] pt-3 border-t border-[#F1EDE4]">
                       Execução: {CONSULTANCY_PLANS.orientativa.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-700">
                       {CONSULTANCY_PLANS.orientativa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#1E3A5F] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#0B1F33] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -636,7 +652,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
                 {/* 3. Consultoria Completa */}
                 <div
-                  className="card-radius p-6 flex flex-col justify-between gap-6 text-white shadow-[0_14px_34px_rgba(11,31,51,0.18)] border border-[#C9A227]/45"
+                  className="card-radius p-6 flex flex-col justify-between gap-6 text-white shadow-[0_14px_34px_rgba(11,31,51,0.2)] border border-[#C8A236]/50"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   <div className="space-y-4">
@@ -681,7 +697,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             </div>
 
             {showComparator && (
-              <div className="bg-[var(--color-surface)] border border-slate-200/90 card-radius overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.06)] text-slate-900">
+              <div className="bg-[var(--color-surface)] border border-[#E5DFD2] card-radius overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.06)] text-[#0B1F33]">
                 <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
                   <div className="lg:col-span-7 p-6 sm:p-8 space-y-5 flex flex-col justify-center">
                     <div className="space-y-1.5">
@@ -970,7 +986,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             {Boolean(meta.eyebrow) && <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>{String(meta.eyebrow)}</p>}
             <h2 className={`text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>{sec.titulo}</h2>
             <p className={`text-base mb-8 ${theme.subClass}`}>{sec.subtitulo}</p>
-            <div className="divide-y divide-slate-200 border border-slate-200 card-radius bg-[var(--color-surface)] text-slate-900 overflow-hidden">
+            <div className="divide-y divide-[#E5DFD2] border border-[#E5DFD2] card-radius bg-[var(--color-surface)] text-[#0B1F33] overflow-hidden shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
               {perguntas.map((item, idx) => {
                 const isOpen = openFaq === idx;
                 return (
@@ -979,16 +995,16 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       type="button"
                       aria-expanded={isOpen}
                       onClick={() => setOpenFaq(isOpen ? null : idx)}
-                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-slate-50 transition-colors"
+                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#FAF9F6] transition-colors"
                     >
-                      <span className="text-sm sm:text-base font-semibold text-slate-900">{item.pergunta}</span>
+                      <span className="text-sm sm:text-base font-semibold text-[#0B1F33]">{item.pergunta}</span>
                       {isOpen ? (
-                        <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" />
+                        <ChevronUp className="w-4 h-4 text-[#8C6D14] shrink-0" />
                       ) : (
                         <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
                       )}
                     </button>
-                    {isOpen && <div className="px-6 pb-5 text-sm text-slate-600 leading-relaxed">{item.resposta}</div>}
+                    {isOpen && <div className="px-6 pb-5 text-sm text-[#4A5A6D] leading-relaxed">{item.resposta}</div>}
                   </div>
                 );
               })}

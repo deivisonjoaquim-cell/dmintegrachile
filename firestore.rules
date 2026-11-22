@@ -179,47 +179,14 @@ service cloud.firestore {
         && isReqString(data, 'corFundo', 4, 20)
         && data.fontePrincipal in ['Plus Jakarta Sans', 'DM Sans', 'Manrope', 'Public Sans', 'Montserrat', 'Merriweather', 'Inter']
         && (!('fonteDisplay' in data) || data.fonteDisplay == null || data.fonteDisplay == '' || data.fonteDisplay in ['Plus Jakarta Sans', 'Outfit', 'Manrope', 'Playfair Display', 'Montserrat', 'DM Sans', 'Public Sans', 'Merriweather', 'Inter'])
-        && isOptString(data, 'razao_social_cnpj_rut', 200)
-        && isOptString(data, 'responsavel_tecnico', 200)
-        && isOptString(data, 'endereco_cidade', 300)
         && isOptString(data, 'logoUrl', 800000)
         && isOptString(data, 'logoDarkUrl', 800000)
         && isOptString(data, 'faviconUrl', 800000)
-        && isOptString(data, 'corSuperficie', 20)
-        && isOptString(data, 'corTexto', 20)
-        && isOptString(data, 'corRodapeBg', 20)
         && isOptString(data, 'whatsapp', 80)
         && isOptString(data, 'email', 200)
-        && isOptString(data, 'siteInstagram', 300)
-        && isOptString(data, 'siteLinkedIn', 300)
-        && isOptString(data, 'linkCalendly', 500)
-        && isOptString(data, 'emailGoogleAgenda', 200)
-        && isOptString(data, 'chavePix', 200)
-        && isOptString(data, 'linkPagamentoCartao', 500)
         && isOptString(data, 'textoContratoPadrao', 40000)
-        && isOptString(data, 'textoReciboPadrao', 10000)
         && isOptString(data, 'termoLgpd', 25000)
-        && isOptString(data, 'termoLgpdVersao', 30)
-        && isOptString(data, 'avisoLegal', 2500)
-        && isOptNum(data, 'bloqueioProtocoloMinimo')
-        && isOptNum(data, 'diasAlertaRevisaoLegal')
-        && isOptNum(data, 'diasExpiracaoLinkDiagnostico')
-        && isOptNum(data, 'honorariosPadraoMinBrl')
-        && isOptNum(data, 'honorariosPadraoMaxBrl')
-        && isOptNum(data, 'taxaCambioBrlClp')
-        && isOptNum(data, 'taxaCambioUsdBrl')
-        && isOptNum(data, 'retencaoDadosDias')
-        && isOptString(data, 'seoTituloPadrao', 200)
-        && isOptString(data, 'seoDescricaoPadrao', 1000)
-        && isOptString(data, 'ultimaRevisaoNormativa', 64)
-        && isOptString(data, 'textoContratoVersao', 30)
-        && isOptString(data, 'textoContratoVigencia', 64)
-        && isOptString(data, 'textoReciboVersao', 30)
-        && isOptString(data, 'textoReciboVigencia', 64)
-        && isOptString(data, 'termoLgpdVigencia', 64)
         && isOptString(data, 'fcmVapidPublicKey', 300)
-        && isOptString(data, 'siteVersaoAtual', 40)
-        && isOptString(data, 'sitePublicadoEm', 64)
         && isOptString(data, 'updatedAt', 64);
     }
 
@@ -277,7 +244,8 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'actorUid', 'actorEmail', 'actorNome', 'actorRole',
           'acao', 'tipoOperacao', 'sensivel', 'entidade', 'entidadeId',
-          'campo', 'resumo', 'antes', 'depois', 'createdAt'
+          'campo', 'resumo', 'antes', 'depois', 'createdAt',
+          'adminUid', 'targetUid', 'targetEmail', 'targetNome', 'oldRole', 'newRole', 'changedAt'
         ])
         && isReqString(data, 'id', 1, 128)
         && data.id.matches('^[a-zA-Z0-9_\\-]+$')
@@ -295,7 +263,36 @@ service cloud.firestore {
         && isOptString(data, 'resumo', 500)
         && isOptString(data, 'antes', 4000)
         && isOptString(data, 'depois', 4000)
-        && isReqString(data, 'createdAt', 10, 64);
+        && isReqString(data, 'createdAt', 10, 64)
+        && isOptString(data, 'adminUid', 128)
+        && isOptString(data, 'targetUid', 128)
+        && isOptString(data, 'targetEmail', 200)
+        && isOptString(data, 'targetNome', 200)
+        && (!('oldRole' in data) || data.oldRole == null || data.oldRole == '' || data.oldRole in ['admin', 'consultor', 'assistente', 'cliente', 'nenhuma'])
+        && (!('newRole' in data) || data.newRole == null || data.newRole == '' || data.newRole in ['admin', 'consultor', 'assistente', 'cliente'])
+        && isOptString(data, 'changedAt', 64);
+    }
+
+    function isValidUserRoleLog(data, targetUid) {
+      return data.keys().hasAll(['id', 'adminUid', 'targetUid', 'oldRole', 'newRole', 'changedAt', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'adminUid', 'adminEmail', 'adminNome', 'targetUid', 'targetEmail', 'targetNome',
+          'oldRole', 'newRole', 'changedAt', 'createdAt', 'reason'
+        ])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'adminUid', 1, 128)
+        && data.adminUid == request.auth.uid
+        && isOptString(data, 'adminEmail', 200)
+        && isOptString(data, 'adminNome', 200)
+        && data.targetUid == targetUid
+        && isOptString(data, 'targetEmail', 200)
+        && isOptString(data, 'targetNome', 200)
+        && data.oldRole in ['admin', 'consultor', 'assistente', 'cliente', 'nenhuma']
+        && data.newRole in ['admin', 'consultor', 'assistente', 'cliente']
+        && isReqString(data, 'changedAt', 10, 64)
+        && isReqString(data, 'createdAt', 10, 64)
+        && isOptString(data, 'reason', 500);
     }
 
     function isValidPartnerProposal(data) {
@@ -648,6 +645,16 @@ service cloud.firestore {
         ))
       );
       allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
+
+      match /logs/{logId} {
+        allow get: if isValidId(uid) && isValidId(logId) && isAdminOrConsultor();
+        allow list: if isValidId(uid) && isAdminOrConsultor();
+        allow create: if isSignedIn() && isValidId(uid) && isValidId(logId) && (
+          isBootstrappedAdmin() ||
+          (isValidatedAdmin() && isValidUserRoleLog(incoming(), uid) && incoming().id == logId)
+        );
+        allow update, delete: if false;
+      }
     }
 
     match /config/{docId} {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, Handshake, MessageCircle, Search, Star } from 'lucide-react';
+import { BrandRibbon } from '../components/BrandLogo';
 import { useApp } from '../contexts/AppContext';
 import { submitPartnerProposalPublic } from '../services/firestoreService';
 import type { CurrencyCode, PartnerCategory } from '../types/domain';
@@ -204,16 +205,23 @@ export const ParceirosPage: React.FC = () => {
         </section>
 
         {/* Formulário Seja um Parceiro */}
-        <section id="seja-parceiro" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10">
-          <div className="max-w-2xl mb-8">
-            <div className="flex items-center gap-2.5 mb-2">
-              <Handshake className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-              <h2 className="text-2xl font-bold text-slate-900">Seja um Parceiro</h2>
+        <section id="seja-parceiro" className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.05)]">
+          <BrandRibbon className="h-[3px] w-full" />
+          <div className="bg-[#0B1F33] text-white px-6 sm:px-10 py-6">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2.5 mb-2">
+                <Handshake className="w-5 h-5 text-[#E5C76B]" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                  Credenciamento de Parceiros · Brasil &amp; Chile
+                </p>
+              </div>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-white">Seja um Parceiro Homologado</h2>
+              <p className="text-sm text-slate-300 leading-relaxed mt-2">
+                Oferece serviços jurídicos, cartoriais, de tradução juramentada, locação, contabilidade ou relocation no Brasil ou no Chile? Envie sua proposta para avaliação da nossa diretoria.
+              </p>
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Oferece serviços jurídicos, cartoriais, de tradução juramentada, locação, contabilidade ou relocation no Brasil ou no Chile? Envie sua proposta para avaliação da nossa diretoria.
-            </p>
           </div>
+          <div className="p-6 sm:p-10">
 
           {submittedId && (
             <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3">
@@ -392,13 +400,14 @@ export const ParceirosPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-6 py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                className="px-6 py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-[0_4px_14px_rgba(11,31,51,0.18)] hover:opacity-95 transition-opacity"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 {submitting ? 'Enviando proposta...' : 'Enviar proposta de parceria'}
               </button>
             </div>
           </form>
+          </div>
         </section>
       </div>
     </div>

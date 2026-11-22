@@ -235,13 +235,37 @@ export function getPortalCapabilities(
   };
 }
 
+export interface BasicDiagnosticDimension {
+  nome: string;
+  pontos: number;
+  maximo: number;
+  percentual: number;
+  observacao: string;
+}
+
+export interface BasicDiagnosticAlternative {
+  codigo: string;
+  nome: string;
+  aderencia: number;
+  permiteDentroChile: 'Sim' | 'Não' | 'Condicional';
+}
+
+export interface BasicDiagnosticPhase {
+  fase: number;
+  titulo: string;
+  foco: string;
+  resumo: string;
+}
+
 export interface BasicDiagnosticSummary {
   nome?: string;
   notaViabilidade: number;
   veredito: string;
+  vereditoNivel?: 'alta' | 'moderada' | 'atencao';
   confianca: DiagnosticConfidence;
   subcategoriaCodigo: string;
   subcategoriaNome: string;
+  subcategoriaEspanhol?: string;
   resumoBasico: string;
   permiteDentroChile?: 'Sim' | 'Não' | 'Condicional';
   permiteTrabalhar?: boolean;
@@ -249,8 +273,117 @@ export interface BasicDiagnosticSummary {
   temAlertaCritico: boolean;
   alertaGeral?: string;
   familiaResumo?: string;
+  prazoEstimadoResumo?: string;
+  perfilResumo?: {
+    localizacao: string;
+    objetivo: string;
+    prazo: string;
+    familia: string;
+  };
+  dimensoes?: BasicDiagnosticDimension[];
+  pontosFortes?: string[];
+  pontosAtencao?: string[];
+  alternativasMapeadas?: BasicDiagnosticAlternative[];
+  roteiroMacro?: BasicDiagnosticPhase[];
   itensBloqueados: string[];
   dataCalculo?: string;
+}
+
+const OBJECTIVE_PUBLIC_LABELS: Record<string, string> = {
+  explorar: 'Morar no Chile (Mercosul / residência geral)',
+  trabalhar: 'Trabalho com contrato ou empresa chilena',
+  estudar: 'Estudos em instituição chilena',
+  aposentado_rentista: 'Aposentado ou renda passiva',
+  investir: 'Investimento ou empreendedorismo',
+  familia: 'Reunificação familiar',
+  outro: 'Outro objetivo migratório',
+};
+
+function buildMacroRoadmap(localizacao?: string): BasicDiagnosticPhase[] {
+  if (localizacao === 'No Chile com residência') {
+    return [
+      {
+        fase: 1,
+        titulo: 'Auditoria da Residência Atual',
+        foco: 'Janela legal SERMIG',
+        resumo: 'Conferência da subcategoria vigente, histórico de ausências do Chile e prazo exato de protocolização (90 a 10 dias antes do vencimento).',
+      },
+      {
+        fase: 2,
+        titulo: 'Dossiê de Prorrogação ou Definitiva',
+        foco: 'Certidões e comprovantes',
+        resumo: 'Reunião de certidões atualizadas, comprovantes de sustento/vínculo no Chile e validação de validade documental.',
+      },
+      {
+        fase: 3,
+        titulo: 'Protocolo Oficial no SERMIG',
+        foco: 'Envio digital e comprovante',
+        resumo: 'Submissão eletrônica no portal oficial com emissão do comprovante de solicitação em trâmite para manter regularidade plena.',
+      },
+      {
+        fase: 4,
+        titulo: 'Resolução e Atualização da Cédula',
+        foco: 'Registro Civil & PDI',
+        resumo: 'Emissão do Estampado Eletrônico, atualização cadastral e renovação da Cédula de Identidade para Estrangeiros.',
+      },
+    ];
+  }
+
+  if (localizacao === 'No Chile como turista') {
+    return [
+      {
+        fase: 1,
+        titulo: 'Definição Segura da Estratégia',
+        foco: 'Regra de Permanencia Transitoria',
+        resumo: 'Avaliação jurídica se o seu caso se enquadra em exceção dentro do Chile ou se exige protocolo a partir do exterior conforme a Ley Nº 21.325.',
+      },
+      {
+        fase: 2,
+        titulo: 'Preparação Documental & Apostila',
+        foco: 'Validade e tradução',
+        resumo: 'Emissão de certidões na ordem certa, Apostila de Haia e traduções oficiais para evitar vencimento de antecedentes.',
+      },
+      {
+        fase: 3,
+        titulo: 'Protocolo no Portal SERMIG',
+        foco: 'Acompanhamento de exigências',
+        resumo: 'Envio completo do pedido de Residência Temporal e monitoramento de eventuais solicitações complementares do órgão.',
+      },
+      {
+        fase: 4,
+        titulo: 'Estampado, PDI & Cédula Chilena',
+        foco: 'Regularização completa',
+        resumo: 'Aprovação, emissão do Estampado Eletrônico, registro na PDI e emissão do RUN/Cédula de Identidade chilena.',
+      },
+    ];
+  }
+
+  return [
+    {
+      fase: 1,
+      titulo: 'Enquadramento & Estratégia',
+      foco: 'Escolha da rota ideal',
+      resumo: 'Confirmação técnica da subcategoria principal no SERMIG, definição do titular/dependentes e mapeamento de riscos.',
+    },
+    {
+      fase: 2,
+      titulo: 'Emissão, Apostila & Tradução',
+      foco: 'Ordem cronológica correta',
+      resumo: 'Emissão sincronizada das certidões brasileiras (com atenção às validades curtas), Apostila de Haia e traduções exigidas.',
+    },
+    {
+      fase: 3,
+      titulo: 'Protocolo Oficial do Exterior',
+      foco: 'Portal SERMIG Chile',
+      resumo: 'Submissão eletrônica do dossiê ainda no Brasil/exterior, acompanhamento da análise e aprovação prévia ao embarque.',
+    },
+    {
+      fase: 4,
+      titulo: 'Embarque, Registro PDI & Cédula',
+      foco: 'Instalação regular no Chile',
+      resumo: 'Entrada regular com Estampado Eletrônico, registro obrigatório na PDI e emissão da Cédula de Identidade (RUN).',
+    },
+  ];
 }
 
 export function buildBasicDiagnosticSummary(
@@ -259,6 +392,8 @@ export function buildBasicDiagnosticSummary(
 ): BasicDiagnosticSummary {
   const rec = result.recomendada;
   const score = Math.round(result.viabilidade?.total || 0);
+  const vereditoNivel: 'alta' | 'moderada' | 'atencao' =
+    score >= 75 ? 'alta' : score >= 50 ? 'moderada' : 'atencao';
   const verdict =
     score >= 75
       ? 'Perfil com alta aderência preliminar'
@@ -280,7 +415,7 @@ export function buildBasicDiagnosticSummary(
   let genericAlert: string | undefined;
   if (hasTouristRestriction) {
     genericAlert =
-      'Identificamos restrição legal relevante ligada à localização/entrada no Chile como turista. A definição da rota segura exige análise individualizada.';
+      'Identificamos restrição legal relevante ligada à localização/entrada no Chile como turista (Ley Nº 21.325). A definição da rota segura exige análise individualizada.';
   } else if (hasCriticalAlert) {
     genericAlert =
       'Identificamos pontos de atenção no perfil que impactam o enquadramento ou a ordem dos documentos e precisam ser validados em consultoria.';
@@ -291,16 +426,72 @@ export function buildBasicDiagnosticSummary(
     depCount > 0 ? `Titular + ${depCount} dependente(s)` : 'Aplicação individual (titular)';
 
   const resumoBasico = rec
-    ? `Com base nas respostas informadas, a direção preliminar mais compatível é ${rec.visa.nomePortugues} (${rec.visa.codigo}). Este resultado gratuito apresenta apenas o enquadramento inicial e não substitui a validação documental.`
+    ? `Com base nas informações fornecidas, a rota preliminar mais compatível com o seu momento é ${rec.visa.nomePortugues}. Este dossiê gratuito apresenta a leitura inicial de aderência, pilares de viabilidade e o roteiro macro da jornada — sem substituir a auditoria documental individual.`
     : 'Com base nas respostas informadas, seu perfil precisa de validação individual para definir a subcategoria migratória mais segura.';
+
+  const dimensoes: BasicDiagnosticDimension[] = (result.viabilidade?.dimensoes || []).map((d) => ({
+    nome: d.nome,
+    pontos: Math.round(d.pontos),
+    maximo: Math.round(d.maximo),
+    percentual: d.maximo > 0 ? Math.min(100, Math.max(0, Math.round((d.pontos / d.maximo) * 100))) : 0,
+    observacao: d.observacao,
+  }));
+
+  const pontosFortes: string[] = [];
+  if (rec?.motivo) pontosFortes.push(rec.motivo);
+  if (rec?.visa.permiteTrabalhar) {
+    pontosFortes.push('A subcategoria principal indicada autoriza atividade remunerada regular no Chile.');
+  }
+  if (rec?.visa.levaDefinitiva) {
+    pontosFortes.push('A rota é elegível à transição futura para Residência Definitiva cumprindo os prazos legais.');
+  }
+  for (const item of result.explicacaoCliente || []) {
+    if (pontosFortes.length >= 4) break;
+    const clean = item.trim();
+    if (clean && !pontosFortes.includes(clean)) {
+      pontosFortes.push(clean);
+    }
+  }
+
+  const pontosAtencao: string[] = [];
+  if (genericAlert) pontosAtencao.push(genericAlert);
+  for (const al of result.alertas || []) {
+    if (pontosAtencao.length >= 3) break;
+    const clean = al.trim();
+    if (clean && !pontosAtencao.includes(clean)) {
+      pontosAtencao.push(clean);
+    }
+  }
+  if (pontosAtencao.length === 0 && (result.contradicoes?.length ?? 0) > 0) {
+    pontosAtencao.push(
+      'Há dados complementares no questionário que merecem confirmação técnica antes da emissão de certidões.',
+    );
+  }
+
+  const alternativasMapeadas: BasicDiagnosticAlternative[] = (result.top3 || [])
+    .slice(1, 3)
+    .filter((c) => Boolean(c?.visa))
+    .map((c) => ({
+      codigo: c.visa.codigo,
+      nome: c.visa.nomePortugues,
+      aderencia: Math.round(c.nota),
+      permiteDentroChile: c.visa.permiteDentroChile,
+    }));
+
+  const prazoEstimadoResumo =
+    result.cronogramaFaixas?.respostaSermig ||
+    result.cronogramaFaixas?.preparacaoDocumental ||
+    'Variável conforme fila oficial SERMIG';
 
   return {
     nome: answers?.nome?.trim() || undefined,
     notaViabilidade: score,
     veredito: verdict,
+    vereditoNivel,
     confianca: result.confianca,
     subcategoriaCodigo: rec?.visa.codigo || 'ANÁLISE',
     subcategoriaNome: rec?.visa.nomePortugues || 'Enquadramento sob análise técnica',
+    subcategoriaEspanhol: rec?.visa.nomeEspanhol || undefined,
     resumoBasico,
     permiteDentroChile: rec?.visa.permiteDentroChile,
     permiteTrabalhar: rec?.visa.permiteTrabalhar,
@@ -308,12 +499,24 @@ export function buildBasicDiagnosticSummary(
     temAlertaCritico: hasCriticalAlert,
     alertaGeral: genericAlert,
     familiaResumo,
+    prazoEstimadoResumo,
+    perfilResumo: {
+      localizacao: answers?.localizacao || 'Não informada',
+      objetivo: OBJECTIVE_PUBLIC_LABELS[answers?.objetivo || 'explorar'] || 'Avaliação migratória',
+      prazo: answers?.prazoPretendido || 'A definir',
+      familia: familiaResumo,
+    },
+    dimensoes,
+    pontosFortes: pontosFortes.slice(0, 4),
+    pontosAtencao: pontosAtencao.slice(0, 3),
+    alternativasMapeadas,
+    roteiroMacro: buildMacroRoadmap(answers?.localizacao),
     itensBloqueados: [
-      'Plano de ação detalhado e sequência cronológica de emissão',
-      'Estimativa completa de taxas oficiais, apostilamentos e traduções (BRL/CLP)',
-      'Checklist personalizado por membro da família',
-      'Comparativo técnico entre rotas alternativas e plano B',
-      'Relatório técnico completo em PDF e revisão com especialista',
+      'Plano de ação detalhado com sequência exata de emissão para não perder validade de 60 dias',
+      'Estimativa completa de taxas oficiais SERMIG, apostilamentos CNJ e traduções (BRL/CLP/USD)',
+      'Checklist individualizado por membro da família (titular, cônjuge e filhos)',
+      'Matriz comparativa técnica entre a rota principal, Acordo Mercosul e plano B',
+      'Conferência técnica pré-protocolo e acompanhamento especializado',
     ],
     dataCalculo: new Date().toISOString(),
   };

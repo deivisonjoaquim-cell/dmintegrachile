@@ -5,13 +5,10 @@ import {
   ArrowRight,
   BookmarkCheck,
   Check,
-  Compass,
   Copy,
-  FileCheck2,
   HelpCircle,
   Lock,
   Plus,
-  Scale,
   ShieldCheck,
   Trash2,
   Wrench,
@@ -19,6 +16,7 @@ import {
 import { BrandRibbon } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../components/DiagnosticReportView';
+import { LiveDiagnosticRadarSidebar } from '../components/diagnostic/LiveDiagnosticRadarSidebar';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { useApp } from '../contexts/AppContext';
 import { useFirestore } from '../hooks/useFirestore';
@@ -55,10 +53,7 @@ import {
   savePendingOfflineDiagnostic,
   setLocalAiRuntimeNotice,
 } from '../utils/offlineRuleEngineStore';
-import {
-  formatLegalSourceWithJurisdiction,
-  getJurisdictionTextClass,
-} from '../utils/legalJurisdiction';
+import { formatLegalSourceWithJurisdiction } from '../utils/legalJurisdiction';
 import {
   getDynamicDocumentOptions,
   getLiveSermigPreview,
@@ -167,12 +162,12 @@ const BooleanChoice: React.FC<{
   helpText?: string;
   sourceLabel?: string;
 }> = ({ label, value, onChange, helpTitle, helpText, sourceLabel }) => (
-  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+  <div className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] space-y-2.5">
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <p className="text-sm font-medium text-slate-900">{label}</p>
+      <p className="text-sm font-semibold text-[#0B1F33] leading-snug">{label}</p>
       {helpTitle && helpText && <ContextualHelp title={helpTitle} text={helpText} sourceLabel={sourceLabel} />}
     </div>
-    <div className="flex flex-wrap gap-2 pt-1">
+    <div className="flex flex-wrap gap-2 pt-0.5">
       {[
         { label: 'Sim', val: true },
         { label: 'Não', val: false },
@@ -183,10 +178,10 @@ const BooleanChoice: React.FC<{
             key={opt.label}
             type="button"
             onClick={() => onChange(opt.val)}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40 ${
+            className={`px-5 py-2 rounded-lg text-xs font-bold border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#0B1F33]/30 ${
               active
-                ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                ? 'bg-[#0B1F33] text-white border-[#0B1F33] shadow-xs'
+                : 'bg-white text-slate-700 border-[#DDD6C7] hover:border-[#C8A236] hover:text-[#0B1F33]'
             }`}
           >
             {opt.label}
@@ -218,7 +213,6 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     getDiagnosticSession: getDiagnosticSessionFirestore,
   } = useFirestore({ realtime: false });
 
-  const [quickMode, setQuickMode] = useState(true);
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [answers, setAnswers] = useState<DiagnosticAnswers>(() => {
@@ -386,7 +380,6 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         );
         setAnswers(restoredAnswers);
         const targetStep = Math.min(6, Math.max(1, sess.etapaAtual || 1));
-        if (targetStep > 1) setQuickMode(false);
         setStep(targetStep);
         setMaxStepReached((prev) => Math.max(prev, targetStep));
         setResumeBanner('Diagnóstico retomado com sucesso a partir do seu link salvo.');
@@ -484,6 +477,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   const livePreview = useMemo(
     () => getLiveSermigPreview(answers, visaCategories, visaRequirements, legalSources, engineOptions),
     [answers, visaCategories, visaRequirements, legalSources, engineOptions],
+  );
+  const liveResult = useMemo(
+    () => runDiagnosticEngine(answers, visaCategories, visaRequirements, legalSources, engineOptions),
+    [answers, visaCategories, visaRequirements, legalSources, engineOptions],
+  );
+  const handleSimulatePublicAnswers = useCallback(
+    (simAnswers: DiagnosticAnswers) =>
+      runDiagnosticEngine(simAnswers, visaCategories, visaRequirements, legalSources, engineOptions),
+    [visaCategories, visaRequirements, legalSources, engineOptions],
   );
 
   const legalSourceText = useCallback(
@@ -603,7 +605,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
   const validateStep = (): boolean => {
     setStepError(null);
-    if (step === 1 || quickMode) {
+    if (step === 1) {
       if (answers.nome.trim().length < 2 || !answers.email.includes('@')) {
         setStepError('Informe seu nome completo e um e-mail válido para continuar.');
         return false;
@@ -613,13 +615,13 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         return false;
       }
     }
-    if (!quickMode && step === 2 && answers.passaporteStatus !== 'nao_possui') {
+    if (step === 2 && answers.passaporteStatus !== 'nao_possui') {
       if (answers.passaporteValidadeMeses < 0 || Number.isNaN(answers.passaporteValidadeMeses)) {
         setStepError('Informe os meses aproximados de validade do passaporte (0 se vencido).');
         return false;
       }
     }
-    if (quickMode || step === 6) {
+    if (step === 6) {
       if (!answers.lgpdAceito) {
         setStepError(
           'É obrigatório aceitar o Termo LGPD (Lei brasileira nº 13.709/2018) para gerar o diagnóstico e registrar seu atendimento.',
@@ -1025,6 +1027,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             onOpenCalendly={() => setCalendlyOpen(true)}
             onRestart={handleRestart}
             onNavigate={onNavigate}
+            onSimulatePublicAnswers={handleSimulatePublicAnswers}
           />
         </div>
         <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} />
@@ -1041,119 +1044,110 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   }
 
   return (
-    <div className="py-10 lg:py-14 bg-[var(--color-bg)]">
+    <div className="py-8 lg:py-12 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
-        {/* Cabeçalho e Progresso */}
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-1.5">
-                Diagnóstico de Elegibilidade Migratória
-              </h1>
-              <p className="text-sm text-slate-600 leading-relaxed max-w-3xl">
-                {quickMode
-                  ? 'Preencha seus dados básicos em menos de 1 minuto para receber o enquadramento inicial pela Ley Nº 21.325 e Acordo Mercosul.'
-                  : 'Questionário completo fundamentado na legislação chilena (Ley Nº 21.325, Decretos Nº 177 e Nº 296/2022), no Acordo Mercosul e protegido pela LGPD.'}
-              </p>
-            </div>
-
-            {/* Alternador limpo: Triagem Rápida (1 passo) vs Questionário Completo (6 etapas) */}
-            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 border border-slate-300/60 shrink-0 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setQuickMode(true);
-                  setStep(1);
-                  setStepError(null);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-                  quickMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Triagem Rápida (1 passo)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuickMode(false);
-                  setStepError(null);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-                  !quickMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Completo (6 etapas)
-              </button>
-            </div>
-          </div>
-
-          {!quickMode && (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-slate-600 tabular-nums">
-                  Etapa {step} de 6 ·{' '}
-                  {adaptiveMeta.faltamPerguntas === 1
-                    ? 'Falta 1 pergunta'
-                    : `Faltam ${adaptiveMeta.faltamPerguntas} perguntas`}{' '}
-                  · cerca de {adaptiveMeta.tempoEstimadoMinutos}{' '}
-                  {adaptiveMeta.tempoEstimadoMinutos === 1 ? 'minuto restante' : 'minutos restantes'}
+        {/* Cabeçalho Executivo em Azul Marinho & Ouro */}
+        <section className="rounded-2xl overflow-hidden border border-[#1E3349] bg-[#0B1F33] text-white shadow-[0_14px_34px_rgba(11,31,51,0.12)]">
+          <BrandRibbon className="h-[3px] w-full" />
+          <div className="px-6 sm:px-8 py-6 sm:py-7 space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+              <div className="space-y-2 max-w-2xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E6C55A]">
+                  Diagnóstico Completo em 6 Etapas · Ley Nº 21.325 &amp; Acordo Mercosul · Proteção LGPD
                 </p>
-                <span className="text-xs font-bold text-[var(--color-primary)] tabular-nums">
-                  {adaptiveMeta.percentualProgresso}% concluído
-                </span>
+                <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.12] text-balance">
+                  Diagnóstico Inteligente de Elegibilidade Migratória
+                </h1>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Acompanhe seu índice de viabilidade calculado em tempo real enquanto responde às 6 etapas. Ao final, explore o gráfico radar, teste cenários no simulador &ldquo;E se...&rdquo; e baixe seu Dossiê em PDF.
+                </p>
               </div>
 
+              <div className="flex items-center gap-4 shrink-0 border-t lg:border-t-0 border-white/10 pt-3 lg:pt-0">
+                <div className="text-left lg:text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Progresso da análise
+                  </p>
+                  <p className="font-mono text-2xl font-bold text-[#E6C55A] tabular-nums">
+                    {adaptiveMeta.percentualProgresso}%
+                  </p>
+                  <p className="text-[11px] text-slate-300 tabular-nums">
+                    Etapa {step} de 6 · ~{adaptiveMeta.tempoEstimadoMinutos}{' '}
+                    {adaptiveMeta.tempoEstimadoMinutos === 1 ? 'min' : 'min'} restante(s)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trilha de progresso contínua */}
+            <div
+              className="h-1.5 rounded-full bg-white/15 overflow-hidden"
+              role="progressbar"
+              aria-valuenow={adaptiveMeta.percentualProgresso}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div
-                className="h-1.5 rounded-full bg-slate-200 overflow-hidden"
-                role="progressbar"
-                aria-valuenow={adaptiveMeta.percentualProgresso}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div
-                  className="h-full transition-all duration-200"
-                  style={{
-                    width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%`,
-                    backgroundColor: 'var(--color-primary)',
-                  }}
-                />
-              </div>
+                className="h-full rounded-full transition-all duration-200 bg-[#C8A236]"
+                style={{ width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%` }}
+              />
+            </div>
 
-              {/* Navegação clicável das 6 etapas (permite retornar às etapas já alcançadas) */}
-              <nav className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1" aria-label="Etapas do diagnóstico">
-                {STEP_LABELS.map((item) => {
-                  const isCurrent = step === item.num;
-                  const isReachable = item.num <= maxStepReached;
-                  const isDone = item.num < step;
-                  return (
-                    <button
-                      key={item.num}
-                      type="button"
-                      disabled={!isReachable}
-                      onClick={() => {
-                        if (isReachable) {
-                          setStepError(null);
-                          setStep(item.num);
-                        }
-                      }}
-                      className={`px-2.5 py-2 rounded-lg border text-left text-xs transition-colors ${
-                        isCurrent
-                          ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-semibold'
-                          : isDone
-                            ? 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50 font-medium'
-                            : isReachable
-                              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                              : 'bg-slate-100/80 text-slate-400 border-slate-200/70 cursor-not-allowed'
-                      }`}
-                    >
-                      <span className="block text-[10px] opacity-80 tabular-nums">Etapa {item.num}</span>
-                      <span className="block truncate">{item.title}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </>
-          )}
+            {/* Navegação clicável das 6 etapas */}
+            <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" aria-label="Etapas do diagnóstico">
+              {STEP_LABELS.map((item) => {
+                const isCurrent = step === item.num;
+                const isReachable = item.num <= maxStepReached;
+                const isDone = item.num < step;
+                return (
+                  <button
+                    key={item.num}
+                    type="button"
+                    disabled={!isReachable}
+                    onClick={() => {
+                      if (isReachable) {
+                        setStepError(null);
+                        setStep(item.num);
+                      }
+                    }}
+                    className={`px-3 py-2.5 rounded-xl border text-left text-xs transition-all duration-150 ${
+                      isCurrent
+                        ? 'bg-white text-[#0B1F33] border-[#C8A236] font-bold shadow-xs'
+                        : isDone
+                          ? 'bg-white/10 text-white border-emerald-400/40 hover:bg-white/15 font-medium'
+                          : isReachable
+                            ? 'bg-white/[0.06] text-slate-200 border-white/15 hover:bg-white/10'
+                            : 'bg-white/[0.03] text-slate-500 border-white/10 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-1 text-[10px] font-mono tabular-nums opacity-80">
+                      <span>0{item.num}</span>
+                      {isDone && <Check className="w-3 h-3 text-emerald-400" />}
+                    </span>
+                    <span className="block truncate mt-0.5">{item.title}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </section>
+
+        {/* Barra Compacta de Radar ao Vivo em Telas Mobile (< lg) */}
+        <div className="lg:hidden rounded-xl border border-[#1E3349] bg-[#0B1F33] text-white px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#E6C55A]">
+              Radar ao Vivo · Tendência SERMIG
+            </p>
+            <p className="text-xs font-bold text-white truncate mt-0.5">
+              {livePreview.subcategoriaLider?.nomePortugues || 'Calculando enquadramento...'}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="font-mono text-xl font-bold text-white tabular-nums">
+              {Math.round(liveResult.viabilidade?.total || 0)}
+            </span>
+            <span className="font-mono text-[11px] text-slate-400">/100</span>
+          </div>
         </div>
 
         {resumeBanner && (
@@ -1181,11 +1175,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           </div>
         )}
 
-        {/* Layout 12 colunas: Formulário adaptativo (8 cols) + Radar SERMIG ao Vivo (4 cols) */}
+        {/* Layout 12 colunas: Formulário adaptativo em 6 etapas (8 cols) + Radar de Viabilidade ao Vivo (4 cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form
             onSubmit={handleSubmit}
-            className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6"
+            className="lg:col-span-8 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 space-y-6 shadow-[0_6px_24px_rgba(11,31,51,0.04)]"
           >
             {/* Anti-spam Honeypot */}
             <div className="hidden" aria-hidden="true">
@@ -1348,75 +1342,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   </div>
                 </div>
 
-                {quickMode && (
-                  <div className="pt-4 border-t border-slate-200 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-quick-loc">
-                          Onde você está hoje? *
-                        </label>
-                        <select
-                          id="diag-quick-loc"
-                          value={answers.localizacao}
-                          onChange={(e) => updateAnswers({ localizacao: e.target.value as DiagnosticLocation })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
-                        >
-                          <option value="No Brasil">No Brasil</option>
-                          <option value="No Chile como turista">No Chile como turista</option>
-                          <option value="No Chile com residência temporal">No Chile com residência temporal</option>
-                          <option value="No Chile com residência definitiva">No Chile com residência definitiva</option>
-                          <option value="Outro país">Em outro país</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-quick-obj">
-                          Principal objetivo no Chile *
-                        </label>
-                        <select
-                          id="diag-quick-obj"
-                          value={answers.objetivo}
-                          onChange={(e) => updateAnswers({ objetivo: e.target.value as DiagnosticObjective })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
-                        >
-                          <option value="explorar">Morar no Chile (Acordo Mercosul / explorar opções)</option>
-                          <option value="trabalhar">Trabalhar com contrato ou empresa no Chile</option>
-                          <option value="estudar">Estudar em instituição chilena</option>
-                          <option value="aposentado_rentista">Aposentado / renda passiva</option>
-                          <option value="investir">Investir ou empreender no Chile</option>
-                          <option value="familia">Reunificação familiar</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer leading-relaxed">
-                        <input
-                          type="checkbox"
-                          checked={answers.lgpdAceito}
-                          onChange={(e) => updateAnswers({ lgpdAceito: e.target.checked })}
-                          className="mt-0.5 rounded border-slate-300"
-                        />
-                        <span>
-                          Autorizo o uso dos dados informados para gerar meu diagnóstico migratório e contato da equipe, conforme o{' '}
-                          <button
-                            type="button"
-                            onClick={() => setLgpdOpen(true)}
-                            className="font-semibold text-[var(--color-primary)] underline"
-                          >
-                            Termo LGPD (Versão {empresa.termoLgpdVersao || '1.0'})
-                          </button>
-                          . *
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
             {/* ETAPA 2 */}
-            {!quickMode && step === 2 && (
+            {step === 2 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-slate-900">2. Localização atual, perfil e passaporte</h2>
 
@@ -2260,237 +2190,65 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               </div>
             )}
 
-            {/* Barra de Navegação do Formulário */}
-            <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            {/* Barra de Navegação do Formulário (6 Etapas) */}
+            <div className="pt-5 border-t border-[#E5DFD2] flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                {!quickMode && step > 1 && (
+                {step > 1 && (
                   <button
                     type="button"
                     onClick={() => {
                       setStepError(null);
                       setStep((s) => Math.max(1, s - 1));
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#DDD6C7] bg-white text-sm font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Voltar
                   </button>
                 )}
-                {!quickMode && (
-                  <button
-                    type="button"
-                    disabled={savingDraft}
-                    onClick={() => void handleSaveAndCopyLink()}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <BookmarkCheck className="w-4 h-4 text-[var(--color-primary)]" />
-                    {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
-                  </button>
-                )}
-                {quickMode && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuickMode(false);
-                      setStepError(null);
-                    }}
-                    className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline"
-                  >
-                    Prefiro detalhar família e documentos (6 etapas)
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={savingDraft}
+                  onClick={() => void handleSaveAndCopyLink()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-[#DDD6C7] bg-white text-xs font-semibold text-slate-700 hover:bg-[#FAF9F6] disabled:opacity-50 transition-colors"
+                >
+                  <BookmarkCheck className="w-4 h-4 text-[#8C6D14]" />
+                  {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
+                </button>
               </div>
 
-              {!quickMode && step < 6 ? (
+              {step < 6 ? (
                 <button
                   type="button"
                   onClick={() => void handleNext()}
-                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-lg text-sm font-semibold text-white"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0B1F33] hover:bg-[#132E4A] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(11,31,51,0.16)] transition-all"
                 >
-                  Avançar
+                  Avançar para Etapa {step + 1}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               ) : (
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C8A236] hover:bg-[#d6b145] text-sm font-bold text-[#0B1523] shadow-[0_6px_18px_rgba(200,162,54,0.28)] disabled:opacity-50 transition-all"
                 >
-                  {submitting ? 'Calculando diagnóstico...' : 'Gerar Diagnóstico Gratuito'}
+                  {submitting ? 'Calculando Dossiê...' : 'Gerar Diagnóstico Completo & PDF'}
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               )}
             </div>
           </form>
 
-          {/* PAINEL LATERAL (4 colunas sticky no desktop) — Radar técnico restrito ao Administrador */}
-          <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
-            {isAdmin ? (
-              <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden">
-                <BrandRibbon className="h-[3px] w-full" />
-                <div className="p-5 space-y-4">
-                  <div className="flex items-start justify-between gap-2 pb-3 border-b border-[#E5DFD2]">
-                    <div>
-                      <p className="text-[11px] font-semibold text-[#8C6D14] flex items-center gap-1.5">
-                        <Compass className="w-3.5 h-3.5" />
-                        Radar SERMIG · Visão Administrador
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Pré-enquadramento dinâmico atualizado a cada resposta
-                      </p>
-                    </div>
-                  </div>
-
-                  {livePreview.prontoParaPrevia && livePreview.subcategoriaLider ? (
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                          Subcategoria líder · Cód. {livePreview.subcategoriaLider.codigo} · Compatibilidade{' '}
-                          <strong className="text-[#0B1F33]">{livePreview.subcategoriaLider.nota}/100</strong>
-                        </p>
-                        <p className="text-base font-bold text-[#0B1F33] leading-snug">
-                          {livePreview.subcategoriaLider.nomePortugues}
-                        </p>
-                        <p className="text-xs text-slate-500 italic">{livePreview.subcategoriaLider.nomeEspanhol}</p>
-                        {livePreview.situacaoResidenciaAtual && (
-                          <p className="text-xs font-semibold text-[var(--color-primary)] pt-1">
-                            Fluxo atual: {livePreview.situacaoResidenciaAtual}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="pt-3 border-t border-[#E5DFD2] space-y-1">
-                        <p className="text-xs font-bold text-[#0B1F33]">{livePreview.regraProtocoloTitulo}</p>
-                        <p className="text-xs text-slate-600 leading-relaxed">{livePreview.regraProtocoloDetalhe}</p>
-                      </div>
-
-                      {livePreview.alertaPrincipal && (
-                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2 leading-relaxed">
-                          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                          <span>{livePreview.alertaPrincipal}</span>
-                        </div>
-                      )}
-
-                      <div className="pt-3 border-t border-[#E5DFD2] grid grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <p className="text-slate-500 flex items-center gap-1">
-                            <FileCheck2 className="w-3.5 h-3.5 text-[#146B43]" />
-                            Obrigatórios
-                          </p>
-                          <p className="text-base font-bold text-[#0B1F33] tabular-nums mt-0.5">
-                            {livePreview.requisitosObrigatoriosCount} itens
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500">Validade 60 dias</p>
-                          <p className="text-base font-bold text-[#0B1F33] tabular-nums mt-0.5">
-                            {livePreview.requisitosPrazoCurtoCount}{' '}
-                            {livePreview.requisitosPrazoCurtoCount === 1 ? 'certidão' : 'certidões'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {livePreview.alternativas.length > 0 && (
-                        <div className="pt-3 border-t border-[#E5DFD2] space-y-1.5 text-xs">
-                          <p className="font-semibold text-slate-700">Rotas alternativas em análise</p>
-                          <ul className="space-y-1 text-slate-600">
-                            {livePreview.alternativas.map((alt) => (
-                              <li key={alt.codigo} className="flex items-baseline justify-between gap-2 tabular-nums">
-                                <span className="truncate">
-                                  {alt.codigo} · {alt.nomePortugues}
-                                </span>
-                                <span className="font-semibold text-[#0B1F33] shrink-0">{alt.nota}/100</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {livePreview.fontesLegais.length > 0 && (
-                        <div className="pt-3 border-t border-[#E5DFD2] space-y-1.5 text-xs">
-                          <p className="font-semibold text-slate-700 flex items-center gap-1.5">
-                            <Scale className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                            Normas consultadas por país
-                          </p>
-                          <ul className="space-y-1.5">
-                            {livePreview.fontesLegais.map((src) => (
-                              <li key={src.id} className="text-[11px] leading-snug">
-                                <span className={getJurisdictionTextClass(src.pais)}>{src.jurisdicao}</span>
-                                <span className="text-slate-600">
-                                  {' · '}
-                                  {src.titulo.split('–')[0].trim()}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-600 leading-relaxed">{livePreview.regraProtocoloDetalhe}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden">
-                <BrandRibbon className="h-[3px] w-full" />
-                <div className="p-5 space-y-4">
-                  <div className="pb-3 border-b border-[#E5DFD2]">
-                    <p className="text-[11px] font-semibold text-[#8C6D14] flex items-center gap-1.5">
-                      <Compass className="w-3.5 h-3.5" />
-                      Acompanhamento do Diagnóstico
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Questionário guiado com base nas regras oficiais do SERMIG
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {STEP_LABELS.map((item) => {
-                      const done = item.num < step;
-                      const active = item.num === step;
-                      return (
-                        <div
-                          key={item.num}
-                          className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${
-                            active
-                              ? 'border-[#0B1F33] bg-[#F7F5F0] font-semibold text-[#0B1F33]'
-                              : done
-                                ? 'border-emerald-200 bg-emerald-50/50 text-[#146B43]'
-                                : 'border-[#E5DFD2] bg-white text-slate-500'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="tabular-nums font-bold">{item.num}.</span>
-                            <span>{item.title}</span>
-                          </span>
-                          {done && <Check className="w-3.5 h-3.5 text-[#146B43] shrink-0" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] text-xs text-slate-700 space-y-1.5 leading-relaxed">
-                    <p className="font-bold text-[#0B1F33] flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-[#8C6D14] shrink-0" />
-                      Entrega do diagnóstico completo
-                    </p>
-                    <p>
-                      Ao finalizar, você receberá a confirmação e seu protocolo. O estudo técnico completo fica reservado à nossa administração e será apresentado diretamente por um consultor.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white border border-[#E5DFD2] rounded-2xl p-4 text-xs text-slate-600 space-y-1.5">
-              <p className="font-semibold text-[#0B1F33]">Transparência normativa Brasil–Chile</p>
-              <p className="leading-relaxed">
-                Regras de residência seguem a <strong>legislação chilena</strong> e o <strong>Acordo Mercosul</strong>; o tratamento dos seus dados segue a <strong>legislação brasileira (LGPD)</strong>.
-              </p>
-            </div>
-          </aside>
+          {/* PAINEL LATERAL STICKY: Radar de Viabilidade ao Vivo para todos os usuários */}
+          <LiveDiagnosticRadarSidebar
+            answers={answers}
+            step={step}
+            steps={STEP_LABELS}
+            livePreview={livePreview}
+            liveResult={liveResult}
+            contradictionsCount={contradictions.length}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
 

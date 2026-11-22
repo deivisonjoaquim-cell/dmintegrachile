@@ -318,16 +318,16 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
   return (
     <div className="space-y-5">
       {/* Cabeçalho e métricas rápidas */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-5">
+      <section className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 space-y-5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold text-slate-500">
-              Envio seguro · Firebase Storage · Etiquetagem automática para revisão interna
+            <p className="brand-kicker">
+              Envio seguro · Cofre Documental · Revisão técnica automatizada
             </p>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5">
+            <h2 className="text-lg sm:text-xl font-bold text-[#0B1F33] font-brand-sans mt-0.5">
               Central de Documentos do Processo
             </h2>
-            <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+            <p className="text-xs text-[#4A5A6D] mt-1 max-w-2xl leading-relaxed">
               Envie arquivos PDF, JPG, PNG ou WEBP de até 10 MB. Cada documento recebe metadados automáticos de prioridade, categoria, versão e requisitos de apostila/tradução para agilizar a conferência da equipe.
             </p>
           </div>
@@ -336,47 +336,47 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
               type="button"
               disabled={pdfBusy !== null}
               onClick={() => void onExportPdf()}
-              className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap shrink-0 disabled:opacity-50"
             >
-              <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+              <Download className="w-3.5 h-3.5 text-[#8C6D14]" aria-hidden="true" />
               {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Relatório (PDF)'}
             </button>
             <button
               type="button"
               onClick={onOpenBiblioteca}
-              className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap shrink-0"
             >
-              <Scale className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+              <Scale className="w-3.5 h-3.5 text-[#0B1F33]" aria-hidden="true" />
               Biblioteca Legal
             </button>
             <button
               type="button"
               onClick={onOpenLaw}
-              className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap shrink-0"
             >
-              <BookOpen className="w-3.5 h-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+              <BookOpen className="w-3.5 h-3.5 text-[#0B1F33]" aria-hidden="true" />
               Entenda a Lei
             </button>
           </div>
         </div>
 
         {/* Faixa de indicadores (single-elevation) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-slate-100">
-          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80">
-            <p className="text-xs text-slate-500">Total do checklist</p>
-            <p className="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{summaryCounts.total}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-[#F1EDE4]">
+          <div className="p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+            <p className="text-xs text-[#4A5A6D]">Total do checklist</p>
+            <p className="text-xl font-bold font-mono text-[#0B1F33] tabular-nums mt-0.5">{summaryCounts.total}</p>
           </div>
-          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80">
-            <p className="text-xs text-slate-500">Aprovados</p>
-            <p className="text-xl font-bold text-emerald-700 tabular-nums mt-0.5">{summaryCounts.approved}</p>
+          <div className="p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+            <p className="text-xs text-[#4A5A6D]">Aprovados</p>
+            <p className="text-xl font-bold font-mono text-[#146B43] tabular-nums mt-0.5">{summaryCounts.approved}</p>
           </div>
-          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80">
-            <p className="text-xs text-slate-500">Em conferência</p>
-            <p className="text-xl font-bold text-sky-800 tabular-nums mt-0.5">{summaryCounts.inReview}</p>
+          <div className="p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+            <p className="text-xs text-[#4A5A6D]">Em conferência</p>
+            <p className="text-xl font-bold font-mono text-[#0B1F33] tabular-nums mt-0.5">{summaryCounts.inReview}</p>
           </div>
-          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80">
-            <p className="text-xs text-slate-500">Pendentes / Ajustes</p>
-            <p className="text-xl font-bold text-amber-700 tabular-nums mt-0.5">{summaryCounts.pending}</p>
+          <div className="p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+            <p className="text-xs text-[#4A5A6D]">Pendentes / Ajustes</p>
+            <p className="text-xl font-bold font-mono text-[#8C6D14] tabular-nums mt-0.5">{summaryCounts.pending}</p>
           </div>
         </div>
 
@@ -385,11 +385,11 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
           <div
             role="region"
             aria-label="Lembretes de vencimento dos documentos"
-            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-2.5"
+            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-2.5"
           >
             <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
             <div className="text-xs space-y-0.5">
-              <p className="font-semibold text-slate-900">
+              <p className="font-semibold text-[#0B1F33]">
                 Atenção de validade: {expiringClientDocs.length} documento(s) vence(m) em menos de 30 dias
               </p>
               <p className="text-slate-700">
@@ -403,11 +403,11 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
 
         {/* Área dedicada de envio seguro (Drag & Drop) */}
         {sortedDocs.length > 0 && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 space-y-4 no-print">
+          <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-4 sm:p-5 space-y-4 no-print">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
-                <h3 className="text-sm font-bold text-slate-900">
+                <ShieldCheck className="w-4 h-4 text-[#146B43] shrink-0" aria-hidden="true" />
+                <h3 className="text-sm font-bold text-[#0B1F33]">
                   Enviar documento com validação e etiquetagem automática
                 </h3>
               </div>
@@ -567,11 +567,11 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
       </section>
 
       {/* Lista estruturada do checklist com busca, filtro e envio direto por linha */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-4">
+      <section className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Relação Priorizada de Documentos</h3>
-            <p className="text-xs text-slate-500">
+            <h3 className="text-base font-bold text-[#0B1F33]">Relação Priorizada de Documentos</h3>
+            <p className="text-xs text-[#4A5A6D]">
               Siga a ordem sugerida para preservar documentos com validade curta (ex.: Antecedentes de 60 dias).
             </p>
           </div>
@@ -584,7 +584,7 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Filtrar documento..."
                 aria-label="Filtrar documentos"
-                className="pl-8 pr-3 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                className="pl-8 pr-3 min-h-[40px] rounded-lg border border-[#DDD6C7] bg-white text-xs text-[#0B1F33] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
               />
             </div>
             {(
@@ -601,8 +601,8 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
                 onClick={() => setStatusFilter(opt.key)}
                 className={`px-3 min-h-[40px] rounded-lg border text-xs font-semibold whitespace-nowrap shrink-0 tabular-nums transition-colors ${
                   statusFilter === opt.key
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
+                    : 'bg-white text-[#0B1F33] border-[#DDD6C7] hover:bg-[#FAF9F6]'
                 }`}
               >
                 {opt.label}

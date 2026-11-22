@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  Download,
   Lock,
   LogIn,
   MessageCircle,
@@ -17,13 +18,15 @@ import {
   fetchSignedInUserDiagnosticLeads,
 } from '../services/firestoreService';
 import type { Client, Lead } from '../types/domain';
+import { runDiagnosticEngine } from '../utils/diagnosticEngine';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
 import {
+  buildBasicDiagnosticSummary,
   CONSULTANCY_PLANS,
   resolveClientPortalAccess,
   type BasicDiagnosticSummary,
 } from '../utils/portalAccess';
-import { BrandLogo } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
 
 interface AuthGatePageProps {
   mode: 'cliente' | 'equipe';
@@ -31,12 +34,24 @@ interface AuthGatePageProps {
 }
 
 export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) => {
-  const { userProfile, authLoading, authError, empresa, loginWithGoogle, logout, refreshUserProfile } = useApp();
+  const {
+    userProfile,
+    authLoading,
+    authError,
+    empresa,
+    visaCategories,
+    visaRequirements,
+    legalSources,
+    loginWithGoogle,
+    logout,
+    refreshUserProfile,
+  } = useApp();
   const [signingIn, setSigningIn] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
   const [clientRecord, setClientRecord] = useState<Client | null>(null);
   const [userLeads, setUserLeads] = useState<Lead[]>([]);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const inspectClientAccess = useCallback(async () => {
     if (!userProfile || userProfile.role !== 'cliente') return;
@@ -134,91 +149,144 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
         })
       : null;
 
+  const handleDownloadBasicDiagnosticPdf = async (basic: BasicDiagnosticSummary) => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    setCheckMsg(null);
+    try {
+      const latestLead = [...userLeads].sort((a, b) =>
+        (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''),
+      )[0];
+      const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+      if (latestLead?.respostasTriagem) {
+        const result = runDiagnosticEngine(
+          latestLead.respostasTriagem,
+          visaCategories,
+          visaRequirements,
+          legalSources,
+          empresa,
+        );
+        await exportClientDiagnosticPdf({
+          empresa,
+          result,
+          answers: latestLead.respostasTriagem,
+          summary: buildBasicDiagnosticSummary(result, latestLead.respostasTriagem),
+          protocolo: latestLead.id,
+        });
+      } else {
+        await exportClientDiagnosticPdf({
+          empresa,
+          summary: basic,
+          protocolo: latestLead?.id,
+        });
+      }
+    } catch (err) {
+      setCheckMsg(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do diagnóstico.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const renderBasicDiagnosticCard = (basic: BasicDiagnosticSummary) => (
-    <div className="text-left bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+    <div className="text-left bg-[#FAF9F6] border border-[#E5DFD2] rounded-2xl overflow-hidden space-y-0">
+      <div className="bg-[#0B1F33] text-white p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
             Resumo do Diagnóstico Gratuito
           </p>
-          <h2 className="text-lg font-bold text-slate-900 mt-1">{basic.subcategoriaNome}</h2>
+          <h2 className="font-display text-xl font-bold text-white mt-1">{basic.subcategoriaNome}</h2>
           {basic.dataCalculo && (
-            <p className="text-xs text-slate-500 mt-0.5">Realizado em {formatDateBR(basic.dataCalculo)}</p>
+            <p className="text-xs text-slate-300 mt-0.5 tabular-nums">
+              Realizado em {formatDateBR(basic.dataCalculo)}
+            </p>
           )}
         </div>
         <div className="text-right">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Viabilidade</p>
-          <p className="text-3xl font-bold tabular-nums text-slate-900">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Viabilidade</p>
+          <p className="text-3xl font-bold font-mono tabular-nums text-[#E5C76B]">
             {basic.notaViabilidade}
-            <span className="text-sm font-normal text-slate-500">/100</span>
+            <span className="text-sm font-normal text-slate-300">/100</span>
           </p>
-          <p className="text-xs font-medium text-slate-600">Confiança {basic.confianca}</p>
+          <p className="text-xs font-medium text-slate-200">Confiança {basic.confianca}</p>
         </div>
       </div>
 
-      <p className="text-sm text-slate-700 leading-relaxed">{basic.resumoBasico}</p>
-
-      {basic.temAlertaCritico && basic.alertaGeral && (
-        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">{basic.alertaGeral}</p>
+      <div className="p-5 sm:p-6 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[#0B1523] leading-relaxed flex-1 min-w-[220px]">{basic.resumoBasico}</p>
+          <button
+            type="button"
+            disabled={pdfBusy}
+            onClick={() => void handleDownloadBasicDiagnosticPdf(basic)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#C8A236] hover:bg-[#B89228] text-xs font-bold text-[#0B1523] whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {pdfBusy ? 'Gerando PDF...' : 'Exportar Dossiê em PDF'}
+          </button>
         </div>
-      )}
 
-      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-          <Lock className="w-3.5 h-3.5 text-slate-600" />
-          Informações técnicas restritas à consultoria contratada
+        {basic.temAlertaCritico && basic.alertaGeral && (
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">{basic.alertaGeral}</p>
+          </div>
+        )}
+
+        <div className="bg-white border border-[#E5DFD2] rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#0B1F33]">
+            <Lock className="w-3.5 h-3.5 text-[#8C6D14]" />
+            Informações técnicas restritas à consultoria contratada
+          </div>
+          <ul className="space-y-1.5 text-xs text-[#4A5A6D]">
+            {basic.itensBloqueados.map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <span className="text-[#C8A236] font-bold">·</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="space-y-1.5 text-xs text-slate-600">
-          {basic.itensBloqueados.map((item) => (
-            <li key={item} className="flex items-start gap-2">
-              <span className="text-slate-400">•</span>
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-        {(['orientativa', 'completa'] as const).map((planKey) => {
-          const plan = CONSULTANCY_PLANS[planKey];
-          const isFull = planKey === 'completa';
-          const waMsg = `Olá! Fiz o Diagnóstico Gratuito (${basic.subcategoriaNome} - ${basic.notaViabilidade}/100) com o e-mail ${userProfile?.email || ''} e tenho interesse na ${plan.nome}.`;
-          return (
-            <div
-              key={plan.id}
-              className={`rounded-xl p-4 border flex flex-col justify-between gap-3 ${
-                isFull
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-slate-900 border-slate-200'
-              }`}
-            >
-              <div className="space-y-1.5">
-                <p className={`text-[11px] font-semibold uppercase tracking-wider ${isFull ? 'text-amber-300' : 'text-slate-500'}`}>
-                  {plan.badgeLabel}
-                </p>
-                <h3 className="text-sm font-bold">{plan.nome}</h3>
-                <p className={`text-xs leading-relaxed ${isFull ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {plan.subtitulo}
-                </p>
-              </div>
-              <a
-                href={buildWhatsAppUrl(empresa.whatsapp, waMsg)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          {(['orientativa', 'completa'] as const).map((planKey) => {
+            const plan = CONSULTANCY_PLANS[planKey];
+            const isFull = planKey === 'completa';
+            const waMsg = `Olá! Fiz o Diagnóstico Gratuito (${basic.subcategoriaNome} - ${basic.notaViabilidade}/100) com o e-mail ${userProfile?.email || ''} e tenho interesse na ${plan.nome}.`;
+            return (
+              <div
+                key={plan.id}
+                className={`rounded-xl p-4 border flex flex-col justify-between gap-3 ${
                   isFull
-                    ? 'bg-white text-slate-900 hover:bg-slate-100'
-                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                    ? 'bg-[#0B1F33] text-white border-[#C8A236]/45'
+                    : 'bg-white text-[#0B1F33] border-[#E5DFD2]'
                 }`}
               >
-                <MessageCircle className="w-3.5 h-3.5" />
-                Contratar {plan.nomeCurto}
-              </a>
-            </div>
-          );
-        })}
+                <div className="space-y-1.5">
+                  <p className={`text-[11px] font-bold uppercase tracking-wider ${isFull ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
+                    {plan.badgeLabel}
+                  </p>
+                  <h3 className="text-sm font-bold">{plan.nome}</h3>
+                  <p className={`text-xs leading-relaxed ${isFull ? 'text-slate-300' : 'text-[#4A5A6D]'}`}>
+                    {plan.subtitulo}
+                  </p>
+                </div>
+                <a
+                  href={buildWhatsAppUrl(empresa.whatsapp, waMsg)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+                    isFull
+                      ? 'bg-[#C8A236] text-[#0B1523] hover:bg-[#B89228]'
+                      : 'bg-[#0B1F33] text-white hover:opacity-95'
+                  }`}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Contratar {plan.nomeCurto}
+                </a>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -232,7 +300,9 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
   return (
     <div className="py-12 lg:py-20 bg-[var(--color-bg)]">
       <div className={`${isWideView ? 'max-w-3xl' : 'max-w-lg'} mx-auto px-4 sm:px-6`}>
-        <div className="bg-[var(--color-surface)] border border-slate-200 card-radius p-6 sm:p-8 text-center space-y-5">
+        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] card-radius overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.06)]">
+          <BrandRibbon className="h-[3px] w-full" />
+          <div className="p-6 sm:p-8 text-center space-y-5">
           <BrandLogo
             src={empresa.logoUrl}
             alt={empresa.nome_empresa}
@@ -249,7 +319,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
             }
           />
 
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-[#0B1F33]">
             {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Portal do Cliente'}
           </h1>
 
@@ -484,6 +554,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

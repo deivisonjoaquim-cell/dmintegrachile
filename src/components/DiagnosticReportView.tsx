@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   BookOpen,
   Calendar,
   CheckCircle2,
   ClipboardCheck,
   Clock,
+  Compass,
   Copy,
   Download,
   Eye,
@@ -23,6 +25,13 @@ import {
   Users,
 } from 'lucide-react';
 import { PdfPreviewModal } from './pdf/PdfPreviewModal';
+import { BrandRibbon } from './BrandLogo';
+import { DiagnosticRadarChart } from './diagnostic/DiagnosticRadarChart';
+import {
+  buildSimulatedPublicAnswers,
+  PublicWhatIfSimulator,
+  type PublicSimLeverId,
+} from './diagnostic/PublicWhatIfSimulator';
 import type {
   DiagnosticAnswers,
   EmpresaConfig,
@@ -82,6 +91,7 @@ interface DiagnosticReportViewProps {
   whatIfComparison?: ReturnType<typeof compareWhatIfScenarios> | null;
   onChangeWhatIf?: (next: DiagnosticAnswers) => void;
   onResetWhatIf?: () => void;
+  onSimulatePublicAnswers?: (simAnswers: DiagnosticAnswers) => DiagnosticResult;
   leadHistory?: LeadRuleHistoryEntry[];
 }
 
@@ -108,6 +118,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
   whatIfComparison,
   onChangeWhatIf,
   onResetWhatIf,
+  onSimulatePublicAnswers,
   leadHistory,
 }) => {
   const [explainTab, setExplainTab] = useState<'cliente' | 'tecnico'>(mode === 'consultant' ? 'tecnico' : 'cliente');
@@ -115,6 +126,31 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
   const [pdfBusy, setPdfBusy] = useState<'download' | 'preview' | null>(null);
   const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
   const [pdfPreview, setPdfPreview] = useState<{ title: string; filename: string; blobUrl: string } | null>(null);
+  const [publicSimLevers, setPublicSimLevers] = useState<PublicSimLeverId[]>([]);
+
+  const publicSimulatedResult = useMemo(() => {
+    if (mode !== 'public' || !onSimulatePublicAnswers || publicSimLevers.length === 0) return null;
+    const simAnswers = buildSimulatedPublicAnswers(answers, publicSimLevers);
+    return onSimulatePublicAnswers(simAnswers);
+  }, [mode, onSimulatePublicAnswers, publicSimLevers, answers]);
+
+  const publicSimulatedDimensions = useMemo(() => {
+    if (!publicSimulatedResult) return null;
+    return buildBasicDiagnosticSummary(publicSimulatedResult, answers).dimensoes || null;
+  }, [publicSimulatedResult, answers]);
+
+  const togglePublicSimLever = (leverId: PublicSimLeverId) => {
+    setPublicSimLevers((prev) =>
+      prev.includes(leverId) ? prev.filter((id) => id !== leverId) : [...prev, leverId],
+    );
+  };
+
+  const closePdfPreview = () => {
+    setPdfPreview((prev) => {
+      if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+      return null;
+    });
+  };
 
   const scoreColor =
     result.viabilidade.total >= 80
@@ -153,156 +189,568 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     window.print();
   };
 
-  // MODO PÚBLICO (DIAGNÓSTICO GRATUITO): exibe APENAS as informações básicas do diagnóstico.
-  // Plano de ação completo, tabela de taxas BRL/CLP, checklist por pessoa, matriz comparativa e PDF técnico
-  // são exclusivos da consultoria contratada (Orientativa ou Completa) e da Área da Equipe (mode="consultant").
+  // MODO PÚBLICO (DIAGNÓSTICO GRATUITO): Dossiê Preliminar estruturado de nível profissional.
+  // Mantém reservados à consultoria contratada (Orientativa/Completa) e à Área da Equipe (mode="consultant"):
+  // plano de ação com ordem exata de certidões, tabela de taxas BRL/CLP/USD, checklist individualizado por familiar e PDF técnico completo.
   if (mode === 'public') {
     const basic = buildBasicDiagnosticSummary(result, answers);
     const planOrientativa = CONSULTANCY_PLANS.orientativa;
     const planCompleta = CONSULTANCY_PLANS.completa;
+    const protocoloRef = savedLeadId ? savedLeadId.slice(-8).toUpperCase() : 'PRELIMINAR';
+    const dataEmissao = formatDateBR(basic.dataCalculo || new Date().toISOString());
 
     const buildPlanWaUrl = (planLabel: string) =>
       buildWhatsAppUrl(
         empresa.whatsapp,
-        `Olá! Concluí o Diagnóstico Gratuito na ${empresa.nome_empresa} (${basic.subcategoriaNome} — Viabilidade ${basic.notaViabilidade}/100) e quero saber mais sobre a ${planLabel}.`,
+        `Olá! Concluí o Diagnóstico Gratuito na ${empresa.nome_empresa} (Protocolo #${protocoloRef} · ${basic.subcategoriaNome} · Viabilidade ${basic.notaViabilidade}/100) e quero saber mais sobre a ${planLabel}.`,
       );
 
+    const handleCopyPublicSummary = () => {
+      const lines = [
+        `Dossiê Preliminar de Elegibilidade Migratória — ${empresa.nome_empresa}`,
+        `Protocolo: #${protocoloRef} · Emitido em ${dataEmissao}`,
+        basic.nome ? `Interessado(a): ${basic.nome}` : null,
+        `Rota principal sugerida: ${basic.subcategoriaNome}`,
+        `Índice de viabilidade preliminar: ${basic.notaViabilidade}/100 (${basic.veredito}) · Confiança ${basic.confianca}`,
+        `Perfil: ${basic.perfilResumo?.localizacao || ''} · ${basic.familiaResumo || ''}`,
+        basic.alertaGeral ? `Ponto de atenção: ${basic.alertaGeral}` : null,
+      ].filter(Boolean);
+      navigator.clipboard?.writeText(lines.join('\n')).then(() => {
+        setCopiedMsg(true);
+        window.setTimeout(() => setCopiedMsg(false), 2600);
+      }).catch(() => {});
+    };
+
+    const handleDownloadPublicDossierPdf = async () => {
+      if (pdfBusy) return;
+      setPdfBusy('download');
+      setPdfFeedback(null);
+      try {
+        const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+        const filename = await exportClientDiagnosticPdf({
+          empresa,
+          summary: basic,
+          result,
+          answers,
+          protocolo: protocoloRef,
+        });
+        setPdfFeedback(`Dossiê em PDF baixado (${filename}).`);
+      } catch (err) {
+        setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o Dossiê em PDF.');
+      } finally {
+        setPdfBusy(null);
+      }
+    };
+
+    const handlePreviewPublicDossierPdf = async () => {
+      if (pdfBusy) return;
+      setPdfBusy('preview');
+      setPdfFeedback(null);
+      try {
+        const { buildClientDiagnosticPdfBlob } = await import('../utils/clientDiagnosticPdf');
+        const { blob, filename } = await buildClientDiagnosticPdfBlob({
+          empresa,
+          summary: basic,
+          result,
+          answers,
+          protocolo: protocoloRef,
+        });
+        const blobUrl = URL.createObjectURL(blob);
+        setPdfPreview((prev) => {
+          if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+          return {
+            title: 'Dossiê Executivo de Elegibilidade Migratória (2 Páginas)',
+            filename,
+            blobUrl,
+          };
+        });
+      } catch (err) {
+        setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível abrir a pré-visualização em PDF.');
+      } finally {
+        setPdfBusy(null);
+      }
+    };
+
+    const scoreToneText =
+      basic.notaViabilidade >= 75
+        ? 'text-emerald-300'
+        : basic.notaViabilidade >= 50
+          ? 'text-[#E6C55A]'
+          : 'text-amber-300';
+
+    const scoreBarColor =
+      basic.notaViabilidade >= 75
+        ? '#22C55E'
+        : basic.notaViabilidade >= 50
+          ? '#D4AF37'
+          : '#F59E0B';
+
+    const confidenceTone =
+      basic.confianca === 'Alta'
+        ? 'text-emerald-300'
+        : basic.confianca === 'Média'
+          ? 'text-[#E6C55A]'
+          : 'text-amber-300';
+
+    const protocoloDentroLabel =
+      basic.permiteDentroChile === 'Sim'
+        ? 'Permitido dentro do Chile'
+        : basic.permiteDentroChile === 'Não'
+          ? 'Protocolo do exterior (fora do Chile)'
+          : basic.permiteDentroChile === 'Condicional'
+            ? 'Condicional — depende da situação migratória'
+            : 'Sob validação técnica';
+
     return (
-      <div className="space-y-6">
-        {/* Cabeçalho de Resultado Básico */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 border-b border-slate-200 pb-6">
-            <div className="space-y-2.5 max-w-2xl">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-slate-500">
-                <span className="uppercase tracking-[0.14em] text-[#0F2537]">Resultado Básico · Diagnóstico Gratuito</span>
-                <span>·</span>
-                <span className={basic.confianca === 'Alta' ? 'text-[#1E7E34]' : basic.confianca === 'Média' ? 'text-[#8F6F16]' : 'text-[#C82333]'}>
-                  Confiança {basic.confianca}
+      <div className="space-y-8">
+        {/* 1. CABEÇALHO EDITORIAL DO DOSSIÊ EXECUTIVO */}
+        <section className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_12px_32px_rgba(11,31,51,0.06)]">
+          <BrandRibbon className="h-[3px] w-full" />
+
+          {/* Faixa Executiva Superior */}
+          <div className="bg-[#0B1F33] text-white px-6 sm:px-9 py-7 sm:py-9">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+              <div className="space-y-3.5 max-w-2xl">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-semibold tracking-[0.12em] uppercase text-slate-300">
+                  <span className="text-[#E6C55A]">Dossiê de Elegibilidade Migratória</span>
+                  <span className="text-slate-500">·</span>
+                  <span className="font-mono tabular-nums">Protocolo #{protocoloRef}</span>
+                  <span className="text-slate-500">·</span>
+                  <span className={confidenceTone}>Confiança {basic.confianca}</span>
+                  <span className="text-slate-500">·</span>
+                  <span className="font-mono tabular-nums">{dataEmissao}</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {basic.nome && (
+                    <p className="text-xs text-slate-300">
+                      Preparado para <strong className="text-white font-semibold">{basic.nome}</strong>
+                    </p>
+                  )}
+                  <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.15] text-balance">
+                    {basic.subcategoriaNome}
+                  </h1>
+                  {basic.subcategoriaEspanhol && (
+                    <p className="text-xs sm:text-sm italic text-slate-300/90">
+                      Designação oficial SERMIG: {basic.subcategoriaEspanhol}
+                    </p>
+                  )}
+                </div>
+
+                <p className="text-sm text-slate-200/90 leading-relaxed pt-1">
+                  {basic.resumoBasico}
+                </p>
+              </div>
+
+              {/* Bloco de Índice de Viabilidade — Âncora Visual Dominante */}
+              <div className="lg:w-[276px] shrink-0 rounded-xl bg-white/[0.06] border border-white/15 p-5 space-y-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
+                    Índice de Viabilidade
+                  </p>
+                  <span className={`text-[11px] font-semibold ${scoreToneText}`}>
+                    {basic.vereditoNivel === 'alta'
+                      ? 'Alta aderência'
+                      : basic.vereditoNivel === 'moderada'
+                        ? 'Viável c/ plano'
+                        : 'Requer estratégia'}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono text-5xl font-bold tabular-nums leading-none text-white">
+                    {basic.notaViabilidade}
+                  </span>
+                  <span className="font-mono text-base font-medium text-slate-400 tabular-nums">/100</span>
+                </div>
+
+                <div className="h-2 rounded-full bg-white/15 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.max(8, Math.min(100, basic.notaViabilidade))}%`,
+                      backgroundColor: scoreBarColor,
+                    }}
+                  />
+                </div>
+
+                <p className="text-xs text-slate-200 leading-snug">{basic.veredito}</p>
+              </div>
+            </div>
+
+            {/* Barra de ações utilitárias + Exportação PDF Oficial (jsPDF) */}
+            <div className="no-print mt-6 pt-5 border-t border-white/15 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-300">
+                <span>
+                  Localização: <strong className="text-white">{basic.perfilResumo?.localizacao || answers.localizacao}</strong>
                 </span>
-                {basic.familiaResumo && (
+                <span className="text-slate-500">·</span>
+                <span>
+                  Composição: <strong className="text-white">{basic.familiaResumo}</strong>
+                </span>
+                {basic.perfilResumo?.prazo && (
                   <>
-                    <span>·</span>
-                    <span>{basic.familiaResumo}</span>
+                    <span className="text-slate-500">·</span>
+                    <span>
+                      Horizonte: <strong className="text-white">{basic.perfilResumo.prazo}</strong>
+                    </span>
                   </>
                 )}
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
-                {basic.subcategoriaNome}
-              </h1>
-              <p className="text-sm text-slate-600 leading-relaxed">{basic.resumoBasico}</p>
-            </div>
 
-            <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 shrink-0 min-w-[200px]">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Índice Preliminar
-              </p>
-              <p className="text-4xl font-bold tabular-nums leading-none" style={{ color: scoreColor }}>
-                {basic.notaViabilidade}
-                <span className="text-base font-normal text-slate-500">/100</span>
-              </p>
-              <p className="text-xs font-semibold text-slate-700 text-right">{basic.veredito}</p>
-            </div>
-          </div>
-
-          {/* 3 indicadores básicos da subcategoria */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Pedido dentro do Chile
-              </p>
-              <p className="text-sm font-bold text-slate-900 mt-1">
-                {basic.permiteDentroChile || 'Sob análise técnica'}
-              </p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Permite trabalhar
-              </p>
-              <p className="text-sm font-bold text-slate-900 mt-1">
-                {basic.permiteTrabalhar === undefined ? 'Sob análise técnica' : basic.permiteTrabalhar ? 'Sim' : 'Não'}
-              </p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Caminho para Definitiva
-              </p>
-              <p className="text-sm font-bold text-slate-900 mt-1">
-                {basic.levaDefinitiva === undefined ? 'Sob análise técnica' : basic.levaDefinitiva ? 'Elegível conforme prazo legal' : 'Não aplicável'}
-              </p>
-            </div>
-          </div>
-
-          {/* Aviso de atenção em alto nível (sem expor passo a passo jurídico interno) */}
-          {basic.temAlertaCritico && basic.alertaGeral && (
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-900">
-                  Ponto de atenção identificado no seu perfil
-                </p>
-                <p className="text-sm leading-relaxed">{basic.alertaGeral}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pdfBusy !== null}
+                  onClick={() => void handleDownloadPublicDossierPdf()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523] font-bold transition-colors disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {pdfBusy === 'download' ? 'Gerando Dossiê PDF...' : 'Exportar Dossiê em PDF'}
+                </button>
+                <button
+                  type="button"
+                  disabled={pdfBusy !== null}
+                  onClick={() => void handlePreviewPublicDossierPdf()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold transition-colors disabled:opacity-50"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  {pdfBusy === 'preview' ? 'Abrindo...' : 'Pré-visualizar PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyPublicSummary}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  {copiedMsg ? 'Resumo copiado' : 'Copiar resumo'}
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Bloco do que está reservado para a consultoria */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              <Lock className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
-              O que é liberado ao contratar uma das nossas modalidades de consultoria
+            {pdfFeedback && (
+              <div className="no-print mt-3 px-3.5 py-2 rounded-lg bg-white/10 border border-white/15 text-xs text-[#E6C55A] flex items-center justify-between gap-2">
+                <span>{pdfFeedback}</span>
+                <button
+                  type="button"
+                  onClick={() => setPdfFeedback(null)}
+                  className="text-slate-300 hover:text-white underline text-[11px]"
+                >
+                  Fechar
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 4 Parâmetros Estratégicos (faixa limpa com divisórias hairline) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#E5DFD2] bg-[#FAF9F6] border-b border-[#E5DFD2]">
+            <div className="p-5 space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                Local de Protocolo
+              </p>
+              <p className="text-sm font-bold text-[#0B1F33] leading-snug">{protocoloDentroLabel}</p>
             </div>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs text-slate-700">
-              {basic.itensBloqueados.map((item) => (
-                <li key={item} className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="p-5 space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                Autorização de Trabalho
+              </p>
+              <p className="text-sm font-bold text-[#0B1F33] leading-snug">
+                {basic.permiteTrabalhar === undefined
+                  ? 'Conforme subcategoria'
+                  : basic.permiteTrabalhar
+                    ? 'Sim · Atividade remunerada liberada'
+                    : 'Não · Restrita a esta categoria'}
+              </p>
+            </div>
+            <div className="p-5 space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                Residência Definitiva
+              </p>
+              <p className="text-sm font-bold text-[#0B1F33] leading-snug">
+                {basic.levaDefinitiva === undefined
+                  ? 'Sob validação técnica'
+                  : basic.levaDefinitiva
+                    ? 'Elegível cumprindo prazo legal'
+                    : 'Exige mudança de subcategoria'}
+              </p>
+            </div>
+            <div className="p-5 space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                Referência de Prazo SERMIG
+              </p>
+              <p className="text-sm font-bold text-[#0B1F33] leading-snug tabular-nums">
+                {basic.prazoEstimadoResumo || 'Conforme fila oficial SERMIG'}
+              </p>
+            </div>
           </div>
-        </section>
 
-        {/* Escolha entre os dois tipos de consultoria */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6">
-          <div className="space-y-1.5 max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Próximo passo — Escolha como prefere conduzir seu processo
-            </p>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-              Duas modalidades de consultoria para o seu momento
-            </h2>
-            <p className="text-sm text-slate-600">
-              Você pode optar pela <strong>Consultoria Orientativa</strong> (para protocolar por conta própria com nossa conferência técnica) ou pela <strong>Consultoria Completa</strong> (onde nós cuidamos de todo o processo para você).
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Consultoria Orientativa */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-6 flex flex-col justify-between gap-5">
-              <div className="space-y-4">
+          {/* Corpo Analítico do Dossiê */}
+          <div className="p-6 sm:p-9 space-y-9">
+            {/* Alerta Crítico (quando aplicável) */}
+            {basic.temAlertaCritico && basic.alertaGeral && (
+              <div className="p-5 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3.5">
+                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {planOrientativa.badgeLabel}
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-900">
+                    Ponto de Atenção Prioritário no Seu Perfil
                   </p>
-                  <h3 className="text-xl font-bold text-slate-900">{planOrientativa.nome}</h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">{planOrientativa.subtitulo}</p>
+                  <p className="text-sm leading-relaxed text-amber-950">{basic.alertaGeral}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 2. GRÁFICO RADAR DE 7 PILARES + DECOMPOSIÇÃO POR DIMENSÃO */}
+            {basic.dimensoes && basic.dimensoes.length > 0 && (
+              <div className="space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-3 border-b border-[#E5DFD2]">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C6D14]">
+                      Raio-X de Viabilidade
+                    </p>
+                    <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1F33] mt-0.5">
+                      Gráfico Radar &amp; Pilares Técnicos da Pontuação
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 tabular-nums">
+                    Total consolidado:{' '}
+                    <strong className="font-mono text-[#0B1F33]">{basic.notaViabilidade}/100 pontos</strong>
+                  </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700">
-                  <strong className="text-slate-900">Protocolo SERMIG:</strong> realizado pelo próprio cliente com nosso guia e revisão prévia.
-                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                  {/* Esquerda: Gráfico Radar Vetorial Interativo */}
+                  <div className="lg:col-span-5">
+                    <DiagnosticRadarChart
+                      dimensions={basic.dimensoes}
+                      simulatedDimensions={publicSimulatedDimensions}
+                    />
+                  </div>
 
-                <ul className="space-y-2 text-xs text-slate-700">
-                  {planOrientativa.inclui.map((item) => (
-                    <li key={item} className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-[#1E7E34] shrink-0 mt-0.5" />
+                  {/* Direita: Barras detalhadas por pilar */}
+                  <div className="lg:col-span-7 space-y-4">
+                    {basic.dimensoes.map((dim) => {
+                      const simMatch = publicSimulatedDimensions?.find((s) => s.nome === dim.nome);
+                      const barFill =
+                        dim.percentual >= 75
+                          ? '#146B43'
+                          : dim.percentual >= 50
+                            ? '#0B1F33'
+                            : '#B7791F';
+                      return (
+                        <div key={dim.nome} className="space-y-1.5">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="text-sm font-semibold text-[#0B1F33]">{dim.nome}</span>
+                            <span className="font-mono text-xs font-bold tabular-nums text-slate-700 shrink-0">
+                              {dim.pontos}/{dim.maximo} pts ({dim.percentual}%)
+                              {simMatch && simMatch.percentual !== dim.percentual && (
+                                <span
+                                  className={`ml-1.5 ${
+                                    simMatch.percentual > dim.percentual ? 'text-[#146B43]' : 'text-[#A61C2B]'
+                                  }`}
+                                >
+                                  → {simMatch.percentual}%
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-[#EFECE4] overflow-hidden relative">
+                            <div
+                              className="h-full rounded-full transition-all duration-300"
+                              style={{ width: `${Math.max(4, dim.percentual)}%`, backgroundColor: barFill }}
+                            />
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed">{dim.observacao}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2B. SIMULADOR INTERATIVO "E SE..." NO RESULTADO */}
+            {onSimulatePublicAnswers && (
+              <div className="no-print pt-1">
+                <PublicWhatIfSimulator
+                  baseAnswers={answers}
+                  baseResult={result}
+                  simulatedResult={publicSimulatedResult}
+                  activeLevers={publicSimLevers}
+                  onToggleLever={togglePublicSimLever}
+                  onReset={() => setPublicSimLevers([])}
+                />
+              </div>
+            )}
+
+            {/* 3. PONTOS FORTES vs. PONTOS DE ATENÇÃO */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+              <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-5 sm:p-6 space-y-3.5">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[#146B43]">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Por que esta rota se destaca no seu perfil
+                </div>
+                <ul className="space-y-2.5 text-sm text-slate-700">
+                  {(basic.pontosFortes && basic.pontosFortes.length > 0
+                    ? basic.pontosFortes
+                    : ['Enquadramento preliminar compatível com as normas vigentes do SERMIG.']
+                  ).map((item) => (
+                    <li key={item} className="flex items-start gap-2.5 leading-relaxed">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#146B43] shrink-0 mt-2" />
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              <div className="space-y-2 pt-2">
+              <div className="rounded-xl border border-[#E5DFD2] bg-white p-5 sm:p-6 space-y-3.5">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[#8C6D14]">
+                  <Compass className="w-4 h-4 shrink-0" />
+                  Pontos de verificação antes de emitir certidões
+                </div>
+                {basic.pontosAtencao && basic.pontosAtencao.length > 0 ? (
+                  <ul className="space-y-2.5 text-sm text-slate-700">
+                    {basic.pontosAtencao.map((item) => (
+                      <li key={item} className="flex items-start gap-2.5 leading-relaxed">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#C9A227] shrink-0 mt-2" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    Não identificamos bloqueios críticos imediatos nas respostas informadas. A etapa decisiva agora é validar validade de antecedentes (60 dias), apostilamento e sequência correta de protocolo para evitar exigências do SERMIG.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* 4. ROTEIRO MACRO EM 4 FASES */}
+            {basic.roteiroMacro && basic.roteiroMacro.length > 0 && (
+              <div className="space-y-4 pt-2">
+                <div className="pb-3 border-b border-[#E5DFD2]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C6D14]">
+                    Visão Estruturada da Jornada
+                  </p>
+                  <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1F33] mt-0.5">
+                    Roteiro Macro do Processo em 4 Fases
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {basic.roteiroMacro.map((stepItem) => (
+                    <div
+                      key={stepItem.fase}
+                      className="rounded-xl border border-[#E5DFD2] bg-white p-4 flex flex-col justify-between gap-3"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold tabular-nums text-[#8C6D14]">
+                            FASE 0{stepItem.fase}
+                          </span>
+                          <span className="text-[11px] text-slate-500 truncate">{stepItem.foco}</span>
+                        </div>
+                        <h3 className="text-sm font-bold text-[#0B1F33] leading-snug">{stepItem.titulo}</h3>
+                        <p className="text-xs text-slate-600 leading-relaxed">{stepItem.resumo}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 5. ROTAS ALTERNATIVAS MAPEADAS */}
+            {basic.alternativasMapeadas && basic.alternativasMapeadas.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-bold text-[#0B1F33]">
+                    Rotas secundárias também avaliadas no seu perfil
+                  </h3>
+                  <span className="text-[11px] text-slate-500">Comparativo técnico completo disponível na consultoria</span>
+                </div>
+                <div className="rounded-xl border border-[#E5DFD2] overflow-hidden">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#FAF9F6] border-b border-[#E5DFD2] text-[11px] text-slate-500">
+                        <th className="py-2.5 px-4 font-semibold">Subcategoria Alternativa</th>
+                        <th className="py-2.5 px-4 font-semibold">Pedido dentro do Chile</th>
+                        <th className="py-2.5 px-4 font-semibold text-right">Aderência Preliminar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5DFD2] bg-white">
+                      {basic.alternativasMapeadas.map((alt) => (
+                        <tr key={alt.codigo}>
+                          <td className="py-3 px-4 font-semibold text-slate-900">{alt.nome}</td>
+                          <td className="py-3 px-4 text-slate-600">{alt.permiteDentroChile}</td>
+                          <td className="py-3 px-4 text-right font-bold tabular-nums text-[#0B1F33]">
+                            {alt.aderencia}/100
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 6. O QUE É LIBERADO NA CONSULTORIA */}
+            <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-5 sm:p-6 space-y-3.5">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#0B1F33]">
+                <Lock className="w-4 h-4 text-[#8C6D14] shrink-0" />
+                Entregáveis técnicos liberados ao contratar a consultoria
+              </div>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5 text-xs text-slate-700">
+                {basic.itensBloqueados.map((item) => (
+                  <li key={item} className="flex items-start gap-2 leading-relaxed">
+                    <FileCheck2 className="w-3.5 h-3.5 text-[#8C6D14] shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* 7. PRÓXIMO PASSO — COMPARATIVO DAS DUAS MODALIDADES DE CONSULTORIA */}
+        <section className="no-print bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-9 space-y-6">
+          <div className="space-y-1.5 max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8C6D14]">
+              Próximo passo — Escolha como prefere conduzir seu processo
+            </p>
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F33]">
+              Transforme este diagnóstico em um processo seguro e bem protocolado
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Opte pela <strong>Consultoria Orientativa</strong> (você protocola com nossa conferência técnica e checklist exato) ou pela <strong>Consultoria Completa</strong> (nossa equipe executa e acompanha todas as etapas por você).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Consultoria Orientativa */}
+            <div className="rounded-2xl border border-[#E5DFD2] bg-[#FAF9F6] p-6 flex flex-col justify-between gap-6">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {planOrientativa.badgeLabel}
+                  </p>
+                  <h3 className="font-display text-xl font-bold text-[#0B1F33]">{planOrientativa.nome}</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">{planOrientativa.subtitulo}</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white border border-[#E5DFD2] text-xs text-slate-700 leading-relaxed">
+                  <strong className="text-[#0B1F33]">Protocolo SERMIG:</strong> realizado pelo próprio cliente com nosso guia técnico e auditoria prévia dos documentos.
+                </div>
+
+                <ul className="space-y-2.5 text-xs text-slate-700">
+                  {planOrientativa.inclui.map((item) => (
+                    <li key={item} className="flex items-start gap-2 leading-relaxed">
+                      <CheckCircle2 className="w-4 h-4 text-[#146B43] shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="pt-2">
                 <a
                   href={buildPlanWaUrl(planOrientativa.nome)}
                   target="_blank"
@@ -310,32 +758,33 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   onClick={() => {
                     if (onLogWhatsApp) void onLogWhatsApp('Interesse Consultoria Orientativa', waMessage);
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0B1F33] text-white text-sm font-semibold hover:bg-slate-800 transition-colors"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Quero Consultoria Orientativa
+                  Falar sobre Consultoria Orientativa
+                  <ArrowRight className="w-4 h-4" />
                 </a>
               </div>
             </div>
 
             {/* Consultoria Completa */}
-            <div className="rounded-2xl border-2 border-[#0B1F33] bg-[#0B1F33] text-white p-6 flex flex-col justify-between gap-5">
+            <div className="rounded-2xl border-2 border-[#0B1F33] bg-[#0B1F33] text-white p-6 flex flex-col justify-between gap-6">
               <div className="space-y-4">
                 <div className="space-y-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#E6C55A]">
-                    {planCompleta.badgeLabel}
+                    {planCompleta.badgeLabel} · Execução integral
                   </p>
-                  <h3 className="text-xl font-bold text-white">{planCompleta.nome}</h3>
+                  <h3 className="font-display text-xl font-bold text-white">{planCompleta.nome}</h3>
                   <p className="text-xs text-slate-300 leading-relaxed">{planCompleta.subtitulo}</p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-100">
-                  <strong className="text-white">Protocolo SERMIG:</strong> conduzido integralmente pela nossa equipe do início ao fim.
+                <div className="p-3.5 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-100 leading-relaxed">
+                  <strong className="text-white">Protocolo SERMIG:</strong> conduzido integralmente pela nossa equipe, do dossiê ao Estampado Eletrônico e Cédula.
                 </div>
 
-                <ul className="space-y-2 text-xs text-slate-200">
+                <ul className="space-y-2.5 text-xs text-slate-200">
                   {planCompleta.inclui.map((item) => (
-                    <li key={item} className="flex items-start gap-2">
+                    <li key={item} className="flex items-start gap-2 leading-relaxed">
                       <CheckCircle2 className="w-4 h-4 text-[#E6C55A] shrink-0 mt-0.5" />
                       <span>{item}</span>
                     </li>
@@ -343,7 +792,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 </ul>
               </div>
 
-              <div className="space-y-2 pt-2">
+              <div className="pt-2">
                 <a
                   href={buildPlanWaUrl(planCompleta.nome)}
                   target="_blank"
@@ -354,19 +803,20 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#C9A227] text-[#0B1523] text-sm font-bold hover:bg-[#d6b13a] transition-colors"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Quero Consultoria Completa
+                  Falar sobre Consultoria Completa
+                  <ArrowRight className="w-4 h-4" />
                 </a>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-5 border-t border-[#E5DFD2] text-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
               {onOpenCalendly && (
                 <button
                   type="button"
                   onClick={onOpenCalendly}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   Agendar conversa inicial
@@ -376,7 +826,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('/acompanhar')}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
                   Já contratei — acessar Portal
@@ -387,7 +837,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               <button
                 type="button"
                 onClick={onRestart}
-                className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold"
+                className="inline-flex items-center gap-1.5 text-slate-600 hover:text-[#0B1F33] font-semibold transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Refazer diagnóstico
@@ -396,19 +846,29 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           </div>
         </section>
 
-        <p className="text-[11px] text-slate-500 text-center max-w-2xl mx-auto">
+        <p className="text-[11px] text-slate-500 text-center max-w-3xl mx-auto leading-relaxed">
           {empresa.avisoLegal}
         </p>
+
+        <PdfPreviewModal
+          open={Boolean(pdfPreview)}
+          title={pdfPreview?.title || 'Dossiê de Elegibilidade Migratória'}
+          filename={pdfPreview?.filename || 'dossie-diagnostico.pdf'}
+          blobUrl={pdfPreview?.blobUrl || null}
+          onClose={closePdfPreview}
+          onDownload={() => {
+            if (!pdfPreview) return;
+            const a = document.createElement('a');
+            a.href = pdfPreview.blobUrl;
+            a.download = pdfPreview.filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }}
+        />
       </div>
     );
   }
-
-  const closePdfPreview = () => {
-    setPdfPreview((prev) => {
-      if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
-      return null;
-    });
-  };
 
   const handleDownloadReactPdf = async () => {
     if (pdfBusy) return;

@@ -20,7 +20,7 @@ test('rules enforce global default deny and rules_version 2', () => {
 
 test('rules verify email_verified == true and block self-privilege escalation', () => {
   assert.match(rulesText, /request\.auth\.token\.email_verified == true/);
-  assert.match(rulesText, /incoming\(\)\.role == 'cliente' && incoming\(\)\.status == 'pendente'/);
+  assert.match(rulesText, /incoming\(\)\.role == 'cliente'[\s\S]*incoming\(\)\.status == 'pendente'/);
   assert.match(rulesText, /incoming\(\)\.role == existing\(\)\.role/);
 });
 
@@ -112,7 +112,7 @@ test('rules enforce strict owner isolation on fcmTokens and client read-only con
   assert.match(fcmBlock, /incoming\(\)\.clientId == existing\(\)\.clientId/);
 
   const notifBlock = rulesText.slice(rulesText.indexOf('match /clientNotifications/{notifId}'));
-  assert.match(notifBlock, /allow create: if isStaff\(\)/);
+  assert.match(notifBlock, /isStaff\(\) && isValidClientNotification\(incoming\(\)\)/);
   assert.match(notifBlock, /affectedKeys\(\)\.hasOnly\(\['lida', 'lidaEm', 'updatedAt'\]\)/);
   assert.match(notifBlock, /existing\(\)\.clientId == userClientId\(\)/);
 });
@@ -130,12 +130,21 @@ test('rules isolate non-chat communicationLogs to staff and enforce sender ident
 });
 
 test('rules allow verified Google client self-linking only when matching admin-approved client record', () => {
-  assert.match(rulesText, /function isVerifiedClientEmailMatch\(clientData\)/);
-  assert.match(rulesText, /function canClientSelfLink\(clientId, targetStatus\)/);
-  assert.match(rulesText, /get\(clientPath\)\.data\.portalLiberado == true && targetStatus == 'ativo'/);
+  assert.match(rulesText, /function matchesSignedInEmail\(email\)/);
+  assert.match(rulesText, /function hasUnlockedClientRecord\(clientId\)/);
+  assert.match(rulesText, /portalLiberado == true/);
   const usersBlock = rulesText.slice(rulesText.indexOf('match /users/{uid}'), rulesText.indexOf('match /config/{docId}'));
   assert.match(usersBlock, /existing\(\)\.role == 'cliente' && incoming\(\)\.role == 'cliente'/);
-  assert.match(usersBlock, /canClientSelfLink\(incoming\(\)\.clientId, incoming\(\)\.status\)/);
+  assert.match(usersBlock, /hasUnlockedClientRecord\(incoming\(\)\.clientId\)/);
+});
+
+test('rules validate immutable role-change audit logs in adminAudit/painel/logs and users/{uid}/logs', () => {
+  assert.match(rulesText, /'adminUid', 'targetUid', 'targetEmail', 'targetNome', 'oldRole', 'newRole', 'changedAt'/);
+  assert.match(rulesText, /function isValidUserRoleLog\(data, targetUid\)/);
+  const usersBlock = rulesText.slice(rulesText.indexOf('match /users/{uid}'), rulesText.indexOf('match /config/{docId}'));
+  assert.match(usersBlock, /match \/logs\/\{logId\}/);
+  assert.match(usersBlock, /isValidUserRoleLog\(incoming\(\), uid\)/);
+  assert.match(usersBlock, /allow update, delete: if false;/);
 });
 
 test('all isValid* rule validators stay well under Firestore 1,000 evaluated-expression budget', () => {
@@ -157,6 +166,7 @@ test('all isValid* rule validators stay well under Firestore 1,000 evaluated-exp
   }
   assert.ok(checked >= 15, `expected to audit at least 15 validators, audited ${checked}`);
 });
+
 
 
 

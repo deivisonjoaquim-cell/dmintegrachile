@@ -1,7 +1,8 @@
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import type { UserProfile, UserRole, UserStatus } from '../types/domain';
+import { recordUserRoleChangeLog } from '../utils/audit';
 import { normalizeCollectionWritePayload, sanitizeFirestoreData } from '../utils/firestoreUtils';
 
 export const PRIMARY_ADMIN_EMAIL = 'deivisonjoaquim@gmail.com';
@@ -241,12 +242,24 @@ export async function verifyAndEnsureAdminAccess(
   let effectiveDoc: Partial<UserProfile> | null = existingData;
 
   if (isPrimary) {
+    const previousRole = normalizeRoleValue(existingData?.role) ?? 'nenhuma';
     const { profile, needsWrite } = buildEnsuredPrimaryAdminProfile(fbUser, existingData);
     if (needsWrite) {
       try {
         await setDoc(userRef, sanitizeFirestoreData(profile));
         repairedUserDoc = true;
         effectiveDoc = profile;
+        if (previousRole !== 'admin') {
+          await recordUserRoleChangeLog({
+            targetUid: fbUser.uid,
+            targetEmail: profile.email,
+            targetNome: profile.nome,
+            oldRole: previousRole,
+            newRole: 'admin',
+            actorRole: 'admin',
+            reason: 'Inicialização automática de administrador principal (deivisonjoaquim@gmail.com)',
+          });
+        }
       } catch {
         // Mesmo que o reparo do documento `users/{uid}` falhe temporariamente,
         // `firestore.rules` valida `isBootstrappedAdmin()` diretamente para o admin principal verificado.
@@ -418,3 +431,156 @@ export async function executeValidatedAdminWrite<T>(
     handleFirestoreError(err, operation, targetPath);
   }
 }
+
+export interface PrimaryAdminBootstrapResult {
+  success: boolean;
+  email: string;
+  matchedUids: string[];
+  updatedDocs: number;
+  roleChangesLogged: number;
+  verifiedAccess: boolean;
+  message: string;
+}
+
+/**
+ * Função administrativa segura de inicialização/garantia de acesso total:
+ * localiza o(s) documento(s) do usuário `deivisonjoaquim@gmail.com` na coleção `users`
+ * (incluindo `users/{uid}` da sessão ativa quando aplicável), define explicitamente
+ * `role: 'admin'` e `status: 'ativo'`, registra qualquer alteração de role na subcoleção
+ * imutável `logs` e revalida o acesso contra as Firebase Security Rules.
+ */
+export async function promotePrimaryAdminRoleInFirestore(
+  fbUser: User | null = auth.currentUser,
+): Promise<PrimaryAdminBootstrapResult> {
+  if (!fbUser) {
+    return {
+      success: false,
+      email: PRIMARY_ADMIN_EMAIL,
+      matchedUids: [],
+      updatedDocs: 0,
+      roleChangesLogged: 0,
+      verifiedAccess: false,
+      message: 'Nenhuma sessão autenticada. Faça login com sua conta Google de administrador.',
+    };
+  }
+
+  try {
+    await fbUser.getIdToken(true);
+  } catch {
+    // Non-fatal: proceed with active token
+  }
+
+  clearAdminVerificationCache();
+  const callerIsPrimary = isPrimaryAdminEmail(fbUser.email);
+  const callerAccess = await verifyAndEnsureAdminAccess(fbUser, { force: true });
+  if (!callerIsPrimary && !callerAccess.authorized) {
+    return {
+      success: false,
+      email: PRIMARY_ADMIN_EMAIL,
+      matchedUids: [],
+      updatedDocs: 0,
+      roleChangesLogged: 0,
+      verifiedAccess: false,
+      message: `Apenas um administrador ativo ou ${PRIMARY_ADMIN_EMAIL} pode executar esta inicialização.`,
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+  const matchedDocs = new Map<string, Partial<UserProfile> | null>();
+
+  if (callerIsPrimary) {
+    try {
+      const ownSnap = await getDoc(doc(db, 'users', fbUser.uid));
+      matchedDocs.set(fbUser.uid, ownSnap.exists() ? (ownSnap.data() as Partial<UserProfile>) : null);
+    } catch {
+      matchedDocs.set(fbUser.uid, null);
+    }
+  }
+
+  try {
+    const allUsersSnap = await getDocs(collection(db, 'users'));
+    for (const d of allUsersSnap.docs) {
+      const data = d.data() as Partial<UserProfile>;
+      if (isPrimaryAdminEmail(data.email)) {
+        matchedDocs.set(d.id, data);
+      }
+    }
+  } catch (err) {
+    if (!callerIsPrimary) {
+      handleFirestoreError(err, OperationType.LIST, 'users');
+    }
+  }
+
+  if (matchedDocs.size === 0) {
+    return {
+      success: false,
+      email: PRIMARY_ADMIN_EMAIL,
+      matchedUids: [],
+      updatedDocs: 0,
+      roleChangesLogged: 0,
+      verifiedAccess: callerAccess.authorized,
+      message: `Nenhum documento encontrado em users para ${PRIMARY_ADMIN_EMAIL}. Faça login ao menos uma vez com ${PRIMARY_ADMIN_EMAIL} e execute novamente.`,
+    };
+  }
+
+  let updatedDocs = 0;
+  let roleChangesLogged = 0;
+  const matchedUids: string[] = [];
+
+  for (const [docUid, existing] of matchedDocs.entries()) {
+    matchedUids.push(docUid);
+    const oldRole = normalizeRoleValue(existing?.role) ?? 'nenhuma';
+    const { profile } = buildEnsuredPrimaryAdminProfile(
+      {
+        uid: docUid,
+        email: PRIMARY_ADMIN_EMAIL,
+        displayName: existing?.nome || (callerIsPrimary && fbUser.uid === docUid ? fbUser.displayName : 'Administrador Principal'),
+        photoURL: existing?.fotoUrl || (callerIsPrimary && fbUser.uid === docUid ? fbUser.photoURL : ''),
+      },
+      existing,
+      nowIso,
+    );
+
+    const payload = sanitizeFirestoreData({
+      ...profile,
+      uid: docUid,
+      email: PRIMARY_ADMIN_EMAIL,
+      role: 'admin' as const,
+      status: 'ativo' as const,
+      updatedAt: nowIso,
+    });
+
+    await setDoc(doc(db, 'users', docUid), payload, { merge: true });
+    updatedDocs += 1;
+
+    if (oldRole !== 'admin') {
+      await recordUserRoleChangeLog({
+        targetUid: docUid,
+        targetEmail: PRIMARY_ADMIN_EMAIL,
+        targetNome: profile.nome,
+        oldRole,
+        newRole: 'admin',
+        actorRole: 'admin',
+        reason: 'Função administrativa: definição explícita de role=admin para o administrador principal',
+      });
+      roleChangesLogged += 1;
+    }
+  }
+
+  clearAdminVerificationCache();
+  const finalCheck = await verifyAndEnsureAdminAccess(fbUser, { force: true });
+
+  return {
+    success: true,
+    email: PRIMARY_ADMIN_EMAIL,
+    matchedUids,
+    updatedDocs,
+    roleChangesLogged,
+    verifiedAccess: finalCheck.authorized,
+    message:
+      updatedDocs === 1
+        ? `Documento users/${matchedUids[0]} confirmado com role="admin" e status="ativo" para ${PRIMARY_ADMIN_EMAIL}.`
+        : `${updatedDocs} documentos de ${PRIMARY_ADMIN_EMAIL} confirmados com role="admin" e status="ativo".`,
+  };
+}
+

@@ -89,6 +89,45 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
           </div>
         </div>
 
+        {/* Faixa Executiva Marinho & Ouro — Pilares Institucionais */}
+        <section className="rounded-2xl bg-[#0B1F33] text-white border border-[#1E3B5A] shadow-[0_14px_34px_rgba(11,31,51,0.16)] overflow-hidden">
+          <div className="px-6 sm:px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-white/10">
+            <div className="pt-1 md:pt-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                01 · Base Jurídica Sólida
+              </p>
+              <p className="font-display text-lg font-bold text-white mt-1">
+                Ley Nº 21.325 &amp; Decreto Nº 177
+              </p>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Cada estratégia migratória é estruturada sobre a legislação chilena atualizada e o Acordo Mercosul.
+              </p>
+            </div>
+            <div className="pt-4 md:pt-0 md:pl-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                02 · Atuação Brasil – Chile
+              </p>
+              <p className="font-display text-lg font-bold text-white mt-1">
+                Planejamento Antes do Embarque
+              </p>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Sincronização de certidões, Apostila de Haia e protocolo digital SERMIG para evitar vencimentos.
+              </p>
+            </div>
+            <div className="pt-4 md:pt-0 md:pl-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                03 · Privacidade &amp; Ética
+              </p>
+              <p className="font-display text-lg font-bold text-white mt-1">
+                Conformidade Integral LGPD
+              </p>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Gestão documental em cofre restrito com rastreabilidade, transparência de prazos e atendimento em português.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-[var(--color-surface)] border border-[#E5DFD2] card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">

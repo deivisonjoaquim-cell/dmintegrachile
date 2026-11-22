@@ -95,10 +95,14 @@ import {
   sanitizeHtml,
 } from '../utils/formatters';
 import {
+  buildBasicDiagnosticSummary,
+  buildBasicLeadSummary,
   CONSULTANCY_PLANS,
   resolveClientPortalAccess,
+  type BasicDiagnosticSummary,
 } from '../utils/portalAccess';
-import { BrandLogo } from '../components/BrandLogo';
+import { runDiagnosticEngine } from '../utils/diagnosticEngine';
+import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
 
 interface PortalClientePageProps {
   onNavigate: (path: string) => void;
@@ -470,21 +474,70 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     }
   };
 
+  const buildPortalClientDiagnosticPdfInput = () => {
+    if (primaryLead?.respostasTriagem) {
+      const fullResult = runDiagnosticEngine(
+        primaryLead.respostasTriagem,
+        visaCategories,
+        visaRequirements,
+        legalSources,
+        empresa,
+      );
+      return {
+        empresa,
+        result: fullResult,
+        answers: primaryLead.respostasTriagem,
+        summary: buildBasicDiagnosticSummary(fullResult, primaryLead.respostasTriagem),
+        protocolo: primaryLead.id,
+      };
+    }
+
+    if (primaryLead) {
+      return {
+        empresa,
+        summary: buildBasicLeadSummary(primaryLead),
+        protocolo: primaryLead.id,
+      };
+    }
+
+    const latestAssessment = releasedAssessments[0];
+    const fallbackScore = latestAssessment ? Math.round(latestAssessment.notaGeral || 0) : thermo.notaGeral;
+    const fallbackSummary: BasicDiagnosticSummary = {
+      nome: client?.nomeCompleto || userProfile?.nome,
+      notaViabilidade: fallbackScore,
+      veredito:
+        fallbackScore >= 75
+          ? 'Perfil com alta aderência técnica'
+          : fallbackScore >= 50
+            ? 'Perfil viável com acompanhamento técnico'
+            : 'Perfil em estruturação com consultoria',
+      vereditoNivel: fallbackScore >= 75 ? 'alta' : fallbackScore >= 50 ? 'moderada' : 'atencao',
+      confianca: 'Alta',
+      subcategoriaCodigo: activeCase?.subcategoriaIa || 'SERMIG',
+      subcategoriaNome: activeCase?.titulo || activeCase?.tipoServico || 'Residência Temporal no Chile',
+      resumoBasico:
+        latestAssessment?.enquadramentoLegal ||
+        `Dossiê de acompanhamento do processo ${activeCase?.titulo || 'migratório'} sob gestão da ${empresa.nome_empresa}.`,
+      temAlertaCritico: false,
+      itensBloqueados: [],
+      dataCalculo: latestAssessment?.createdAt || activeCase?.updatedAt || new Date().toISOString(),
+    };
+
+    return {
+      empresa,
+      summary: fallbackSummary,
+      protocolo: activeCase?.id,
+    };
+  };
+
   const handleExportDiagnosticoPdf = async () => {
     if (pdfBusy) return;
     setPdfBusy('diagnostico');
     setFeedbackMsg(null);
     try {
-      const { exportDiagnosticoPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
-      const filename = await exportDiagnosticoPdf({
-        empresa,
-        client,
-        dependents,
-        activeCase,
-        lead: primaryLead,
-        assessments: releasedAssessments,
-      });
-      setFeedbackMsg(`Diagnóstico exportado em PDF (${filename}).`);
+      const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+      const filename = await exportClientDiagnosticPdf(buildPortalClientDiagnosticPdfInput());
+      setFeedbackMsg(`Dossiê do diagnóstico exportado em PDF (${filename}).`);
     } catch (err) {
       setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do diagnóstico.');
     } finally {
@@ -529,18 +582,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     setPdfBusy('preview');
     setFeedbackMsg(null);
     try {
-      const mod = await import('../components/pdf/ClientPortalPdfDocuments');
       const { blob, filename } =
         kind === 'diagnostico'
-          ? await mod.buildDiagnosticoPdfBlob({
-              empresa,
-              client,
-              dependents,
-              activeCase,
-              lead: primaryLead,
-              assessments: releasedAssessments,
-            })
-          : await mod.buildProgressoPdfBlob({
+          ? await (await import('../utils/clientDiagnosticPdf')).buildClientDiagnosticPdfBlob(
+              buildPortalClientDiagnosticPdfInput(),
+            )
+          : await (await import('../components/pdf/ClientPortalPdfDocuments')).buildProgressoPdfBlob({
               empresa,
               client,
               dependents,
@@ -555,7 +602,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setPdfPreview((prev) => {
         if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
         return {
-          title: kind === 'diagnostico' ? 'Pré-visualização: Diagnóstico & Viabilidade' : 'Pré-visualização: Relatório de Progresso',
+          title:
+            kind === 'diagnostico'
+              ? 'Pré-visualização: Dossiê de Diagnóstico (2 Páginas)'
+              : 'Pré-visualização: Relatório de Progresso',
           filename,
           blobUrl,
         };
@@ -753,7 +803,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
       {/* Header do Portal */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <header className="bg-white/95 backdrop-blur-xl border-b border-[#E5DFD2] sticky top-0 z-30 shadow-[0_2px_10px_rgba(11,31,51,0.035)]">
+        <BrandRibbon className="h-[3px] w-full no-print" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <BrandLogo
@@ -763,11 +814,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               variant="light"
               imgClassName="h-10 w-auto max-w-[210px] object-contain shrink-0"
             />
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-900 truncate">
-                Portal do Cliente · {planSpec.nome}
+            <div className="min-w-0 border-l border-[#E5DFD2] pl-3">
+              <p className="text-xs sm:text-sm font-bold text-[#0B1F33] truncate">
+                Portal do Cliente · <span className="text-[#8C6D14]">{planSpec.nome}</span>
               </p>
-              <p className="text-xs text-slate-500 truncate">{client?.nomeCompleto || userProfile.nome}</p>
+              <p className="text-xs text-[#4A5A6D] truncate">{client?.nomeCompleto || userProfile.nome}</p>
             </div>
           </div>
 
@@ -776,12 +827,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               type="button"
               onClick={() => setNotifDrawerOpen(true)}
               aria-label="Abrir central de notificações do processo"
-              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
             >
-              <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+              <Bell className="w-3.5 h-3.5 text-[#0B1F33]" />
               <span className="hidden sm:inline">Alertas</span>
               {unreadNotifCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#C82333] text-white text-[10px] font-bold tabular-nums">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#A61C2B] text-white text-[10px] font-bold tabular-nums">
                   {unreadNotifCount}
                 </span>
               )}
@@ -789,14 +840,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-medium text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
             >
               Site público
             </button>
             <button
               type="button"
               onClick={logout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] hover:text-[#0B1F33] transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sair
@@ -805,7 +856,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
 
         {/* Abas desktop/tablet */}
-        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-slate-100 no-print">
+        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#F1EDE4] no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
@@ -820,8 +871,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={() => setTab(item.id as PortalTab)}
               className={`px-3.5 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 tab === item.id
-                  ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-semibold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-[#C8A236] text-[#0B1F33] font-semibold'
+                  : 'border-transparent text-[#4A5A6D] hover:text-[#0B1F33]'
               }`}
             >
               {item.label}
@@ -1039,64 +1090,93 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </div>
                   </div>
                 </section>
-                <div className="bg-white border border-slate-200 rounded-xl p-6">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">
-                        {planSpec.nome}
-                        {activeCase
-                          ? isOrientativa
-                            ? ` · ${activeCase.tipoServico} · Protocolo conduzido pelo cliente`
-                            : ` · ${activeCase.tipoServico} · SERMIG: ${activeCase.statusSermig}`
-                          : ' · Processo em estruturação'}
-                      </p>
-                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
-                        {activeCase?.titulo || 'Acompanhamento de Residência no Chile'}
-                      </h1>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="text-left sm:text-right mr-2">
-                        <p className="text-xs text-slate-500">Prontidão Documental</p>
-                        <p className="text-2xl font-bold tabular-nums" style={{ color: thermo.corHex }}>
-                          {thermo.notaGeral}%
+                <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(11,31,51,0.05)]">
+                  {/* Cabeçalho Executivo Marinho & Ouro do Processo */}
+                  <div className="bg-[#0B1F33] text-white px-5 sm:px-7 py-6 border-b border-[#1E3B5A]">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                      <div className="space-y-1.5 min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                          {planSpec.nome}
+                          {activeCase
+                            ? isOrientativa
+                              ? ` · ${activeCase.tipoServico} · Protocolo conduzido pelo cliente`
+                              : ` · ${activeCase.tipoServico} · SERMIG: ${activeCase.statusSermig}`
+                            : ' · Processo em estruturação'}
                         </p>
+                        <h1 className="font-display text-2xl sm:text-3xl font-bold text-white leading-tight">
+                          {activeCase?.titulo || 'Acompanhamento de Residência no Chile'}
+                        </h1>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 no-print">
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handlePreviewPdf('progresso')}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar PDF'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handleExportProgressoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
-                          style={{ backgroundColor: 'var(--color-primary)' }}
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Exportar Progresso (PDF)'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handleExportDiagnosticoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Exportar Diagnóstico (PDF)'}
-                        </button>
+
+                      <div className="flex flex-wrap items-center gap-4 shrink-0">
+                        <div className="text-left sm:text-right pr-2 sm:border-r sm:border-white/15 sm:pr-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                            Prontidão Documental
+                          </p>
+                          <p className="text-3xl font-bold font-mono tabular-nums text-[#E5C76B]">
+                            {thermo.notaGeral}%
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 no-print">
+                          <button
+                            type="button"
+                            disabled={pdfBusy !== null}
+                            onClick={() => void handleExportDiagnosticoPdf()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#C8A236] hover:bg-[#B89228] text-xs font-bold text-[#0B1523] whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Dossiê Diagnóstico (PDF)'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pdfBusy !== null}
+                            onClick={() => void handleExportProgressoPdf()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-white/25 bg-white/10 hover:bg-white/15 text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
+                          >
+                            <Download className="w-3.5 h-3.5 text-[#E5C76B]" />
+                            {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Relatório de Progresso'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pdfBusy !== null}
+                            onClick={() => void handlePreviewPdf('progresso')}
+                            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-white/20 text-xs font-medium text-slate-200 hover:bg-white/10 whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Barra de Prontidão Documental Integrada */}
+                    <div className="mt-5 pt-4 border-t border-white/10">
+                      <div className="flex justify-between text-xs font-medium text-slate-200 mb-2">
+                        <span>
+                          {thermo.faltantesObrigatorios === 0
+                            ? isOrientativa
+                              ? 'Todos os documentos obrigatórios foram conferidos e aprovados para você protocolar!'
+                              : 'Todos os documentos obrigatórios foram aprovados!'
+                            : `Faltam ${thermo.faltantesObrigatorios} documento(s) obrigatório(s). Seu processo está ${thermo.notaGeral}% pronto.`}
+                        </span>
+                        <span className="font-mono font-bold tabular-nums text-[#E5C76B]">{thermo.notaGeral}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-white/15 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${thermo.notaGeral}%`,
+                            background: 'linear-gradient(90deg, #C8A236 0%, #E5C76B 60%, #146B43 100%)',
+                          }}
+                        />
                       </div>
                     </div>
                   </div>
 
+                  <div className="p-5 sm:p-6">
                   {/* Aviso de escopo conforme modalidade contratada */}
                   {isOrientativa && (
-                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="p-4 rounded-xl bg-amber-50/75 border border-amber-200 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
                       <div className="space-y-1">
                         <p className="text-xs font-bold text-amber-950">
                           Modalidade contratada: Consultoria Orientativa
@@ -1112,32 +1192,13 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         )}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold whitespace-nowrap shrink-0 hover:bg-slate-800"
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F33] text-white text-xs font-semibold whitespace-nowrap shrink-0 hover:opacity-95"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         Migrar para Completa
                       </a>
                     </div>
                   )}
-
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 mb-6">
-                    <div className="flex justify-between text-xs font-semibold text-slate-700 mb-2">
-                      <span>
-                        {thermo.faltantesObrigatorios === 0
-                          ? isOrientativa
-                            ? 'Todos os documentos obrigatórios foram conferidos e aprovados para você protocolar!'
-                            : 'Todos os documentos obrigatórios foram aprovados!'
-                          : `Faltam ${thermo.faltantesObrigatorios} documento(s). Seu processo está ${thermo.notaGeral}% pronto.`}
-                      </span>
-                      <span className="tabular-nums">{thermo.notaGeral}%</span>
-                    </div>
-                    <div className="h-2.5 rounded-full bg-slate-200 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${thermo.notaGeral}%`, backgroundColor: thermo.corHex }}
-                      />
-                    </div>
-                  </div>
 
                   {/* Linha do tempo visual conectada ao Firestore em tempo real */}
                   <ImmigrationStatusTimeline
@@ -1149,18 +1210,20 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     initialNotifications={notifications}
                     onNavigateTab={(target) => setTab(target)}
                   />
+                  </div>
                 </div>
 
                 {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
                 {(primaryLead || releasedAssessments.length > 0) && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h2 className="text-base font-semibold text-slate-900">
+                        <p className="brand-kicker">Dossiê Técnico · Exportável em PDF</p>
+                        <h2 className="text-lg font-bold text-[#0B1F33] font-brand-sans mt-0.5">
                           Diagnóstico de Viabilidade &amp; Parecer Técnico
                         </h2>
-                        <p className="text-xs text-slate-500">
-                          Histórico do seu diagnóstico inicial e orientações técnicas liberadas pela consultoria
+                        <p className="text-xs text-[#4A5A6D]">
+                          Histórico do seu diagnóstico completo e orientações técnicas liberadas pela consultoria
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 no-print">
@@ -1168,34 +1231,34 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           type="button"
                           disabled={pdfBusy !== null}
                           onClick={() => void handlePreviewPdf('diagnostico')}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap shrink-0 disabled:opacity-50"
                         >
-                          <Eye className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          Pré-visualizar
+                          <Eye className="w-3.5 h-3.5 text-[#0B1F33]" />
+                          Pré-visualizar Dossiê
                         </button>
                         <button
                           type="button"
                           disabled={pdfBusy !== null}
                           onClick={() => void handleExportDiagnosticoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F33] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap shrink-0 disabled:opacity-50"
                         >
-                          <Download className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Diagnóstico (PDF)'}
+                          <Download className="w-3.5 h-3.5 text-[#E5C76B]" />
+                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Dossiê (PDF 2 Págs)'}
                         </button>
                       </div>
                     </div>
 
                     {primaryLead && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2] text-xs">
                         <div>
-                          <p className="text-slate-500">Subcategoria sugerida</p>
-                          <p className="font-bold text-slate-900 mt-0.5">
+                          <p className="text-[#4A5A6D]">Subcategoria sugerida</p>
+                          <p className="font-bold text-[#0B1F33] mt-0.5">
                             {primaryLead.subcategoriaSugerida || primaryLead.interesse || 'Em análise'}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Índice de viabilidade</p>
-                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                          <p className="text-[#4A5A6D]">Índice de viabilidade</p>
+                          <p className="font-bold font-mono text-[#0B1F33] mt-0.5 tabular-nums">
                             {typeof primaryLead.notaViabilidade === 'number'
                               ? `${primaryLead.notaViabilidade}/100`
                               : 'Em avaliação'}
@@ -1203,8 +1266,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Realizado em</p>
-                          <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                          <p className="text-[#4A5A6D]">Realizado em</p>
+                          <p className="font-bold font-mono text-[#0B1F33] mt-0.5 tabular-nums">
                             {formatDateBR(primaryLead.createdAt)}
                             {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
                           </p>
