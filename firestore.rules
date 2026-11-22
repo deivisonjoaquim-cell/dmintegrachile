@@ -617,6 +617,35 @@ service cloud.firestore {
         && isOptString(data, 'updatedAt', 64);
     }
 
+    function isValidClientTestimonial(data) {
+      return data.keys().hasAll(['id', 'nome', 'depoimento', 'avaliacao', 'autorizado', 'aprovado', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'nome', 'cidadeOrigem', 'cidadeDestino', 'tipoVisto', 'categoriaParceiro',
+          'depoimento', 'videoUrl', 'videoMimeType', 'duracaoSegundos', 'avaliacao',
+          'autorizado', 'aprovado', 'honeypot', 'createdAt', 'updatedAt'
+        ])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'nome', 2, 140)
+        && isOptString(data, 'cidadeOrigem', 120)
+        && isOptString(data, 'cidadeDestino', 120)
+        && isOptString(data, 'tipoVisto', 120)
+        && isOptString(data, 'categoriaParceiro', 100)
+        && isReqString(data, 'depoimento', 10, 1200)
+        && isOptString(data, 'videoUrl', 500)
+        && (!('videoUrl' in data) || data.videoUrl == null || data.videoUrl == '' || data.videoUrl.matches('^/uploads/testimonials/[a-zA-Z0-9_\\-\\.]+$'))
+        && isOptString(data, 'videoMimeType', 60)
+        && (!('duracaoSegundos' in data) || data.duracaoSegundos == null || (data.duracaoSegundos is number && data.duracaoSegundos >= 0 && data.duracaoSegundos <= 45))
+        && data.avaliacao is number
+        && data.avaliacao >= 1
+        && data.avaliacao <= 5
+        && data.autorizado is bool
+        && data.aprovado is bool
+        && (!('honeypot' in data) || data.honeypot == '')
+        && isReqString(data, 'createdAt', 10, 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
     // =========================================================================
     // Collections
     // =========================================================================
@@ -1116,6 +1145,20 @@ service cloud.firestore {
         ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(notifId);
+    }
+
+    match /clientTestimonials/{testimonialId} {
+      allow get: if isValidId(testimonialId) && ((existing().aprovado == true && existing().autorizado == true) || isStaff());
+      allow list: if (existing().aprovado == true && existing().autorizado == true) || isStaff();
+      allow create: if isValidId(testimonialId) && (
+        isBootstrappedAdmin() ||
+        (isValidClientTestimonial(incoming()) && incoming().id == testimonialId && incoming().autorizado == true)
+      );
+      allow update: if isValidId(testimonialId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidClientTestimonial(incoming()) && incoming().id == testimonialId && incoming().createdAt == existing().createdAt)
+      );
+      allow delete: if isAdminOrConsultor() && isValidId(testimonialId);
     }
   }
 }

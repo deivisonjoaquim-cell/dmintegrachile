@@ -1040,3 +1040,23 @@ export interface ClientNotification {
   createdAt: string;
   updatedAt?: string;
 }
+
+export interface ClientTestimonial {
+  id: string;
+  nome: string;
+  cidadeOrigem?: string;
+  cidadeDestino?: string;
+  tipoVisto?: string;
+  categoriaParceiro?: string;
+  depoimento: string;
+  videoUrl?: string;
+  videoMimeType?: string;
+  duracaoSegundos?: number;
+  avaliacao: number;
+  autorizado: boolean;
+  aprovado: boolean;
+  honeypot?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+

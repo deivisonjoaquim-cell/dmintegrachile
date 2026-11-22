@@ -626,6 +626,30 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "clientId", "titulo", "mensagem", "tipo", "lida", "createdAt"]
+    },
+    "ClientTestimonial": {
+      "title": "ClientTestimonial",
+      "description": "Depoimento verificado ou enviado por cliente integrado no Chile, com suporte a vídeo curto gravado via webcam.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nome": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "cidadeOrigem": { "type": "string", "maxLength": 120 },
+        "cidadeDestino": { "type": "string", "maxLength": 120 },
+        "tipoVisto": { "type": "string", "maxLength": 120 },
+        "categoriaParceiro": { "type": "string", "maxLength": 100 },
+        "depoimento": { "type": "string", "minLength": 10, "maxLength": 1200 },
+        "videoUrl": { "type": "string", "maxLength": 500 },
+        "videoMimeType": { "type": "string", "maxLength": 60 },
+        "duracaoSegundos": { "type": "number" },
+        "avaliacao": { "type": "number" },
+        "autorizado": { "type": "boolean" },
+        "aprovado": { "type": "boolean" },
+        "honeypot": { "type": "string", "maxLength": 0 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "nome", "depoimento", "avaliacao", "autorizado", "aprovado", "createdAt"]
     }
   },
   "firestore": {
@@ -660,6 +684,7 @@
     "/documentTemplates/{templateId}": { "schema": { "$ref": "#/entities/DocumentTemplate" }, "description": "Modelos de contratos e termos" },
     "/generatedDocuments/{genDocId}": { "schema": { "$ref": "#/entities/GeneratedDocument" }, "description": "Documentos gerados por caso" },
     "/fcmTokens/{tokenId}": { "schema": { "$ref": "#/entities/FcmTokenRecord" }, "description": "Tokens FCM dos dispositivos de clientes para envio de notificações push" },
-    "/clientNotifications/{notifId}": { "schema": { "$ref": "#/entities/ClientNotification" }, "description": "Alertas de atualização de processo enviados ao cliente via FCM e Portal" }
+    "/clientNotifications/{notifId}": { "schema": { "$ref": "#/entities/ClientNotification" }, "description": "Alertas de atualização de processo enviados ao cliente via FCM e Portal" },
+    "/clientTestimonials/{testimonialId}": { "schema": { "$ref": "#/entities/ClientTestimonial" }, "description": "Depoimentos de clientes integrados no Chile com opção de vídeo curto gravado via webcam" }
   }
 }

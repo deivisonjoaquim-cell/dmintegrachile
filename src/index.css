@@ -36,6 +36,7 @@
   --radius-button: 0.625rem;
 }
 
+.dark,
 .panel-dark {
   --color-primary: #1B4D7A;
   --color-primary-soft: #245D91;
@@ -47,11 +48,17 @@
   --color-border-subtle: #1C324B;
   --color-text: #F1F5F9;
   --color-text-muted: #9AB0C7;
+  --color-footer-bg: #040B14;
   color-scheme: dark;
   background-color: var(--color-bg);
   color: var(--color-text);
 }
 
+.dark a:focus-visible,
+.dark button:focus-visible,
+.dark input:focus-visible,
+.dark select:focus-visible,
+.dark textarea:focus-visible,
 .panel-dark a:focus-visible,
 .panel-dark button:focus-visible,
 .panel-dark input:focus-visible,
