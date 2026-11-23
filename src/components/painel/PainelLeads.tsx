@@ -778,8 +778,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         <>
           {/* Barra de Filtros + Ação Recalcular */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-3">
-            <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center min-w-0">
-              <div className="relative flex-1 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center min-w-0">
+              <div className="relative sm:col-span-2 lg:col-span-4 min-w-0">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -789,13 +789,13 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 text-xs sm:text-sm"
                 />
               </div>
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+              <div className="sm:col-span-2 lg:col-span-8 flex flex-wrap items-center gap-2 min-w-0">
                 {view === 'lista' && (
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     aria-label="Filtrar por status do funil"
-                    className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100 min-w-0"
+                    className="flex-1 min-w-[165px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
                   >
                     <option value="Todos">Todos os status do funil</option>
                     {FUNIL_STAGES.map((st) => (
@@ -809,7 +809,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   value={smartFilter}
                   onChange={(e) => setSmartFilter(e.target.value as typeof smartFilter)}
                   aria-label="Filtrar por perfil do lead"
-                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100 min-w-0"
+                  className="flex-1 min-w-[165px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
                 >
                   <option value="todos">Todos os perfis</option>
                   <option value="alta_urgente">Prioridade Alta / Urgente</option>
@@ -822,7 +822,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   value={convertModality}
                   onChange={(e) => setConvertModality(e.target.value as PaidConsultancyModality)}
                   aria-label="Modalidade padrão ao converter lead"
-                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 max-w-[230px] min-w-0 font-semibold"
+                  className="flex-1 min-w-[185px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 font-semibold"
                 >
                   <option value="completa">Converter como: Completa</option>
                   <option value="orientativa">Converter como: Orientativa</option>
@@ -831,7 +831,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   value={selectedTplId}
                   onChange={(e) => setSelectedTplId(e.target.value)}
                   aria-label="Selecionar modelo de mensagem"
-                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100 max-w-[240px] min-w-0"
+                  className="flex-1 min-w-[185px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 dark:text-slate-100"
                 >
                   {messageTemplates.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -843,7 +843,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
+                    className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
                   >
                     Limpar
                   </button>
@@ -873,7 +873,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               {filtered.length === 0 ? (
                 <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">Nenhum lead encontrado.</div>
               ) : (
-                <table className="w-full text-left border-collapse text-sm">
+                <table className="w-full min-w-[960px] text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/70">
                       <th className="py-3 px-3">

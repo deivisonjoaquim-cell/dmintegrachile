@@ -68,8 +68,8 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
 }) => {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2.5">
-        <div className="relative lg:col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
+        <div className="relative sm:col-span-2">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             value={query}
@@ -83,7 +83,7 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
           value={kindFilter}
           onChange={(e) => onChangeKindFilter(e.target.value as FunnelKanbanFilterKind)}
           aria-label="Filtrar por tipo de registro"
-          className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
+          className="w-full min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
         >
           <option value="all">Todos ({totalAllCards})</option>
           <option value="cases">Processos ativos</option>
@@ -99,7 +99,7 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
             )
           }
           aria-label="Filtrar por prioridade"
-          className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
+          className="w-full min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
         >
           <option value="all">Todas prioridades</option>
           <option value="Urgente">Urgente</option>
@@ -112,7 +112,7 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
           value={sortBy}
           onChange={(e) => onChangeSortBy(e.target.value as FunnelKanbanSortBy)}
           aria-label="Ordenar cartões"
-          className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
+          className="w-full min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
         >
           <option value="urgency_date">Urgência + Data</option>
           <option value="created_desc">Mais recentes</option>

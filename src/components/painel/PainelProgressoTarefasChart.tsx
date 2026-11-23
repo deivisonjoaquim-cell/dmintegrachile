@@ -347,14 +347,14 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
                   <BarChart
                     layout="vertical"
                     data={chartData}
-                    margin={{ top: 2, right: 8, left: chartData.length > 1 ? 8 : 0, bottom: 2 }}
+                    margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
                     barSize={chartData.length > 1 ? 18 : 22}
                   >
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={chartData.length > 1 ? 115 : 74}
+                      width={chartData.length > 1 ? 144 : 88}
                       tick={{ fontSize: 11, fill: isDark ? '#CBD5E1' : '#334155', fontWeight: 600 }}
                       axisLine={false}
                       tickLine={false}

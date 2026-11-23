@@ -1705,18 +1705,18 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       {tab === 'legal' && (
         <div className="space-y-4">
           {/* Painel Saúde da Base Legal */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <button
               type="button"
               onClick={() => {
                 setFilterStatus(filterStatus === 'Vigente' ? 'Todos' : 'Vigente');
                 setOnlyOutdated(false);
               }}
-              className={`text-left bg-white border rounded-xl p-3 transition-colors ${
+              className={`text-left bg-white border rounded-xl p-3 transition-colors min-w-0 ${
                 filterStatus === 'Vigente' && !onlyOutdated ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-200 hover:border-slate-300'
               }`}
             >
-              <p className="text-[11px] text-slate-500">Vigentes</p>
+              <p className="text-[11px] text-slate-500 leading-snug">Vigentes</p>
               <p className="text-lg font-bold text-[#1E7E34] tabular-nums">{healthStats.vigente}</p>
             </button>
             <button
@@ -1725,15 +1725,15 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 setFilterStatus(filterStatus === 'A verificar' ? 'Todos' : 'A verificar');
                 setOnlyOutdated(false);
               }}
-              className={`text-left bg-white border rounded-xl p-3 transition-colors ${
+              className={`text-left bg-white border rounded-xl p-3 transition-colors min-w-0 ${
                 filterStatus === 'A verificar' ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200 hover:border-slate-300'
               }`}
             >
-              <p className="text-[11px] text-slate-500">A verificar</p>
+              <p className="text-[11px] text-slate-500 leading-snug">A verificar</p>
               <p className="text-lg font-bold text-amber-700 tabular-nums">{healthStats.aVerificar}</p>
             </button>
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <p className="text-[11px] text-slate-500">Alteradas / Revog.</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 min-w-0">
+              <p className="text-[11px] text-slate-500 leading-snug">Alteradas / Revog.</p>
               <p className="text-lg font-bold text-slate-900 tabular-nums">
                 {healthStats.alterada} / {healthStats.revogada}
               </p>
@@ -1744,39 +1744,39 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 setOnlyOutdated((v) => !v);
                 setFilterStatus('Todos');
               }}
-              className={`text-left bg-white border rounded-xl p-3 transition-colors ${
+              className={`text-left bg-white border rounded-xl p-3 transition-colors min-w-0 ${
                 onlyOutdated ? 'border-[#C82333] bg-red-50/40' : 'border-slate-200 hover:border-slate-300'
               }`}
             >
-              <p className="text-[11px] text-slate-500">Revisão &gt; {diasAlerta}d</p>
+              <p className="text-[11px] text-slate-500 leading-snug">Revisão &gt; {diasAlerta}d</p>
               <p className="text-lg font-bold text-[#C82333] tabular-nums">{healthStats.outdated}</p>
             </button>
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <p className="text-[11px] text-slate-500">Sem link oficial</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 min-w-0">
+              <p className="text-[11px] text-slate-500 leading-snug">Sem link oficial</p>
               <p className="text-lg font-bold text-slate-700 tabular-nums">{healthStats.missingLink}</p>
             </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <p className="text-[11px] text-slate-500">Sem vínculos</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 min-w-0">
+              <p className="text-[11px] text-slate-500 leading-snug">Sem vínculos</p>
               <p className="text-lg font-bold text-slate-700 tabular-nums">{healthStats.unlinked}</p>
             </div>
           </div>
 
           {/* Busca, Filtros Avançados e Favoritos */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
-              <div className="lg:col-span-2 relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-2 relative min-w-0">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   value={searchLegal}
                   onChange={(e) => setSearchLegal(e.target.value)}
                   placeholder="Buscar por título, nº/ano, artigo ou tag..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                  className="w-full min-w-0 pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
                 />
               </div>
               <select
                 value={filterPais}
                 onChange={(e) => setFilterPais(e.target.value)}
-                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
               >
                 <option value="Todos">País: Todos</option>
                 <option value="Chile">Chile</option>
@@ -1786,7 +1786,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
               <select
                 value={filterTipo}
                 onChange={(e) => setFilterTipo(e.target.value)}
-                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
               >
                 <option value="Todos">Tipo: Todos</option>
                 <option value="Lei">Lei</option>
@@ -1800,7 +1800,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
               >
                 <option value="Todos">Status: Todos</option>
                 <option value="Vigente">Vigente</option>
@@ -1811,7 +1811,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
               >
                 <option value="verificacao_asc">Mais antiga primeiro</option>
                 <option value="verificacao_desc">Mais recente primeiro</option>
@@ -2120,7 +2120,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
           </div>
 
           <div className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full min-w-[860px] text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60">
                   <th className="py-3 px-4 font-semibold w-10" />

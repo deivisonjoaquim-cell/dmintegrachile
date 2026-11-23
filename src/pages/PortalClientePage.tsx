@@ -832,29 +832,29 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       {/* Header do Portal */}
       <header className="bg-white/95 backdrop-blur-xl border-b border-[#E5DFD2] sticky top-0 z-30 shadow-[0_2px_10px_rgba(11,31,51,0.035)]">
         <BrandRibbon className="h-[3px] w-full no-print" />
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-16 py-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
             <BrandLogo
               src={empresa.logoUrl}
               alt={empresa.nome_empresa}
               brandShortName={empresa.nome_empresa.split('–')[0].trim()}
               variant="light"
-              imgClassName="h-10 w-auto max-w-[210px] object-contain shrink-0"
+              imgClassName="h-9 sm:h-10 w-auto max-w-[135px] sm:max-w-[190px] object-contain shrink-0"
             />
-            <div className="min-w-0 border-l border-[#E5DFD2] pl-3">
-              <p className="text-xs sm:text-sm font-bold text-[#0B1F33] truncate">
+            <div className="min-w-0 border-l border-[#E5DFD2] pl-2.5 sm:pl-3">
+              <p className="text-xs sm:text-sm font-bold text-[#0B1F33] leading-snug break-words">
                 Portal do Cliente · <span className="text-[#8C6D14]">{planSpec.nome}</span>
               </p>
-              <p className="text-xs text-[#4A5A6D] truncate">{client?.nomeCompleto || userProfile.nome}</p>
+              <p className="text-xs text-[#4A5A6D] leading-snug break-words">{client?.nomeCompleto || userProfile.nome}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setNotifDrawerOpen(true)}
               aria-label="Abrir central de notificações do processo"
-              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors whitespace-nowrap"
             >
               <Bell className="w-3.5 h-3.5 text-[#0B1F33]" />
               <span className="hidden sm:inline">Alertas</span>
@@ -867,14 +867,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-medium text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
+              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-medium text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors whitespace-nowrap"
             >
               Site público
             </button>
             <button
               type="button"
               onClick={logout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] hover:text-[#0B1F33] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] hover:text-[#0B1F33] transition-colors whitespace-nowrap"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sair
@@ -1095,9 +1095,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                                 : 'border-slate-200 bg-white hover:bg-slate-50/40'
                             }`}
                           >
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-slate-900 truncate">{cat.label}</p>
-                              <p className="text-[11px] text-slate-500 truncate">{cat.desc}</p>
+                            <div className="min-w-0 space-y-0.5">
+                              <p className="text-xs font-semibold text-slate-900 leading-snug break-words">{cat.label}</p>
+                              <p className="text-[11px] text-slate-500 leading-snug break-words">{cat.desc}</p>
                             </div>
                             <span
                               aria-hidden="true"
@@ -1866,13 +1866,13 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               key={item.id}
               type="button"
               onClick={() => setTab(item.id as PortalTab)}
-              className={`relative min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+              className={`relative min-h-[54px] min-w-0 px-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
                 active ? 'text-[#0B1F33] bg-[#FAF9F6]' : 'text-[#4A5A6D]'
               }`}
             >
-              {active && <span className="absolute top-0 inset-x-2 h-[2.5px] bg-[#C8A236] rounded-b" aria-hidden="true" />}
+              {active && <span className="absolute top-0 inset-x-1.5 h-[2.5px] bg-[#C8A236] rounded-b" aria-hidden="true" />}
               {item.icon}
-              <span>{item.label}</span>
+              <span className="max-w-full truncate leading-tight">{item.label}</span>
             </button>
           );
         })}

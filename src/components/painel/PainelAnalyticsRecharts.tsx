@@ -125,8 +125,8 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
         </div>
 
         {/* Faixa de 4 KPIs Estatísticos Consolidados */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
             <p className="text-[11px] font-semibold text-[#4A5A6D] dark:text-slate-400">
               Diagnósticos ({horizon === '6m' ? '6 meses' : '12 meses'})
             </p>
@@ -138,7 +138,7 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
+          <div className="min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
             <p className="text-[11px] font-semibold text-[#4A5A6D] dark:text-slate-400">
               Taxa de Conversão Global
             </p>
@@ -150,7 +150,7 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
+          <div className="min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
             <p className="text-[11px] font-semibold text-[#4A5A6D] dark:text-slate-400">
               Clientes &amp; Processos Ativos
             </p>
@@ -162,11 +162,11 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
+          <div className="min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#081726]/60 p-4">
             <p className="text-[11px] font-semibold text-[#4A5A6D] dark:text-slate-400">
               Perfil Migratório Líder
             </p>
-            <p className="text-base font-bold text-[#8C6D14] dark:text-[#E5C76B] mt-1.5 truncate">
+            <p className="text-sm sm:text-base font-bold text-[#8C6D14] dark:text-[#E5C76B] mt-1.5 leading-snug break-words">
               {analytics.perfilLider ? analytics.perfilLider.nomeCurto : 'Aguardando dados'}
             </p>
             <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-1 tabular-nums">
@@ -180,7 +180,7 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
         {/* Grade Principal de Gráficos Recharts */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
           {/* Gráfico 1: Volume Mensal de Diagnósticos + Convertidos + Taxa de Conversão */}
-          <div className="xl:col-span-7 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 space-y-3 bg-white dark:bg-[#081726]/40">
+          <div className="xl:col-span-7 min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 space-y-3 bg-white dark:bg-[#081726]/40">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-[#0B1F33] dark:text-slate-100 flex items-center gap-2">
@@ -203,11 +203,11 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                 </p>
               </div>
             ) : (
-              <div className="h-[270px] w-full">
+              <div className="h-[280px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
                     data={analytics.monthlySeries}
-                    margin={{ top: 10, right: 12, left: -12, bottom: 0 }}
+                    margin={{ top: 12, right: 12, left: 0, bottom: 8 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                     <XAxis
@@ -215,9 +215,11 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                       tick={{ fill: axisColor, fontSize: 11 }}
                       axisLine={{ stroke: gridColor }}
                       tickLine={false}
+                      minTickGap={10}
                     />
                     <YAxis
                       yAxisId="left"
+                      width={34}
                       allowDecimals={false}
                       tick={{ fill: axisColor, fontSize: 11 }}
                       axisLine={false}
@@ -226,6 +228,7 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                     <YAxis
                       yAxisId="right"
                       orientation="right"
+                      width={42}
                       domain={[0, 100]}
                       tickFormatter={(v) => `${v}%`}
                       tick={{ fill: isDark ? '#E5C76B' : '#8C6D14', fontSize: 11 }}
@@ -274,7 +277,7 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
           </div>
 
           {/* Gráfico 2: Distribuição de Perfis Migratórios (Donut Recharts) */}
-          <div className="xl:col-span-5 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 space-y-3 bg-white dark:bg-[#081726]/40">
+          <div className="xl:col-span-5 min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 space-y-3 bg-white dark:bg-[#081726]/40">
             <div>
               <h3 className="text-sm font-bold text-[#0B1F33] dark:text-slate-100 flex items-center gap-2">
                 <PieChartIcon className="w-4 h-4 text-[#146B43] dark:text-emerald-400 shrink-0" />
@@ -295,8 +298,8 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                <div className="sm:col-span-6 h-[220px]">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                <div className="sm:col-span-5 h-[220px] min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -305,8 +308,8 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                         nameKey="nomeCurto"
                         cx="50%"
                         cy="50%"
-                        innerRadius={52}
-                        outerRadius={82}
+                        innerRadius="52%"
+                        outerRadius="80%"
                         paddingAngle={2}
                       >
                         {analytics.profileDistribution.map((entry) => (
@@ -324,19 +327,19 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                   </ResponsiveContainer>
                 </div>
 
-                <div className="sm:col-span-6 space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                <div className="sm:col-span-7 space-y-1.5 max-h-[240px] overflow-y-auto pr-1 min-w-0">
                   {analytics.profileDistribution.map((slice) => (
                     <div
                       key={slice.id}
-                      className="flex items-center justify-between gap-2 text-xs py-1 border-b border-[#F1EDE4] dark:border-[#1C324B]/70 last:border-b-0"
+                      className="flex items-start justify-between gap-2 text-xs py-1.5 border-b border-[#F1EDE4] dark:border-[#1C324B]/70 last:border-b-0"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-start gap-2 min-w-0">
                         <span
-                          className="w-2.5 h-2.5 rounded-sm shrink-0"
+                          className="w-2.5 h-2.5 rounded-sm shrink-0 mt-1"
                           style={{ backgroundColor: slice.cor }}
                           aria-hidden="true"
                         />
-                        <span className="text-[#0B1F33] dark:text-slate-200 font-medium truncate" title={slice.nome}>
+                        <span className="text-[#0B1F33] dark:text-slate-200 font-medium leading-snug break-words" title={slice.nome}>
                           {slice.nomeCurto}
                         </span>
                       </div>
@@ -352,9 +355,9 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
           </div>
 
           {/* Gráfico 3: Curva de Conversão da Jornada do Cliente (AreaChart Recharts) */}
-          <div className="xl:col-span-12 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 space-y-3 bg-white dark:bg-[#081726]/40">
+          <div className="xl:col-span-12 min-w-0 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 space-y-3 bg-white dark:bg-[#081726]/40">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm font-bold text-[#0B1F33] dark:text-slate-100 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-[#146B43] dark:text-emerald-400 shrink-0" />
                   Taxa de Conversão ao Longo da Jornada de Clientes
@@ -373,11 +376,11 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
               </div>
             </div>
 
-            <div className="h-[200px] w-full">
+            <div className="h-[220px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={analytics.conversionJourney}
-                  margin={{ top: 10, right: 16, left: -12, bottom: 0 }}
+                  margin={{ top: 12, right: 20, left: 0, bottom: 8 }}
                 >
                   <defs>
                     <linearGradient id="dmConversionGradient" x1="0" y1="0" x2="0" y2="1">
@@ -391,8 +394,10 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
                     tick={{ fill: axisColor, fontSize: 11 }}
                     axisLine={{ stroke: gridColor }}
                     tickLine={false}
+                    minTickGap={12}
                   />
                   <YAxis
+                    width={42}
                     domain={[0, 100]}
                     tickFormatter={(v) => `${v}%`}
                     tick={{ fill: axisColor, fontSize: 11 }}

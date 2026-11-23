@@ -555,7 +555,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
       )}
 
       {/* Quadro Kanban em 5 Colunas (Diagnóstico → Proposta → Documentação → Trâmite → Finalização) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3.5 items-start">
+      <div className="flex gap-3.5 overflow-x-auto pb-3 items-start -mx-1 px-1">
         {board.columns.map((col) => {
           const isDropTarget = dragOverStageId === col.stage.id;
           const isFocused = focusedStageId === col.stage.id;
@@ -576,7 +576,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                 }
               }}
               onDrop={(e) => handleDropOnColumn(col.stage.id, e)}
-              className={`rounded-xl border bg-slate-50/80 dark:bg-[#0D1424] transition-all duration-150 flex flex-col min-h-[340px] ${
+              className={`w-[295px] sm:w-[310px] 2xl:flex-1 2xl:min-w-[276px] shrink-0 rounded-xl border bg-slate-50/80 dark:bg-[#0D1424] transition-all duration-150 flex flex-col min-h-[360px] ${
                 isDropTarget || isFocused
                   ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20'
                   : 'border-slate-200/90 dark:border-slate-800'
@@ -584,14 +584,14 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
             >
               {/* Cabeçalho da Coluna */}
               <div className="p-3.5 border-b border-slate-200/80 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
                     <span
-                      className="w-2.5 h-2.5 rounded-xs shrink-0"
+                      className="w-2.5 h-2.5 rounded-xs shrink-0 mt-1"
                       style={{ backgroundColor: col.stage.corHex }}
                       aria-hidden="true"
                     />
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-snug break-words">
                       {col.stage.ordem}. {col.stage.nome}
                     </h2>
                   </div>
@@ -600,11 +600,11 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                   </span>
                 </div>
 
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
                   {col.stage.marcoConversao}
                 </p>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                   <span>
                     {col.conversionFromPrevPct !== null
                       ? `${col.conversionFromPrevPct}% avanço`
@@ -653,10 +653,10 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                         {/* Linha Superior: Nome do Cliente + Progresso */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug break-words" title={card.clientName}>
                               {card.clientName}
                             </p>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate mt-0.5">
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2 break-words mt-0.5" title={card.title}>
                               {card.title}
                             </p>
                           </div>
@@ -677,7 +677,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                         </div>
 
                         {/* Metadados Limpos (Zero Pills — texto limpo com separadores ·) */}
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug break-words tabular-nums">
                           {card.kind === 'lead' ? 'Lead' : 'Processo'}
                           <span aria-hidden="true"> · </span>
                           {card.priority}
@@ -685,13 +685,13 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                           {card.subtitle}
                         </p>
 
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug break-words tabular-nums">
                           {card.assigneeName ? card.assigneeName : 'Sem responsável'}
                           {card.createdAt ? ` · ${formatDateBR(card.createdAt)}` : ''}
                         </p>
 
                         {card.kind === 'case' && (
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug tabular-nums">
                             Docs {card.docsPct ?? 0}%
                             {card.totalTasksCount > 0
                               ? ` · Tarefas ${card.completedTasksCount}/${card.totalTasksCount}`
@@ -704,14 +704,14 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
 
                         {/* Alerta de Atenção (texto explícito + ícone, nunca apenas cor) */}
                         {card.hasAttention && card.attentionReason && (
-                          <p className="text-[11px] font-semibold text-[#C82333] dark:text-red-400 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{card.attentionReason}</span>
+                          <p className="text-[11px] font-semibold text-[#C82333] dark:text-red-400 flex items-start gap-1 leading-snug">
+                            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                            <span className="break-words">{card.attentionReason}</span>
                           </p>
                         )}
 
-                        {/* Rodapé de Ações Diretas */}
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                        {/* Rodapé de Ações Diretas com quebra segura para não cortar botões */}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1.5">
                           <button
                             type="button"
                             onClick={() => {
@@ -727,7 +727,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                             <ExternalLink className="w-3 h-3" />
                           </button>
 
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex flex-wrap items-center gap-1">
                             {card.kind === 'case' && card.caseRecord && (
                               <button
                                 type="button"
@@ -735,7 +735,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                                 onClick={() => void handleQuickNotifyCase(card)}
                                 title={`Enviar notificação push de status para ${card.clientName}`}
                                 aria-label={`Enviar notificação push para ${card.clientName}`}
-                                className="p-1 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[var(--color-primary)] dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+                                className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[var(--color-primary)] dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
                               >
                                 <BellRing className="w-3 h-3" />
                               </button>
@@ -747,7 +747,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                                 onClick={() => void handleMoveCard(card, card.prevStage!.id)}
                                 title={`Voltar para ${card.prevStage.nome}`}
                                 aria-label={`Voltar ${card.clientName} para ${card.prevStage.nome}`}
-                                className="p-1 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+                                className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
                               >
                                 <ArrowLeft className="w-3 h-3" />
                               </button>
@@ -784,7 +784,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
                                 onClick={() => setDeleteTargetCard(card)}
                                 title={`Excluir ${card.kind === 'lead' ? 'lead' : 'processo'} ${card.clientName}`}
                                 aria-label={`Excluir ${card.kind === 'lead' ? 'lead' : 'processo'} ${card.clientName}`}
-                                className="p-1 rounded border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
+                                className="p-1.5 rounded border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>

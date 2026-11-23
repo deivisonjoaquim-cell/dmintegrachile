@@ -434,12 +434,12 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
         </div>
 
         {/* Linha 2: Nome clicável (abre Edição Rápida) + Nota de Viabilidade */}
-        <div className="flex items-baseline justify-between gap-2 min-w-0">
+        <div className="flex items-start justify-between gap-2 min-w-0">
           <button
             type="button"
             onClick={() => openQuickEditModal(l)}
             title={`Edição rápida de ${l.nome}`}
-            className="text-left text-[13px] font-bold text-slate-900 dark:text-slate-100 hover:text-[var(--color-primary)] dark:hover:text-sky-400 truncate leading-snug min-w-0"
+            className="text-left text-[13px] font-bold text-slate-900 dark:text-slate-100 hover:text-[var(--color-primary)] dark:hover:text-sky-400 leading-snug break-words min-w-0"
           >
             {l.nome}
           </button>
@@ -460,21 +460,21 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
 
         {/* Linha 3: Enquadramento + Alerta de Urgência/Risco quando aplicável */}
         <div className="space-y-0.5 text-[11px] min-w-0">
-          <p className="text-slate-600 dark:text-slate-300 truncate" title={l.subcategoriaSugerida || l.interesse}>
+          <p className="text-slate-600 dark:text-slate-300 leading-snug line-clamp-2 break-words" title={l.subcategoriaSugerida || l.interesse}>
             {l.subcategoriaSugerida || l.interesse || 'Enquadramento em análise'}
           </p>
 
           {(urgency.slaOverdue || urgency.hasConsultantRisk) && (
-            <p className="inline-flex items-center gap-1 font-semibold text-[#C82333] dark:text-red-400 tabular-nums max-w-full truncate">
+            <p className="inline-flex items-start gap-1 font-semibold text-[#C82333] dark:text-red-400 tabular-nums max-w-full leading-snug">
               {urgency.slaOverdue ? (
                 <>
-                  <Clock className="w-3 h-3 shrink-0" aria-hidden="true" />
-                  <span className="truncate">Sem 1º contato há {urgency.ageCompact}</span>
+                  <Clock className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="break-words">Sem 1º contato há {urgency.ageCompact}</span>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" aria-hidden="true" />
-                  <span className="truncate text-amber-800 dark:text-amber-300">Ponto de atenção ao consultor</span>
+                  <AlertTriangle className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="break-words text-amber-800 dark:text-amber-300">Ponto de atenção ao consultor</span>
                 </>
               )}
             </p>
@@ -482,23 +482,23 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
 
           {density === 'detalhado' && (
             <div className="space-y-0.5 pt-0.5 text-slate-500 dark:text-slate-400">
-              <p className="truncate">
+              <p className="leading-snug break-words">
                 {l.origem}
                 {l.cidadeUf ? ` · ${l.cidadeUf}` : ''}
                 {l.createdAt ? ` · ${formatDateBR(l.createdAt)}` : ''}
               </p>
               {urgency.isIncomplete && (
-                <p className="font-semibold text-amber-700 dark:text-amber-400 truncate">
+                <p className="font-semibold text-amber-700 dark:text-amber-400 leading-snug">
                   Diagnóstico {l.statusConclusao?.toLowerCase()} (Etapa {l.etapaAtual || 1}/6)
                 </p>
               )}
               {stage === 'Perdido' && l.motivoPerda && (
-                <p className="text-[#C82333] dark:text-red-400 truncate" title={l.motivoPerda}>
+                <p className="text-[#C82333] dark:text-red-400 leading-snug line-clamp-2 break-words" title={l.motivoPerda}>
                   Motivo: {l.motivoPerda}
                 </p>
               )}
               {l.notas && (
-                <p className="text-slate-600 dark:text-slate-300 truncate" title={l.notas}>
+                <p className="text-slate-600 dark:text-slate-300 leading-snug line-clamp-2 break-words" title={l.notas}>
                   Nota: {l.notas}
                 </p>
               )}
@@ -506,9 +506,9 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
           )}
         </div>
 
-        {/* Linha 4: Barra única compacta de ações + Edição Rápida */}
-        <div className="pt-1.5 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-1 text-[11px] min-w-0">
-          <div className="flex items-center gap-1 min-w-0">
+        {/* Linha 4: Barra de ações com quebra limpa para evitar corte de botões */}
+        <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-[11px] min-w-0">
+          <div className="flex flex-wrap items-center gap-1 min-w-0">
             <button
               type="button"
               onClick={() => openQuickEditModal(l)}
@@ -540,7 +540,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex flex-wrap items-center gap-1 shrink-0">
             {l.convertedCaseId ? (
               <button
                 type="button"
@@ -852,7 +852,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                 </div>
 
                 {!isCollapsed && (
-                  <div className="p-2.5 space-y-2 max-h-[380px] min-h-[168px] overflow-y-auto">
+                  <div className="p-2.5 space-y-2 max-h-[540px] min-h-[180px] overflow-y-auto">
                     {isDropTarget && draggingLead && (
                       <div className="px-3 py-2.5 rounded-lg border-2 border-dashed border-[var(--color-primary)] bg-white dark:bg-slate-900 text-xs font-semibold text-[var(--color-primary)] dark:text-sky-400 text-center">
                         Soltar aqui para mover &quot;{draggingLead.nome}&quot; para {stage}
@@ -942,7 +942,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                 onDragOver={(e) => handleColumnDragOver(e, stage)}
                 onDragLeave={(e) => handleColumnDragLeave(e, stage)}
                 onDrop={(e) => handleDropOnStage(e, stage)}
-                className={`w-[296px] shrink-0 flex flex-col transition-colors ${
+                className={`w-[324px] shrink-0 flex flex-col transition-colors ${
                   isDropTarget
                     ? 'bg-sky-50/70 dark:bg-sky-950/30 ring-2 ring-inset ring-[var(--color-primary)]/50'
                     : canDropHere

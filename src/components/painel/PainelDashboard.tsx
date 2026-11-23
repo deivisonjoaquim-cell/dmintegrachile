@@ -329,17 +329,17 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       )}
 
       {/* 4 Indicadores Principais (Superfície executiva, 1px hairline, tabular-nums) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
         <button
           type="button"
           onClick={() => onNavigateSection?.('casos')}
-          className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+          className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Processos ativos</p>
           <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
             {activeCases.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
             {activeClients.length} clientes · Docs {avgThermometer}%
           </p>
         </button>
@@ -350,7 +350,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             setWorkTab('hoje');
             setUrgencyFilter('todas');
           }}
-          className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+          className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Urgências</p>
           <p
@@ -359,7 +359,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           >
             {urgencias.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
             {dailySummary.criticalUrgenciesCount} crítica(s) · {dailySummary.openTasksCount} tarefa(s)
           </p>
         </button>
@@ -367,13 +367,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         <button
           type="button"
           onClick={() => setWorkTab('documentos')}
-          className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+          className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Docs para conferir</p>
           <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
             {pendingDocsReview.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
             {dailySummary.newLeadsCount} lead(s) novo(s) · {unreadChatTotal} chat(s)
           </p>
         </button>
@@ -382,13 +382,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigateSection?.('financeiro')}
-            className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+            className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
           >
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Recebido (BRL)</p>
-            <p className="text-xl font-bold tracking-tight text-[#1E7E34] dark:text-emerald-400 mt-1.5 tabular-nums">
+            <p className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E7E34] dark:text-emerald-400 mt-1.5 tabular-nums break-words">
               {formatCurrency(receitaTotalBrl, 'BRL')}
             </p>
-            <p className="text-xs text-[#C82333] dark:text-red-400 mt-1 tabular-nums">
+            <p className="text-xs text-[#C82333] dark:text-red-400 mt-1 tabular-nums leading-snug break-words">
               Em atraso: {formatCurrency(inadimplenciaBrl, 'BRL')}
             </p>
           </button>
@@ -396,13 +396,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigateSection?.('agenda')}
-            className="text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+            className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
           >
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Agenda de hoje</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
               {appointmentsToday.length}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
               {dailySummary.openTasksCount} tarefa(s) em aberto
             </p>
           </button>
@@ -443,7 +443,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           {unifiedFunnel.stages.map((item) => {
             const isBottleneck =
               unifiedFunnel.bottleneckStage?.id === item.stage.id && item.totalCount > 0;
@@ -462,36 +462,38 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                 key={item.stage.id}
                 type="button"
                 onClick={handleStageClick}
-                className="text-left p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50/60 dark:bg-slate-800/40 transition-colors space-y-1.5"
+                className="min-w-0 text-left p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50/60 dark:bg-slate-800/40 transition-colors flex flex-col justify-between gap-2"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-snug break-words">
                     {item.stage.ordem}. {item.stage.nome}
                   </span>
-                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums shrink-0">
+                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums shrink-0 leading-none">
                     {item.totalCount}
                   </span>
                 </div>
-                <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${
-                        unifiedFunnel.totalActive > 0
-                          ? Math.max(item.totalCount > 0 ? 12 : 0, Math.round((item.totalCount / unifiedFunnel.totalActive) * 100))
-                          : 0
-                      }%`,
-                      backgroundColor: item.stage.corHex,
-                    }}
-                  />
+                <div className="space-y-1.5">
+                  <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${
+                          unifiedFunnel.totalActive > 0
+                            ? Math.max(item.totalCount > 0 ? 12 : 0, Math.round((item.totalCount / unifiedFunnel.totalActive) * 100))
+                            : 0
+                        }%`,
+                        backgroundColor: item.stage.corHex,
+                      }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug tabular-nums">
+                    {isBottleneck
+                      ? 'Maior volume atual'
+                      : item.conversionFromPrevPct !== null
+                        ? `${item.conversionFromPrevPct}% avanço da anterior`
+                        : `${item.leadsCount} lead(s) ativos`}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums">
-                  {isBottleneck
-                    ? 'Maior volume atual'
-                    : item.conversionFromPrevPct !== null
-                      ? `${item.conversionFromPrevPct}% avanço da anterior`
-                      : `${item.leadsCount} lead(s) ativos`}
-                </p>
               </button>
             );
           })}
@@ -660,8 +662,8 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                               </button>
                             )}
                             <div className="min-w-0">
-                              <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{t.titulo}</p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                              <p className="font-semibold text-slate-900 dark:text-slate-100 leading-snug break-words" title={t.titulo}>{t.titulo}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums mt-0.5">
                                 {t.prioridade}
                                 {t.prazo ? ` · Até ${formatDateBR(t.prazo)}` : ''}
                               </p>
@@ -694,10 +696,10 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                   ) : (
                     <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                       {appointmentsToday.map((a) => (
-                        <li key={a.id} className="py-2 flex items-center justify-between gap-2">
+                        <li key={a.id} className="py-2 flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{a.titulo}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100 leading-snug break-words" title={a.titulo}>{a.titulo}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums mt-0.5">
                               {a.dataHoraInicio.slice(11, 16) || formatDateBR(a.dataHoraInicio)} · {a.tipo}
                             </p>
                           </div>
@@ -723,10 +725,10 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           {workTab === 'documentos' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
+                <div className="lg:col-span-2 space-y-3 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <FileWarning className="w-4 h-4 text-amber-700" />
+                      <FileWarning className="w-4 h-4 text-amber-700 shrink-0" />
                       Documentos Enviados Aguardando Conferência ({pendingDocsReview.length})
                     </h3>
                     <button
@@ -744,17 +746,17 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                       {pendingDocsReview.slice(0, 12).map((d) => (
-                        <div key={d.id} className="py-2.5 flex items-center justify-between gap-3">
+                        <div key={d.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{d.nomeDocumento}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100 leading-snug break-words">{d.nomeDocumento}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               {d.pessoa} · {d.status}
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => onOpenCase(d.caseId)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 self-start sm:self-center"
                           >
                             Conferir
                           </button>
@@ -764,7 +766,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                   )}
                 </div>
 
-                <div className="space-y-2.5 lg:border-l lg:border-slate-100 dark:lg:border-slate-800 lg:pl-6">
+                <div className="space-y-2.5 lg:border-l lg:border-slate-100 dark:lg:border-slate-800 lg:pl-6 min-w-0">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     Reprovações Frequentes
                   </h3>
@@ -773,8 +775,8 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                   ) : (
                     <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                       {topReprovados.map(([nome, qtd]) => (
-                        <li key={nome} className="py-2 flex items-center justify-between gap-2">
-                          <span className="text-slate-700 dark:text-slate-300 truncate">{nome}</span>
+                        <li key={nome} className="py-2 flex items-start justify-between gap-2">
+                          <span className="text-slate-700 dark:text-slate-300 leading-snug break-words">{nome}</span>
                           <span className="font-bold tabular-nums text-[#C82333] shrink-0">{qtd}</span>
                         </li>
                       ))}

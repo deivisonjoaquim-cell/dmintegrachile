@@ -449,7 +449,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
 
       {/* Sub-abas (ocultar barra quando estiver na tela dedicada de Contratos) */}
       {sectionGroup !== 'contratos' && (
-        <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto no-print">
+        <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 no-print">
           {[
             { id: 'orcamentos', label: `Orçamentos (${budgets.length})` },
             { id: 'lancamentos', label: `Lançamentos & Parcelas (${financialRecords.length})` },
@@ -586,7 +586,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
           {financialRecords.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500">Nenhum lançamento registrado ainda.</div>
           ) : (
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full min-w-[840px] text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs text-slate-500 bg-slate-50">
                   <th className="py-3 px-4 font-semibold">Descrição / Cliente</th>
@@ -607,8 +607,8 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                         <p className="text-xs text-slate-500">{cl?.nomeCompleto || '—'}</p>
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-700">{f.tipo}</td>
-                      <td className="py-3 px-4 text-xs text-slate-700 tabular-nums">{formatDateBR(f.vencimento)}</td>
-                      <td className="py-3 px-4 text-xs font-bold tabular-nums">{formatCurrency(f.valor, f.moeda)}</td>
+                      <td className="py-3 px-4 text-xs text-slate-700 tabular-nums whitespace-nowrap">{formatDateBR(f.vencimento)}</td>
+                      <td className="py-3 px-4 text-xs font-bold tabular-nums whitespace-nowrap">{formatCurrency(f.valor, f.moeda)}</td>
                       <td className="py-3 px-4 text-xs">
                         <select
                           value={f.status}
@@ -631,45 +631,47 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                           <option value="Atrasado">Atrasado</option>
                         </select>
                       </td>
-                      <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                        {f.status === 'Pago' && (
-                          <button
-                            type="button"
-                            onClick={() => void openReceiptFromRecord(f)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
-                          >
-                            <FileText className="w-3 h-3" />
-                            {f.reciboNumero ? `Recibo ${f.reciboNumero}` : 'Gerar Recibo'}
-                          </button>
-                        )}
-                        {f.comprovanteUrl && (
-                          <a
-                            href={f.comprovanteUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs underline text-[var(--color-primary)]"
-                          >
-                            Comprovante
-                          </a>
-                        )}
-                        {role === 'admin' && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteTarget({
-                                col: 'financialRecords',
-                                id: f.id,
-                                label: `lançamento "${f.descricao}"`,
-                                item: f,
-                                fileUrl: f.comprovanteUrl,
-                              })
-                            }
-                            className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50"
-                            aria-label="Excluir lançamento"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap justify-end items-center gap-1.5">
+                          {f.status === 'Pago' && (
+                            <button
+                              type="button"
+                              onClick={() => void openReceiptFromRecord(f)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 whitespace-nowrap"
+                            >
+                              <FileText className="w-3 h-3" />
+                              {f.reciboNumero ? `Recibo ${f.reciboNumero}` : 'Gerar Recibo'}
+                            </button>
+                          )}
+                          {f.comprovanteUrl && (
+                            <a
+                              href={f.comprovanteUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs underline text-[var(--color-primary)] whitespace-nowrap"
+                            >
+                              Comprovante
+                            </a>
+                          )}
+                          {role === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  col: 'financialRecords',
+                                  id: f.id,
+                                  label: `lançamento "${f.descricao}"`,
+                                  item: f,
+                                  fileUrl: f.comprovanteUrl,
+                                })
+                              }
+                              className="p-1.5 rounded border border-red-200 text-[#C82333] hover:bg-red-50 shrink-0"
+                              aria-label="Excluir lançamento"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -958,7 +960,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-700">Itens / Etapas</p>
               {bItems.map((it, idx) => (
-                <div key={it.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                <div key={it.id} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                   <input
                     value={it.descricao}
                     onChange={(e) => {
@@ -966,7 +968,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                       next[idx] = { ...it, descricao: e.target.value };
                       setBItems(next);
                     }}
-                    className="sm:col-span-2 px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                    className="sm:col-span-2 w-full min-w-0 px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
                   />
                   <input
                     type="number"
@@ -977,7 +979,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                       setBItems(next);
                     }}
                     placeholder="Honorários"
-                    className="px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                    className="w-full min-w-0 px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
                   />
                   <input
                     type="number"
@@ -988,7 +990,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                       setBItems(next);
                     }}
                     placeholder="Taxas est."
-                    className="px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                    className="w-full min-w-0 px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
                   />
                 </div>
               ))}

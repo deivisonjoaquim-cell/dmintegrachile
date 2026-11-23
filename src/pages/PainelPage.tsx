@@ -701,16 +701,16 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           : null;
 
   return (
-    <div className={`min-h-screen flex bg-[var(--color-bg)] text-[#0B1F33] dark:text-slate-100 transition-colors ${panelThemeClass}`}>
-      {/* Sidebar Desktop Enxuta (6 hubs práticos em vez de 15 itens espalhados) */}
+    <div className={`min-h-screen flex overflow-x-clip bg-[var(--color-bg)] text-[#0B1F33] dark:text-slate-100 transition-colors ${panelThemeClass}`}>
+      {/* Sidebar Desktop Enxuta e Fixa no Viewport */}
       <aside
-        className={`hidden lg:flex lg:flex-col bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
+        className={`hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
+          sidebarCollapsed ? 'lg:w-[76px]' : 'lg:w-56 xl:w-64'
         }`}
       >
         <BrandRibbon className="h-[3px] w-full shrink-0" />
-        <div className="h-14 px-4 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-2">
-          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2.5 text-left min-w-0">
+        <div className="h-14 px-3.5 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-2">
+          <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2 text-left min-w-0 overflow-hidden">
             <BrandLogo
               src={sidebarCollapsed ? empresa.faviconUrl : activeLogoUrl}
               alt={empresa.nome_empresa}
@@ -724,7 +724,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     ? 'dark'
                     : 'light'
               }
-              imgClassName={sidebarCollapsed ? 'h-9 w-9 object-contain shrink-0' : 'h-9 w-auto max-w-[175px] object-contain shrink-0'}
+              imgClassName={sidebarCollapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-8 w-auto max-w-[148px] xl:max-w-[172px] object-contain shrink-0'}
             />
           </button>
           <button
@@ -839,25 +839,25 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
-        <header className="bg-white/92 dark:bg-[#0D1E31]/92 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 h-14 flex items-center justify-between gap-4 no-print sticky top-0 z-30">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="bg-white/95 dark:bg-[#0D1E31]/95 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 min-h-14 py-2 flex items-center justify-between gap-3 no-print sticky top-0 z-30">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Abrir menu do painel"
-              className="lg:hidden p-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#0B1F33] dark:text-slate-200"
+              className="lg:hidden p-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#0B1F33] dark:text-slate-200 shrink-0"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
-            <nav className="flex items-center gap-1.5 text-xs text-[#4A5A6D] dark:text-slate-400 truncate" aria-label="Localização atual">
+            <nav className="flex items-center gap-1.5 text-xs text-[#4A5A6D] dark:text-slate-400 min-w-0 overflow-hidden" aria-label="Localização atual">
               <button
                 type="button"
                 onClick={() => handleSelectHub('hoje')}
-                className="hover:text-[#0B1F33] dark:hover:text-slate-100 font-medium whitespace-nowrap"
+                className="hover:text-[#0B1F33] dark:hover:text-slate-100 font-medium whitespace-nowrap shrink-0"
               >
                 Painel
               </button>
-              <span aria-hidden="true">/</span>
+              <span aria-hidden="true" className="shrink-0">/</span>
               <button
                 type="button"
                 onClick={() => {
@@ -874,7 +874,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               </button>
               {activeSubTabLabel && !activeCaseTitle && (
                 <>
-                  <span aria-hidden="true">/</span>
+                  <span aria-hidden="true" className="shrink-0">/</span>
                   <span className="font-bold text-[#0B1F33] dark:text-slate-100 truncate whitespace-nowrap">
                     {activeSubTabLabel}
                   </span>
@@ -882,8 +882,8 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               )}
               {activeCaseTitle && (
                 <>
-                  <span aria-hidden="true">/</span>
-                  <span className="font-bold text-[#8C6D14] dark:text-[#E5C76B] truncate max-w-[240px]">
+                  <span aria-hidden="true" className="shrink-0">/</span>
+                  <span className="font-bold text-[#8C6D14] dark:text-[#E5C76B] truncate min-w-0" title={activeCaseTitle}>
                     {activeCaseTitle}
                   </span>
                 </>
@@ -1031,13 +1031,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         )}
 
         <main
-          className={`flex-1 min-w-0 p-4 sm:p-6 lg:p-8 w-full mx-auto space-y-5 ${
-            activeHub === 'leads' || activeHub === 'funil' ? 'max-w-[1600px]' : 'max-w-7xl'
+          className={`flex-1 min-w-0 p-4 sm:p-5 lg:p-6 xl:p-7 w-full mx-auto space-y-5 ${
+            activeHub === 'leads' || activeHub === 'funil' ? 'max-w-[1680px]' : 'max-w-[1520px]'
           }`}
         >
           {firestore.error && (
             <div className="rounded-xl border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-xs text-red-800 dark:text-red-300 flex items-center justify-between gap-3">
-              <span>{firestore.error}</span>
+              <span className="min-w-0 break-words">{firestore.error}</span>
               <button
                 type="button"
                 onClick={firestore.clearError}
@@ -1050,7 +1050,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
           {/* Barra de Sub-Abas Contextuais (Processos / Financeiro / Config) */}
           {activeHub === 'processos' && !selectedCaseId && (
-            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
+            <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleProcessosTabs.map((tab) => {
                 const active = processosTab === tab.id;
                 const count =
@@ -1081,7 +1081,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
 
           {activeHub === 'financeiro' && visibleFinanceiroTabs.length > 0 && (
-            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
+            <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleFinanceiroTabs.map((tab) => {
                 const active = financeiroTab === tab.id;
                 return (
@@ -1103,7 +1103,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           )}
 
           {activeHub === 'config' && visibleConfigTabs.length > 1 && (
-            <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
+            <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleConfigTabs.map((tab) => {
                 const active = configTab === tab.id;
                 const count =

@@ -1302,12 +1302,12 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
 
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <p className="text-xs font-semibold text-slate-800">Links do Menu Principal (Cabeçalho &amp; Rodapé)</p>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
                 {navLinks.map((lnk, idx) => (
-                  <div key={lnk.path} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] text-slate-500">{lnk.path}</span>
-                      <label className="inline-flex items-center gap-1 text-[11px] font-medium cursor-pointer">
+                  <div key={lnk.path} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-1.5 text-xs min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10px] text-slate-500 truncate min-w-0" title={lnk.path}>{lnk.path}</span>
+                      <label className="inline-flex items-center gap-1 text-[11px] font-medium cursor-pointer shrink-0">
                         <input
                           type="checkbox"
                           checked={lnk.visivel !== false}
@@ -1329,7 +1329,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                         );
                         updateLayout({ linksNavegacao: updated });
                       }}
-                      className="w-full px-2 py-1 rounded border border-slate-300 bg-white text-xs"
+                      className="w-full min-w-0 px-2 py-1 rounded border border-slate-300 bg-white text-xs"
                     />
                   </div>
                 ))}
@@ -2248,7 +2248,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
               </button>
             </div>
             {(cfg.quemSomosMarcoHistorico || []).map((marco, idx) => (
-              <div key={idx} className="grid grid-cols-1 sm:grid-cols-6 gap-2 text-xs p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 text-xs p-3 rounded-lg bg-slate-50 border border-slate-200">
                 <input
                   value={marco.ano}
                   onChange={(e) => {
@@ -2257,7 +2257,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     setCfg({ ...cfg, quemSomosMarcoHistorico: list });
                   }}
                   placeholder="Ano"
-                  className="px-2.5 py-1.5 rounded border border-slate-300 bg-white"
+                  className="w-full min-w-0 px-2.5 py-1.5 rounded border border-slate-300 bg-white"
                 />
                 <input
                   value={marco.titulo}
@@ -2267,7 +2267,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     setCfg({ ...cfg, quemSomosMarcoHistorico: list });
                   }}
                   placeholder="Título"
-                  className="sm:col-span-2 px-2.5 py-1.5 rounded border border-slate-300 bg-white"
+                  className="lg:col-span-2 w-full min-w-0 px-2.5 py-1.5 rounded border border-slate-300 bg-white"
                 />
                 <input
                   value={marco.descricao}
@@ -2277,7 +2277,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                     setCfg({ ...cfg, quemSomosMarcoHistorico: list });
                   }}
                   placeholder="Descrição"
-                  className="sm:col-span-2 px-2.5 py-1.5 rounded border border-slate-300 bg-white"
+                  className="sm:col-span-2 lg:col-span-2 w-full min-w-0 px-2.5 py-1.5 rounded border border-slate-300 bg-white"
                 />
                 <button
                   type="button"
@@ -2287,7 +2287,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                       quemSomosMarcoHistorico: (cfg.quemSomosMarcoHistorico || []).filter((_, i) => i !== idx),
                     })
                   }
-                  className="px-2 py-1 rounded border border-red-200 text-[#C82333] font-semibold"
+                  className="sm:col-span-2 lg:col-span-1 px-2.5 py-1.5 rounded border border-red-200 text-[#C82333] font-semibold hover:bg-red-50"
                 >
                   Remover
                 </button>
@@ -2418,7 +2418,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full min-w-[820px] text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs text-slate-500 bg-slate-50">
                   <th className="py-3 px-4 font-semibold">Usuário</th>
@@ -2501,33 +2501,35 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                         <option value="inativo">inativo</option>
                       </select>
                     </td>
-                    <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                      {u.role !== 'cliente' && (
-                        <button
-                          type="button"
-                          onClick={() => setEditingMember(u)}
-                          className="px-3 py-1 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          Editar Bio / Credenciais
-                        </button>
-                      )}
-                      {!isProtectedPrimaryAdmin && u.uid !== userProfile.uid && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminDeleteTarget({
-                              kind: 'user',
-                              id: u.uid,
-                              label: `usuário "${u.nome}" (${u.email})`,
-                              item: u,
-                            });
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 font-semibold text-[#C82333] hover:bg-red-50"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Excluir
-                        </button>
-                      )}
+                    <td className="py-3 px-4">
+                      <div className="flex flex-wrap justify-end items-center gap-1.5">
+                        {u.role !== 'cliente' && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingMember(u)}
+                            className="px-3 py-1 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                          >
+                            Editar Bio / Credenciais
+                          </button>
+                        )}
+                        {!isProtectedPrimaryAdmin && u.uid !== userProfile.uid && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminDeleteTarget({
+                                kind: 'user',
+                                id: u.uid,
+                                label: `usuário "${u.nome}" (${u.email})`,
+                                item: u,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Excluir
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   );
@@ -2563,7 +2565,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full min-w-[760px] text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 text-[11px] text-slate-500 bg-white">
                       <th className="py-2.5 px-4 font-semibold">Data da Alteração</th>
@@ -3379,7 +3381,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 </div>
                 {((editMeta.itens as Record<string, string>[]) || []).map((srv, i) => (
                   <div key={i} className="p-3 rounded-lg bg-white border border-slate-200 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
                       <input
                         value={srv.numero || ''}
                         onChange={(e) => {
@@ -3388,7 +3390,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           updateEditingMeta({ itens: list });
                         }}
                         placeholder="01"
-                        className="px-2 py-1 rounded border border-slate-300"
+                        className="w-full min-w-0 px-2 py-1.5 rounded border border-slate-300"
                       />
                       <input
                         value={srv.titulo || ''}
@@ -3398,7 +3400,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           updateEditingMeta({ itens: list });
                         }}
                         placeholder="Título do serviço"
-                        className="sm:col-span-4 px-2 py-1 rounded border border-slate-300 font-semibold"
+                        className="sm:col-span-2 lg:col-span-4 w-full min-w-0 px-2 py-1.5 rounded border border-slate-300 font-semibold"
                       />
                       <button
                         type="button"
@@ -3406,7 +3408,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           const list = ((editMeta.itens as Record<string, string>[]) || []).filter((_, idx) => idx !== i);
                           updateEditingMeta({ itens: list });
                         }}
-                        className="px-2 py-1 rounded border border-red-200 text-red-700"
+                        className="sm:col-span-2 lg:col-span-1 px-2 py-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50"
                       >
                         Remover
                       </button>
@@ -3501,7 +3503,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 </div>
                 {((editMeta.passos as { passo: string; titulo: string; descricao: string }[]) || []).map((p, i) => (
                   <div key={i} className="p-3 rounded-lg bg-white border border-slate-200 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
                       <input
                         value={p.passo}
                         onChange={(e) => {
@@ -3510,7 +3512,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           updateEditingMeta({ passos: list });
                         }}
                         placeholder="01"
-                        className="px-2 py-1 rounded border border-slate-300"
+                        className="w-full min-w-0 px-2 py-1.5 rounded border border-slate-300"
                       />
                       <input
                         value={p.titulo}
@@ -3520,7 +3522,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           updateEditingMeta({ passos: list });
                         }}
                         placeholder="Título da etapa"
-                        className="sm:col-span-4 px-2 py-1 rounded border border-slate-300 font-semibold"
+                        className="sm:col-span-2 lg:col-span-4 w-full min-w-0 px-2 py-1.5 rounded border border-slate-300 font-semibold"
                       />
                       <button
                         type="button"
@@ -3528,7 +3530,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                           const list = ((editMeta.passos as { passo: string; titulo: string; descricao: string }[]) || []).filter((_, idx) => idx !== i);
                           updateEditingMeta({ passos: list });
                         }}
-                        className="px-2 py-1 rounded border border-red-200 text-red-700"
+                        className="sm:col-span-2 lg:col-span-1 px-2 py-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50"
                       >
                         Remover
                       </button>
