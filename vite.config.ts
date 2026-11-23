@@ -6,6 +6,10 @@ import {defineConfig} from 'vite';
 import {nodePolyfills} from 'vite-plugin-node-polyfills';
 
 export default defineConfig(() => {
+  if (!process.env.VITE_GOOGLE_MAPS_API_KEY && process.env.GOOGLE_MAPS_API_KEY) {
+    process.env.VITE_GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+  }
+
   return {
     plugins: [
       react(),
@@ -64,6 +68,7 @@ export default defineConfig(() => {
           manualChunks(id) {
             if (!id.includes('node_modules')) return undefined;
             if (id.includes('firebase')) return 'vendor-firebase';
+            if (id.includes('@vis.gl/react-google-maps')) return 'vendor-maps';
             if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
             if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
             if (id.includes('lucide-react')) return 'vendor-icons';

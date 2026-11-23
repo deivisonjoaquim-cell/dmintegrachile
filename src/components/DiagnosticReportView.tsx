@@ -1643,35 +1643,136 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         </div>
       )}
 
-      {/* Comparativo 3 vias reforçado (Recomendada x Mercosul 15 x Terceira opção) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 overflow-x-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Comparativo Lado a Lado (Recomendada × Mercosul 15 × 3ª Opção)</h2>
-            <p className="text-xs text-slate-500">Top 3 elegíveis: {result.top3.map((c) => `${c.visa.codigo} (${c.nota})`).join(' · ')}</p>
+      {/* Comparativo 3 vias reforçado (3 subcategorias distintas, sem duplicar Mercosul 15) */}
+      {(() => {
+        const comp = result.comparativoMercosul;
+        const principalIsMercosul = comp.principal?.visa.codigo === '15';
+        const col1 = comp.colunas?.[0] || {
+          papel: principalIsMercosul ? 'Recomendada · Mercosul 15' : 'Subcategoria Recomendada',
+          codigo: comp.principal?.visa.codigo || '—',
+          nomePortugues: comp.principal?.visa.nomePortugues || 'Principal',
+          nota: comp.principal?.nota ?? 0,
+          isPrincipal: true,
+          isMercosul: principalIsMercosul,
+        };
+        const col2 = comp.colunas?.[1] || {
+          papel: principalIsMercosul ? '2ª Opção Alternativa' : 'Mercosul (Cód. 15)',
+          codigo: (comp.segundaOpcao || comp.mercosul).visa.codigo,
+          nomePortugues: (comp.segundaOpcao || comp.mercosul).visa.nomePortugues,
+          nota: (comp.segundaOpcao || comp.mercosul).nota,
+          isPrincipal: false,
+          isMercosul: (comp.segundaOpcao || comp.mercosul).visa.codigo === '15',
+        };
+        const col3 = comp.colunas?.[2] || {
+          papel: '3ª Opção Alternativa',
+          codigo: comp.terceiraOpcao?.visa.codigo || '—',
+          nomePortugues: comp.terceiraOpcao?.visa.nomePortugues || 'Alternativa',
+          nota: comp.terceiraOpcao?.nota ?? 0,
+          isPrincipal: false,
+          isMercosul: comp.terceiraOpcao?.visa.codigo === '15',
+        };
+        const sectionTitle = principalIsMercosul
+          ? 'Comparativo Lado a Lado (Recomendada · Mercosul 15 × 2ª Opção × 3ª Opção)'
+          : 'Comparativo Lado a Lado (Recomendada × Mercosul 15 × 3ª Opção)';
+
+        return (
+          <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl overflow-hidden shadow-[0_8px_26px_rgba(11,31,51,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.3)]">
+            <div className="px-6 py-5 border-b border-[#EFECE3] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#0A1828] flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B] mb-1">
+                  Análise Comparativa Técnica · 3 Rotas Distintas
+                </p>
+                <h2 className="text-lg font-bold text-[#0B1F33] dark:text-white">{sectionTitle}</h2>
+              </div>
+              <p className="text-xs font-mono text-[#4A5A6D] dark:text-slate-300 tabular-nums shrink-0">
+                Top 3 elegíveis: {result.top3.map((c) => `Cód. ${c.visa.codigo} (${c.nota})`).join(' · ')}
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[#E5DFD2] dark:border-[#1C324B] bg-[#F7F5F0] dark:bg-[#11263D]">
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-[0.08em] text-[11px] text-[#4A5A6D] dark:text-slate-300 w-[20%] align-top">
+                      Critério
+                    </th>
+                    <th className="py-3.5 px-4 align-top w-[28%] bg-[#0B1F33]/[0.04] dark:bg-[#C8A236]/[0.1] border-x border-[#E5DFD2] dark:border-[#1F3752]">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#8C6D14] dark:text-[#E5C76B]">
+                            {col1.papel}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-[#146B43] dark:text-emerald-400 tabular-nums">
+                            {col1.nota}/100
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-[#0B1F33] dark:text-white leading-snug">
+                          Cód. {col1.codigo} · {col1.nomePortugues}
+                        </p>
+                      </div>
+                    </th>
+                    <th className="py-3.5 px-4 align-top w-[26%] border-r border-[#E5DFD2] dark:border-[#1F3752]">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#4A5A6D] dark:text-slate-400">
+                            {col2.papel}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-[#0B1F33] dark:text-slate-200 tabular-nums">
+                            {col2.nota}/100
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-[#0B1F33] dark:text-slate-100 leading-snug">
+                          Cód. {col2.codigo} · {col2.nomePortugues}
+                        </p>
+                      </div>
+                    </th>
+                    <th className="py-3.5 px-4 align-top w-[26%]">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#4A5A6D] dark:text-slate-400">
+                            {col3.papel}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-[#4A5A6D] dark:text-slate-300 tabular-nums">
+                            {col3.nota}/100
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-[#0B1F33] dark:text-slate-200 leading-snug">
+                          Cód. {col3.codigo} · {col3.nomePortugues}
+                        </p>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EFECE3] dark:divide-[#172C44]">
+                  {comp.linhasFixas.map((row, idx) => (
+                    <tr
+                      key={row.criterio}
+                      className={
+                        idx % 2 === 1
+                          ? 'bg-[#FAF9F6]/70 dark:bg-[#0A1828]/55'
+                          : 'bg-white dark:bg-[#0D1E31]'
+                      }
+                    >
+                      <td className="py-3 px-4 font-semibold text-[#0B1F33] dark:text-slate-200 align-top">
+                        {row.criterio}
+                      </td>
+                      <td className="py-3 px-4 text-[#0B1F33] dark:text-white font-semibold bg-[#0B1F33]/[0.025] dark:bg-[#C8A236]/[0.05] border-x border-[#EFECE3] dark:border-[#1C324B] align-top leading-relaxed">
+                        {row.principal}
+                      </td>
+                      <td className="py-3 px-4 text-[#37475A] dark:text-slate-200 border-r border-[#EFECE3] dark:border-[#1C324B] align-top leading-relaxed">
+                        {row.mercosul}
+                      </td>
+                      <td className="py-3 px-4 text-[#4A5A6D] dark:text-slate-300 align-top leading-relaxed">
+                        {row.terceiraOpcao}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
-              <th className="py-2.5 px-3 font-semibold">Critério</th>
-              <th className="py-2.5 px-3 font-semibold text-slate-900">Subcategoria Principal</th>
-              <th className="py-2.5 px-3 font-semibold">Mercosul (Cód. 15)</th>
-              <th className="py-2.5 px-3 font-semibold">3ª Opção Alternativa</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {result.comparativoMercosul.linhasFixas.map((row) => (
-              <tr key={row.criterio}>
-                <td className="py-2.5 px-3 font-semibold text-slate-700">{row.criterio}</td>
-                <td className="py-2.5 px-3 text-slate-900 font-medium">{row.principal}</td>
-                <td className="py-2.5 px-3 text-slate-700">{row.mercosul}</td>
-                <td className="py-2.5 px-3 text-slate-600">{row.terceiraOpcao}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        );
+      })()}
 
       {/* Simulador "E se" para Consultor (somente modo consultant) */}
       {mode === 'consultant' && whatIfAnswers && onChangeWhatIf && (

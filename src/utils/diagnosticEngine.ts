@@ -170,6 +170,15 @@ export interface ComparisonRow {
   terceiraOpcao: string;
 }
 
+export interface ComparisonColumnMeta {
+  papel: string;
+  codigo: string;
+  nomePortugues: string;
+  nota: number;
+  isPrincipal: boolean;
+  isMercosul: boolean;
+}
+
 export interface FamilyPersonDiagnostic {
   nome: string;
   papel: 'Titular' | 'Dependente';
@@ -187,7 +196,9 @@ export interface DiagnosticResult {
   comparativoMercosul: {
     principal: DiagnosticCandidate | null;
     mercosul: DiagnosticCandidate;
+    segundaOpcao?: DiagnosticCandidate | null;
     terceiraOpcao: DiagnosticCandidate | null;
+    colunas?: [ComparisonColumnMeta, ComparisonColumnMeta, ComparisonColumnMeta];
     diferencasChave: string[];
     linhasFixas: ComparisonRow[];
   };
@@ -1425,19 +1436,89 @@ export function runDiagnosticEngine(
       alertas: [],
     } as DiagnosticCandidate);
 
-  // Terceira opção para comparativo lado a lado reforçado
-  const terceiraOpcao =
-    top3.find((c) => c.visa.codigo !== recomendada.visa.codigo && c.visa.codigo !== '15') ||
-    candidatos.find((c) => c.visa.codigo !== recomendada.visa.codigo && c.visa.codigo !== '15') ||
-    ({
+  // Seleção de 3 opções estritamente distintas para o Comparativo Lado a Lado:
+  // - Quando a recomendada NÃO é Mercosul 15: [Recomendada] x [Mercosul 15] x [3ª Opção distinta]
+  // - Quando a recomendada JÁ É Mercosul 15:  [Recomendada (Mercosul 15)] x [2ª Opção distinta] x [3ª Opção distinta]
+  const fallbackPool: DiagnosticCandidate[] = [
+    {
       visa: trabalhoVisa,
       nota: isYes(answers.possuiOfertaTrabalhoFormal) ? 88 : 50,
       notaBase: 50,
       ajustesAplicados: [],
       motivo: 'Alternativa vinculada a contrato de trabalho notariado com empresa chilena.',
-      caminho: 'Exige contrato formal e pedido do exterior na maioria dos casos.',
+      caminho: 'Exige contrato formal e protocolo do exterior na maioria dos casos.',
       alertas: [],
-    } as DiagnosticCandidate);
+    },
+    {
+      visa: aposentadoVisa,
+      nota: answers.faixaRendaMensalUsd === 'acima_2500' ? 76 : 45,
+      notaBase: 45,
+      ajustesAplicados: [],
+      motivo: 'Alternativa para quem comprova aposentadoria ou renda passiva recorrente.',
+      caminho: 'Exige comprovação documental de renda estável e sustento no Chile.',
+      alertas: [],
+    },
+    {
+      visa: estudanteVisa,
+      nota: 44,
+      notaBase: 44,
+      ajustesAplicados: [],
+      motivo: 'Alternativa para matrícula em instituição educacional reconhecida pelo Estado do Chile.',
+      caminho: 'Exige carta de matrícula oficial e comprovação de sustento.',
+      alertas: [],
+    },
+    {
+      visa: investidorVisa,
+      nota: 42,
+      notaBase: 42,
+      ajustesAplicados: [],
+      motivo: 'Alternativa para projetos empresariais ou investimentos comprovados no Chile.',
+      caminho: 'Exige plano de negócios/investimento e comprovação de origem lícita do capital.',
+      alertas: [],
+    },
+  ];
+
+  const pickDistinctCandidate = (excludeCodes: Set<string>): DiagnosticCandidate =>
+    top3.find((c) => !excludeCodes.has(c.visa.codigo)) ||
+    candidatos.find((c) => !excludeCodes.has(c.visa.codigo)) ||
+    fallbackPool.find((c) => !excludeCodes.has(c.visa.codigo)) ||
+    fallbackPool[0];
+
+  const recomendadaEhMercosul = recomendada.visa.codigo === '15';
+  const segundaOpcaoComp: DiagnosticCandidate = recomendadaEhMercosul
+    ? pickDistinctCandidate(new Set([recomendada.visa.codigo]))
+    : mercosulCand;
+
+  const terceiraOpcao: DiagnosticCandidate = pickDistinctCandidate(
+    new Set([recomendada.visa.codigo, segundaOpcaoComp.visa.codigo]),
+  );
+
+  const comparativoColunas: [ComparisonColumnMeta, ComparisonColumnMeta, ComparisonColumnMeta] = [
+    {
+      papel: recomendadaEhMercosul ? 'Recomendada · Mercosul 15' : 'Subcategoria Recomendada',
+      codigo: recomendada.visa.codigo,
+      nomePortugues: recomendada.visa.nomePortugues,
+      nota: recomendada.nota,
+      isPrincipal: true,
+      isMercosul: recomendada.visa.codigo === '15',
+    },
+    {
+      papel: recomendadaEhMercosul ? '2ª Opção Alternativa' : 'Mercosul (Cód. 15)',
+      codigo: segundaOpcaoComp.visa.codigo,
+      nomePortugues: segundaOpcaoComp.visa.nomePortugues,
+      nota: segundaOpcaoComp.nota,
+      isPrincipal: false,
+      isMercosul: segundaOpcaoComp.visa.codigo === '15',
+    },
+    {
+      papel: '3ª Opção Alternativa',
+      codigo: terceiraOpcao.visa.codigo,
+      nomePortugues: terceiraOpcao.visa.nomePortugues,
+      nota: terceiraOpcao.nota,
+      isPrincipal: false,
+      isMercosul: terceiraOpcao.visa.codigo === '15',
+    },
+  ];
 
   // Notas por subcategoria para explicabilidade
   const notasPorSubcategoria = candidatos.map((c) => ({
@@ -1843,58 +1924,132 @@ export function runDiagnosticEngine(
     observacaoLegal: 'Prazos em faixa referencial; o deferimento e o tempo de análise competem exclusivamente ao SERMIG.',
   };
 
-  // 19. Comparativo lado a lado reforçado (Recomendada x Mercosul 15 x Terceira opção)
-  const formatDeOndePedir = (v: VisaCategory) =>
-    v.permiteDentroChile === 'Sim' ? 'Brasil ou dentro do Chile' : v.permiteDentroChile === 'Condicional' ? 'Exterior (ou dentro c/ vínculo)' : 'Do exterior (fora do Chile)';
+  // 19. Comparativo lado a lado reforçado (3 subcategorias estritamente distintas com critérios unificados)
+  const formatDeOndePedir = (v: VisaCategory): string => {
+    if (v.codigo === '15') {
+      return isResidenteChile
+        ? 'Prorrogação dentro do Chile (ou exterior)'
+        : 'Do exterior (fora do Chile)';
+    }
+    if (v.permiteDentroChile === 'Sim') return 'Brasil ou dentro do Chile';
+    if (v.permiteDentroChile === 'Condicional') return 'Exterior (ou dentro c/ vínculo formal)';
+    return 'Do exterior (fora do Chile)';
+  };
+
+  const formatPermiteTrabalhar = (v: VisaCategory): string => {
+    if (v.codigo === '15') return 'Sim (qualquer atividade lícita)';
+    if (v.codigo === '02') return 'Sim (vinculado ao contrato / empregador)';
+    if (v.codigo === '03') return 'Parcial (até 30h/semana em estudos)';
+    if (v.permiteTrabalhar) return 'Sim (após aprovação / autorização)';
+    return 'Não / Restrito';
+  };
+
+  const formatExigeRenda = (v: VisaCategory): string => {
+    if (v.codigo === '15') return 'Não exige renda nem contrato prévio';
+    if (v.codigo === '02') return 'Sim (contrato formal notariado)';
+    if (v.codigo === '11') return 'Sim (aposentadoria ou renda passiva)';
+    if (v.codigo === '13') return 'Sim (capital e origem lícita comprovada)';
+    if (v.exigeRenda) return 'Sim (comprovação de sustento)';
+    return 'Não exige contrato prévio';
+  };
+
+  const formatVigencia = (v: VisaCategory): string => {
+    const meses = v.vigenciaMeses || (v.codigo === '03' ? 12 : 24);
+    return `${meses} meses`;
+  };
+
+  const formatDefinitiva = (v: VisaCategory): string => {
+    if (!v.levaDefinitiva) return 'Não direta (exige troca de subcategoria)';
+    const meses = v.mesesDefinitiva || 24;
+    return `Sim (${meses} meses)`;
+  };
+
+  const formatNivelRisco = (cand: DiagnosticCandidate): string => {
+    if (cand.visa.codigo === '15' && !isBrasileiro) {
+      return 'Inelegível (sem cidadania Mercosul)';
+    }
+    if (flagsRisco.length > 0) {
+      return 'Alto (revisão obrigatória do consultor)';
+    }
+    if (exigeSaidaTurista && cand.visa.permiteDentroChile !== 'Sim') {
+      return 'Moderado (exige protocolo fora do Chile)';
+    }
+    if (cand.visa.codigo === '01' && isYes(answers.vinculoFamiliarChile) && !vinculoFormalizado) {
+      return 'Moderado (exige formalizar casamento/AUC)';
+    }
+    if (cand.visa.exigeRenda && cand.nota < 70) {
+      return 'Moderado (exige lastro documental/contrato)';
+    }
+    return cand.nota >= 75 ? 'Baixo' : 'Moderado (validar requisitos específicos)';
+  };
+
+  const formatDocumentosExtras = (v: VisaCategory): string => {
+    switch (v.codigo) {
+      case '15':
+        return 'Passaporte/RG + Antecedentes PF (60d) apostilados';
+      case '01':
+        return 'Certidão de casamento/AUC ou nascimento apostilada';
+      case '02':
+        return 'Contrato de trabalho notariado + RUT da empresa';
+      case '03':
+        return 'Carta de matrícula oficial + comprovação de sustento';
+      case '11':
+        return 'Extratos de aposentadoria ou renda passiva (6 meses)';
+      case '13':
+        return 'Plano de investimento + origem lícita de capital / IR';
+      default:
+        return 'Passaporte + Antecedentes PF + comprovantes da categoria';
+    }
+  };
 
   const linhasFixas: ComparisonRow[] = [
     {
-      criterio: 'Subcategoria',
+      criterio: 'Subcategoria e nota',
       principal: `${recomendada.visa.codigo} – ${recomendada.visa.nomePortugues} (${recomendada.nota}/100)`,
-      mercosul: `15 – ${mercosulCand.visa.nomePortugues} (${mercosulCand.nota}/100)`,
+      mercosul: `${segundaOpcaoComp.visa.codigo} – ${segundaOpcaoComp.visa.nomePortugues} (${segundaOpcaoComp.nota}/100)`,
       terceiraOpcao: `${terceiraOpcao.visa.codigo} – ${terceiraOpcao.visa.nomePortugues} (${terceiraOpcao.nota}/100)`,
     },
     {
       criterio: 'De onde pedir',
       principal: formatDeOndePedir(recomendada.visa),
-      mercosul: 'Do exterior (ou prorrogação no Chile)',
+      mercosul: formatDeOndePedir(segundaOpcaoComp.visa),
       terceiraOpcao: formatDeOndePedir(terceiraOpcao.visa),
     },
     {
       criterio: 'Permite trabalhar',
-      principal: recomendada.visa.permiteTrabalhar ? 'Sim (desde o protocolo/aprovação)' : 'Não / Restrito',
-      mercosul: 'Sim (qualquer atividade lícita)',
-      terceiraOpcao: terceiraOpcao.visa.permiteTrabalhar ? 'Sim' : 'Não',
+      principal: formatPermiteTrabalhar(recomendada.visa),
+      mercosul: formatPermiteTrabalhar(segundaOpcaoComp.visa),
+      terceiraOpcao: formatPermiteTrabalhar(terceiraOpcao.visa),
     },
     {
       criterio: 'Exige renda / contrato',
-      principal: recomendada.visa.exigeRenda ? 'Sim' : 'Não exige contrato prévio',
-      mercosul: 'Não exige renda nem contrato',
-      terceiraOpcao: terceiraOpcao.visa.exigeRenda ? 'Sim' : 'Não',
+      principal: formatExigeRenda(recomendada.visa),
+      mercosul: formatExigeRenda(segundaOpcaoComp.visa),
+      terceiraOpcao: formatExigeRenda(terceiraOpcao.visa),
     },
     {
       criterio: 'Vigência inicial',
-      principal: `${recomendada.visa.vigenciaMeses || 24} meses`,
-      mercosul: `${mercosulCand.visa.vigenciaMeses || 24} meses`,
-      terceiraOpcao: `${terceiraOpcao.visa.vigenciaMeses || 12} meses`,
+      principal: formatVigencia(recomendada.visa),
+      mercosul: formatVigencia(segundaOpcaoComp.visa),
+      terceiraOpcao: formatVigencia(terceiraOpcao.visa),
     },
     {
       criterio: 'Caminho para Definitiva',
-      principal: recomendada.visa.levaDefinitiva ? `Sim (${recomendada.visa.mesesDefinitiva || 24} meses)` : 'Não direta',
-      mercosul: 'Sim (24 meses)',
-      terceiraOpcao: terceiraOpcao.visa.levaDefinitiva ? `Sim (${terceiraOpcao.visa.mesesDefinitiva || 24} meses)` : 'Não direta',
+      principal: formatDefinitiva(recomendada.visa),
+      mercosul: formatDefinitiva(segundaOpcaoComp.visa),
+      terceiraOpcao: formatDefinitiva(terceiraOpcao.visa),
     },
     {
       criterio: 'Nível de risco / atenção',
-      principal: flagsRisco.length > 0 ? 'Alto (revisão consultor)' : exigeSaidaTurista ? 'Moderado (exige saída)' : 'Baixo',
-      mercosul: isBrasileiro ? (exigeSaidaTurista ? 'Moderado (exige saída)' : 'Baixo') : 'Inelegível (não brasileiro)',
-      terceiraOpcao: terceiraOpcao.visa.exigeRenda ? 'Requer lastro documental/contrato' : 'Moderado',
+      principal: formatNivelRisco(recomendada),
+      mercosul: formatNivelRisco(segundaOpcaoComp),
+      terceiraOpcao: formatNivelRisco(terceiraOpcao),
     },
     {
-      criterio: 'Documentos extras',
-      principal: recomendada.visa.codigo === '01' ? 'Certidão casamento/AUC apostilada' : recomendada.visa.codigo === '03' ? 'Matrícula instituição chilena' : 'Antecedentes PF + Certidões',
-      mercosul: 'Passaporte/RG + Antecedentes PF (60d)',
-      terceiraOpcao: terceiraOpcao.visa.codigo === '02' ? 'Contrato trabalho notariado + RUT empresa' : 'Comprovantes específicos da categoria',
+      criterio: 'Documentos principais',
+      principal: formatDocumentosExtras(recomendada.visa),
+      mercosul: formatDocumentosExtras(segundaOpcaoComp.visa),
+      terceiraOpcao: formatDocumentosExtras(terceiraOpcao.visa),
     },
   ];
 
@@ -2010,7 +2165,9 @@ export function runDiagnosticEngine(
     comparativoMercosul: {
       principal: recomendada,
       mercosul: mercosulCand,
+      segundaOpcao: segundaOpcaoComp,
       terceiraOpcao,
+      colunas: comparativoColunas,
       diferencasChave,
       linhasFixas,
     },

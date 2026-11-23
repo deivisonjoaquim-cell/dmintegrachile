@@ -38,6 +38,7 @@ import {
 import { BrandRibbon } from '../components/BrandLogo';
 import { ClientTestimonialsCarousel } from '../components/ClientTestimonialsCarousel';
 import { OptimizedImage } from '../components/OptimizedImage';
+import { PartnerGeolocationMap } from '../components/PartnerGeolocationMap';
 import {
   PartnerSynergyAnalyzer,
   type PartnerSynergyResult,
@@ -231,6 +232,19 @@ export const ParceirosPage: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedPartner]);
+
+  // Smooth-scroll to interactive Chile map when navigated with ?secao=mapa or #mapa-parceiros
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('secao') === 'mapa' || window.location.hash === '#mapa-parceiros') {
+      const timer = window.setTimeout(() => {
+        const el = document.getElementById('mapa-parceiros');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 180);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, []);
 
   const metrics = useMemo(() => computePartnerNetworkMetrics(partnersPublic), [partnersPublic]);
 
@@ -539,8 +553,18 @@ export const ParceirosPage: React.FC = () => {
     <MotionConfig reducedMotion="user">
       <div className="bg-[var(--color-bg)]">
         {/* Executive Split Hero Band */}
-        <section className="bg-[#0B1F33] text-white border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-10 lg:pt-14 lg:pb-12 space-y-10">
+        <section className="relative overflow-hidden bg-gradient-to-br from-[#071422] via-[#0B1F33] to-[#0E2842] text-white border-b border-white/10">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full opacity-20 blur-3xl"
+            style={{ background: 'radial-gradient(circle, #C8A236 0%, transparent 70%)' }}
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-28 -left-16 w-80 h-80 rounded-full opacity-15 blur-3xl"
+            style={{ background: 'radial-gradient(circle, #146B43 0%, transparent 70%)' }}
+          />
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-10 lg:pt-14 lg:pb-12 space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
               {/* Left Strategic Copy & Dual CTAs */}
               <motion.div
@@ -550,20 +574,23 @@ export const ParceirosPage: React.FC = () => {
                 className="lg:col-span-7 flex flex-col justify-between gap-6 py-1"
               >
                 <div className="space-y-4">
-                  <p className="text-xs font-semibold tracking-[0.14em] uppercase text-[#E5C76B]">
-                    {isEs
-                      ? 'Programa de Alianzas B2B · Brasil y Chile'
-                      : 'Programa de Parcerias B2B · Brasil & Chile'}
-                  </p>
-                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.7rem] font-bold leading-[1.12] text-white text-balance">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
+                    <p className="text-xs font-semibold tracking-[0.14em] uppercase text-[#E5C76B]">
+                      {isEs
+                        ? 'Programa de Alianzas B2B · Brasil y Chile'
+                        : 'Programa de Parcerias B2B · Brasil & Chile'}
+                    </p>
+                  </div>
+                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] font-bold leading-[1.1] text-white text-balance">
                     {isEs
                       ? 'Conecta tu empresa con clientes calificados que migran e invierten en Chile'
                       : 'Conecte sua empresa a clientes qualificados em mudança e negócios no Chile'}
                   </h1>
                   <p className="text-base text-slate-300 leading-relaxed max-w-2xl">
                     {isEs
-                      ? 'Integra la red homologada de D&M Integra Chile: destaca tu marca en nuestra vitrina oficial, recibe derivaciones de alto valor desde el Diagnóstico Inteligente y opera sin cuota mensual en ambos países.'
-                      : 'Integre a rede homologada da D&M Integra Chile: destaque sua marca na vitrine oficial, receba indicações qualificadas vindas do nosso Diagnóstico Inteligente e cresça no eixo Brasil–Chile sem mensalidade fixa.'}
+                      ? 'Integra la red homologada de D&M Integra Chile: destaca tu marca en nuestra vitrina oficial, visualiza cobertura geográfica en Chile y opera sin cuota mensual en ambos países.'
+                      : 'Integre a rede homologada da D&M Integra Chile: destaque sua marca na vitrine oficial, explore nossa cobertura geográfica no Chile e cresça no eixo Brasil–Chile sem mensalidade fixa.'}
                   </p>
                 </div>
 
@@ -572,7 +599,7 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => scrollToSection('seja-parceiro')}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#C8A236] hover:bg-[#b5912c] text-[#0B1F33] text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#C8A236] hover:bg-[#b5912c] text-[#0B1F33] text-sm font-semibold shadow-[0_8px_22px_rgba(200,162,54,0.28)] transition-all duration-150 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
                     >
                       <Handshake className="w-4 h-4" />
                       {isEs ? 'Quiero ser aliado homologado' : 'Quero ser parceiro homologado'}
@@ -580,10 +607,11 @@ export const ParceirosPage: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => scrollToSection('diretorio-parceiros')}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-white/25 hover:bg-white/10 text-white text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+                      onClick={() => scrollToSection('mapa-parceiros')}
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-white/25 bg-white/[0.06] hover:bg-white/12 text-white text-sm font-semibold transition-all duration-150 whitespace-nowrap shrink-0"
                     >
-                      {isEs ? 'Explorar red e IA' : 'Explorar rede & IA'}
+                      <MapPin className="w-4 h-4 text-[#E5C76B]" />
+                      {isEs ? 'Ver mapa en Chile' : 'Explorar mapa no Chile'}
                     </button>
                   </div>
 
@@ -606,7 +634,7 @@ export const ParceirosPage: React.FC = () => {
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-5 relative rounded-2xl overflow-hidden border border-white/15 min-h-[260px] sm:min-h-[300px] bg-[#081726]"
+                className="lg:col-span-5 group relative rounded-2xl overflow-hidden border border-white/15 min-h-[260px] sm:min-h-[300px] bg-[#081726] shadow-[0_20px_48px_rgba(0,0,0,0.35)]"
               >
                 <OptimizedImage
                   src={HERO_PARTNERS_IMAGE}
@@ -619,11 +647,11 @@ export const ParceirosPage: React.FC = () => {
                   placeholderTone="dark"
                   sizes="(max-width: 1024px) 100vw, 42vw"
                   containerClassName="relative w-full h-full min-h-[260px] sm:min-h-[300px]"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                 />
                 <div
                   aria-hidden="true"
-                  className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/92 via-[#0B1F33]/35 to-transparent"
+                  className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/94 via-[#0B1F33]/35 to-transparent"
                 />
                 <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E5C76B]">
@@ -709,6 +737,15 @@ export const ParceirosPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3 overflow-x-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-[#F1EDE4] dark:border-[#1C324B] shrink-0">
+              <button
+                type="button"
+                onClick={() => scrollToSection('mapa-parceiros')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#146B43] dark:text-emerald-400 hover:underline transition-colors whitespace-nowrap shrink-0"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                {isEs ? 'Mapa en Chile' : 'Mapa no Chile'}
+              </button>
+              <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
               <button
                 type="button"
                 onClick={() => scrollToSection('parceiros-salvos')}
@@ -876,6 +913,15 @@ export const ParceirosPage: React.FC = () => {
               </div>
             )}
           </section>
+
+          {/* Interactive Chile Partner Geolocation Map (Google Maps Platform) */}
+          <PartnerGeolocationMap
+            partners={partnersPublic}
+            locale={locale}
+            externalMacroGroup={filterMacroGroup}
+            onSelectPartner={(partner) => setSelectedPartner(partner)}
+            buildReferralMessage={buildReferralMessage}
+          />
 
           {/* B2B Partner Value Proposition — Asymmetric Bento Grid */}
           <section id="programa-b2b" className="scroll-mt-24 space-y-6">

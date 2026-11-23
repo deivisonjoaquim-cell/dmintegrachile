@@ -131,3 +131,27 @@ test('Diagnostic cost estimate converts BRL<->CLP accurately and marks honorario
   assert.ok(honItem && honItem.valorTexto.includes('A consultar'));
 });
 
+test('Comparativo Lado a Lado always compares 3 strictly distinct visa subcategories without duplicating Mercosul 15', () => {
+  // Case 1: Mercosul 15 is recommended (#1)
+  const mercosulTop = runDiagnosticEngine(DIAGNOSTIC_TEST_PROFILES[0].answers);
+  assert.equal(mercosulTop.recomendada?.visa.codigo, '15');
+  assert.ok(mercosulTop.comparativoMercosul.colunas);
+  const codesCase1 = mercosulTop.comparativoMercosul.colunas!.map((c) => c.codigo);
+  assert.equal(new Set(codesCase1).size, 3, `Expected 3 distinct codes, got: ${codesCase1.join(', ')}`);
+  assert.equal(codesCase1[0], '15');
+  assert.notEqual(codesCase1[1], '15');
+  assert.equal(mercosulTop.comparativoMercosul.mercosul.visa.codigo, '15');
+
+  // Case 2: Non-Mercosul (Reunificação Familiar 01) is recommended (#1)
+  const familyTop = runDiagnosticEngine({
+    ...DIAGNOSTIC_TEST_PROFILES[17].answers,
+    localizacao: 'No Chile como turista',
+    vinculoFormalizado: true,
+  });
+  assert.equal(familyTop.recomendada?.visa.codigo, '01');
+  assert.ok(familyTop.comparativoMercosul.colunas);
+  const codesCase2 = familyTop.comparativoMercosul.colunas!.map((c) => c.codigo);
+  assert.equal(new Set(codesCase2).size, 3, `Expected 3 distinct codes, got: ${codesCase2.join(', ')}`);
+  assert.equal(codesCase2[0], '01');
+  assert.equal(codesCase2[1], '15');
+});

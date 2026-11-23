@@ -289,7 +289,22 @@ export async function fetchPartnersPublic(): Promise<PartnerPublic[]> {
     );
     const snap = await getDocs(q);
     if (snap.empty) return SEED_PARTNERS.map((p) => p.pub);
-    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PartnerPublic, 'id'>) }));
+    const firestorePartners = snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as Omit<PartnerPublic, 'id'>),
+    }));
+    // If Firestore holds only the initial 3 legacy seed partners (only 1 in Chile),
+    // merge missing curated Chile relocation partners by ID so the interactive map has rich coverage
+    // without ever overwriting admin-edited partners.
+    const existingIds = new Set(firestorePartners.map((p) => p.id));
+    const chileCount = firestorePartners.filter((p) => p.pais === 'Chile' || p.pais === 'Ambos').length;
+    if (chileCount < 2) {
+      const missingChileSeeds = SEED_PARTNERS.map((p) => p.pub).filter(
+        (seed) => !existingIds.has(seed.id) && (seed.pais === 'Chile' || seed.pais === 'Ambos'),
+      );
+      return [...firestorePartners, ...missingChileSeeds];
+    }
+    return firestorePartners;
   } catch {
     return SEED_PARTNERS.map((p) => p.pub);
   }
@@ -552,9 +567,12 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
     }
 
     const partPubSnap = await getDocs(collection(db, 'partnersPublic'));
-    if (partPubSnap.empty) {
+    const existingPartnerIds = new Set(partPubSnap.docs.map((d) => d.id));
+    const missingSeedPartners = SEED_PARTNERS.filter((p) => !existingPartnerIds.has(p.pub.id));
+    if (partPubSnap.empty || missingSeedPartners.length > 0) {
+      const targets = partPubSnap.empty ? SEED_PARTNERS : missingSeedPartners;
       await Promise.all(
-        SEED_PARTNERS.flatMap((p) => [
+        targets.flatMap((p) => [
           setDoc(doc(db, 'partners', p.full.id), { ...p.full, createdAt: new Date().toISOString() }),
           setDoc(doc(db, 'partnersPublic', p.pub.id), { ...p.pub, updatedAt: new Date().toISOString() }),
         ]),

@@ -285,20 +285,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   const renderTechArchitectureBento = (keyId: string) => (
     <section
       key={keyId}
-      className={`${sectionPad} bg-[#FAF9F6] border-b border-[#E5DFD2]`}
+      className={`${sectionPad} bg-[#FAF9F6] dark:bg-[#091625] border-b border-[#E5DFD2] dark:border-[#1C324B]`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
         <div className="max-w-3xl space-y-2.5">
           <div className="flex items-center gap-3">
             <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
               {t.techBento.eyebrow}
             </p>
           </div>
-          <h2 className="font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-[1.15] text-[#0B1F33] text-balance">
+          <h2 className="font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-[1.15] text-[#0B1F33] dark:text-white text-balance">
             {t.techBento.heading}
           </h2>
-          <p className="text-sm sm:text-base text-[#4A5A6D] leading-relaxed">
+          <p className="text-sm sm:text-base text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
             {t.techBento.subheading}
           </p>
         </div>
@@ -310,7 +310,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.45, ease: EASE_EXECUTIVE }}
-            className="lg:col-span-7 rounded-2xl bg-[#0B1F33] text-white border border-[#1E3A5F] overflow-hidden shadow-[0_18px_40px_rgba(11,31,51,0.16)] flex flex-col justify-between"
+            className="lg:col-span-7 relative rounded-2xl bg-gradient-to-br from-[#0B1F33] via-[#0D243C] to-[#081726] text-white border border-[#1E3A5F] hover:border-[#C8A236]/55 overflow-hidden shadow-[0_20px_46px_rgba(11,31,51,0.22)] transition-colors duration-200 flex flex-col justify-between"
           >
             <BrandRibbon className="h-[3px] w-full" />
             <div className="p-6 sm:p-8 flex flex-col justify-between gap-6 flex-1">
@@ -336,7 +336,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 {t.techBento.radarCard.pillars.map((pillar) => (
                   <div
                     key={pillar.label}
-                    className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5"
+                    className="rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 backdrop-blur-xs"
                   >
                     <p className="font-mono text-base font-bold text-[#E5C76B] tabular-nums">
                       {pillar.score}
@@ -350,7 +350,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => navigateAction('/diagnostico')}
-                  className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-opacity hover:opacity-95 whitespace-nowrap"
+                  className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-xs font-bold text-[#0B1523] shadow-[0_8px_20px_rgba(200,162,54,0.28)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap"
                   style={{ backgroundColor: 'var(--color-accent)' }}
                 >
                   {t.techBento.radarCard.cta}
@@ -366,17 +366,17 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.45, delay: 0.06, ease: EASE_EXECUTIVE }}
-            className="lg:col-span-5 rounded-2xl bg-white border border-[#E5DFD2] p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-[0_8px_28px_rgba(11,31,51,0.05)]"
+            className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/55 p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-[0_10px_30px_rgba(11,31,51,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-colors duration-200"
           >
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#A61C2B]">
+              <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#A61C2B] dark:text-rose-400">
                 <BellRing className="w-4 h-4 shrink-0" />
                 <span>{t.techBento.alertsCard.kicker}</span>
               </div>
-              <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug text-[#0B1F33]">
+              <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug text-[#0B1F33] dark:text-white">
                 {t.techBento.alertsCard.title}
               </h3>
-              <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                 {t.techBento.alertsCard.description}
               </p>
             </div>
@@ -385,22 +385,22 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               {t.techBento.alertsCard.rules.map((rule, idx) => (
                 <div
                   key={rule.code}
-                  className="flex items-start gap-3.5 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]"
+                  className="flex items-start gap-3.5 p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1F3752]"
                 >
                   <span
                     className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-lg tabular-nums shrink-0 ${
                       idx === 0
                         ? 'bg-[#A61C2B] text-white'
                         : idx === 1
-                          ? 'bg-[#0B1F33] text-[#E5C76B]'
+                          ? 'bg-[#0B1F33] dark:bg-[#C8A236] text-[#E5C76B] dark:text-[#0B1523]'
                           : 'bg-[#146B43] text-white'
                     }`}
                   >
                     {rule.code}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#0B1F33]">{rule.title}</p>
-                    <p className="text-[11.5px] text-[#4A5A6D] leading-relaxed mt-0.5">{rule.detail}</p>
+                    <p className="text-xs font-bold text-[#0B1F33] dark:text-white">{rule.title}</p>
+                    <p className="text-[11.5px] text-[#4A5A6D] dark:text-slate-300 leading-relaxed mt-0.5">{rule.detail}</p>
                   </div>
                 </div>
               ))}
@@ -413,7 +413,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.45, delay: 0.12, ease: EASE_EXECUTIVE }}
-            className="lg:col-span-12 rounded-2xl bg-white border border-[#E5DFD2] p-6 sm:p-8 shadow-[0_8px_28px_rgba(11,31,51,0.05)]"
+            className="lg:col-span-12 rounded-2xl bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/55 p-6 sm:p-8 shadow-[0_10px_30px_rgba(11,31,51,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-colors duration-200"
           >
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
               <div className="lg:col-span-8 space-y-3">
@@ -426,24 +426,24 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     imgClassName="w-11 h-11 object-contain shrink-0"
                   />
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#146B43]">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#146B43] dark:text-emerald-400">
                       {t.techBento.portalCard.kicker}
                     </p>
-                    <h3 className="font-display text-lg sm:text-2xl font-bold tracking-tight text-[#0B1F33] leading-snug">
+                    <h3 className="font-display text-lg sm:text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-white leading-snug">
                       {t.techBento.portalCard.title}
                     </h3>
                   </div>
                 </div>
-                <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed max-w-3xl">
+                <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-3xl">
                   {t.techBento.portalCard.description}
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
                   {t.techBento.portalCard.milestones.map((m, idx) => (
                     <div
                       key={m}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FAF9F6] border border-[#E5DFD2] text-[11.5px] font-semibold text-[#0B1F33]"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1F3752] text-[11.5px] font-semibold text-[#0B1F33] dark:text-slate-100"
                     >
-                      <span className="font-mono text-[10px] font-bold text-[#8C6D14] tabular-nums">
+                      <span className="font-mono text-[10px] font-bold text-[#8C6D14] dark:text-[#E5C76B] tabular-nums">
                         0{idx + 1}
                       </span>
                       <span className="truncate">{m}</span>
@@ -458,7 +458,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   onMouseEnter={() => prefetchRouteChunk('/acompanhar')}
                   onTouchStart={() => prefetchRouteChunk('/acompanhar')}
                   onClick={() => navigateAction('/acompanhar')}
-                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap"
+                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   <FileCheck2 className="w-4 h-4 text-[#E5C76B]" />
@@ -469,10 +469,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
                   onTouchStart={() => prefetchRouteChunk('/diagnostico')}
                   onClick={() => navigateAction('/diagnostico')}
-                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-[#FAF9F6] hover:bg-[#F1EDE4] transition-colors whitespace-nowrap"
+                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] hover:bg-[#F1EDE4] dark:hover:bg-[#183350] transition-colors whitespace-nowrap"
                 >
                   {t.techBento.portalCard.secondaryCta}
-                  <ArrowRight className="w-3.5 h-3.5 text-[#8C6D14]" />
+                  <ArrowRight className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" />
                 </button>
               </div>
             </div>
@@ -508,19 +508,34 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <p className={`text-xs mt-2 ${theme.subClass}`}>{translateText(sec.conteudoHtml)}</p>
               )}
             </div>
-            <button
-              type="button"
-              onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-              onFocus={() => prefetchRouteChunk('/parceiros')}
-              onClick={() => navigateAction(sec.ctaDestino || '/parceiros')}
-              className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                theme.isDark ? 'text-[#E5C76B]' : ''
-              }`}
-              style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
-            >
-              {translateText(sec.ctaTexto) || t.sections.partnersDefaultCta}
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                onFocus={() => prefetchRouteChunk('/parceiros')}
+                onClick={() => navigateAction('/parceiros?secao=mapa')}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 ${
+                  theme.isDark
+                    ? 'border-white/25 text-white hover:bg-white/10'
+                    : 'border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] text-[#0B1F33] dark:text-[#E5C76B] hover:border-[#C8A236]/80'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5 text-[#146B43] dark:text-emerald-400" />
+                {locale === 'es-CL' ? 'Mapa en Chile' : 'Mapa no Chile'}
+              </button>
+              <button
+                type="button"
+                onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                onFocus={() => prefetchRouteChunk('/parceiros')}
+                onClick={() => navigateAction(sec.ctaDestino || '/parceiros')}
+                className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap shrink-0 hover:underline ${
+                  theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33] dark:text-[#E5C76B]'
+                }`}
+              >
+                {translateText(sec.ctaTexto) || t.sections.partnersDefaultCta}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -537,7 +552,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     delay: Math.min(idx * 0.06, 0.24),
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-colors hover:border-[#C8A236]/80`}
+                  className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-all duration-200 hover:border-[#C8A236]/80 hover:-translate-y-0.5`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 text-xs mb-3">
@@ -553,13 +568,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                             />
                           </div>
                         )}
-                        <span className={`font-semibold truncate ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`}>
+                        <span className={`font-semibold truncate ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-[#E5C76B]'}`}>
                           {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
                         </span>
                       </div>
                       <span
                         className={`inline-flex items-center gap-1 font-mono font-semibold tabular-nums shrink-0 ${
-                          theme.isDark ? 'text-white' : 'text-[#0B1F33]'
+                          theme.isDark ? 'text-white' : 'text-[#0B1F33] dark:text-slate-100'
                         }`}
                       >
                         <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
@@ -572,12 +587,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
                   <div
                     className={`pt-3.5 border-t flex items-center justify-between gap-3 ${
-                      theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'
+                      theme.isDark ? 'border-white/15' : 'border-[#F1EDE4] dark:border-[#1C324B]'
                     }`}
                   >
                     <span
                       className={`inline-flex items-center gap-1 text-xs truncate ${
-                        theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D]'
+                        theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D] dark:text-slate-300'
                       }`}
                     >
                       <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
@@ -586,12 +601,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     <button
                       type="button"
                       onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-                      onClick={() => navigateAction('/parceiros')}
+                      onClick={() => navigateAction('/parceiros?secao=mapa')}
                       className={`text-xs font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                        theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33]'
+                        theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33] dark:text-[#E5C76B]'
                       }`}
                     >
-                      {locale === 'es-CL' ? 'Ver red →' : 'Ver rede →'}
+                      {locale === 'es-CL' ? 'Ver en mapa →' : 'Ver no mapa →'}
                     </button>
                   </div>
                 </motion.article>
@@ -703,7 +718,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       if (variante === 'centralizado') {
         return (
           <React.Fragment key={sec.id}>
-            <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2]">
+            <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2] dark:border-[#1C324B]">
               <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 lg:py-20 text-center space-y-6">
                 <div className="flex flex-col items-center gap-3">
                   <BrandLogo
@@ -712,15 +727,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     brandShortName={brandShortName}
                     imgClassName="w-14 h-14 object-contain"
                   />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">{eyebrow}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">{eyebrow}</p>
                 </div>
-                <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#0B1F33] leading-[1.1] text-balance">
+                <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#0B1F33] dark:text-white leading-[1.1] text-balance">
                   {heroTitle}
                 </h1>
-                <p className="text-base sm:text-lg text-[#4A5A6D] leading-relaxed max-w-3xl mx-auto">{heroSubtitle}</p>
+                <p className="text-base sm:text-lg text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-3xl mx-auto">{heroSubtitle}</p>
                 {heroHtml && (
                   <div
-                    className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mx-auto"
+                    className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-2xl mx-auto"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
                   />
                 )}
@@ -738,14 +753,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={whatsappHeroUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#FAF9F6] whitespace-nowrap"
+                    className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] hover:bg-[#FAF9F6] dark:hover:bg-[#183350] whitespace-nowrap"
                   >
-                    <MessageCircle className="w-4 h-4 text-[#146B43]" />
+                    <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
                     {ctaSecundario}
                   </a>
                 </div>
                 {sec.imagemUrl && (
-                  <div className="relative h-64 sm:h-96 card-radius overflow-hidden border border-[#E5DFD2] bg-[#0B1F33] text-left mt-8">
+                  <div className="relative h-64 sm:h-96 card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#0B1F33] text-left mt-8">
                     <OptimizedImage
                       src={sec.imagemUrl}
                       alt={heroTitle}
@@ -762,11 +777,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   </div>
                 )}
                 {heroDestaques.length > 0 && (
-                  <div className="mt-10 pt-8 border-t border-[#E5DFD2] grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                  <div className="mt-10 pt-8 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
                     {heroDestaques.map((item, idx) => (
                       <div key={idx} className="flex items-start gap-3">
                         <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                        <p className="text-sm font-medium text-[#0B1F33]">{item}</p>
+                        <p className="text-sm font-medium text-[#0B1F33] dark:text-slate-200">{item}</p>
                       </div>
                     ))}
                   </div>
@@ -781,16 +796,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       const imageFirst = variante === 'split-esquerda';
       return (
         <React.Fragment key={sec.id}>
-          <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2] relative overflow-hidden">
-            {/* Grade arquitetônica sutil inspirada em precisão cartográfica Brasil–Chile */}
+          <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2] dark:border-[#1C324B] relative overflow-hidden">
+            {/* Grade arquitetônica sutil + luz atmosférica inspirada em precisão cartográfica Brasil–Chile */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-[0.38]"
+              className="pointer-events-none absolute inset-0 opacity-[0.34] dark:opacity-[0.14]"
               style={{
                 backgroundImage:
-                  'radial-gradient(circle at 1px 1px, rgba(11, 31, 51, 0.10) 1px, transparent 0)',
+                  'radial-gradient(circle at 1px 1px, rgba(200, 162, 54, 0.24) 1px, transparent 0)',
                 backgroundSize: '28px 28px',
               }}
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -top-28 -left-24 w-[420px] h-[420px] rounded-full opacity-[0.12] dark:opacity-[0.16] blur-3xl"
+              style={{ background: 'radial-gradient(circle, #C8A236 0%, transparent 72%)' }}
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-32 right-12 w-[360px] h-[360px] rounded-full opacity-[0.09] dark:opacity-[0.14] blur-3xl"
+              style={{ background: 'radial-gradient(circle, #146B43 0%, transparent 72%)' }}
             />
             <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-20">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
@@ -802,22 +827,22 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <span className="h-[2px] w-7 shrink-0 bg-[#C8A236]" aria-hidden="true" />
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
                       {eyebrow}
                     </p>
                   </div>
 
-                  <h1 className="font-display text-[clamp(2.2rem,3.8vw,3.45rem)] font-bold tracking-[-0.025em] text-[#0B1F33] leading-[1.08] text-balance mb-5">
+                  <h1 className="font-display text-[clamp(2.2rem,3.8vw,3.45rem)] font-bold tracking-[-0.025em] text-[#0B1F33] dark:text-white leading-[1.08] text-balance mb-5">
                     {heroTitle}
                   </h1>
 
-                  <p className="text-base sm:text-[17px] text-[#4A5A6D] leading-[1.65] max-w-2xl mb-4">
+                  <p className="text-base sm:text-[17px] text-[#4A5A6D] dark:text-slate-300 leading-[1.65] max-w-2xl mb-4">
                     {heroSubtitle}
                   </p>
 
                   {heroHtml && (
                     <div
-                      className="text-sm text-[#4A5A6D] leading-relaxed max-w-2xl mb-7"
+                      className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-2xl mb-7"
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
                     />
                   )}
@@ -828,7 +853,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
                       onTouchStart={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
                       onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                      className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_10px_24px_rgba(11,31,51,0.22)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_10px_26px_rgba(11,31,51,0.24)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
                       {ctaPrimario}
@@ -838,32 +863,32 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       href={whatsappHeroUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] border border-[#DDD6C7] bg-white hover:bg-[#FAF9F6] hover:border-[#C8A236]/70 transition-all duration-150 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] hover:bg-[#FAF9F6] dark:hover:bg-[#183350] hover:border-[#C8A236]/70 transition-all duration-150 whitespace-nowrap shrink-0"
                     >
-                      <MessageCircle className="w-4 h-4 text-[#146B43]" />
+                      <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
                       {ctaSecundario}
                     </a>
                   </div>
 
                   {/* Faixa de métricas arquitetônicas com paleta da marca */}
-                  <div className="mt-8 pt-6 border-t border-[#E5DFD2] grid grid-cols-3 gap-4 max-w-xl">
+                  <div className="mt-8 pt-6 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-3 gap-4 max-w-xl">
                     <div>
-                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33]">
+                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33] dark:text-white">
                         {t.hero.metric1Value}
                       </p>
-                      <p className="text-[11px] text-[#4A5A6D] mt-0.5">{t.hero.metric1Label}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">{t.hero.metric1Label}</p>
                     </div>
                     <div>
-                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14]">
+                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14] dark:text-[#E5C76B]">
                         {t.hero.metric2Value}
                       </p>
-                      <p className="text-[11px] text-[#4A5A6D] mt-0.5">{t.hero.metric2Label}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">{t.hero.metric2Label}</p>
                     </div>
                     <div>
-                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#146B43]">
+                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#146B43] dark:text-emerald-400">
                         {t.hero.metric3Value}
                       </p>
-                      <p className="text-[11px] text-[#4A5A6D] mt-0.5">{t.hero.metric3Label}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">{t.hero.metric3Label}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -875,7 +900,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   transition={{ duration: 0.5, delay: 0.08, ease: EASE_EXECUTIVE }}
                   className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}
                 >
-                  <div className="relative h-full min-h-[430px] card-radius overflow-hidden border border-[#1E3A5F]/20 bg-[#0B1F33] shadow-[0_24px_56px_rgba(11,31,51,0.20)] flex flex-col justify-between">
+                  <div className="group relative h-full min-h-[430px] card-radius overflow-hidden border border-[#1E3A5F]/25 dark:border-[#C8A236]/25 bg-[#0B1F33] shadow-[0_24px_60px_rgba(11,31,51,0.24)] flex flex-col justify-between">
                     {sec.imagemUrl ? (
                       <OptimizedImage
                         src={sec.imagemUrl}
@@ -884,7 +909,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         placeholderTone="dark"
                         sizes="(max-width: 1024px) 100vw, 42vw"
                         containerClassName="absolute inset-0 w-full h-full overflow-hidden"
-                        className={`w-full h-full ${imgFitClass}`}
+                        className={`w-full h-full ${imgFitClass} transition-transform duration-700 group-hover:scale-[1.03]`}
                       />
                     ) : null}
 
@@ -892,7 +917,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
                     {/* Cabeçalho com Emblema Oficial D&M Integra Chile */}
                     <div className="relative z-10 p-5 sm:p-6">
-                      <div className="inline-flex items-center gap-3 rounded-xl bg-[#071422]/80 backdrop-blur-md border border-white/15 px-3.5 py-2.5 max-w-full">
+                      <div className="inline-flex items-center gap-3 rounded-xl bg-[#071422]/82 backdrop-blur-md border border-white/15 px-3.5 py-2.5 max-w-full">
                         <BrandLogo
                           variant="emblem-dark"
                           alt={empresa.nome_empresa}
@@ -922,7 +947,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 rounded-xl bg-[#071422]/80 backdrop-blur-md border border-white/12 p-3">
+                      <div className="grid grid-cols-1 gap-2 rounded-xl bg-[#071422]/82 backdrop-blur-md border border-white/12 p-3">
                         {t.hero.intelModules.map((mod) => (
                           <div
                             key={mod.code}
@@ -946,14 +971,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
 
               {heroDestaques.length > 0 && (
-                <div className="mt-12 pt-7 border-t border-[#E5DFD2] grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="mt-12 pt-7 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-1 md:grid-cols-3 gap-6">
                   {heroDestaques.map((item, idx) => (
                     <div key={idx} className="flex items-start gap-3">
                       <ShieldCheck
                         className="w-5 h-5 shrink-0 mt-0.5"
                         style={{ color: idx === 0 ? '#146B43' : idx === 1 ? '#C8A236' : '#A61C2B' }}
                       />
-                      <p className="text-sm font-medium text-[#0B1F33] leading-snug">{item}</p>
+                      <p className="text-sm font-medium text-[#0B1F33] dark:text-slate-200 leading-snug">{item}</p>
                     </div>
                   ))}
                 </div>
@@ -1060,26 +1085,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
                 {/* 1. Diagnóstico Gratuito */}
-                <div className="bg-white border border-[#E5DFD2] card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] shadow-[0_2px_12px_rgba(11,31,51,0.04)]">
+                <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white shadow-[0_4px_18px_rgba(11,31,51,0.04)] dark:shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition-all duration-200 hover:-translate-y-0.5">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
                         {plans.diagnostico_gratuito.kicker}
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33]">
+                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33] dark:text-white">
                         {plans.diagnostico_gratuito.nome}
                       </h4>
-                      <p className="text-xs text-[#4A5A6D] leading-relaxed">
+                      <p className="text-xs text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                         {plans.diagnostico_gratuito.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-[#0B1F33] pt-3 border-t border-[#F1EDE4]">
+                    <p className="text-[11px] font-semibold text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
                       {plans.diagnostico_gratuito.escopoPrefix} {plans.diagnostico_gratuito.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2 text-xs text-slate-700">
+                    <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
                       {plans.diagnostico_gratuito.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#146B43] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#146B43] dark:text-emerald-400 shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -1088,7 +1113,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => navigateAction('/diagnostico')}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-[#F1EDE4] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 hover:bg-[#F1EDE4] dark:hover:bg-[#183350] transition-colors"
                   >
                     {plans.diagnostico_gratuito.cta}
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1096,26 +1121,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
 
                 {/* 2. Consultoria Orientativa */}
-                <div className="bg-white border border-[#0B1F33]/30 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] shadow-[0_6px_22px_rgba(11,31,51,0.06)]">
+                <div className="bg-white dark:bg-[#0D1E31] border border-[#0B1F33]/30 dark:border-[#2E547A] hover:border-[#C8A236]/70 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white shadow-[0_8px_26px_rgba(11,31,51,0.06)] dark:shadow-[0_14px_32px_rgba(0,0,0,0.32)] transition-all duration-200 hover:-translate-y-0.5">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0B1F33]">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0B1F33] dark:text-[#E5C76B]">
                         {plans.orientativa.kicker}
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33]">
+                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33] dark:text-white">
                         {plans.orientativa.nome}
                       </h4>
-                      <p className="text-xs text-[#4A5A6D] leading-relaxed">
+                      <p className="text-xs text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                         {plans.orientativa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-[#0B1F33] pt-3 border-t border-[#F1EDE4]">
+                    <p className="text-[11px] font-semibold text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
                       {plans.orientativa.escopoPrefix} {plans.orientativa.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2 text-xs text-slate-700">
+                    <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
                       {plans.orientativa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#0B1F33] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#0B1F33] dark:text-[#E5C76B] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -1135,8 +1160,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
                 {/* 3. Consultoria Completa */}
                 <div
-                  className="card-radius p-6 flex flex-col justify-between gap-6 text-white shadow-[0_14px_34px_rgba(11,31,51,0.2)] border border-[#C8A236]/50"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  className="card-radius p-6 flex flex-col justify-between gap-6 text-white shadow-[0_18px_40px_rgba(11,31,51,0.26)] border border-[#C8A236]/60 bg-gradient-to-br from-[#0B1F33] via-[#0F2A46] to-[#081726] transition-transform duration-200 hover:-translate-y-0.5"
                 >
                   <div className="space-y-4">
                     <div className="space-y-1">
@@ -1166,7 +1190,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.completa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-opacity hover:opacity-95"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] shadow-[0_6px_18px_rgba(200,162,54,0.28)] transition-opacity hover:opacity-95"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
@@ -1177,30 +1201,30 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             </div>
 
             {showComparator && (
-              <div className="bg-[var(--color-surface)] border border-[#E5DFD2] card-radius overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.06)] text-[#0B1F33]">
+              <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden shadow-[0_12px_34px_rgba(11,31,51,0.07)] dark:shadow-[0_16px_38px_rgba(0,0,0,0.34)] text-[#0B1F33] dark:text-white">
                 <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
                   <div className="lg:col-span-7 p-6 sm:p-8 space-y-5 flex flex-col justify-center">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <Compass className="w-4 h-4 text-[#8C6D14]" />
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14]">
+                        <Compass className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
                           {t.comparator.kicker}
                         </p>
                       </div>
-                      <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-[#0B1F33]">
+                      <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-white">
                         {t.comparator.title}
                       </h3>
-                      <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed">
+                      <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                         {t.comparator.subtitle}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
                       <div>
-                        <label className="block font-semibold text-[#0B1F33] mb-1.5">{t.comparator.labelWhere}</label>
+                        <label className="block font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">{t.comparator.labelWhere}</label>
                         <select
                           value={compLocal}
                           onChange={(e) => setCompLocal(e.target.value as typeof compLocal)}
-                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
+                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-100 focus:bg-white dark:focus:bg-[#16304D] focus:border-[#0B1F33] dark:focus:border-[#E5C76B] focus:outline-none transition-colors"
                         >
                           <option value="brasil">{t.comparator.whereOptions.brasil}</option>
                           <option value="turista_chile">{t.comparator.whereOptions.turista_chile}</option>
@@ -1208,11 +1232,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-[#0B1F33] mb-1.5">{t.comparator.labelGoal}</label>
+                        <label className="block font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">{t.comparator.labelGoal}</label>
                         <select
                           value={compObj}
                           onChange={(e) => setCompObj(e.target.value as typeof compObj)}
-                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
+                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-100 focus:bg-white dark:focus:bg-[#16304D] focus:border-[#0B1F33] dark:focus:border-[#E5C76B] focus:outline-none transition-colors"
                         >
                           <option value="morar_trabalhar">{t.comparator.goalOptions.morar_trabalhar}</option>
                           <option value="trabalho_oferta">{t.comparator.goalOptions.trabalho_oferta}</option>
@@ -1222,11 +1246,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block font-semibold text-[#0B1F33] mb-1.5">{t.comparator.labelTie}</label>
+                        <label className="block font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">{t.comparator.labelTie}</label>
                         <select
                           value={compVinculo}
                           onChange={(e) => setCompVinculo(e.target.value as typeof compVinculo)}
-                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] bg-[#FAF9F6] text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
+                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-100 focus:bg-white dark:focus:bg-[#16304D] focus:border-[#0B1F33] dark:focus:border-[#E5C76B] focus:outline-none transition-colors"
                         >
                           <option value="nao">{t.comparator.tieOptions.nao}</option>
                           <option value="sim">{t.comparator.tieOptions.sim}</option>
@@ -1236,8 +1260,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   </div>
 
                   <div
-                    className="lg:col-span-5 p-6 sm:p-8 text-white flex flex-col justify-between space-y-5 border-t lg:border-t-0 lg:border-l border-white/10"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
+                    className="lg:col-span-5 p-6 sm:p-8 text-white flex flex-col justify-between space-y-5 border-t lg:border-t-0 lg:border-l border-white/10 bg-gradient-to-br from-[#0B1F33] to-[#081726]"
                   >
                     <div className="space-y-3">
                       <div className="space-y-1">
@@ -1304,12 +1327,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
             {!noImage && (
               <div className={`lg:col-span-5 ${imageRight ? 'lg:order-2' : 'lg:order-1'}`}>
-                <div className="h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
+                <div className="group h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#0D1E31] shadow-[0_14px_36px_rgba(11,31,51,0.1)]">
                   <OptimizedImage
                     src={sec.imagemUrl}
                     alt={translateText(sec.titulo)}
                     sizes="(max-width: 1024px) 100vw, 40vw"
-                    className={`w-full h-full ${imgFitClass}`}
+                    className={`w-full h-full ${imgFitClass} transition-transform duration-700 group-hover:scale-[1.03]`}
                   />
                 </div>
               </div>
@@ -1324,7 +1347,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
               <div className="space-y-6">
                 {difItens.map((d, idx) => (
-                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2]'} last:border-b-0 last:pb-0`}>
+                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2] dark:border-[#1C324B]'} last:border-b-0 last:pb-0`}>
                     <h3 className={`text-base font-bold mb-1 ${theme.headingClass}`}>{translateText(d.titulo)}</h3>
                     <p className={`text-sm leading-relaxed ${theme.subClass}`}>{translateText(d.descricao)}</p>
                   </div>
@@ -1335,8 +1358,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={onOpenLawModal}
-                    className={`inline-flex items-center gap-2 text-sm font-semibold hover:underline ${theme.isDark ? 'text-white' : ''}`}
-                    style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
+                    className={`inline-flex items-center gap-2 text-sm font-semibold hover:underline ${theme.isDark ? 'text-white' : 'text-[#0B1F33] dark:text-[#E5C76B]'}`}
                   >
                     <BookOpen className="w-4 h-4" />
                     {t.sections.understandLawCta}
@@ -1405,7 +1427,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <p className={`text-base mb-4 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
                 {sec.conteudoHtml && (
                   <div
-                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#4A5A6D]'}`}
+                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#4A5A6D] dark:text-slate-300'}`}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
                 )}
@@ -1417,7 +1439,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   className={`inline-flex items-center gap-2 px-5 py-2.5 btn-radius border text-sm font-semibold transition-colors ${
                     theme.isDark
                       ? 'border-white/30 text-white hover:bg-white/10'
-                      : 'border-[#DDD6C7] text-[#0B1F33] hover:bg-[#FAF9F6] hover:border-[#C8A236]/60'
+                      : 'border-[#DDD6C7] dark:border-[#243E5C] text-[#0B1F33] dark:text-slate-100 hover:bg-[#FAF9F6] dark:hover:bg-[#11263D] hover:border-[#C8A236]/60'
                   }`}
                 >
                   {translateText(sec.ctaTexto) || t.sections.quemSomosCta}
@@ -1425,13 +1447,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </button>
               </div>
               <div className="lg:col-span-5">
-                <div className="aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E5DFD2] bg-[#FAF9F6] shadow-[0_12px_32px_rgba(11,31,51,0.08)]">
+                <div className="group aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#0D1E31] shadow-[0_14px_36px_rgba(11,31,51,0.1)]">
                   {sec.imagemUrl ? (
                     <OptimizedImage
                       src={sec.imagemUrl}
                       alt={translateText(sec.titulo)}
                       sizes="(max-width: 1024px) 92vw, 384px"
-                      className={`w-full h-full ${imgFitClass}`}
+                      className={`w-full h-full ${imgFitClass} transition-transform duration-700 group-hover:scale-[1.03]`}
                     />
                   ) : null}
                 </div>
@@ -1505,7 +1527,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               {translateText(sec.titulo)}
             </h2>
             <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
-            <div className="divide-y divide-[#E5DFD2] border border-[#E5DFD2] card-radius bg-[var(--color-surface)] text-[#0B1F33] overflow-hidden shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+            <div className="divide-y divide-[#E5DFD2] dark:divide-[#1C324B] border border-[#E5DFD2] dark:border-[#1C324B] card-radius bg-[var(--color-surface)] text-[#0B1F33] dark:text-white overflow-hidden shadow-[0_4px_16px_rgba(11,31,51,0.04)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.28)]">
               {perguntas.map((item, idx) => {
                 const isOpen = openFaq === idx;
                 return (
@@ -1514,14 +1536,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       type="button"
                       aria-expanded={isOpen}
                       onClick={() => setOpenFaq(isOpen ? null : idx)}
-                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#FAF9F6] transition-colors"
+                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#FAF9F6] dark:hover:bg-[#11263D] transition-colors"
                     >
-                      <span className="text-sm sm:text-base font-semibold text-[#0B1F33]">
+                      <span className="text-sm sm:text-base font-semibold text-[#0B1F33] dark:text-white">
                         {translateText(item.pergunta)}
                       </span>
                       <ChevronDown
                         className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-                          isOpen ? 'rotate-180 text-[#8C6D14]' : 'text-slate-500'
+                          isOpen ? 'rotate-180 text-[#8C6D14] dark:text-[#E5C76B]' : 'text-slate-500 dark:text-slate-400'
                         }`}
                       />
                     </button>
@@ -1534,7 +1556,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                           transition={{ duration: 0.22, ease: EASE_EXECUTIVE }}
                           className="overflow-hidden"
                         >
-                          <div className="px-6 pb-5 text-sm text-[#4A5A6D] leading-relaxed">
+                          <div className="px-6 pb-5 text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                             {translateText(item.resposta)}
                           </div>
                         </motion.div>

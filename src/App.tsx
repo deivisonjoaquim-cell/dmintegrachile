@@ -173,8 +173,16 @@ function RouterView() {
 }
 
 export default function App() {
+  const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
+
   useEffect(() => {
     installGlobalErrorHandlers();
+  }, []);
+
+  useEffect(() => {
+    const handleQuotaExceeded = () => setMapsQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+    return () => window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
   }, []);
 
   return (
@@ -182,6 +190,34 @@ export default function App() {
       <ThemeProvider>
         <LanguageProvider>
           <AppProvider>
+            {mapsQuotaExceeded && (
+              <div
+                role="alert"
+                className="sticky top-0 z-50 w-full bg-amber-100 dark:bg-amber-950/95 border-b border-amber-300 dark:border-amber-700/80 text-amber-950 dark:text-amber-100 px-4 py-2.5 text-xs sm:text-sm"
+              >
+                <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+                  <p className="leading-snug">
+                    <strong>Google Maps API key quota exceeded.</strong> Configure your own Google Maps Platform API
+                    key to restore full interactive map functionality.{' '}
+                    <a
+                      href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold underline underline-offset-2 hover:opacity-80"
+                    >
+                      View setup instructions
+                    </a>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setMapsQuotaExceeded(false)}
+                    className="px-2.5 py-1 rounded border border-amber-400/70 dark:border-amber-600/70 text-xs font-semibold hover:bg-amber-200/70 dark:hover:bg-amber-900/60 transition-colors whitespace-nowrap shrink-0"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            )}
             <RouterView />
             <GlobalErrorToast />
           </AppProvider>
@@ -190,3 +226,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+

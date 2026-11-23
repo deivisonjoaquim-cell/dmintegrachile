@@ -1091,27 +1091,41 @@ export const DiagnosticoCompletoPdfDocument: React.FC<DiagnosticoCompletoPdfInpu
         )}
 
         {/* Comparativo 3 Vias */}
-        {result.comparativoMercosul.linhasFixas.length > 0 && (
-          <View style={s.section}>
-            <Text style={s.sectionHeading}>Comparativo Lado a Lado (Recomendada × Mercosul 15 × 3ª Opção)</Text>
-            <View style={s.table}>
-              <View style={s.tableHeader}>
-                <Text style={[s.tableHeaderCell, { width: '25%' }]}>Critério</Text>
-                <Text style={[s.tableHeaderCell, { width: '25%' }]}>Principal</Text>
-                <Text style={[s.tableHeaderCell, { width: '25%' }]}>Mercosul 15</Text>
-                <Text style={[s.tableHeaderCell, { width: '25%' }]}>3ª Opção</Text>
-              </View>
-              {result.comparativoMercosul.linhasFixas.map((row) => (
-                <View key={row.criterio} style={s.tableRow} wrap={false}>
-                  <Text style={[s.tableCell, { width: '25%', fontFamily: 'Helvetica-Bold' }]}>{row.criterio}</Text>
-                  <Text style={[s.tableCell, { width: '25%' }]}>{row.principal}</Text>
-                  <Text style={[s.tableCell, { width: '25%' }]}>{row.mercosul}</Text>
-                  <Text style={[s.tableCell, { width: '25%' }]}>{row.terceiraOpcao}</Text>
+        {result.comparativoMercosul.linhasFixas.length > 0 && (() => {
+          const cols = result.comparativoMercosul.colunas;
+          const isPrincipalMercosul = result.comparativoMercosul.principal?.visa.codigo === '15';
+          return (
+            <View style={s.section}>
+              <Text style={s.sectionHeading}>
+                {isPrincipalMercosul
+                  ? 'Comparativo Lado a Lado (Recomendada · Mercosul 15 × 2ª Opção × 3ª Opção)'
+                  : 'Comparativo Lado a Lado (Recomendada × Mercosul 15 × 3ª Opção)'}
+              </Text>
+              <View style={s.table}>
+                <View style={s.tableHeader}>
+                  <Text style={[s.tableHeaderCell, { width: '22%' }]}>Critério</Text>
+                  <Text style={[s.tableHeaderCell, { width: '26%' }]}>
+                    {cols?.[0] ? `${cols[0].papel} (${cols[0].codigo})` : 'Principal'}
+                  </Text>
+                  <Text style={[s.tableHeaderCell, { width: '26%' }]}>
+                    {cols?.[1] ? `${cols[1].papel} (${cols[1].codigo})` : isPrincipalMercosul ? '2ª Opção' : 'Mercosul 15'}
+                  </Text>
+                  <Text style={[s.tableHeaderCell, { width: '26%' }]}>
+                    {cols?.[2] ? `${cols[2].papel} (${cols[2].codigo})` : '3ª Opção'}
+                  </Text>
                 </View>
-              ))}
+                {result.comparativoMercosul.linhasFixas.map((row) => (
+                  <View key={row.criterio} style={s.tableRow} wrap={false}>
+                    <Text style={[s.tableCell, { width: '22%', fontFamily: 'Helvetica-Bold' }]}>{row.criterio}</Text>
+                    <Text style={[s.tableCell, { width: '26%' }]}>{row.principal}</Text>
+                    <Text style={[s.tableCell, { width: '26%' }]}>{row.mercosul}</Text>
+                    <Text style={[s.tableCell, { width: '26%' }]}>{row.terceiraOpcao}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* Checklist de Prontidão */}
         {result.checklistProntidao.itens.length > 0 && (
