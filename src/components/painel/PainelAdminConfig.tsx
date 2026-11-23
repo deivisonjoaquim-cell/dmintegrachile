@@ -40,6 +40,13 @@ import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidConfig } from '../../services/notificationService';
 import { validateVapidPublicKey } from '../../utils/pushNotifications';
 import {
+  AI_CACHE_TTL_BY_ENDPOINT,
+  clearAiIndexedDbCache,
+  getAiCacheSummary,
+  purgeExpiredAiCache,
+  type AiCacheSummary,
+} from '../../utils/aiIndexedDbCache';
+import {
   deleteDocumentAudited,
   fetchAllDiagnosticRuleVersions,
   fetchBancarioConfigAdmin,
@@ -243,6 +250,19 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [syncingPermissions, setSyncingPermissions] = useState(false);
   const [fcmHealthMsg, setFcmHealthMsg] = useState<string | null>(null);
   const [fcmChecking, setFcmChecking] = useState(false);
+  const [aiCacheSummary, setAiCacheSummary] = useState<AiCacheSummary | null>(null);
+  const [aiCacheBusy, setAiCacheBusy] = useState(false);
+
+  const loadAiCacheSummary = async () => {
+    const summary = await getAiCacheSummary();
+    setAiCacheSummary(summary);
+  };
+
+  useEffect(() => {
+    if (tab === 'testes') {
+      void loadAiCacheSummary();
+    }
+  }, [tab]);
 
   // Empresa & Aparência
   const [cfg, setCfg] = useState<EmpresaConfig>(empresa);
@@ -3043,67 +3063,178 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
         </div>
       )}
 
-      {/* TESTAR DIAGNÓSTICO (30 PERFIS) */}
+      {/* TESTAR DIAGNÓSTICO (30 PERFIS) + CACHE LOCAL DE IA */}
       {tab === 'testes' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Verificação do Motor de Diagnóstico (30 Perfis Obrigatórios)</h2>
-              <p className="text-xs text-slate-500">
-                Valida Mercosul, turista sem vínculo, humanitário, flags isoladas, opção consultor, menor, casal, contradições, passaporte vencido, prorrogação/definitiva e regressão de regra.
-              </p>
+        <div className="space-y-5">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-slate-900">Verificação do Motor de Diagnóstico (30 Perfis Obrigatórios)</h2>
+                <p className="text-xs text-slate-500">
+                  Valida Mercosul, turista sem vínculo, humanitário, flags isoladas, opção consultor, menor, casal, contradições, passaporte vencido, prorrogação/definitiva e regressão de regra.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRun30Profiles}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white shrink-0"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <Play className="w-3.5 h-3.5" />
+                Executar 30 Testes Agora
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleRun30Profiles}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              <Play className="w-3.5 h-3.5" />
-              Executar 30 Testes Agora
-            </button>
+
+            {testResults && (
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800">
+                  Resultado: {testResults.filter((r) => r.pass).length} / {testResults.length} aprovado(s) (versão ativa: {activeDiagnosticRules.versao})
+                </div>
+                <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl">
+                  {testResults.map((r) => (
+                    <div key={r.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        {r.pass ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#1E7E34] shrink-0 mt-0.5" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-[#C82333] shrink-0 mt-0.5" />
+                        )}
+                        <div className="space-y-0.5 min-w-0">
+                          <p className="font-semibold text-slate-900">
+                            #{r.id} — {r.nome}
+                          </p>
+                          <p className="text-slate-600">
+                            <strong>Esperado:</strong> {r.esperado}
+                          </p>
+                          <p className="text-slate-700">
+                            <strong>Obtido:</strong> {r.obtido}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded border font-bold shrink-0 self-start sm:self-center ${
+                          r.pass
+                            ? 'bg-emerald-50 border-emerald-200 text-[#1E7E34]'
+                            : 'bg-red-50 border-red-200 text-[#C82333]'
+                        }`}
+                      >
+                        {r.pass ? 'APROVADO' : 'REPROVADO'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {testResults && (
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800">
-                Resultado: {testResults.filter((r) => r.pass).length} / {testResults.length} aprovado(s) (versão ativa: {activeDiagnosticRules.versao})
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-slate-900">Cache Local de Consultas de IA (IndexedDB)</h2>
+                <p className="text-xs text-slate-500">
+                  Armazena respostas válidas da IA no navegador por hash SHA-256 dos dados enviados, com expiração automática por funcionalidade e sem consumir cota do Firestore.
+                </p>
               </div>
-              <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl">
-                {testResults.map((r) => (
-                  <div key={r.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-start gap-2.5">
-                      {r.pass ? (
-                        <CheckCircle2 className="w-4 h-4 text-[#1E7E34] shrink-0 mt-0.5" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-[#C82333] shrink-0 mt-0.5" />
-                      )}
-                      <div className="space-y-0.5">
-                        <p className="font-semibold text-slate-900">
-                          #{r.id} — {r.nome}
-                        </p>
-                        <p className="text-slate-600">
-                          <strong>Esperado:</strong> {r.esperado}
-                        </p>
-                        <p className="text-slate-700">
-                          <strong>Obtido:</strong> {r.obtido}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`px-2.5 py-1 rounded border font-bold shrink-0 self-start sm:self-center ${
-                        r.pass
-                          ? 'bg-emerald-50 border-emerald-200 text-[#1E7E34]'
-                          : 'bg-red-50 border-red-200 text-[#C82333]'
-                      }`}
-                    >
-                      {r.pass ? 'APROVADO' : 'REPROVADO'}
-                    </span>
-                  </div>
-                ))}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={aiCacheBusy}
+                  onClick={async () => {
+                    setAiCacheBusy(true);
+                    try {
+                      const removed = await purgeExpiredAiCache();
+                      await loadAiCacheSummary();
+                      setFeedback(
+                        removed > 0
+                          ? `${removed} entrada(s) expirada(s) removida(s) do cache local de IA.`
+                          : 'Nenhuma entrada expirada encontrada no cache local de IA.',
+                      );
+                    } finally {
+                      setAiCacheBusy(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Limpar Expirados
+                </button>
+                <button
+                  type="button"
+                  disabled={aiCacheBusy}
+                  onClick={async () => {
+                    setAiCacheBusy(true);
+                    try {
+                      const removed = await clearAiIndexedDbCache({ resetStats: true });
+                      await loadAiCacheSummary();
+                      setFeedback(`Cache local de IA limpo (${removed} entrada(s) removida(s)).`);
+                    } finally {
+                      setAiCacheBusy(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Limpar Todo o Cache
+                </button>
               </div>
             </div>
-          )}
+
+            {aiCacheSummary && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <p className="text-slate-500">Consultas em Cache</p>
+                  <p className="text-lg font-bold text-slate-900 tabular-nums">{aiCacheSummary.activeEntries}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {aiCacheSummary.expiredEntries} expirada(s) · {aiCacheSummary.storageBackend === 'indexeddb' ? 'IndexedDB' : 'Memória'}
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <p className="text-slate-500">Chamadas Economizadas</p>
+                  <p className="text-lg font-bold text-[#1E7E34] tabular-nums">{aiCacheSummary.savedCalls}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {aiCacheSummary.hits + aiCacheSummary.misses > 0
+                      ? `${Math.round((aiCacheSummary.hits / (aiCacheSummary.hits + aiCacheSummary.misses)) * 100)}% taxa de reaproveitamento`
+                      : 'Sem consultas registradas'}
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <p className="text-slate-500">Espaço Utilizado</p>
+                  <p className="text-lg font-bold text-slate-900 tabular-nums">
+                    {(aiCacheSummary.totalBytes / 1024).toFixed(1)} KB
+                  </p>
+                  <p className="text-[11px] text-slate-400">Limite LRU: 180 entradas</p>
+                </div>
+                <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <p className="text-slate-500">Política de Segurança</p>
+                  <p className="text-sm font-bold text-slate-900 mt-1">Isolado por usuário</p>
+                  <p className="text-[11px] text-slate-400">Fallbacks de regras nunca entram em cache</p>
+                </div>
+              </div>
+            )}
+
+            <div className="overflow-x-auto max-w-full border border-slate-200 rounded-lg">
+              <table className="w-full min-w-[520px] text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                    <th className="py-2.5 px-3 font-semibold">Endpoint de IA</th>
+                    <th className="py-2.5 px-3 font-semibold">Expiração (TTL)</th>
+                    <th className="py-2.5 px-3 font-semibold text-right">Entradas Ativas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {Object.entries(AI_CACHE_TTL_BY_ENDPOINT).map(([ep, ttlMs]) => (
+                    <tr key={ep}>
+                      <td className="py-2 px-3 font-mono text-slate-800">{ep}</td>
+                      <td className="py-2 px-3 text-slate-600 tabular-nums">{Math.round(ttlMs / (60 * 60 * 1000))}h</td>
+                      <td className="py-2 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                        {aiCacheSummary?.byEndpoint[ep] || 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

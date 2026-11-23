@@ -25,6 +25,11 @@ import {
 } from '../constants/brandAssets';
 import { sanitizeClientAiError } from '../utils/aiClient';
 import {
+  computeAiCacheKey,
+  getAiCachedResponse,
+  setAiCachedResponse,
+} from '../utils/aiIndexedDbCache';
+import {
   DEFAULT_CONTRATO_TEMPLATE,
   DEFAULT_DIAGNOSTIC_RULE_VERSION,
   DEFAULT_EMPRESA_CONFIG,
@@ -2243,12 +2248,37 @@ export interface CallAiOptions {
   onProgress?: (message: string, attempt?: number, maxAttempts?: number) => void;
   timeoutMs?: number;
   streamProgress?: boolean;
+  /** Ignora leitura do cache local IndexedDB e força nova consulta à IA (atualiza o cache ao concluir) */
+  bypassCache?: boolean;
+  /** Desativa leitura e gravação no cache local para esta chamada específica */
+  disableCache?: boolean;
+  /** TTL customizado em milissegundos para esta entrada no IndexedDB */
+  cacheTtlMs?: number;
 }
 
 export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
   const user = auth.currentUser;
   if (!user) {
     throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
+  }
+
+  const useCache = options?.disableCache !== true;
+  const cacheKey = useCache ? await computeAiCacheKey(endpoint, body, user.uid) : '';
+
+  if (useCache && !options?.bypassCache && cacheKey) {
+    const cached = await getAiCachedResponse<T>(cacheKey);
+    if (cached) {
+      options?.onProgress?.('Resultado recuperado do cache local (sem custo de API)…', 1, 1);
+      if (cached.data && typeof cached.data === 'object' && !Array.isArray(cached.data)) {
+        return {
+          ...(cached.data as Record<string, unknown>),
+          fromCache: true,
+          cachedAt: cached.savedAt,
+          cacheExpiresAt: cached.expiresAt,
+        } as T;
+      }
+      return cached.data;
+    }
   }
 
   const clientTimeoutMs = Math.max(15000, Math.min(180000, options?.timeoutMs ?? 90000));
@@ -2439,6 +2469,15 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   }
 
   if (outcome.ok) {
+    if (useCache && cacheKey) {
+      void setAiCachedResponse({
+        key: cacheKey,
+        endpoint,
+        userScope: user.uid,
+        data: outcome.data,
+        ttlMs: options?.cacheTtlMs,
+      });
+    }
     return outcome.data;
   }
 

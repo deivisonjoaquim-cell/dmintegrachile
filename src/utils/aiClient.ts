@@ -18,6 +18,9 @@ export interface AiResponseMeta {
   modeloUsado?: string;
   tentativas?: number;
   mensagemUsuario?: string;
+  fromCache?: boolean;
+  cachedAt?: number;
+  cacheExpiresAt?: number;
 }
 
 const SAFE_PT_MESSAGES = [

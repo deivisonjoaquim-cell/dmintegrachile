@@ -297,10 +297,10 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   // ===========================================================================
   // IA Custos Referenciais
   // ===========================================================================
-  const handleConsultarCustosIa = async () => {
+  const handleConsultarCustosIa = async (forceRefresh = false) => {
     if (aiCustosLoading) return;
     setAiCustosLoading(true);
-    setAiCustosProgress('Consultando custos referenciais...');
+    setAiCustosProgress(forceRefresh ? 'Consultando custos referenciais (atualização forçada)...' : 'Consultando custos referenciais...');
     setAiCustosError(null);
     setErrorMsg(null);
     try {
@@ -311,6 +311,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
         },
         {
           onProgress: (msg) => setAiCustosProgress(msg),
+          bypassCache: forceRefresh,
         },
       );
       setCustosDraft(res);
@@ -825,7 +826,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
             <button
               type="button"
               disabled={aiCustosLoading}
-              onClick={handleConsultarCustosIa}
+              onClick={() => void handleConsultarCustosIa(false)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
@@ -846,7 +847,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
               <button
                 type="button"
                 disabled={aiCustosLoading}
-                onClick={() => void handleConsultarCustosIa()}
+                onClick={() => void handleConsultarCustosIa(true)}
                 className="px-2.5 py-1 rounded border border-red-300 bg-white text-[#C82333] font-semibold hover:bg-red-50 disabled:opacity-50"
               >
                 Tentar novamente
@@ -884,18 +885,19 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                     </>
                   ) : (
                     <p className="font-bold text-amber-900">
-                      {custosDraft.origemLabel || 'Estimativa gerada pela IA'} (confirmar na fonte oficial antes de aprovar):
+                      {custosDraft.origemLabel || 'Estimativa gerada pela IA'}
+                      {custosDraft.fromCache ? ' · Cache local' : ''} (confirmar na fonte oficial antes de aprovar):
                     </p>
                   )}
                 </div>
                 <button
                   type="button"
                   disabled={aiCustosLoading || approvingCustos}
-                  onClick={() => void handleConsultarCustosIa()}
+                  onClick={() => void handleConsultarCustosIa(true)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  {aiCustosLoading ? aiCustosProgress || 'Tentando novamente...' : 'Tentar novamente com IA'}
+                  {aiCustosLoading ? aiCustosProgress || 'Atualizando...' : custosDraft.fromCache ? 'Atualizar da IA' : 'Tentar novamente com IA'}
                 </button>
               </div>
               <p className="text-amber-900">{custosDraft.observacao}</p>

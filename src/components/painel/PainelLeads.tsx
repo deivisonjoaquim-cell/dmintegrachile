@@ -232,10 +232,10 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
     );
   }, [inspectingLead, whatIfAnswers, visaCategories, visaRequirements, legalSources, engineOptions]);
 
-  const handleRefineInspectAi = async () => {
+  const handleRefineInspectAi = async (forceRefresh = false) => {
     if (!inspectingLead?.respostasTriagem || !inspectedResult || aiLoading) return;
     setAiLoading(true);
-    setAiProgress('Iniciando análise...');
+    setAiProgress(forceRefresh ? 'Consultando IA (atualização forçada)...' : 'Verificando cache local e iniciando análise...');
     setAiError(null);
     try {
       const draft = await callAiEndpoint<AiDiagnosticDraft>(
@@ -255,6 +255,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         },
         {
           onProgress: (msg) => setAiProgress(msg),
+          bypassCache: forceRefresh,
         },
       );
       setAiDraft(draft);

@@ -25,6 +25,11 @@ import {
   translatePartnerCategory,
   translatePartnerCountry,
 } from '../utils/partnerHelpers';
+import {
+  computeAiCacheKey,
+  getAiCachedResponse,
+  setAiCachedResponse,
+} from '../utils/aiIndexedDbCache';
 
 export interface PartnerSynergyRecommendation {
   partnerId: string;
@@ -252,20 +257,29 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
         descricaoPublica: p.descricaoPublica,
       }));
 
+      const payload = {
+        profile: {
+          objetivo,
+          etapaAtual,
+          composicaoFamiliar,
+          urgencia,
+          necessidadesExtras: necessidadesExtras.trim(),
+          locale,
+        },
+        partners: compactPartners,
+      };
+      const cacheKey = await computeAiCacheKey('/api/ai/parceiros-sinergia', payload, 'public_synergy');
+      const cached = await getAiCachedResponse<PartnerSynergyResult>(cacheKey);
+      if (cached) {
+        setResult(cached.data);
+        onResultChange?.(cached.data);
+        return;
+      }
+
       const resp = await fetch('/api/ai/parceiros-sinergia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile: {
-            objetivo,
-            etapaAtual,
-            composicaoFamiliar,
-            urgencia,
-            necessidadesExtras: necessidadesExtras.trim(),
-            locale,
-          },
-          partners: compactPartners,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = (await resp.json().catch(() => ({}))) as PartnerSynergyResult & { error?: string };
@@ -277,6 +291,13 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
               : 'Não foi possível executar a análise de sinergia no momento.'),
         );
       }
+
+      void setAiCachedResponse({
+        key: cacheKey,
+        endpoint: '/api/ai/parceiros-sinergia',
+        userScope: 'public_synergy',
+        data: json,
+      });
 
       setResult(json);
       onResultChange?.(json);

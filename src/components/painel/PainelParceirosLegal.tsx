@@ -466,7 +466,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   // ===========================================================================
   // Propostas de Parceiros
   // ===========================================================================
-  const handleAnalyzeProposalIa = async (prop: PartnerProposal) => {
+  const handleAnalyzeProposalIa = async (prop: PartnerProposal, forceRefresh = false) => {
     if (aiPropLoadingId) return;
     setAiPropLoadingId(prop.id);
     setAiPropProgress('Avaliando proposta...');
@@ -488,6 +488,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         },
         {
           onProgress: (msg) => setAiPropProgress(msg),
+          bypassCache: forceRefresh,
         },
       );
       const prefixo =
@@ -877,7 +878,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     }
   };
 
-  const handleAnalyzeNormaIa = async () => {
+  const handleAnalyzeNormaIa = async (forceRefresh = false) => {
     if (
       !editingSource ||
       normaAiLoading ||
@@ -909,6 +910,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         },
         {
           onProgress: (msg) => setNormaAiProgress(msg),
+          bypassCache: forceRefresh,
         },
       );
       setNormaAiDraft(res);
@@ -923,7 +925,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     }
   };
 
-  const handleVerifyNormaOnlineIa = async (targetSource?: LegalSource) => {
+  const handleVerifyNormaOnlineIa = async (targetSource?: LegalSource, forceRefresh = false) => {
     const src = targetSource || editingSource;
     if (!src || normaAiLoading) return;
     if (targetSource) {
@@ -950,7 +952,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       >(
         '/api/ai/norma-verificar',
         { currentSource: compactSourceForAi(src) },
-        { onProgress: (msg) => setNormaAiProgress(msg) },
+        { onProgress: (msg) => setNormaAiProgress(msg), bypassCache: forceRefresh },
       );
       setNormaAiDraft(res);
       saveAiDraftCache(`norma_${src.id}`, res);
@@ -2795,7 +2797,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 <button
                   type="button"
                   disabled={normaAiLoading || (!normaNewText.trim() && !normaAttachment && !editingSource.arquivoPdfUrl)}
-                  onClick={handleAnalyzeNormaIa}
+                  onClick={() => void handleAnalyzeNormaIa(false)}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 disabled:opacity-50"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
@@ -2859,8 +2861,8 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                         disabled={normaAiLoading}
                         onClick={() =>
                           normaNewText.trim() || normaAttachment || editingSource.arquivoPdfUrl
-                            ? void handleAnalyzeNormaIa()
-                            : void handleVerifyNormaOnlineIa()
+                            ? void handleAnalyzeNormaIa(true)
+                            : void handleVerifyNormaOnlineIa(undefined, true)
                         }
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold disabled:opacity-50"
                       >

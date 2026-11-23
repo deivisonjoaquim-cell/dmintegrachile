@@ -37,6 +37,7 @@ import {
   saveAiDraftCache,
   type AiResponseMeta,
 } from '../../utils/aiClient';
+import { formatCacheExpiryTimeBR } from '../../utils/aiIndexedDbCache';
 import { CASE_TEMPLATES, PIPELINE_STAGES } from '../../data/seeds';
 import {
   callAiEndpoint,
@@ -1407,10 +1408,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     updateParecerDraft(draft);
   };
 
-  const handleGenerateAiParecer = async () => {
+  const handleGenerateAiParecer = async (forceRefresh = false) => {
     if (!activeCase || isAssistente || aiParecerLoading) return;
     setAiParecerLoading(true);
-    setAiParecerProgress('Iniciando consulta à IA...');
+    setAiParecerProgress(forceRefresh ? 'Consultando IA (atualização forçada)...' : 'Verificando cache local e consultando IA...');
     setAiParecerError(null);
     setErrorMsg(null);
     try {
@@ -1437,6 +1438,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         },
         {
           onProgress: (msg) => setAiParecerProgress(msg),
+          bypassCache: forceRefresh,
         },
       );
       updateParecerDraft({
@@ -1445,6 +1447,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         origemLabel: resp.origemLabel,
         modeloUsado: resp.modeloUsado,
         mensagemUsuario: resp.mensagemUsuario,
+        fromCache: resp.fromCache,
+        cachedAt: resp.cachedAt,
+        cacheExpiresAt: resp.cacheExpiresAt,
         enquadramentoLegal: resp.enquadramentoLegal || '',
         elegibilidadeRiscos: resp.elegibilidadeRiscos || '',
         fundamentacaoNormativa: resp.fundamentacaoNormativa || '',
@@ -1843,7 +1848,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     }
   };
 
-  const handleAnalyzeDocIa = async (docItem: CaseDocument) => {
+  const handleAnalyzeDocIa = async (docItem: CaseDocument, forceRefresh = false) => {
     if (aiDocLoadingId) return;
     setAiDocLoadingId(docItem.id);
     setAiDocProgress('Analisando anexo...');
@@ -1870,6 +1875,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         },
         {
           onProgress: (msg) => setAiDocProgress(msg),
+          bypassCache: forceRefresh,
         },
       );
       const tag =
@@ -1881,7 +1887,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       setFeedback(
         resp.fallback || resp.origem === 'regras'
           ? `${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
-          : 'Pré-análise sugestiva da IA concluída. A decisão final permanece com o analista.',
+          : resp.fromCache
+            ? 'Pré-análise recuperada do cache local (sem custo adicional de API). A decisão final permanece com o analista.'
+            : 'Pré-análise sugestiva da IA concluída. A decisão final permanece com o analista.',
       );
     } catch (err) {
       const msg = sanitizeClientAiError(err);
@@ -2507,7 +2515,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <button
                       type="button"
                       disabled={aiParecerLoading}
-                      onClick={handleGenerateAiParecer}
+                      onClick={() => void handleGenerateAiParecer(false)}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 max-w-full"
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
@@ -2529,7 +2537,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         <button
                           type="button"
                           disabled={aiParecerLoading}
-                          onClick={() => void handleGenerateAiParecer()}
+                          onClick={() => void handleGenerateAiParecer(true)}
                           className="px-2.5 py-1 rounded border border-red-300 bg-white text-[#C82333] font-semibold hover:bg-red-50 disabled:opacity-50"
                         >
                           Tentar novamente com IA
@@ -2549,7 +2557,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   {parecerDraft && (
                     <form onSubmit={handleSaveParecerDraft} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="space-y-1">
+                        <div className="space-y-1 min-w-0">
                           {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
                             <>
                               <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
@@ -2562,17 +2570,22 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           ) : (
                             <p className="text-xs font-semibold text-emerald-900 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
                               {parecerDraft.origemLabel || 'Rascunho editável gerado pela IA'} — revise e ajuste antes de aprovar.
+                              {parecerDraft.fromCache && (
+                                <span className="ml-1.5 font-normal text-emerald-800">
+                                  (Cache local{parecerDraft.cacheExpiresAt ? ` · válido até ${formatCacheExpiryTimeBR(parecerDraft.cacheExpiresAt)}` : ''})
+                                </span>
+                              )}
                             </p>
                           )}
                         </div>
                         <button
                           type="button"
                           disabled={aiParecerLoading || savingParecer}
-                          onClick={() => void handleGenerateAiParecer()}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                          onClick={() => void handleGenerateAiParecer(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 shrink-0"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
-                          {aiParecerLoading ? aiParecerProgress || 'Tentando novamente...' : 'Tentar novamente com IA'}
+                          {aiParecerLoading ? aiParecerProgress || 'Atualizando...' : parecerDraft.fromCache ? 'Atualizar da IA' : 'Tentar novamente com IA'}
                         </button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
