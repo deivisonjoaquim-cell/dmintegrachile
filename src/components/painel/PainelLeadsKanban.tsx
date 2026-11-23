@@ -540,7 +540,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 shrink-0">
+          <div className="flex flex-wrap items-center gap-1 min-w-0">
             {l.convertedCaseId ? (
               <button
                 type="button"
@@ -621,8 +621,8 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg" role="group" aria-label="Formato do Kanban">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
+          <div className="flex flex-wrap items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg max-w-full" role="group" aria-label="Formato do Kanban">
             <button
               type="button"
               onClick={() => handleLayoutChange('grade')}
@@ -655,7 +655,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as KanbanSortMode)}
             aria-label="Ordenar cards do Kanban"
-            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800"
+            className="min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800"
           >
             <option value="prioridade">Ordenar: Urgência e Prioridade</option>
             <option value="sla_contato">Ordenar: Aguardando contato</option>
@@ -663,7 +663,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
             <option value="recentes">Ordenar: Mais recentes</option>
           </select>
 
-          <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg" role="group" aria-label="Densidade dos cards">
+          <div className="flex flex-wrap items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg max-w-full" role="group" aria-label="Densidade dos cards">
             <button
               type="button"
               onClick={() => setDensity('compacto')}
@@ -1202,7 +1202,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   disabled={quickSaving}
@@ -1280,7 +1280,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 text-sm"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setLossModalLead(null)}

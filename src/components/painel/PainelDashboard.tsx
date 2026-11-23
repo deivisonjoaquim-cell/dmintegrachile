@@ -277,12 +277,12 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
           <select
             value={filterOrigem}
             onChange={(e) => setFilterOrigem(e.target.value)}
             aria-label="Filtrar métricas por origem de leads"
-            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200"
+            className="min-w-0 max-w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200"
           >
             <option value="Todas">Origem: Todas</option>
             <option value="Site">Site</option>
@@ -602,7 +602,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                             {u.detalhe}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           {u.caseId && (
                             <button
                               type="button"
@@ -629,7 +629,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
 
               <div className="space-y-5 lg:border-l lg:border-slate-100 dark:lg:border-slate-800 lg:pl-6">
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                       <CheckSquare className="w-4 h-4 text-[var(--color-primary)]" />
                       Próximas Tarefas ({dailySummary.openTasksCount})

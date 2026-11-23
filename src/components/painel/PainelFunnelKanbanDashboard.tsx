@@ -418,7 +418,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span className="text-xs text-slate-600 dark:text-slate-300 tabular-nums mr-1">
             <strong className="text-slate-900 dark:text-slate-100">{board.totalVisibleCards}</strong> de{' '}
             <strong className="text-slate-900 dark:text-slate-100">{board.totalAllCards}</strong> ativo(s)
@@ -532,7 +532,7 @@ export const PainelFunnelKanbanDashboard: React.FC<PainelFunnelKanbanDashboardPr
           }`}
         >
           <span className="font-medium">{notice.message}</span>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {notice.actionLabel && notice.onAction && (
               <button
                 type="button"

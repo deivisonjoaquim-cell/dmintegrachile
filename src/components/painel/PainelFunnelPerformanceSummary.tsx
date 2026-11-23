@@ -178,11 +178,11 @@ export const PainelFunnelPerformanceSummary: React.FC<PainelFunnelPerformanceSum
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
             <div
               role="group"
               aria-label="Filtrar período de análise de conversão"
-              className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700/70 text-xs font-medium"
+              className="inline-flex flex-wrap items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700/70 text-xs font-medium max-w-full"
             >
               {PERIOD_OPTIONS.map((opt) => {
                 const active = period === opt.id;
@@ -209,13 +209,13 @@ export const PainelFunnelPerformanceSummary: React.FC<PainelFunnelPerformanceSum
             </div>
 
             {empresa && (
-              <div className="inline-flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
                 <select
                   value={reportScope}
                   onChange={(e) => setReportScope(e.target.value)}
                   aria-label="Mês do relatório PDF"
                   disabled={exportingPdf}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-slate-400 disabled:opacity-50"
+                  className="min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-slate-400 disabled:opacity-50"
                 >
                   {monthOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>

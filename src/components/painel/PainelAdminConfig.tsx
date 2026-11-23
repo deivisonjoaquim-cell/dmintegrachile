@@ -1004,7 +1004,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-[#A61C2B] font-medium flex flex-wrap items-center justify-between gap-3">
           <span className="leading-relaxed">{errorMsg}</span>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <button
               type="button"
               disabled={promotingPrimaryAdmin}
@@ -1916,9 +1916,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
 
           {showLivePreview && (
             <div className="bg-slate-900 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between text-xs text-white">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white">
                 <span className="font-semibold">Pré-visualização Fiel do Rascunho (Com Tema, Logos e Variantes Atuais)</span>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPreviewMode('desktop')}
@@ -2042,7 +2042,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                         <p className="text-xs text-slate-600 line-clamp-1">{sec.subtitulo}</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                       <button
                         type="button"
                         disabled={idx === 0}
@@ -3684,7 +3684,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-slate-200">
               <button type="button" onClick={() => setEditingCms(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs">
                 Cancelar
               </button>
@@ -3769,7 +3769,7 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditingMember(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs">
                 Cancelar
               </button>

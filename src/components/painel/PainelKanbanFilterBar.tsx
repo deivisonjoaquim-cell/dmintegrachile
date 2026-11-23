@@ -123,12 +123,12 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
           <select
             value={assigneeFilter}
             onChange={(e) => onChangeAssigneeFilter(e.target.value)}
             aria-label="Filtrar por responsável"
-            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
+            className="min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
           >
             <option value="all">Todos responsáveis</option>
             <option value="unassigned">Sem responsável ({unassignedCount})</option>
@@ -143,7 +143,7 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
             value={datePreset}
             onChange={(e) => onChangeDatePreset(e.target.value as FunnelPerformancePeriod)}
             aria-label="Filtrar por período"
-            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
+            className="min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100"
           >
             <option value="all">Todo período</option>
             <option value="7d">Últimos 7 dias</option>
@@ -158,19 +158,19 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
                 type="date"
                 value={createdFrom}
                 onChange={(e) => onChangeCreatedFrom(e.target.value)}
-                className="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
+                className="min-w-0 max-w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
               />
               <input
                 type="date"
                 value={createdTo}
                 onChange={(e) => onChangeCreatedTo(e.target.value)}
-                className="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
+                className="min-w-0 max-w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
               />
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 tabular-nums">
+        <div className="flex flex-wrap items-center gap-2 text-slate-500 dark:text-slate-400 tabular-nums">
           <span>
             Exibindo <strong className="text-slate-900 dark:text-white">{totalVisibleCards}</strong> de {totalAllCards}
           </span>
@@ -178,7 +178,7 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
             <button
               type="button"
               onClick={onClearFocusedStage}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
               Limpar etapa
               <X className="w-3 h-3" />
@@ -188,7 +188,7 @@ export const PainelKanbanFilterBar: React.FC<PainelKanbanFilterBarProps> = ({
             <button
               type="button"
               onClick={onClearAll}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
               Limpar filtros
             </button>

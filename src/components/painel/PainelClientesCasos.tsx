@@ -2017,7 +2017,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
               <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums" style={{ color: thermo.corHex }}>
                 Docs {thermo.notaGeral}% · {thermo.faixa}
               </span>
@@ -2025,7 +2025,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 value={activeCase.etapaPipeline}
                 onChange={(e) => void handleStageChange(Number(e.target.value))}
                 aria-label="Sub-etapa operacional"
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
+                className="min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
               >
                 {PIPELINE_STAGES.map((st) => (
                   <option key={st.numero} value={st.numero}>
@@ -2037,7 +2037,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 value={activeCase.statusSermig}
                 onChange={(e) => void handleSermigStatusChange(e.target.value as Case['statusSermig'])}
                 aria-label="Status SERMIG"
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
+                className="min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium"
               >
                 {SERMIG_STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -2525,7 +2525,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           />
                           Liberar versão aprovada no Portal do Cliente
                         </label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => updateParecerDraft(null)}
@@ -2553,7 +2553,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                             <span className="font-bold text-slate-900">
                               Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
                             </span>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
                                 {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
                               </span>
@@ -2694,7 +2694,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                             </p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => {
@@ -3092,7 +3092,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5 shrink-0 no-print">
+                          <div className="flex flex-wrap items-center gap-1.5 min-w-0 no-print">
                             {d.arquivoUrl && (
                               <>
                                 <button
@@ -3444,12 +3444,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <p className="text-xs text-slate-500">Crie ou envie orçamentos na aba Financeiro do menu lateral.</p>
                   ) : (
                     caseBudgets.map((b) => (
-                      <div key={b.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-slate-900">{b.titulo}</p>
+                      <div key={b.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 break-words">{b.titulo}</p>
                           <p className="text-slate-500">Nº {b.numeroOrcamento} · {b.status}</p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-bold tabular-nums">{formatCurrency(b.totalGeral, b.moedaPrincipal)}</span>
                           {canManageClients && (
                             <button
@@ -3479,12 +3479,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <p className="text-xs text-slate-500">Nenhum lançamento financeiro vinculado.</p>
                   ) : (
                     caseFinRecords.map((f) => (
-                      <div key={f.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-slate-900">{f.descricao}</p>
+                      <div key={f.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 break-words">{f.descricao}</p>
                           <p className="text-slate-500">Venc. {formatDateBR(f.vencimento)} · {f.status}</p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-bold tabular-nums">{formatCurrency(f.valor, f.moeda)}</span>
                           {canManageClients && (
                             <button
@@ -3524,26 +3524,26 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     placeholder="Nova tarefa..."
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
                   />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="date"
                       value={newTaskPrazo}
                       onChange={(e) => setNewTaskPrazo(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                      className="flex-1 min-w-0 w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
                     />
-                    <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                    <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}>
                       Criar
                     </button>
                   </div>
                 </form>
                 <div className="space-y-2">
                   {caseTasks.map((t) => (
-                    <div key={t.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className={t.status === 'Concluída' ? 'line-through text-slate-400' : 'font-semibold text-slate-800'}>{t.titulo}</p>
+                    <div key={t.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className={t.status === 'Concluída' ? 'line-through text-slate-400 break-words' : 'font-semibold text-slate-800 break-words'}>{t.titulo}</p>
                         {t.prazo && <p className="text-[11px] text-slate-500">Prazo: {formatDateBR(t.prazo)}</p>}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={async () => {
@@ -3603,14 +3603,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <option value="Resposta Requerimento/Recurso">Resposta Requerimento/Recurso</option>
                     <option value="Vencimento Cédula">Vencimento Cédula</option>
                   </select>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="date"
                       value={newDeadlineDate}
                       onChange={(e) => setNewDeadlineDate(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                      className="flex-1 min-w-0 w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
                     />
-                    <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                    <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}>
                       Criar
                     </button>
                   </div>
@@ -3623,7 +3623,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         {dl.tipo} · {formatDateBR(dl.dataLimite)}
                       </p>
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
@@ -3683,14 +3683,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <option value="Conferência Documental">Conferência Documental</option>
                     <option value="Acompanhamento">Acompanhamento</option>
                   </select>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="datetime-local"
                       value={newAptDate}
                       onChange={(e) => setNewAptDate(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                      className="flex-1 min-w-0 w-full sm:w-auto px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
                     />
-                    <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                    <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}>
                       Agendar
                     </button>
                   </div>
@@ -3701,7 +3701,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       <p className="font-semibold text-slate-900">{apt.titulo}</p>
                       <p className="text-[11px] text-slate-500">{formatDateTimeBR(apt.dataHoraInicio)} · {apt.status}</p>
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <a
                             href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
                             target="_blank"
@@ -4092,11 +4092,11 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 {caseTasks
                   .filter((t) => t.titulo.startsWith('[Relocation]'))
                   .map((t) => (
-                    <div key={t.id} className="p-3 rounded-lg border border-slate-200 flex items-center justify-between gap-2 text-xs">
-                      <span className={t.status === 'Concluída' ? 'line-through text-slate-400' : 'font-medium text-slate-800'}>
+                    <div key={t.id} className="p-3 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className={`min-w-0 flex-1 break-words ${t.status === 'Concluída' ? 'line-through text-slate-400' : 'font-medium text-slate-800'}`}>
                         {t.titulo.replace('[Relocation] ', '')}
                       </span>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={async () => {
@@ -4189,7 +4189,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 placeholder="Justificativa técnica do administrador..."
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
               />
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setOverrideModal(null)}
@@ -4221,7 +4221,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 placeholder="Motivo do encerramento (ex.: Cédula emitida e relocation concluído, desistência formal...)"
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
               />
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" onClick={() => setCloseCaseModalOpen(false)} className="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
                   Cancelar
                 </button>
@@ -4351,7 +4351,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" onClick={() => setDocModalOpen(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
                   Cancelar
                 </button>
@@ -4459,7 +4459,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         </div>
         <div className="flex flex-wrap gap-2">
           {mode === 'ambos' && (
-            <div className="flex items-center p-1 bg-slate-200/70 rounded-lg">
+            <div className="flex flex-wrap items-center p-1 bg-slate-200/70 rounded-lg max-w-full">
               <button
                 type="button"
                 onClick={() => setSubView('casos')}
@@ -4537,7 +4537,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 text-sm"
           />
           {subView === 'casos' ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setCasesLayout(casesLayout === 'lista' ? 'kanban' : 'lista')}
@@ -5163,7 +5163,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               />
               Liberar acesso ao Portal do Cliente imediatamente (sincroniza automaticamente com a conta Google)
             </label>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setClientModalOpen(false)}
@@ -5227,7 +5227,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 ))}
               </div>
             )}
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => setCsvImportOpen(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
                 Cancelar
               </button>
@@ -5327,7 +5327,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCaseModalOpen(false)}

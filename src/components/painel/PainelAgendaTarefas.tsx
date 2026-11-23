@@ -502,7 +502,7 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <UiButton type="submit" variant="primary" size="sm">
               Salvar Registro
             </UiButton>
@@ -535,13 +535,13 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-none min-w-0 max-w-full">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar tarefa, prazo ou cliente..."
-              className="pl-8 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs w-64"
+              className="pl-8 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs w-full sm:w-64 max-w-full"
             />
           </div>
           <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 px-2 py-1.5 rounded-lg border border-slate-200 bg-white cursor-pointer">
@@ -626,7 +626,7 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
                         {t.descricao && <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-2xl">{t.descricao}</p>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       {t.caseId && (
                         <button
                           type="button"
@@ -718,7 +718,7 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -806,7 +806,7 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
                       {renderCaseBadge(apt.caseId, apt.clientId)}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                     <select
                       value={apt.status}
                       disabled={busyId === apt.id}

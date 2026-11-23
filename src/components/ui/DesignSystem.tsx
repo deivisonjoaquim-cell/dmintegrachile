@@ -35,7 +35,7 @@ export const UiButton: React.FC<UiButtonProps> = ({
     <button
       {...rest}
       style={mergedStyle}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold whitespace-nowrap transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${sizeCls} ${variantCls} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold max-w-full whitespace-normal sm:whitespace-nowrap text-center leading-tight transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${sizeCls} ${variantCls} ${className}`}
     >
       {children}
     </button>

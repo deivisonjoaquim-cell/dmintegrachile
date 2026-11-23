@@ -455,7 +455,7 @@ export const PainelDocumentosExport: React.FC<PainelDocumentosExportProps> = ({
                                   {formatDateBR(d.dataValidadeCalculada)}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-2 no-print shrink-0">
+                              <div className="flex flex-wrap items-center gap-2 no-print">
                                 {d.arquivoUrl ? (
                                   <>
                                     <button

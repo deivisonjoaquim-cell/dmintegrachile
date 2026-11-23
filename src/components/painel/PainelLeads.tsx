@@ -527,8 +527,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             Triagem por prioridade e confiança, simulador &quot;E se&quot;, recálculo sob demanda e conversão em 1 clique
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex items-center p-1 bg-slate-200/70 dark:bg-slate-800 rounded-lg">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
+          <div className="flex flex-wrap items-center p-1 bg-slate-200/70 dark:bg-slate-800 rounded-lg max-w-full">
             {[
               { id: 'lista', label: 'Lista' },
               { id: 'kanban', label: 'Kanban' },
@@ -938,66 +938,68 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                           <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{l.statusFunil}</p>
                         </td>
                         <td className="py-3 px-3 text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatDateBR(l.createdAt)}</td>
-                        <td className="py-3 px-3 text-right space-x-1 whitespace-nowrap">
-                          {l.respostasTriagem && (
+                        <td className="py-3 px-3">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            {l.respostasTriagem && (
+                              <button
+                                type="button"
+                                onClick={() => openInspectModal(l)}
+                                title="Analisar diagnóstico e simular cenário E se"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                Analisar
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => openInspectModal(l)}
-                              title="Analisar diagnóstico e simular cenário E se"
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                              onClick={() => void handleSendTemplate(l)}
+                              title="Usar modelo no WhatsApp"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1E7E34] text-white text-xs font-medium whitespace-nowrap"
                             >
-                              <Eye className="w-3.5 h-3.5" />
-                              Analisar
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              WhatsApp
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => void handleSendTemplate(l)}
-                            title="Usar modelo no WhatsApp"
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1E7E34] text-white text-xs font-medium"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            WhatsApp
-                          </button>
-                          {l.convertedCaseId ? (
+                            {l.convertedCaseId ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenCase(l.convertedCaseId!)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
+                              >
+                                Ver Caso
+                              </button>
+                            ) : (role === 'admin' || role === 'consultor') && (
+                              <button
+                                type="button"
+                                disabled={convertingId === l.id}
+                                onClick={() => void handleConvert(l)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white text-xs font-semibold whitespace-nowrap"
+                                style={{ backgroundColor: 'var(--color-primary)' }}
+                              >
+                                <ArrowRightCircle className="w-3.5 h-3.5" />
+                                {convertingId === l.id ? 'Convertendo...' : 'Converter'}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => onOpenCase(l.convertedCaseId!)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                              onClick={() => setEditingLead(l)}
+                              aria-label={`Editar ${l.nome}`}
+                              className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
                             >
-                              Ver Caso
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
-                          ) : (role === 'admin' || role === 'consultor') && (
-                            <button
-                              type="button"
-                              disabled={convertingId === l.id}
-                              onClick={() => void handleConvert(l)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white text-xs font-semibold"
-                              style={{ backgroundColor: 'var(--color-primary)' }}
-                            >
-                              <ArrowRightCircle className="w-3.5 h-3.5" />
-                              {convertingId === l.id ? 'Convertendo...' : 'Converter'}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setEditingLead(l)}
-                            aria-label={`Editar ${l.nome}`}
-                            className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          {canDeleteLead && (
-                            <button
-                              type="button"
-                              onClick={() => requestDeleteLead(l)}
-                              aria-label={`Excluir ${l.nome}`}
-                              title={`Excluir lead ${l.nome}`}
-                              className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                            {canDeleteLead && (
+                              <button
+                                type="button"
+                                onClick={() => requestDeleteLead(l)}
+                                aria-label={`Excluir ${l.nome}`}
+                                title={`Excluir lead ${l.nome}`}
+                                className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1032,17 +1034,17 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       {inspectingLead && inspectedResult && inspectingLead.respostasTriagem && (
         <div className="fixed inset-0 z-50 bg-slate-900/75 flex items-start justify-center p-4 overflow-y-auto" role="dialog" aria-modal="true">
           <div className="bg-[var(--color-bg)] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-6xl w-full p-5 sm:p-8 my-6 space-y-4">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="min-w-0">
                 <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-[var(--color-primary)] dark:text-sky-400" />
-                  Diagnóstico Completo — {inspectingLead.nome}
+                  <Activity className="w-5 h-5 shrink-0 text-[var(--color-primary)] dark:text-sky-400" />
+                  <span className="break-words">Diagnóstico Completo — {inspectingLead.nome}</span>
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
                   {inspectingLead.email} · {inspectingLead.whatsapp} · Versão {inspectingLead.versaoRegras || activeRules.versao}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleExportLeadLgpd(inspectingLead)}
@@ -1151,7 +1153,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
               />
             </div>
             <div className="flex flex-wrap justify-between items-center gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleExportLeadLgpd(editingLead)}
@@ -1170,7 +1172,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
                   </button>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setEditingLead(null)}

@@ -876,7 +876,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                 {formatCurrency(custosDraft.cedulaIdentidadeClp, 'CLP')}
               </p>
               {role === 'admin' && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={handleApproveCustos}
@@ -995,7 +995,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                 </div>
               ))}
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => setBudgetModal(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
                 Cancelar
               </button>
@@ -1031,11 +1031,11 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
               placeholder="Descrição da parcela ou taxa..."
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <select
                 value={fMoeda}
                 onChange={(e) => setFMoeda(e.target.value as CurrencyCode)}
-                className="px-2.5 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 text-xs bg-white"
               >
                 <option value="BRL">BRL</option>
                 <option value="CLP">CLP</option>
@@ -1048,17 +1048,17 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                 value={fValor}
                 onChange={(e) => setFValor(Number(e.target.value))}
                 placeholder="Valor"
-                className="px-2.5 py-2 rounded-lg border border-slate-300 text-xs"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 text-xs"
               />
               <input
                 type="date"
                 required
                 value={fVenc}
                 onChange={(e) => setFVenc(e.target.value)}
-                className="px-2.5 py-2 rounded-lg border border-slate-300 text-xs"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-300 text-xs"
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => setFinModal(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold">
                 Cancelar
               </button>

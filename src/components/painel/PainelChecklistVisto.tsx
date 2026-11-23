@@ -499,7 +499,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
             Consulte os documentos exigidos para cada categoria migratória e marque o status de conclusão diretamente no processo.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           {canPersistToCase && missingInCaseCount > 0 && (
             <button
               type="button"
@@ -629,7 +629,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
               Você está consultando os requisitos de <strong>{selectedVisa.nomePortugues}</strong>. O caso{' '}
               <strong>{activeCase.titulo}</strong> usa atualmente outra categoria.
             </span>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedVisaId(activeCaseVisaId)}
@@ -1016,9 +1016,9 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                     </div>
 
                     {/* Coluna Direita: Emissão, Apostila, Tradução, Status, Detalhes */}
-                    <div className="flex flex-wrap items-center gap-2 pl-9 md:pl-0 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-9 md:pl-0 min-w-0">
                       {canPersistToCase && (entry.validadeDias > 0 || entry.dataEmissao || entry.dataValidadeCalculada) && (
-                        <label className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                        <label className="inline-flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-600 max-w-full">
                           <span>Emissão:</span>
                           <input
                             type="date"
@@ -1026,7 +1026,7 @@ export const PainelChecklistVisto: React.FC<PainelChecklistVistoProps> = ({
                             value={entry.dataEmissao ? entry.dataEmissao.slice(0, 10) : ''}
                             disabled={isBusy}
                             onChange={(e) => handleEmissionDateChange(entry, e.target.value)}
-                            className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs text-slate-800 tabular-nums disabled:opacity-50"
+                            className="min-w-0 max-w-full px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs text-slate-800 tabular-nums disabled:opacity-50"
                           />
                         </label>
                       )}

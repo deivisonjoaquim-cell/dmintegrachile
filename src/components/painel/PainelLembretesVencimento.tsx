@@ -816,7 +816,7 @@ export const PainelLembretesVencimento: React.FC<PainelLembretesVencimentoProps>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pl-11 lg:pl-0 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-11 lg:pl-0 min-w-0">
                   {onOpenChecklist && !isVisa && (
                     <button
                       type="button"

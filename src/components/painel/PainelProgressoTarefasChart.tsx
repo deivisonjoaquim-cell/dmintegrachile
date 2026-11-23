@@ -251,12 +251,12 @@ export const PainelProgressoTarefasChart: React.FC<PainelProgressoTarefasChartPr
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
           <select
             aria-label="Filtrar progresso de tarefas por cliente"
             value={selectedClientId}
             onChange={(e) => setSelectedClientId(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 max-w-[240px]"
+            className="min-w-0 w-full sm:w-auto max-w-full sm:max-w-[240px] px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100"
           >
             <option value="">
               {effectiveCaseFilter ? 'Processo selecionado no painel' : 'Todos os clientes ativos'}

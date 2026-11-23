@@ -82,11 +82,11 @@ export const PainelAnalyticsRecharts: React.FC<PainelAnalyticsRechartsProps> = (
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
             <div
               role="group"
               aria-label="Período do painel estatístico"
-              className="inline-flex items-center p-0.5 rounded-lg bg-[#F1EDE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] text-xs font-semibold"
+              className="inline-flex flex-wrap items-center p-0.5 rounded-lg bg-[#F1EDE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] text-xs font-semibold max-w-full"
             >
               {(
                 [

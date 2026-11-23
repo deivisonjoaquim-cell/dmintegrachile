@@ -182,10 +182,10 @@ export function MediaAssetPicker({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
         <span className="text-xs font-semibold text-slate-800">{label}</span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {value && (
             <>
-              <div className="inline-flex rounded border border-slate-200 bg-slate-50 p-0.5 text-[10px]">
+              <div className="inline-flex flex-wrap rounded border border-slate-200 bg-slate-50 p-0.5 text-[10px] max-w-full">
                 <button
                   type="button"
                   onClick={() => setPreviewBg('claro')}

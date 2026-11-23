@@ -704,7 +704,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     <div className={`min-h-screen flex overflow-x-clip bg-[var(--color-bg)] text-[#0B1F33] dark:text-slate-100 transition-colors ${panelThemeClass}`}>
       {/* Sidebar Desktop Enxuta e Fixa no Viewport */}
       <aside
-        className={`hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
+        className={`hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen overflow-hidden bg-white dark:bg-[#0D1E31] border-r border-[#E5DFD2] dark:border-[#1C324B] shrink-0 no-print transition-all ${
           sidebarCollapsed ? 'lg:w-[76px]' : 'lg:w-56 xl:w-64'
         }`}
       >
@@ -827,10 +827,10 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               onClick={() => void logout()}
               title="Sair do painel"
               aria-label="Sair do painel"
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] whitespace-nowrap"
+              className="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] whitespace-nowrap overflow-hidden"
             >
               <LogOut className="w-3.5 h-3.5 shrink-0" />
-              {!sidebarCollapsed && <span>Sair</span>}
+              {!sidebarCollapsed && <span className="truncate">Sair</span>}
             </button>
           </div>
         </div>
@@ -839,7 +839,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
-        <header className="bg-white/95 dark:bg-[#0D1E31]/95 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 min-h-14 py-2 flex items-center justify-between gap-3 no-print sticky top-0 z-30">
+        <header className="bg-white/95 dark:bg-[#0D1E31]/95 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 min-h-14 py-2 flex flex-wrap items-center justify-between gap-2 sm:gap-3 no-print sticky top-0 z-30">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <button
               type="button"
@@ -891,7 +891,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center justify-end gap-2 max-w-full">
             {unreadChatCount > 0 && (
               <button
                 type="button"

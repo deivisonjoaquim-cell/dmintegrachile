@@ -950,12 +950,12 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                   </label>
                   <div className="space-y-2">
                     <label className="block text-xs font-semibold text-slate-700">Link de assinatura externa (opcional)</label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <input
                         value={externalSignLink}
                         onChange={(e) => setExternalSignLink(e.target.value)}
                         placeholder="https://assinador.gov.br/..."
-                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                        className="flex-1 min-w-0 w-full sm:w-auto px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
                       />
                       <UiButton type="button" size="sm" onClick={() => void handleSave()}>
                         Salvar Link
@@ -976,7 +976,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                 placeholder="Informe o motivo formal do cancelamento..."
                 className="w-full px-3 py-2 rounded-lg border border-red-300 text-xs bg-white"
               />
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <UiButton type="button" size="sm" variant="outline" onClick={() => setShowCancelBox(false)}>
                   Voltar
                 </UiButton>
