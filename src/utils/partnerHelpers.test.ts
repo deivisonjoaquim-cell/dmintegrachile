@@ -5,8 +5,11 @@ import {
   computePartnerNetworkMetrics,
   extractPartnerWebsiteFromMessage,
   filterAndSortPublicPartners,
+  getPartnerMacroGroupLabel,
+  matchesPartnerMacroGroup,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
+  PARTNER_MACRO_GROUPS,
   sanitizePartnerImageUrl,
   translatePartnerCategory,
   validatePartnerProposalInput,
@@ -52,6 +55,19 @@ const SAMPLE_PUBLIC: PartnerPublic[] = [
     recomendadoAosClientes: true,
     statusHomologacao: 'Ativo/Indicado',
   },
+  {
+    id: 'p4',
+    nome: 'Cordillera Contabilidade & SpA',
+    categoria: 'Contabilidade / Abertura Empresa',
+    pais: 'Chile',
+    cidadeRegiao: 'Las Condes, Santiago',
+    whatsapp: '+56 9 6666 3322',
+    siteInstagram: 'https://cordilleraspa.cl',
+    avaliacao: 5,
+    descricaoPublica: 'Abertura de SpA, contabilidade e SII para brasileiros.',
+    recomendadoAosClientes: true,
+    statusHomologacao: 'Ativo/Indicado',
+  },
 ];
 
 describe('partnerHelpers — URL safety, filtering, sorting & metrics', () => {
@@ -76,7 +92,7 @@ describe('partnerHelpers — URL safety, filtering, sorting & metrics', () => {
     assert.equal(sanitizePartnerImageUrl('data:text/html;base64,PHNjcmlwdD4='), null);
   });
 
-  it('filters public partners by country (including binational Ambos), category, search and sort order', () => {
+  it('filters public partners by country (including binational Ambos), category, macro group, search and sort order', () => {
     const chileMatches = filterAndSortPublicPartners(SAMPLE_PUBLIC, {
       search: '',
       pais: 'Chile',
@@ -85,7 +101,7 @@ describe('partnerHelpers — URL safety, filtering, sorting & metrics', () => {
     });
     assert.deepEqual(
       chileMatches.map((p) => p.id),
-      ['p3', 'p2'],
+      ['p3', 'p4', 'p2'],
     );
 
     const searchMatches = filterAndSortPublicPartners(SAMPLE_PUBLIC, {
@@ -96,8 +112,38 @@ describe('partnerHelpers — URL safety, filtering, sorting & metrics', () => {
     });
     assert.deepEqual(
       searchMatches.map((p) => p.id),
-      ['p3', 'p2'],
+      ['p3', 'p4', 'p2'],
     );
+
+    const juridicoMatches = filterAndSortPublicPartners(SAMPLE_PUBLIC, {
+      search: '',
+      pais: 'Todos',
+      categoria: 'Todas',
+      macroGroup: 'Juridico',
+      sortBy: 'nome',
+    });
+    assert.deepEqual(
+      juridicoMatches.map((p) => p.id),
+      ['p3'],
+    );
+
+    const financeiroMatches = filterAndSortPublicPartners(SAMPLE_PUBLIC, {
+      search: '',
+      pais: 'Todos',
+      categoria: 'Todas',
+      macroGroup: 'Financeiro',
+      sortBy: 'nome',
+    });
+    assert.deepEqual(
+      financeiroMatches.map((p) => p.id),
+      ['p4'],
+    );
+
+    assert.equal(matchesPartnerMacroGroup('Imobiliária', 'Imobiliario'), true);
+    assert.equal(matchesPartnerMacroGroup('Tradutor Juramentado', 'Documental'), true);
+    assert.equal(matchesPartnerMacroGroup('Imobiliária', 'Juridico'), false);
+    assert.ok(PARTNER_MACRO_GROUPS.length >= 6);
+    assert.equal(getPartnerMacroGroupLabel('Imobiliario', 'es-CL'), 'Inmobiliario');
   });
 
   it('computes accurate partner network metrics and Chilean Spanish category translations', () => {

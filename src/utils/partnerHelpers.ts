@@ -12,6 +12,86 @@ export const PARTNER_CATEGORIES: readonly PartnerCategory[] = [
   'Outro',
 ] as const;
 
+export type PartnerMacroGroupId =
+  | 'Todos'
+  | 'Juridico'
+  | 'Imobiliario'
+  | 'Financeiro'
+  | 'Documental'
+  | 'SaudeEducacao'
+  | 'Operacional';
+
+export interface PartnerMacroGroup {
+  id: PartnerMacroGroupId;
+  labelPt: string;
+  labelEs: string;
+  categories: readonly PartnerCategory[];
+}
+
+export const PARTNER_MACRO_GROUPS: readonly PartnerMacroGroup[] = [
+  {
+    id: 'Todos',
+    labelPt: 'Todas as áreas',
+    labelEs: 'Todas las áreas',
+    categories: PARTNER_CATEGORIES,
+  },
+  {
+    id: 'Juridico',
+    labelPt: 'Jurídico',
+    labelEs: 'Jurídico',
+    categories: ['Escritório de Advocacia'],
+  },
+  {
+    id: 'Imobiliario',
+    labelPt: 'Imobiliário',
+    labelEs: 'Inmobiliario',
+    categories: ['Imobiliária'],
+  },
+  {
+    id: 'Financeiro',
+    labelPt: 'Financeiro',
+    labelEs: 'Financiero',
+    categories: ['Contabilidade / Abertura Empresa'],
+  },
+  {
+    id: 'Documental',
+    labelPt: 'Documental',
+    labelEs: 'Documental',
+    categories: ['Tradutor Juramentado', 'Cartório / Apostilamento'],
+  },
+  {
+    id: 'SaudeEducacao',
+    labelPt: 'Saúde & Educação',
+    labelEs: 'Salud y Educación',
+    categories: ['Seguradora / Saúde', 'Escola / Universidade'],
+  },
+  {
+    id: 'Operacional',
+    labelPt: 'Operacional',
+    labelEs: 'Operativo',
+    categories: ['Despachante', 'Outro'],
+  },
+] as const;
+
+export function matchesPartnerMacroGroup(
+  category: string,
+  macroGroup: PartnerMacroGroupId = 'Todos',
+): boolean {
+  if (macroGroup === 'Todos') return true;
+  const group = PARTNER_MACRO_GROUPS.find((g) => g.id === macroGroup);
+  if (!group) return true;
+  return (group.categories as readonly string[]).includes(category);
+}
+
+export function getPartnerMacroGroupLabel(
+  macroGroup: PartnerMacroGroupId,
+  locale: 'pt-BR' | 'es-CL',
+): string {
+  const group = PARTNER_MACRO_GROUPS.find((g) => g.id === macroGroup);
+  if (!group) return macroGroup;
+  return locale === 'es-CL' ? group.labelEs : group.labelPt;
+}
+
 const CATEGORY_ES_CL_MAP: Record<string, string> = {
   'Escritório de Advocacia': 'Estudio Jurídico',
   'Cartório / Apostilamento': 'Notaría / Apostilla',
@@ -124,6 +204,7 @@ export interface PublicPartnerFilters {
   search: string;
   pais: 'Todos' | 'Brasil' | 'Chile' | 'Ambos';
   categoria: string;
+  macroGroup?: PartnerMacroGroupId;
   sortBy: PublicPartnerSort;
 }
 
@@ -138,6 +219,12 @@ export function filterAndSortPublicPartners(
       if (p.pais !== 'Ambos') return false;
     } else if (filters.pais !== 'Todos') {
       if (p.pais !== filters.pais && p.pais !== 'Ambos') return false;
+    }
+
+    if (filters.macroGroup && filters.macroGroup !== 'Todos') {
+      if (!matchesPartnerMacroGroup(p.categoria, filters.macroGroup)) {
+        return false;
+      }
     }
 
     if (filters.categoria !== 'Todas' && p.categoria !== filters.categoria) {

@@ -44,6 +44,11 @@ import {
   analyzePartnerSynergy,
   sanitizeSynergyInput,
 } from './server/partnerSynergyService.ts';
+import {
+  isAllowedTestimonialVideoMime,
+  MAX_TESTIMONIAL_VIDEO_BYTES,
+  saveValidatedTestimonialVideo,
+} from './server/testimonialVideoService.ts';
 import type { CommunicationLog } from './src/types/domain.ts';
 
 const firebaseConfig = loadFirebaseServerConfig();
@@ -263,6 +268,36 @@ function publicSynergyRateLimit(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+const testimonialVideoRateWindows = new Map<string, number[]>();
+function testimonialVideoRateLimit(req: Request, res: Response, next: NextFunction): void {
+  const key = req.ip || 'anon_video';
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const maxReqs = 6;
+  const hits = (testimonialVideoRateWindows.get(key) || []).filter((ts) => now - ts < windowMs);
+  if (hits.length >= maxReqs) {
+    res.status(429).json({
+      error: 'Limite temporário de envio de vídeos atingido. Aguarde alguns minutos e tente novamente.',
+    });
+    return;
+  }
+  hits.push(now);
+  testimonialVideoRateWindows.set(key, hits);
+  next();
+}
+
+const uploadTestimonialVideo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_TESTIMONIAL_VIDEO_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (!isAllowedTestimonialVideoMime(file.mimetype)) {
+      cb(new Error('Formato de vídeo inválido. Use WebM ou MP4 de até 8 MB.'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
 // =============================================================================
 // Gemini Route Dependencies (config resolved via env in server/geminiWrapper.ts)
 // =============================================================================
@@ -327,8 +362,12 @@ app.use(
   express.static(UPLOAD_DIR, {
     maxAge: '365d',
     setHeaders: (res, filePath) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       if (/\.(webp|svg|png|jpe?g|ico)$/i.test(filePath)) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (/\.(webm|mp4|mov)$/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+        res.setHeader('Content-Disposition', 'inline');
       }
     },
   }),
@@ -775,6 +814,42 @@ app.post('/api/ai/parceiros-sinergia', publicSynergyRateLimit, async (req: Reque
   }
 
   res.status(200).json(outcome.data);
+});
+
+// -----------------------------------------------------------------------------
+// 7c. /api/testimonials/upload-video — Upload de vídeo curto gravado via webcam
+// -----------------------------------------------------------------------------
+app.post('/api/testimonials/upload-video', testimonialVideoRateLimit, (req: Request, res: Response) => {
+  uploadTestimonialVideo.single('video')(req, res, (err: unknown) => {
+    if (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao enviar o vídeo do depoimento.';
+      const statusCode = msg.toLowerCase().includes('large') ? 413 : 400;
+      res.status(statusCode).json({ error: msg });
+      return;
+    }
+    if (!req.file || !req.file.buffer) {
+      res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });
+      return;
+    }
+
+    const saved = saveValidatedTestimonialVideo({
+      buffer: req.file.buffer,
+      declaredMime: req.file.mimetype,
+      uploadDir: UPLOAD_DIR,
+    });
+
+    if (!saved.ok) {
+      res.status(saved.statusCode).json({ error: saved.error });
+      return;
+    }
+
+    res.status(201).json({
+      url: saved.url,
+      filename: saved.filename,
+      mimeType: saved.mimeType,
+      size: saved.size,
+    });
+  });
 });
 
 // -----------------------------------------------------------------------------

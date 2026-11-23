@@ -307,9 +307,9 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
   };
 
   const priorityToneClass = (priority: PartnerSynergyRecommendation['prioridade']): string => {
-    if (priority === 'Essencial') return 'text-[#146B43]';
-    if (priority === 'Recomendado') return 'text-[#8C6D14]';
-    return 'text-[#4A5A6D]';
+    if (priority === 'Essencial') return 'text-[#146B43] dark:text-emerald-400';
+    if (priority === 'Recomendado') return 'text-[#8C6D14] dark:text-[#E5C76B]';
+    return 'text-[#4A5A6D] dark:text-slate-400';
   };
 
   if (partnersPublic.length === 0) return null;
@@ -317,7 +317,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
   return (
     <section
       id="sinergia-ia"
-      className="scroll-mt-24 bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden"
+      className="scroll-mt-24 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl overflow-hidden"
     >
       {/* Top Executive Header */}
       <div className="bg-[#0B1F33] text-white px-6 py-6 sm:px-8 sm:py-7 border-b border-white/10">
@@ -362,14 +362,14 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
       <div className="p-6 sm:p-8 space-y-6">
         <form onSubmit={handleAnalyze} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label htmlFor="syn-objetivo" className="block text-xs font-semibold text-[#0B1F33] mb-1.5">
+            <label htmlFor="syn-objetivo" className="block text-xs font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">
               {isEs ? 'Objetivo principal en Chile' : 'Objetivo principal no Chile'}
             </label>
             <select
               id="syn-objetivo"
               value={objetivoIdx}
               onChange={(e) => setObjetivoIdx(Number(e.target.value))}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] bg-white dark:bg-[#081524] text-xs sm:text-sm text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
             >
               {objetivoOptions.map((opt, idx) => (
                 <option key={opt} value={idx}>
@@ -380,14 +380,14 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
           </div>
 
           <div>
-            <label htmlFor="syn-etapa" className="block text-xs font-semibold text-[#0B1F33] mb-1.5">
+            <label htmlFor="syn-etapa" className="block text-xs font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">
               {isEs ? 'Etapa actual de tu jornada' : 'Etapa atual da jornada'}
             </label>
             <select
               id="syn-etapa"
               value={etapaIdx}
               onChange={(e) => setEtapaIdx(Number(e.target.value))}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] bg-white dark:bg-[#081524] text-xs sm:text-sm text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
             >
               {etapaOptions.map((opt, idx) => (
                 <option key={opt} value={idx}>
@@ -398,14 +398,14 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
           </div>
 
           <div>
-            <label htmlFor="syn-familia" className="block text-xs font-semibold text-[#0B1F33] mb-1.5">
+            <label htmlFor="syn-familia" className="block text-xs font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">
               {isEs ? 'Composición familiar' : 'Composição familiar'}
             </label>
             <select
               id="syn-familia"
               value={familiaIdx}
               onChange={(e) => setFamiliaIdx(Number(e.target.value))}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] bg-white dark:bg-[#081524] text-xs sm:text-sm text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
             >
               {familiaOptions.map((opt, idx) => (
                 <option key={opt} value={idx}>
@@ -416,14 +416,14 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
           </div>
 
           <div>
-            <label htmlFor="syn-urgencia" className="block text-xs font-semibold text-[#0B1F33] mb-1.5">
+            <label htmlFor="syn-urgencia" className="block text-xs font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">
               {isEs ? 'Plazo previsto' : 'Prazo / Urgência'}
             </label>
             <select
               id="syn-urgencia"
               value={urgenciaIdx}
               onChange={(e) => setUrgenciaIdx(Number(e.target.value))}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-xs sm:text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+              className="w-full px-3 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] bg-white dark:bg-[#081524] text-xs sm:text-sm text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
             >
               {urgenciaOptions.map((opt, idx) => (
                 <option key={opt} value={idx}>
@@ -434,7 +434,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
           </div>
 
           <div className="md:col-span-2 lg:col-span-3">
-            <label htmlFor="syn-extras" className="block text-xs font-semibold text-[#0B1F33] mb-1.5">
+            <label htmlFor="syn-extras" className="block text-xs font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">
               {isEs ? 'Necesidades específicas (opcional)' : 'Necessidades específicas (opcional)'}
             </label>
             <input
@@ -448,7 +448,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
                   ? 'Ej.: necesito traducir certificados, buscar departamento en Providencia y abrir una SpA...'
                   : 'Ex.: preciso traduzir certidões, buscar apartamento em Providencia e abrir empresa SpA...'
               }
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] bg-white text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
             />
           </div>
 
@@ -456,16 +456,16 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#0B1F33] hover:bg-[#132d48] text-white text-sm font-semibold transition-colors disabled:opacity-60 whitespace-nowrap"
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#0B1F33] hover:bg-[#132d48] dark:bg-[#C8A236] dark:hover:bg-[#b5912c] text-white dark:text-[#0B1F33] text-sm font-semibold transition-colors disabled:opacity-60 whitespace-nowrap"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-[#E5C76B]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#E5C76B] dark:text-[#0B1F33]" />
                   {isEs ? 'Analizando...' : 'Analisando...'}
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-[#E5C76B]" />
+                  <Sparkles className="w-4 h-4 text-[#E5C76B] dark:text-[#0B1F33]" />
                   {isEs ? 'Analizar sinergia' : 'Analisar sinergia'}
                 </>
               )}
@@ -476,7 +476,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
                 onClick={handleReset}
                 title={isEs ? 'Limpiar análisis' : 'Limpar análise'}
                 aria-label={isEs ? 'Limpiar análisis' : 'Limpar análise'}
-                className="p-2.5 rounded-lg border border-[#DDD6C7] text-[#4A5A6D] hover:text-[#0B1F33] hover:bg-[#F7F5F0] shrink-0"
+                className="p-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white hover:bg-[#F7F5F0] dark:hover:bg-[#142942] shrink-0"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
@@ -493,7 +493,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.22 }}
-              className="rounded-xl bg-red-50 border border-red-200 p-4 flex items-start gap-3 text-sm text-[#9B1C27]"
+              className="rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-4 flex items-start gap-3 text-sm text-[#9B1C27] dark:text-red-300"
               role="alert"
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -516,21 +516,21 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="space-y-5 pt-4 border-t border-[#EFECE3]"
+              className="space-y-5 pt-4 border-t border-[#EFECE3] dark:border-[#1C324B]"
             >
               {/* Strategic Summary Band */}
-              <div className="rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="rounded-xl bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold text-[#8C6D14] uppercase tracking-wider">
+                  <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] uppercase tracking-wider">
                     {isEs ? 'Diagnóstico de sinergia' : 'Síntese estratégica de sinergia'} · {result.etapaSugerida}
                   </p>
-                  <p className="text-sm text-[#0B1F33] leading-relaxed">{result.resumoEstrategico}</p>
+                  <p className="text-sm text-[#0B1F33] dark:text-slate-100 leading-relaxed">{result.resumoEstrategico}</p>
                 </div>
-                <div className="shrink-0 text-left md:text-right border-t md:border-t-0 md:border-l border-[#DDD6C7] pt-3 md:pt-0 md:pl-5">
-                  <p className="text-2xl font-bold font-mono tabular-nums text-[#0B1F33]">
+                <div className="shrink-0 text-left md:text-right border-t md:border-t-0 md:border-l border-[#DDD6C7] dark:border-[#253D58] pt-3 md:pt-0 md:pl-5">
+                  <p className="text-2xl font-bold font-mono tabular-nums text-[#0B1F33] dark:text-white">
                     {result.recomendacoes.length}
                   </p>
-                  <p className="text-[11px] text-[#4A5A6D]">
+                  <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400">
                     {isEs ? 'Aliados recomendados' : 'Parceiros compatíveis'}
                   </p>
                 </div>
@@ -557,12 +557,12 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
                         delay: Math.min(idx * 0.06, 0.24),
                         ease: [0.22, 1, 0.36, 1],
                       }}
-                      className="rounded-xl border border-[#E5DFD2] bg-white p-5 flex flex-col justify-between gap-4 hover:border-[#C8A236]/80 transition-colors"
+                      className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0A192A] p-5 flex flex-col justify-between gap-4 hover:border-[#C8A236]/80 transition-colors"
                     >
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-11 h-11 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center overflow-hidden shrink-0">
+                            <div className="w-11 h-11 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center overflow-hidden shrink-0">
                               {safeLogo ? (
                                 <OptimizedImage
                                   src={safeLogo}
@@ -572,61 +572,61 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
                                   className="max-w-full max-h-full object-contain p-1"
                                 />
                               ) : (
-                                <Icon className="w-5 h-5 text-[#8C6D14]" />
+                                <Icon className="w-5 h-5 text-[#8C6D14] dark:text-[#E5C76B]" />
                               )}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[11px] text-[#4A5A6D] truncate">
+                              <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 truncate">
                                 <span className={`font-semibold ${priorityToneClass(rec.prioridade)}`}>
                                   {translatePriority(rec.prioridade)}
                                 </span>
                                 <span aria-hidden="true"> · </span>
                                 <span>{translatePartnerCategory(partner.categoria, locale)}</span>
                               </p>
-                              <h3 className="text-base font-bold text-[#0B1F33] truncate">{partner.nome}</h3>
+                              <h3 className="text-base font-bold text-[#0B1F33] dark:text-white truncate">{partner.nome}</h3>
                             </div>
                           </div>
 
                           <div className="text-right shrink-0">
-                            <p className="text-lg font-bold font-mono tabular-nums text-[#0B1F33] leading-none">
+                            <p className="text-lg font-bold font-mono tabular-nums text-[#0B1F33] dark:text-[#E5C76B] leading-none">
                               {rec.scoreSinergia}%
                             </p>
-                            <p className="text-[10px] uppercase tracking-wider text-[#4A5A6D] mt-0.5">
+                            <p className="text-[10px] uppercase tracking-wider text-[#4A5A6D] dark:text-slate-400 mt-0.5">
                               {isEs ? 'Sinergia' : 'Sinergia'}
                             </p>
                           </div>
                         </div>
 
                         {/* Minimalist Synergy Progress Rail */}
-                        <div className="h-1.5 w-full rounded-full bg-[#EFECE3] overflow-hidden">
+                        <div className="h-1.5 w-full rounded-full bg-[#EFECE3] dark:bg-[#1C324B] overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${rec.scoreSinergia}%` }}
                             transition={{ duration: 0.55, delay: 0.1 + idx * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                            className="h-full rounded-full bg-[#0B1F33]"
+                            className="h-full rounded-full bg-[#0B1F33] dark:bg-[#C8A236]"
                           />
                         </div>
 
-                        <p className="text-xs sm:text-sm text-[#4A5A6D] leading-relaxed">{rec.justificativa}</p>
+                        <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">{rec.justificativa}</p>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-[#F1EDE4] text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-[#F1EDE4] dark:border-[#1C324B] text-xs">
                           <div>
-                            <p className="font-semibold text-[#0B1F33]">
+                            <p className="font-semibold text-[#0B1F33] dark:text-slate-200">
                               {isEs ? 'Momento ideal' : 'Momento ideal'}
                             </p>
-                            <p className="text-[#4A5A6D] mt-0.5">{rec.momentoIdeal}</p>
+                            <p className="text-[#4A5A6D] dark:text-slate-400 mt-0.5">{rec.momentoIdeal}</p>
                           </div>
                           <div>
-                            <p className="font-semibold text-[#0B1F33]">
+                            <p className="font-semibold text-[#0B1F33] dark:text-slate-200">
                               {isEs ? 'Próximo paso' : 'Próximo passo'}
                             </p>
-                            <p className="text-[#4A5A6D] mt-0.5">{rec.proximoPasso}</p>
+                            <p className="text-[#4A5A6D] dark:text-slate-400 mt-0.5">{rec.proximoPasso}</p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-[#F1EDE4] flex flex-wrap items-center justify-between gap-3">
-                        <span className="text-[11px] text-[#4A5A6D]">
+                      <div className="pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-[11px] text-[#4A5A6D] dark:text-slate-400">
                           {translatePartnerCountry(partner.pais, locale)}
                           {partner.cidadeRegiao ? ` · ${partner.cidadeRegiao}` : ''}
                         </span>
@@ -636,7 +636,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
                               href={buildWhatsAppUrl(partner.whatsapp, referralMsg)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#146B43] hover:underline whitespace-nowrap shrink-0"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#146B43] dark:text-emerald-400 hover:underline whitespace-nowrap shrink-0"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
                               WhatsApp
@@ -645,7 +645,7 @@ export const PartnerSynergyAnalyzer: React.FC<PartnerSynergyAnalyzerProps> = ({
                           <button
                             type="button"
                             onClick={() => onSelectPartner(partner)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0B1F33] hover:text-[#8C6D14] transition-colors whitespace-nowrap shrink-0"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:text-[#8C6D14] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
                           >
                             {isEs ? 'Ver ficha' : 'Ver detalhes'}
                             <ArrowRight className="w-3.5 h-3.5" />

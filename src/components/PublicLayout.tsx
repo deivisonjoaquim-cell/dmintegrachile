@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ArrowRight, Globe, Menu, MessageCircle, X } from 'lucide-react';
+import { ArrowRight, Globe, Menu, MessageCircle, Moon, Sun, X } from 'lucide-react';
 import { isCompleteHorizontalBrandLogo } from '../constants/brandAssets';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { buildWhatsAppUrl, formatDateBR, openExternalSafe } from '../utils/formatters';
 import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
@@ -24,6 +25,7 @@ const DEFAULT_NAV_LINKS = [
 export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavigate, children }) => {
   const { empresa, userProfile } = useApp();
   const { locale, setLocale, t, translateText } = useLanguage();
+  const { isDark, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const lc = empresa.layoutConfig || {};
@@ -70,15 +72,16 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white border-b border-[#E5DFD2] no-print'
+      ? 'bg-white dark:bg-[#0B1F33] border-b border-[#E5DFD2] dark:border-[#1C324B] no-print'
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E5DFD2] shadow-[0_2px_10px_rgba(11,31,51,0.04)] no-print'
-        : 'sticky top-0 z-40 bg-white/92 backdrop-blur-xl border-b border-[#E5DFD2] shadow-[0_2px_12px_rgba(11,31,51,0.035)] no-print';
+        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E5DFD2] dark:border-[#1C324B] shadow-[0_2px_10px_rgba(11,31,51,0.04)] no-print'
+        : 'sticky top-0 z-40 bg-white/92 dark:bg-[#0B1F33]/92 backdrop-blur-xl border-b border-[#E5DFD2] dark:border-[#1C324B] shadow-[0_2px_12px_rgba(11,31,51,0.035)] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
+  const headerLogoSrc = isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
+    <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-200">
       {/* Filete arquitetônico bilateral de identidade institucional */}
       <BrandRibbon className="h-[3px] w-full no-print" />
 
@@ -94,10 +97,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] rounded group"
           >
             <BrandLogo
-              src={empresa.logoUrl}
+              src={headerLogoSrc}
               alt={empresa.nome_empresa}
               brandShortName={brandShortName}
-              variant="light"
+              variant={isDark ? 'dark' : 'light'}
               priority
               imgStyle={{ height: `${logoHeight}px` }}
               imgClassName="w-auto max-w-[230px] object-contain shrink-0"
@@ -127,7 +130,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   className={`text-[13.5px] font-medium whitespace-nowrap shrink-0 py-1.5 border-b-2 transition-colors ${
                     active
                       ? 'text-[var(--color-text)] font-semibold border-[var(--color-accent)]'
-                      : 'text-slate-600 border-transparent hover:text-[var(--color-text)] hover:border-slate-300'
+                      : 'text-slate-600 dark:text-slate-300 border-transparent hover:text-[var(--color-text)] hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
                   {item.localizedLabel}
@@ -136,14 +139,41 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             })}
           </nav>
 
-          {/* Zona 3: Seletor de idioma PT-BR / ES-CL + CTA primário + menu mobile */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* Zona 3: Interruptor Dark Mode + Seletor PT-BR / ES-CL + CTA primário + menu mobile */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-pressed={isDark}
+              aria-label={
+                isDark
+                  ? locale === 'es-CL'
+                    ? 'Cambiar a modo claro'
+                    : 'Alternar para modo claro'
+                  : locale === 'es-CL'
+                    ? 'Cambiar a modo oscuro'
+                    : 'Alternar para modo escuro'
+              }
+              title={
+                isDark
+                  ? locale === 'es-CL'
+                    ? 'Modo claro'
+                    : 'Modo claro'
+                  : locale === 'es-CL'
+                    ? 'Modo oscuro'
+                    : 'Modo escuro'
+              }
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-[#E5C76B] hover:bg-[#EFECE3] dark:hover:bg-[#183350] transition-colors shrink-0"
+            >
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
             <div
               role="group"
               aria-label="Selecionar idioma do site"
-              className="inline-flex items-center rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] p-0.5 shrink-0"
+              className="inline-flex items-center rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] p-0.5 shrink-0"
             >
-              <Globe className="w-3.5 h-3.5 text-[#8C6D14] ml-2 mr-1 shrink-0 hidden sm:block" aria-hidden="true" />
+              <Globe className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B] ml-2 mr-1 shrink-0 hidden sm:block" aria-hidden="true" />
               <button
                 type="button"
                 onClick={() => setLocale('pt-BR')}
@@ -151,8 +181,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 title="Português (Brasil)"
                 className={`px-2 py-1.5 rounded-md text-[11px] font-bold tracking-wide whitespace-nowrap shrink-0 transition-colors ${
                   locale === 'pt-BR'
-                    ? 'bg-[#0B1F33] text-white'
-                    : 'text-[#4A5A6D] hover:text-[#0B1F33]'
+                    ? 'bg-[#0B1F33] dark:bg-[#C8A236] text-white dark:text-[#0B1F33]'
+                    : 'text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white'
                 }`}
               >
                 PT
@@ -165,7 +195,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 className={`px-2 py-1.5 rounded-md text-[11px] font-bold tracking-wide whitespace-nowrap shrink-0 transition-colors ${
                   locale === 'es-CL'
                     ? 'bg-[#A61C2B] text-white'
-                    : 'text-[#4A5A6D] hover:text-[#0B1F33]'
+                    : 'text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white'
                 }`}
               >
                 ES-CL
@@ -184,7 +214,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="lg:hidden p-2 btn-radius text-slate-700 hover:bg-slate-100 min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+              className="lg:hidden p-2 btn-radius text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#11263D] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -192,7 +222,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-[#E5DFD2] px-4 py-3 space-y-1 shadow-lg">
+          <div className="lg:hidden bg-white dark:bg-[#0D1E31] border-t border-[#E5DFD2] dark:border-[#1C324B] px-4 py-3 space-y-1 shadow-lg">
             {navItems.map((item) => (
               <a
                 key={item.path}
@@ -204,7 +234,9 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   onNavigate(item.path);
                 }}
                 className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
-                  currentPath === item.path ? 'bg-[#F7F5F0] text-[#0B1F33] font-semibold' : 'text-slate-700 hover:bg-[#FAF9F6]'
+                  currentPath === item.path
+                    ? 'bg-[#F7F5F0] dark:bg-[#11263D] text-[#0B1F33] dark:text-white font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#11263D]'
                 }`}
               >
                 {item.localizedLabel}
@@ -359,7 +391,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
       {/* Barra inferior fixa CTA no mobile */}
       {showMobileCtaBar && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-[#E5DFD2] px-3 py-2 flex items-center gap-2 no-print shadow-lg">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1E31]/95 backdrop-blur border-t border-[#E5DFD2] dark:border-[#1C324B] px-3 py-2 flex items-center gap-2 no-print shadow-lg">
           <button
             type="button"
             onTouchStart={() => prefetchRouteChunk('/diagnostico')}

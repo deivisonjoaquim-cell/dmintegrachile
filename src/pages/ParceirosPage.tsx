@@ -3,6 +3,7 @@ import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import {
   ArrowRight,
   Award,
+  Bookmark,
   Briefcase,
   Building2,
   Check,
@@ -15,6 +16,7 @@ import {
   Globe2,
   GraduationCap,
   Handshake,
+  Heart,
   HeartPulse,
   Image as ImageIcon,
   Languages,
@@ -28,11 +30,13 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Trash2,
   TrendingUp,
   Upload,
   X,
 } from 'lucide-react';
 import { BrandRibbon } from '../components/BrandLogo';
+import { ClientTestimonialsCarousel } from '../components/ClientTestimonialsCarousel';
 import { OptimizedImage } from '../components/OptimizedImage';
 import {
   PartnerSynergyAnalyzer,
@@ -40,6 +44,7 @@ import {
 } from '../components/PartnerSynergyAnalyzer';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useFavoritePartners } from '../hooks/useFavoritePartners';
 import { submitPartnerProposalPublic } from '../services/firestoreService';
 import type { CurrencyCode, PartnerCategory, PartnerPublic } from '../types/domain';
 import { buildWhatsAppUrl } from '../utils/formatters';
@@ -48,12 +53,16 @@ import {
   computePartnerNetworkMetrics,
   filterAndSortPublicPartners,
   formatPhoneByCountry,
+  getPartnerMacroGroupLabel,
+  matchesPartnerMacroGroup,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
+  PARTNER_MACRO_GROUPS,
   sanitizePartnerImageUrl,
   translatePartnerCategory,
   translatePartnerCountry,
   validatePartnerProposalInput,
+  type PartnerMacroGroupId,
   type PublicPartnerSort,
 } from '../utils/partnerHelpers';
 
@@ -173,11 +182,20 @@ export const ParceirosPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterPais, setFilterPais] = useState<'Todos' | 'Brasil' | 'Chile' | 'Ambos'>('Todos');
   const [filterCat, setFilterCat] = useState('Todas');
+  const [filterMacroGroup, setFilterMacroGroup] = useState<PartnerMacroGroupId>('Todos');
   const [sortBy, setSortBy] = useState<PublicPartnerSort>('avaliacao');
   const [selectedPartner, setSelectedPartner] = useState<PartnerPublic | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [synergyResult, setSynergyResult] = useState<PartnerSynergyResult | null>(null);
   const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(0);
+  const { favoriteIds, isFavorite, toggleFavorite, removeFavorite, clearFavorites } = useFavoritePartners();
+
+  const scrollToSection = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Formulário Seja um Parceiro
   const [nomeEmpresa, setNomeEmpresa] = useState('');
@@ -224,6 +242,29 @@ export const ParceirosPage: React.FC = () => {
     return counts;
   }, [partnersPublic]);
 
+  const macroGroupCounts = useMemo(() => {
+    const counts = new Map<PartnerMacroGroupId, number>();
+    for (const group of PARTNER_MACRO_GROUPS) {
+      if (group.id === 'Todos') {
+        counts.set(group.id, partnersPublic.length);
+      } else {
+        counts.set(
+          group.id,
+          partnersPublic.filter((p) => matchesPartnerMacroGroup(p.categoria, group.id)).length,
+        );
+      }
+    }
+    return counts;
+  }, [partnersPublic]);
+
+  const savedPartners = useMemo(() => {
+    if (favoriteIds.length === 0) return [];
+    const byId = new Map(partnersPublic.map((p) => [p.id, p]));
+    return favoriteIds
+      .map((id) => byId.get(id))
+      .filter((partner): partner is PartnerPublic => Boolean(partner));
+  }, [favoriteIds, partnersPublic]);
+
   const synergyByPartnerId = useMemo(() => {
     const map = new Map<string, { score: number; prioridade: string }>();
     if (!synergyResult) return map;
@@ -256,18 +297,29 @@ export const ParceirosPage: React.FC = () => {
         search,
         pais: filterPais,
         categoria: filterCat,
+        macroGroup: filterMacroGroup,
         sortBy,
       }),
-    [partnersPublic, search, filterPais, filterCat, sortBy],
+    [partnersPublic, search, filterPais, filterCat, filterMacroGroup, sortBy],
   );
 
-  const hasActiveFilters = search.trim() !== '' || filterPais !== 'Todos' || filterCat !== 'Todas';
+  const hasActiveFilters =
+    search.trim() !== '' || filterPais !== 'Todos' || filterCat !== 'Todas' || filterMacroGroup !== 'Todos';
 
   const resetFilters = () => {
     setSearch('');
     setFilterPais('Todos');
     setFilterCat('Todas');
+    setFilterMacroGroup('Todos');
     setSortBy('avaliacao');
+  };
+
+  const handleSelectTopCategory = (groupId: PartnerMacroGroupId) => {
+    setFilterMacroGroup(groupId);
+    setFilterCat('Todas');
+    if (groupId !== 'Todos') {
+      scrollToSection('diretorio-parceiros');
+    }
   };
 
   const handleApplyForArea = (area: DemandAreaConfig) => {
@@ -276,10 +328,7 @@ export const ParceirosPage: React.FC = () => {
     setMoeda(area.defaultMoeda);
     setPrefilledNotice(area.category);
     setFormError(null);
-    const sectionEl = document.getElementById('seja-parceiro');
-    if (sectionEl) {
-      sectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    scrollToSection('seja-parceiro');
     setTimeout(() => {
       companyInputRef.current?.focus({ preventScroll: true });
     }, 550);
@@ -520,20 +569,22 @@ export const ParceirosPage: React.FC = () => {
 
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-3">
-                    <a
-                      href="#seja-parceiro"
+                    <button
+                      type="button"
+                      onClick={() => scrollToSection('seja-parceiro')}
                       className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#C8A236] hover:bg-[#b5912c] text-[#0B1F33] text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
                     >
                       <Handshake className="w-4 h-4" />
                       {isEs ? 'Quiero ser aliado homologado' : 'Quero ser parceiro homologado'}
                       <ArrowRight className="w-4 h-4" />
-                    </a>
-                    <a
-                      href="#diretorio-parceiros"
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollToSection('diretorio-parceiros')}
                       className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-white/25 hover:bg-white/10 text-white text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
                     >
                       {isEs ? 'Explorar red e IA' : 'Explorar rede & IA'}
-                    </a>
+                    </button>
                   </div>
 
                   <p className="text-xs text-slate-300 flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -625,32 +676,207 @@ export const ParceirosPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Clean Single-Line Section Jump Bar */}
-        <nav
-          aria-label={isEs ? 'Secciones de alianzas' : 'Seções de parcerias'}
-          className="bg-white border-b border-[#E5DFD2]"
+        {/* Top Category Filter System + Quick Section Navigation */}
+        <section
+          aria-label={isEs ? 'Filtrar aliados por categoría principal' : 'Filtrar parceiros por categoria principal'}
+          className="bg-white dark:bg-[#0D1E31] border-b border-[#E5DFD2] dark:border-[#1C324B]"
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-4 overflow-x-auto">
-            {[
-              { href: '#programa-b2b', label: isEs ? 'Por qué ser aliado' : 'Por que ser parceiro' },
-              { href: '#areas-demanda', label: isEs ? 'Áreas en demanda' : 'Áreas em demanda' },
-              { href: '#sinergia-ia', label: isEs ? 'Sinergia IA' : 'Sinergia IA' },
-              { href: '#diretorio-parceiros', label: isEs ? 'Directorio' : 'Diretório' },
-              { href: '#seja-parceiro', label: isEs ? 'Enviar propuesta' : 'Enviar proposta' },
-              { href: '#faq-parceiros', label: isEs ? 'Preguntas B2B' : 'Dúvidas B2B' },
-            ].map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="px-3 py-1.5 rounded-md text-xs font-semibold text-[#4A5A6D] hover:text-[#0B1F33] hover:bg-[#F7F5F0] transition-colors whitespace-nowrap shrink-0"
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
-        </nav>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5 lg:pb-0">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8C6D14] dark:text-[#E5C76B] whitespace-nowrap shrink-0 pr-1">
+                {isEs ? 'Categorías:' : 'Categorias:'}
+              </span>
+              {PARTNER_MACRO_GROUPS.map((group) => {
+                const count = macroGroupCounts.get(group.id) || 0;
+                const active = filterMacroGroup === group.id;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => handleSelectTopCategory(group.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 tabular-nums ${
+                      active
+                        ? 'bg-[#0B1F33] text-white dark:bg-[#C8A236] dark:text-[#0B1F33]'
+                        : 'bg-[#F7F5F0] dark:bg-[#11263D] text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white hover:bg-[#EFECE3] dark:hover:bg-[#173352]'
+                    }`}
+                  >
+                    <span>{isEs ? group.labelEs : group.labelPt}</span>
+                    <span className={active ? 'opacity-80' : 'opacity-65'}>({count})</span>
+                  </button>
+                );
+              })}
+            </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 lg:py-16 space-y-16">
+            <div className="flex items-center gap-3 overflow-x-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-[#F1EDE4] dark:border-[#1C324B] shrink-0">
+              <button
+                type="button"
+                onClick={() => scrollToSection('parceiros-salvos')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:text-[#8C6D14] dark:hover:text-[#E5C76B] transition-colors whitespace-nowrap shrink-0 tabular-nums"
+              >
+                <Heart
+                  className={`w-3.5 h-3.5 ${
+                    savedPartners.length > 0 ? 'fill-[#C82333] text-[#C82333]' : 'text-[#8C6D14] dark:text-[#E5C76B]'
+                  }`}
+                />
+                {isEs ? 'Salvos' : 'Salvos'} ({savedPartners.length})
+              </button>
+              <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
+              <button
+                type="button"
+                onClick={() => scrollToSection('sinergia-ia')}
+                className="text-xs font-semibold text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
+              >
+                {isEs ? 'Sinergia IA' : 'Sinergia IA'}
+              </button>
+              <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
+              <button
+                type="button"
+                onClick={() => scrollToSection('depoimentos-clientes')}
+                className="text-xs font-semibold text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
+              >
+                {isEs ? 'Testimonios' : 'Depoimentos'}
+              </button>
+              <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
+              <button
+                type="button"
+                onClick={() => scrollToSection('seja-parceiro')}
+                className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] hover:underline whitespace-nowrap shrink-0"
+              >
+                {isEs ? 'Enviar propuesta' : 'Enviar proposta'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 lg:py-14 space-y-16">
+          {/* Quick-Access Saved Partners Section (Parceiros Salvos) */}
+          <section
+            id="parceiros-salvos"
+            className="scroll-mt-24 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl p-5 sm:p-6"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center shrink-0">
+                  <Bookmark className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-bold text-[#0B1F33] dark:text-white flex items-center gap-2">
+                    <span>{isEs ? 'Aliados Guardados' : 'Parceiros Salvos'}</span>
+                    <span className="text-xs font-mono font-semibold text-[#8C6D14] dark:text-[#E5C76B] tabular-nums">
+                      ({savedPartners.length})
+                    </span>
+                  </h2>
+                  <p className="text-xs text-[#4A5A6D] dark:text-slate-400">
+                    {savedPartners.length > 0
+                      ? isEs
+                        ? 'Acceso rápido a tus aliados favoritos para comparar o contactar por WhatsApp.'
+                        : 'Acesso rápido aos seus parceiros favoritados para comparar ou acionar no WhatsApp.'
+                      : isEs
+                        ? 'Haz clic en "Guardar" en cualquier tarjeta del directorio para armar tu lista rápida.'
+                        : 'Clique em "Favoritar" em qualquer card do diretório para montar sua lista de acesso rápido.'}
+                  </p>
+                </div>
+              </div>
+
+              {savedPartners.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearFavorites}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4A5A6D] dark:text-slate-400 hover:text-[#C82333] dark:hover:text-red-400 transition-colors whitespace-nowrap shrink-0 self-start sm:self-center"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {isEs ? 'Limpiar guardados' : 'Limpar salvos'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => scrollToSection('diretorio-parceiros')}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] hover:underline whitespace-nowrap shrink-0 self-start sm:self-center"
+                >
+                  {isEs ? 'Explorar directorio' : 'Explorar diretório'}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {savedPartners.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-5 pt-5 border-t border-[#F1EDE4] dark:border-[#1C324B]">
+                {savedPartners.map((partner) => {
+                  const SavedIcon = getCategoryIcon(partner.categoria);
+                  const safeSavedLogo = sanitizePartnerImageUrl(partner.logoUrl);
+                  return (
+                    <div
+                      key={partner.id}
+                      className="rounded-xl bg-[#FAF9F6] dark:bg-[#0A192A] border border-[#E5DFD2] dark:border-[#1C324B] p-4 flex flex-col justify-between gap-3"
+                    >
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-lg bg-white dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center overflow-hidden shrink-0">
+                            {safeSavedLogo ? (
+                              <OptimizedImage
+                                src={safeSavedLogo}
+                                alt={partner.nome}
+                                sizes="40px"
+                                containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                                className="max-w-full max-h-full object-contain p-1"
+                              />
+                            ) : (
+                              <SavedIcon className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B] truncate">
+                              {translatePartnerCategory(partner.categoria, locale)}
+                            </p>
+                            <h3 className="text-sm font-bold text-[#0B1F33] dark:text-white truncate">
+                              {partner.nome}
+                            </h3>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeFavorite(partner.id)}
+                          aria-label={isEs ? `Quitar ${partner.nome} de guardados` : `Remover ${partner.nome} dos salvos`}
+                          title={isEs ? 'Quitar de guardados' : 'Remover dos salvos'}
+                          className="p-1.5 rounded-lg text-[#C82333] hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0"
+                        >
+                          <Heart className="w-4 h-4 fill-[#C82333]" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-[#EFECE3] dark:border-[#1C324B] text-xs">
+                        {partner.whatsapp ? (
+                          <a
+                            href={buildWhatsAppUrl(partner.whatsapp, buildReferralMessage(partner))}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 font-semibold text-[#146B43] dark:text-emerald-400 hover:underline whitespace-nowrap shrink-0"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            WhatsApp
+                          </a>
+                        ) : (
+                          <span className="text-[#4A5A6D] dark:text-slate-400 truncate">
+                            {translatePartnerCountry(partner.pais, locale)}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPartner(partner)}
+                          className="font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:text-[#8C6D14] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
+                        >
+                          {isEs ? 'Ver ficha →' : 'Ver detalhes →'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           {/* B2B Partner Value Proposition — Asymmetric Bento Grid */}
           <section id="programa-b2b" className="scroll-mt-24 space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -658,19 +884,20 @@ export const ParceirosPage: React.FC = () => {
                 <p className="brand-kicker mb-1.5">
                   {isEs ? 'Beneficios para empresas y especialistas' : 'Benefícios para empresas e especialistas'}
                 </p>
-                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] text-balance">
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] dark:text-white text-balance">
                   {isEs
                     ? 'Por qué los mejores especialistas eligen operar con D&M Integra Chile'
                     : 'Por que especialistas de referência escolhem atuar com a D&M Integra Chile'}
                 </h2>
               </div>
-              <a
-                href="#seja-parceiro"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#8C6D14] hover:text-[#0B1F33] transition-colors whitespace-nowrap shrink-0"
+              <button
+                type="button"
+                onClick={() => scrollToSection('seja-parceiro')}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#8C6D14] dark:text-[#E5C76B] hover:text-[#0B1F33] dark:hover:text-white transition-colors whitespace-nowrap shrink-0 self-start lg:self-end"
               >
                 {isEs ? 'Postular mi empresa ahora' : 'Cadastrar minha empresa agora'}
                 <ArrowRight className="w-4 h-4" />
-              </a>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -680,40 +907,40 @@ export const ParceirosPage: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.15 }}
                 transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-7 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6"
+                className="lg:col-span-7 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6"
               >
                 <div className="space-y-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#8C6D14]">
+                  <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center text-[#8C6D14] dark:text-[#E5C76B]">
                     <TrendingUp className="w-5 h-5" />
                   </div>
-                  <h3 className="text-xl font-bold text-[#0B1F33] font-brand-sans">
+                  <h3 className="text-xl font-bold text-[#0B1F33] dark:text-white font-brand-sans">
                     {isEs
                       ? 'Flujo continuo de clientes con necesidad real y presupuesto definido'
                       : 'Fluxo qualificado de clientes com demanda real em cada fase da mudança'}
                   </h3>
-                  <p className="text-sm text-[#4A5A6D] leading-relaxed">
+                  <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                     {isEs
                       ? 'Nuestros clientes llegan perfilados desde el Diagnóstico Inteligente y el acompañamiento de visa. Recibes contactos en el momento exacto en que necesitan traducir documentos, arrendar vivienda, abrir una empresa SpA o contratar salud.'
                       : 'Nossos clientes chegam mapeados pelo Diagnóstico Inteligente e pelo pipeline de assessoria migratória. Sua empresa é acionada no momento exato de decisão — sem perder tempo com leads curiosos.'}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#F1EDE4]">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#F1EDE4] dark:border-[#1C324B]">
                   <div>
-                    <p className="text-xs font-mono font-bold text-[#8C6D14]">01 · BRASIL</p>
-                    <p className="text-xs text-[#4A5A6D] mt-0.5">
+                    <p className="text-xs font-mono font-bold text-[#8C6D14] dark:text-[#E5C76B]">01 · BRASIL</p>
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-0.5">
                       {isEs ? 'Documentos, apostilla y traducción' : 'Cartório, apostilamento e tradução'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-mono font-bold text-[#8C6D14]">02 · TRANSICIÓN</p>
-                    <p className="text-xs text-[#4A5A6D] mt-0.5">
+                    <p className="text-xs font-mono font-bold text-[#8C6D14] dark:text-[#E5C76B]">02 · TRANSICIÓN</p>
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-0.5">
                       {isEs ? 'Visado, seguros y planificación' : 'Visto, seguros, jurídico e planejamento'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-mono font-bold text-[#8C6D14]">03 · CHILE</p>
-                    <p className="text-xs text-[#4A5A6D] mt-0.5">
+                    <p className="text-xs font-mono font-bold text-[#8C6D14] dark:text-[#E5C76B]">03 · CHILE</p>
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-0.5">
                       {isEs ? 'Vivienda, empresa SpA, colegios' : 'Imóveis, empresa SpA, escolas e saúde'}
                     </p>
                   </div>
@@ -726,7 +953,7 @@ export const ParceirosPage: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.15 }}
                 transition={{ duration: 0.38, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-5 bg-[#0B1F33] text-white border border-[#0B1F33] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6"
+                className="lg:col-span-5 bg-[#0B1F33] text-white border border-[#0B1F33] dark:border-[#1C324B] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6"
               >
                 <div className="space-y-3">
                   <div className="w-10 h-10 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-[#E5C76B]">
@@ -748,12 +975,13 @@ export const ParceirosPage: React.FC = () => {
                   <span className="text-[#E5C76B] font-semibold">
                     {isEs ? 'Sello Oficial Homologado' : 'Selo Oficial Homologado'}
                   </span>
-                  <a
-                    href="#sinergia-ia"
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection('sinergia-ia')}
                     className="text-white hover:text-[#E5C76B] font-semibold transition-colors whitespace-nowrap shrink-0"
                   >
                     {isEs ? 'Probar módulo IA →' : 'Ver módulo IA →'}
-                  </a>
+                  </button>
                 </div>
               </motion.div>
 
@@ -763,17 +991,17 @@ export const ParceirosPage: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.15 }}
                 transition={{ duration: 0.38, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-5 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 space-y-3"
+                className="lg:col-span-5 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl p-6 sm:p-8 space-y-3"
               >
-                <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#0B1F33]">
+                <div className="w-10 h-10 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center text-[#0B1F33] dark:text-[#E5C76B]">
                   <Lock className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-bold text-[#0B1F33] font-brand-sans">
+                <h3 className="text-lg font-bold text-[#0B1F33] dark:text-white font-brand-sans">
                   {isEs
                     ? 'Cero costo fijo y confidencialidad comercial'
                     : 'Zero mensalidade fixa e sigilo comercial absoluto'}
                 </h3>
-                <p className="text-sm text-[#4A5A6D] leading-relaxed">
+                <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                   {isEs
                     ? 'No cobramos mensualidad por presencia en la red. Los acuerdos de beneficios al cliente o referidos en BRL, CLP o USD quedan resguardados exclusivamente en nuestro panel interno.'
                     : 'Não cobramos mensalidade para compor a rede. Suas tabelas referenciais, condições preferenciais ou acordos de indicação em BRL, CLP ou USD permanecem em sigilo interno.'}
@@ -786,15 +1014,15 @@ export const ParceirosPage: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.15 }}
                 transition={{ duration: 0.38, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-7 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-2 gap-5"
+                className="lg:col-span-7 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-2 gap-5"
               >
                 <div className="flex items-start gap-3">
-                  <Award className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <Award className="w-5 h-5 text-[#8C6D14] dark:text-[#E5C76B] shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                    <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
                       {isEs ? 'Posicionamiento de autoridad' : 'Autoridade perante o cliente'}
                     </h4>
-                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-300 mt-1 leading-relaxed">
                       {isEs
                         ? 'Los clientes te contactan ya con confianza institucional por la recomendación directa de nuestra consultora.'
                         : 'O cliente chega já confiando no seu trabalho graças à curadoria e indicação direta da consultoria.'}
@@ -802,12 +1030,12 @@ export const ParceirosPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Globe2 className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <Globe2 className="w-5 h-5 text-[#8C6D14] dark:text-[#E5C76B] shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                    <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
                       {isEs ? 'Alcance binacional BR–CL' : 'Alcance binacional BR–CL'}
                     </h4>
-                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-300 mt-1 leading-relaxed">
                       {isEs
                         ? 'Sitio bilingüe (portugués y español chileno) listo para captar familias, ejecutivos e inversionistas.'
                         : 'Plataforma bilíngue (português e espanhol chileno) desenhada para famílias, profissionais e investidores.'}
@@ -815,12 +1043,12 @@ export const ParceirosPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Clock className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <Clock className="w-5 h-5 text-[#8C6D14] dark:text-[#E5C76B] shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                    <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
                       {isEs ? 'Aprobación ágil en 48h hábiles' : 'Aprovação ágil em até 48h úteis'}
                     </h4>
-                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-300 mt-1 leading-relaxed">
                       {isEs
                         ? 'Proceso sin burocracia: analizamos tu propuesta y coordinamos el alta directamente con los socios.'
                         : 'Processo sem burocracia: analisamos sua proposta e fazemos o alinhamento direto com a diretoria.'}
@@ -828,12 +1056,12 @@ export const ParceirosPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Briefcase className="w-5 h-5 text-[#8C6D14] shrink-0 mt-0.5" />
+                  <Briefcase className="w-5 h-5 text-[#8C6D14] dark:text-[#E5C76B] shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-sm font-bold text-[#0B1F33]">
+                    <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
                       {isEs ? 'Sin exclusividad restrictiva' : 'Sem exclusividade restritiva'}
                     </h4>
-                    <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-300 mt-1 leading-relaxed">
                       {isEs
                         ? 'Mantienes total autonomía operativa y comercial sobre tu cartera y precios de atención.'
                         : 'Você mantém total autonomia sobre sua operação, agenda e carteira de clientes.'}
@@ -851,13 +1079,13 @@ export const ParceirosPage: React.FC = () => {
                 <p className="brand-kicker mb-1.5">
                   {isEs ? 'Especialidades con demanda abierta' : 'Especialidades com demanda aberta'}
                 </p>
-                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] text-balance">
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] dark:text-white text-balance">
                   {isEs
                     ? '¿Actúas en alguna de estas áreas? Tenemos clientes buscando tu servicio'
                     : 'Atua em alguma destas áreas? Temos clientes buscando seu serviço'}
                 </h2>
               </div>
-              <p className="text-xs text-[#4A5A6D]">
+              <p className="text-xs text-[#4A5A6D] dark:text-slate-400">
                 {isEs
                   ? 'Selecciona tu especialidad para prellenar tu postulación'
                   : 'Clique na sua área para pré-preencher a candidatura'}
@@ -880,14 +1108,14 @@ export const ParceirosPage: React.FC = () => {
                       delay: Math.min(idx * 0.04, 0.2),
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="bg-white border border-[#E5DFD2] hover:border-[#C8A236] rounded-xl p-5 flex flex-col justify-between gap-4 transition-colors"
+                    className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236] rounded-xl p-5 flex flex-col justify-between gap-4 transition-colors"
                   >
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="w-9 h-9 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#0B1F33]">
-                          <AreaIcon className="w-4 h-4 text-[#8C6D14]" />
+                        <div className="w-9 h-9 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center text-[#0B1F33] dark:text-[#E5C76B]">
+                          <AreaIcon className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
                         </div>
-                        <span className="text-[11px] font-mono font-semibold text-[#4A5A6D] tabular-nums">
+                        <span className="text-[11px] font-mono font-semibold text-[#4A5A6D] dark:text-slate-400 tabular-nums">
                           {activeCount > 0
                             ? isEs
                               ? `${activeCount} activo(s)`
@@ -899,13 +1127,13 @@ export const ParceirosPage: React.FC = () => {
                       </div>
 
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8C6D14]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8C6D14] dark:text-[#E5C76B]">
                           {isEs ? area.stageEs : area.stagePt}
                         </p>
-                        <h3 className="text-sm font-bold text-[#0B1F33] mt-0.5 leading-snug">
+                        <h3 className="text-sm font-bold text-[#0B1F33] dark:text-white mt-0.5 leading-snug">
                           {translatePartnerCategory(area.category, locale)}
                         </h3>
-                        <p className="text-xs text-[#4A5A6D] mt-1.5 leading-relaxed">
+                        <p className="text-xs text-[#4A5A6D] dark:text-slate-300 mt-1.5 leading-relaxed">
                           {isEs ? area.demandEs : area.demandPt}
                         </p>
                       </div>
@@ -914,7 +1142,7 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleApplyForArea(area)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B1F33] hover:text-[#8C6D14] transition-colors pt-3 border-t border-[#F1EDE4] whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:text-[#8C6D14] dark:hover:text-white transition-colors pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B] whitespace-nowrap shrink-0"
                     >
                       {isEs ? 'Postular en esta área' : 'Candidatar nesta área'}
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -947,19 +1175,31 @@ export const ParceirosPage: React.FC = () => {
                 <p className="brand-kicker mb-1.5">
                   {isEs ? 'Vitrina oficial verificada' : 'Vitrine oficial verificada'}
                 </p>
-                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33]">
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] dark:text-white">
                   {isEs ? 'Aliados homologados por especialidad' : 'Parceiros homologados por área'}
                 </h2>
               </div>
-              <p className="text-xs text-[#4A5A6D] tabular-nums">
-                {isEs
-                  ? `Mostrando ${filteredPartners.length} de ${partnersPublic.length} aliado(s)`
-                  : `Exibindo ${filteredPartners.length} de ${partnersPublic.length} parceiro(s)`}
-              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                {filterMacroGroup !== 'Todos' && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterMacroGroup('Todos')}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] text-xs font-semibold text-[#0B1F33] dark:text-[#E5C76B]"
+                  >
+                    <span>{getPartnerMacroGroupLabel(filterMacroGroup, locale)}</span>
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                <p className="text-xs text-[#4A5A6D] dark:text-slate-400 tabular-nums">
+                  {isEs
+                    ? `Mostrando ${filteredPartners.length} de ${partnersPublic.length} aliado(s)`
+                    : `Exibindo ${filteredPartners.length} de ${partnersPublic.length} parceiro(s)`}
+                </p>
+              </div>
             </div>
 
             {/* Search + Country Segmented Control + Sort */}
-            <div className="bg-white border border-[#E5DFD2] rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-4 sm:p-5 space-y-4">
               <div className="flex flex-col lg:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -973,14 +1213,14 @@ export const ParceirosPage: React.FC = () => {
                         : 'Buscar por nome, cidade, região ou especialidade...'
                     }
                     aria-label={isEs ? 'Buscar aliado' : 'Buscar parceiro'}
-                    className="w-full pl-10 pr-9 py-2.5 rounded-lg border border-[#DDD6C7] text-sm text-[#0B1523] bg-white focus:outline-none focus:border-[#0B1F33]"
+                    className="w-full pl-10 pr-9 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] text-sm text-[#0B1523] dark:text-slate-100 bg-white dark:bg-[#081524] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                   />
                   {search && (
                     <button
                       type="button"
                       onClick={() => setSearch('')}
                       aria-label={isEs ? 'Limpiar búsqueda' : 'Limpar busca'}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -991,7 +1231,7 @@ export const ParceirosPage: React.FC = () => {
                 <div
                   role="group"
                   aria-label={isEs ? 'Filtrar por país' : 'Filtrar por país'}
-                  className="inline-flex items-center p-1 rounded-lg bg-[#F4F1EA] border border-[#E5DFD2] overflow-x-auto"
+                  className="inline-flex items-center p-1 rounded-lg bg-[#F4F1EA] dark:bg-[#081524] border border-[#E5DFD2] dark:border-[#1C324B] overflow-x-auto"
                 >
                   {(
                     [
@@ -1011,8 +1251,8 @@ export const ParceirosPage: React.FC = () => {
                         onClick={() => setFilterPais(item.id)}
                         className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 tabular-nums ${
                           active
-                            ? 'bg-[#0B1F33] text-white'
-                            : 'text-[#4A5A6D] hover:text-[#0B1F33]'
+                            ? 'bg-[#0B1F33] text-white dark:bg-[#C8A236] dark:text-[#0B1F33]'
+                            : 'text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white'
                         }`}
                       >
                         {item.label} ({item.count})
@@ -1026,7 +1266,7 @@ export const ParceirosPage: React.FC = () => {
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as PublicPartnerSort)}
                   aria-label={isEs ? 'Ordenar aliados' : 'Ordenar parceiros'}
-                  className="px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] text-xs font-semibold bg-white text-[#0B1F33] focus:outline-none focus:border-[#0B1F33]"
+                  className="px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] text-xs font-semibold bg-white dark:bg-[#081524] text-[#0B1F33] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                 >
                   <option value="avaliacao">
                     {isEs ? 'Ordenar: Mejor evaluados' : 'Ordenar: Melhor avaliados'}
@@ -1042,14 +1282,17 @@ export const ParceirosPage: React.FC = () => {
 
               {/* Interactive Specialty Filter Bar */}
               {activeCategories.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#F1EDE4]">
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
                   <button
                     type="button"
-                    onClick={() => setFilterCat('Todas')}
+                    onClick={() => {
+                      setFilterCat('Todas');
+                      setFilterMacroGroup('Todos');
+                    }}
                     className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                      filterCat === 'Todas'
-                        ? 'bg-[#0B1F33] text-white'
-                        : 'bg-[#F7F5F0] text-[#4A5A6D] hover:text-[#0B1F33] hover:bg-[#EFECE3]'
+                      filterCat === 'Todas' && filterMacroGroup === 'Todos'
+                        ? 'bg-[#0B1F33] text-white dark:bg-[#C8A236] dark:text-[#0B1F33]'
+                        : 'bg-[#F7F5F0] dark:bg-[#11263D] text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white hover:bg-[#EFECE3] dark:hover:bg-[#173352]'
                     }`}
                   >
                     {isEs ? 'Todas las especialidades' : 'Todas as especialidades'}
@@ -1060,11 +1303,14 @@ export const ParceirosPage: React.FC = () => {
                       <button
                         key={cat}
                         type="button"
-                        onClick={() => setFilterCat(active ? 'Todas' : cat)}
+                        onClick={() => {
+                          setFilterMacroGroup('Todos');
+                          setFilterCat(active ? 'Todas' : cat);
+                        }}
                         className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                           active
-                            ? 'bg-[#0B1F33] text-white'
-                            : 'bg-[#F7F5F0] text-[#4A5A6D] hover:text-[#0B1F33] hover:bg-[#EFECE3]'
+                            ? 'bg-[#0B1F33] text-white dark:bg-[#C8A236] dark:text-[#0B1F33]'
+                            : 'bg-[#F7F5F0] dark:bg-[#11263D] text-[#4A5A6D] dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white hover:bg-[#EFECE3] dark:hover:bg-[#173352]'
                         }`}
                       >
                         {translatePartnerCategory(cat, locale)}
@@ -1075,7 +1321,7 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={resetFilters}
-                      className="ml-auto text-xs font-semibold text-[#8C6D14] hover:underline whitespace-nowrap shrink-0"
+                      className="ml-auto text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] hover:underline whitespace-nowrap shrink-0"
                     >
                       {isEs ? 'Limpiar filtros' : 'Limpar filtros'}
                     </button>
@@ -1090,14 +1336,14 @@ export const ParceirosPage: React.FC = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28 }}
-                className="bg-white border border-[#E5DFD2] rounded-xl p-10 text-center space-y-3"
+                className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-10 text-center space-y-3"
               >
-                <p className="text-base font-semibold text-[#0B1F33]">
+                <p className="text-base font-semibold text-[#0B1F33] dark:text-white">
                   {isEs
                     ? 'No encontramos aliados con estos criterios.'
                     : 'Nenhum parceiro encontrado para os filtros aplicados.'}
                 </p>
-                <p className="text-sm text-[#4A5A6D] max-w-md mx-auto">
+                <p className="text-sm text-[#4A5A6D] dark:text-slate-300 max-w-md mx-auto">
                   {isEs
                     ? 'Intenta limpiar los filtros o postula tu empresa si ofreces este servicio entre Brasil y Chile.'
                     : 'Tente limpar os filtros ou cadastre sua empresa caso atue nesta especialidade no eixo Brasil–Chile.'}
@@ -1107,17 +1353,18 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={resetFilters}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F33] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F33] dark:bg-[#C8A236] text-white dark:text-[#0B1F33] text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
                     >
                       {isEs ? 'Ver todos los aliados' : 'Ver todos os parceiros'}
                     </button>
                   )}
-                  <a
-                    href="#seja-parceiro"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#DDD6C7] text-xs font-semibold text-[#0B1F33] hover:bg-[#F7F5F0] whitespace-nowrap shrink-0"
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection('seja-parceiro')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#F7F5F0] dark:hover:bg-[#11263D] whitespace-nowrap shrink-0"
                   >
                     {isEs ? 'Postular mi empresa' : 'Cadastrar minha empresa'}
-                  </a>
+                  </button>
                 </div>
               </motion.div>
             ) : (
@@ -1128,6 +1375,7 @@ export const ParceirosPage: React.FC = () => {
                     const safeExternalUrl = normalizePartnerExternalUrl(p.siteInstagram);
                     const safeLogoUrl = sanitizePartnerImageUrl(p.logoUrl);
                     const synergyMatch = synergyByPartnerId.get(p.id);
+                    const saved = isFavorite(p.id);
 
                     return (
                       <motion.article
@@ -1141,16 +1389,16 @@ export const ParceirosPage: React.FC = () => {
                           delay: Math.min(index * 0.04, 0.2),
                           ease: [0.22, 1, 0.36, 1],
                         }}
-                        className={`bg-white border rounded-xl p-6 flex flex-col justify-between transition-colors ${
+                        className={`bg-white dark:bg-[#0D1E31] border rounded-xl p-6 flex flex-col justify-between transition-colors ${
                           synergyMatch
                             ? 'border-[#C8A236] ring-1 ring-[#C8A236]/25'
-                            : 'border-[#E5DFD2] hover:border-[#C8A236]/80'
+                            : 'border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/80'
                         }`}
                       >
                         <div>
                           <div className="flex items-start justify-between gap-3 mb-4">
                             {safeLogoUrl ? (
-                              <div className="h-14 w-24 rounded-lg bg-white border border-[#E5DFD2] flex items-center justify-center overflow-hidden shrink-0">
+                              <div className="h-14 w-24 rounded-lg bg-white border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center overflow-hidden shrink-0">
                                 <OptimizedImage
                                   src={safeLogoUrl}
                                   alt={p.nome}
@@ -1160,17 +1408,51 @@ export const ParceirosPage: React.FC = () => {
                                 />
                               </div>
                             ) : (
-                              <div className="w-11 h-11 rounded-lg bg-[#F7F5F0] border border-[#E5DFD2] flex items-center justify-center text-[#0B1F33] shrink-0">
-                                <Icon className="w-5 h-5 text-[#8C6D14]" />
+                              <div className="w-11 h-11 rounded-lg bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] flex items-center justify-center text-[#0B1F33] dark:text-[#E5C76B] shrink-0">
+                                <Icon className="w-5 h-5 text-[#8C6D14] dark:text-[#E5C76B]" />
                               </div>
                             )}
-                            <div className="flex flex-col items-end gap-1 pt-0.5">
-                              <div className="flex items-center gap-1 text-xs font-semibold text-[#0B1F33] font-mono tabular-nums">
-                                <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
-                                <span>{Number(p.avaliacao || 5).toFixed(1)}/5</span>
+                            <div className="flex flex-col items-end gap-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 text-xs font-semibold text-[#0B1F33] dark:text-slate-100 font-mono tabular-nums">
+                                  <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                                  <span>{Number(p.avaliacao || 5).toFixed(1)}/5</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  aria-pressed={saved}
+                                  onClick={() => toggleFavorite(p.id)}
+                                  title={
+                                    saved
+                                      ? isEs
+                                        ? 'Quitar de guardados'
+                                        : 'Remover dos salvos'
+                                      : isEs
+                                        ? 'Guardar aliado'
+                                        : 'Favoritar parceiro'
+                                  }
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                                    saved
+                                      ? 'border-[#C82333]/35 bg-red-50 dark:bg-red-950/40 text-[#C82333] dark:text-red-300'
+                                      : 'border-[#E5DFD2] dark:border-[#253D58] bg-[#FAF9F6] dark:bg-[#11263D] text-[#4A5A6D] dark:text-slate-300 hover:border-[#C8A236] hover:text-[#0B1F33] dark:hover:text-white'
+                                  }`}
+                                >
+                                  <Heart
+                                    className={`w-3.5 h-3.5 ${saved ? 'fill-[#C82333] text-[#C82333] dark:fill-red-400 dark:text-red-400' : ''}`}
+                                  />
+                                  <span>
+                                    {saved
+                                      ? isEs
+                                        ? 'Guardado'
+                                        : 'Salvo'
+                                      : isEs
+                                        ? 'Guardar'
+                                        : 'Favoritar'}
+                                  </span>
+                                </button>
                               </div>
                               {synergyMatch && (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold font-mono tabular-nums text-[#146B43]">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold font-mono tabular-nums text-[#146B43] dark:text-emerald-400">
                                   <Sparkles className="w-3 h-3 text-[#C8A236]" />
                                   Sinergia {synergyMatch.score}%
                                 </span>
@@ -1178,40 +1460,40 @@ export const ParceirosPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#4A5A6D] mb-1.5">
-                            <span className="font-semibold text-[#8C6D14]">
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#4A5A6D] dark:text-slate-400 mb-1.5">
+                            <span className="font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
                               {translatePartnerCategory(p.categoria, locale)}
                             </span>
                             <span aria-hidden="true">·</span>
-                            <span className="font-medium text-[#0B1F33]">
+                            <span className="font-medium text-[#0B1F33] dark:text-slate-200">
                               {translatePartnerCountry(p.pais, locale)}
                             </span>
                           </div>
 
-                          <h3 className="text-lg font-bold text-[#0B1F33] font-brand-sans leading-snug mb-2">
+                          <h3 className="text-lg font-bold text-[#0B1F33] dark:text-white font-brand-sans leading-snug mb-2">
                             {p.nome}
                           </h3>
 
-                          <p className="text-sm text-[#4A5A6D] leading-relaxed mb-4">
+                          <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed mb-4">
                             {p.descricaoPublica}
                           </p>
 
                           {p.cidadeRegiao && (
-                            <p className="inline-flex items-center gap-1.5 text-xs text-slate-500 mb-5">
+                            <p className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-5">
                               <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               <span>{p.cidadeRegiao}</span>
                             </p>
                           )}
                         </div>
 
-                        <div className="pt-4 border-t border-[#F1EDE4] flex flex-wrap items-center justify-between gap-3">
+                        <div className="pt-4 border-t border-[#F1EDE4] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-3">
                           <div className="flex flex-wrap items-center gap-3">
                             {p.whatsapp && (
                               <a
                                 href={buildWhatsAppUrl(p.whatsapp, buildReferralMessage(p))}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#146B43] hover:underline whitespace-nowrap shrink-0"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#146B43] dark:text-emerald-400 hover:underline whitespace-nowrap shrink-0"
                               >
                                 <MessageCircle className="w-3.5 h-3.5" />
                                 WhatsApp
@@ -1222,7 +1504,7 @@ export const ParceirosPage: React.FC = () => {
                                 href={safeExternalUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-[#0B1F33] hover:underline whitespace-nowrap shrink-0"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-[#0B1F33] dark:hover:text-white hover:underline whitespace-nowrap shrink-0"
                               >
                                 {isEs ? 'Sitio / IG' : 'Site / IG'}
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -1233,7 +1515,7 @@ export const ParceirosPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setSelectedPartner(p)}
-                            className="text-xs font-semibold text-[#0B1F33] hover:text-[#8C6D14] transition-colors whitespace-nowrap shrink-0"
+                            className="text-xs font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:text-[#8C6D14] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
                           >
                             {isEs ? 'Ver ficha →' : 'Ver detalhes →'}
                           </button>
@@ -1246,34 +1528,35 @@ export const ParceirosPage: React.FC = () => {
             )}
 
             {/* Inline B2B Conversion Prompt Below Directory */}
-            <div className="rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <p className="text-sm text-[#0B1F33]">
+            <div className="rounded-xl bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-sm text-[#0B1F33] dark:text-white">
                 <span className="font-semibold">
                   {isEs ? '¿Tu marca aún no aparece aquí?' : 'Sua marca ainda não está na vitrine?'}
                 </span>{' '}
-                <span className="text-[#4A5A6D]">
+                <span className="text-[#4A5A6D] dark:text-slate-300">
                   {isEs
                     ? 'Envía tu propuesta comercial y suma tu logo a nuestra red binacional.'
                     : 'Envie sua proposta comercial e coloque sua logo diante de clientes em mudança para o Chile.'}
                 </span>
               </p>
-              <a
-                href="#seja-parceiro"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D14] hover:text-[#0B1F33] transition-colors whitespace-nowrap shrink-0"
+              <button
+                type="button"
+                onClick={() => scrollToSection('seja-parceiro')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] hover:text-[#0B1F33] dark:hover:text-white transition-colors whitespace-nowrap shrink-0 self-start sm:self-center"
               >
                 {isEs ? 'Solicitar homologación' : 'Solicitar homologação'}
                 <ArrowRight className="w-3.5 h-3.5" />
-              </a>
+              </button>
             </div>
           </section>
 
           {/* 4-Step Partner Onboarding Timeline */}
-          <section className="bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-10">
+          <section className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl p-6 sm:p-10">
             <div className="max-w-2xl mb-8">
               <p className="brand-kicker mb-1.5">
                 {isEs ? 'Proceso de acreditación' : 'Processo de credenciamento'}
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] text-balance">
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] dark:text-white text-balance">
                 {isEs
                   ? 'Del registro a las primeras indicaciones en cuatro pasos claros'
                   : 'Do cadastro às primeiras indicações em quatro etapas transparentes'}
@@ -1291,15 +1574,20 @@ export const ParceirosPage: React.FC = () => {
                     delay: idx * 0.05,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className="space-y-2 pt-4 border-t border-[#E5DFD2]"
+                  className="space-y-2 pt-4 border-t border-[#E5DFD2] dark:border-[#1C324B]"
                 >
-                  <p className="text-sm font-mono font-bold text-[#8C6D14] tabular-nums">{step.num}</p>
-                  <h3 className="text-base font-bold text-[#0B1F33]">{step.title}</h3>
-                  <p className="text-sm text-[#4A5A6D] leading-relaxed">{step.desc}</p>
+                  <p className="text-sm font-mono font-bold text-[#8C6D14] dark:text-[#E5C76B] tabular-nums">{step.num}</p>
+                  <h3 className="text-base font-bold text-[#0B1F33] dark:text-white">{step.title}</h3>
+                  <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">{step.desc}</p>
                 </motion.div>
               ))}
             </div>
           </section>
+
+          {/* Client Integration Testimonials Carousel + Webcam Short Video Studio */}
+          <div id="depoimentos-clientes" className="scroll-mt-24">
+            <ClientTestimonialsCarousel locale={locale} />
+          </div>
 
           {/* Seja um Parceiro Homologado — Architectural Split Layout with LIVE Showcase Preview */}
           <motion.section
@@ -1308,7 +1596,7 @@ export const ParceirosPage: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.08 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            className="scroll-mt-24 bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden"
+            className="scroll-mt-24 bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl overflow-hidden"
           >
             <BrandRibbon className="h-[3px] w-full" />
             <div className="grid grid-cols-1 lg:grid-cols-12">
@@ -1437,10 +1725,10 @@ export const ParceirosPage: React.FC = () => {
               {/* Right Clean Form Column */}
               <div className="lg:col-span-7 p-6 sm:p-8 lg:p-10">
                 {prefilledNotice && (
-                  <div className="mb-5 px-4 py-3 rounded-xl bg-[#FBF8EE] border border-[#E5DFD2] text-xs text-[#0B1F33] flex items-center justify-between gap-3">
+                  <div className="mb-5 px-4 py-3 rounded-xl bg-[#FBF8EE] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#253D58] text-xs text-[#0B1F33] dark:text-slate-100 flex items-center justify-between gap-3">
                     <span>
                       {isEs ? 'Área preseleccionada:' : 'Área pré-selecionada:'}{' '}
-                      <strong className="text-[#8C6D14]">
+                      <strong className="text-[#8C6D14] dark:text-[#E5C76B]">
                         {translatePartnerCategory(prefilledNotice, locale)}
                       </strong>
                       . {isEs ? 'Completa tus datos para enviar la candidatura.' : 'Complete seus dados para enviar a candidatura.'}
@@ -1449,7 +1737,7 @@ export const ParceirosPage: React.FC = () => {
                       type="button"
                       onClick={() => setPrefilledNotice(null)}
                       aria-label={isEs ? 'Cerrar aviso' : 'Fechar aviso'}
-                      className="text-slate-400 hover:text-slate-700 shrink-0"
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white shrink-0"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -1457,14 +1745,14 @@ export const ParceirosPage: React.FC = () => {
                 )}
 
                 {submittedId && (
-                  <div className="mb-6 p-4 sm:p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="mb-6 p-4 sm:p-5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-950 dark:text-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#146B43] shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-5 h-5 text-[#146B43] dark:text-emerald-400 shrink-0 mt-0.5" />
                       <div className="text-sm">
                         <p className="font-bold">
                           {isEs ? 'Propuesta recibida con éxito' : 'Proposta recebida com sucesso'}
                         </p>
-                        <p className="text-xs text-emerald-900 mt-1">
+                        <p className="text-xs text-emerald-900 dark:text-emerald-200 mt-1">
                           {isEs ? 'Protocolo de registro:' : 'Protocolo de registro:'}{' '}
                           <span className="font-mono font-semibold">{submittedId}</span>.{' '}
                           {isEs
@@ -1476,7 +1764,7 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void handleCopyText(submittedId, 'protocolo')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-white text-xs font-semibold text-emerald-900 hover:bg-emerald-100/50 whitespace-nowrap shrink-0 self-start sm:self-center"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-[#0D1E31] text-xs font-semibold text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/40 whitespace-nowrap shrink-0 self-start sm:self-center"
                     >
                       {copiedId === 'protocolo' ? (
                         <>
@@ -1494,7 +1782,7 @@ export const ParceirosPage: React.FC = () => {
                 )}
 
                 {formError && (
-                  <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-[#C82333] text-sm font-medium">
+                  <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-[#C82333] dark:text-red-300 text-sm font-medium">
                     {formError}
                   </div>
                 )}
@@ -1514,7 +1802,7 @@ export const ParceirosPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-empresa">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-empresa">
                       {isEs ? 'Nombre de empresa o profesional *' : 'Nome da empresa ou profissional *'}
                     </label>
                     <input
@@ -1525,19 +1813,19 @@ export const ParceirosPage: React.FC = () => {
                       value={nomeEmpresa}
                       onChange={(e) => setNomeEmpresa(e.target.value)}
                       placeholder={isEs ? 'Ej.: Estudio Jurídico Andes' : 'Ex.: Andes Traduções Juramentadas'}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-cat">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-cat">
                       {isEs ? 'Especialidad *' : 'Categoria *'}
                     </label>
                     <select
                       id="p-cat"
                       value={categoria}
                       onChange={(e) => setCategoria(e.target.value as PartnerCategory)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] text-sm bg-white dark:bg-[#081524] text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     >
                       {PARTNER_CATEGORIES.map((c) => (
                         <option key={c} value={c}>
@@ -1548,7 +1836,7 @@ export const ParceirosPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-pais">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-pais">
                       {isEs ? 'País de operación *' : 'País de atuação *'}
                     </label>
                     <select
@@ -1560,7 +1848,7 @@ export const ParceirosPage: React.FC = () => {
                         if (nextPais === 'Brasil') setMoeda('BRL');
                         else if (nextPais === 'Chile') setMoeda('CLP');
                       }}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] text-sm bg-white dark:bg-[#081524] text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     >
                       <option value="Brasil">Brasil</option>
                       <option value="Chile">Chile</option>
@@ -1569,7 +1857,7 @@ export const ParceirosPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-cidade">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-cidade">
                       {isEs ? 'Ciudad / Región' : 'Cidade / Região'}
                     </label>
                     <input
@@ -1578,12 +1866,12 @@ export const ParceirosPage: React.FC = () => {
                       value={cidade}
                       onChange={(e) => setCidade(e.target.value)}
                       placeholder={isEs ? 'Ej.: Santiago (Providencia) / Online' : 'Ex.: São Paulo - SP / Santiago / Online'}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-resp">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-resp">
                       {isEs ? 'Nombre del responsable *' : 'Nome do responsável *'}
                     </label>
                     <input
@@ -1592,12 +1880,12 @@ export const ParceirosPage: React.FC = () => {
                       maxLength={140}
                       value={responsavel}
                       onChange={(e) => setResponsavel(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-whats">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-whats">
                       WhatsApp *
                     </label>
                     <input
@@ -1607,12 +1895,12 @@ export const ParceirosPage: React.FC = () => {
                       value={whatsapp}
                       onChange={(e) => setWhatsapp(formatPhoneByCountry(e.target.value, pais))}
                       placeholder={pais === 'Chile' ? '+56 9 8888 0000' : '+55 (11) 99999-0000'}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm tabular-nums text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm tabular-nums text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-email">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-email">
                       {isEs ? 'Correo corporativo *' : 'E-mail corporativo *'}
                     </label>
                     <input
@@ -1623,20 +1911,20 @@ export const ParceirosPage: React.FC = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="contato@empresa.com"
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-moeda">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-moeda">
                         {isEs ? 'Moneda' : 'Moeda'}
                       </label>
                       <select
                         id="p-moeda"
                         value={moeda}
                         onChange={(e) => setMoeda(e.target.value as CurrencyCode)}
-                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] text-sm bg-white dark:bg-[#081524] text-[#0B1523] dark:text-slate-100 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                       >
                         <option value="BRL">BRL (R$)</option>
                         <option value="CLP">CLP ($)</option>
@@ -1644,7 +1932,7 @@ export const ParceirosPage: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-site">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-site">
                         {isEs ? 'Sitio o Instagram' : 'Site ou Instagram'}
                       </label>
                       <input
@@ -1653,15 +1941,15 @@ export const ParceirosPage: React.FC = () => {
                         value={siteOuInstagram}
                         onChange={(e) => setSiteOuInstagram(e.target.value)}
                         placeholder="@perfil ou https://..."
-                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                       />
                     </div>
                   </div>
 
                   {/* Optional Partner Logo / Representative Image Upload */}
-                  <div className="md:col-span-2 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-4 space-y-3">
+                  <div className="md:col-span-2 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#0A192A] p-4 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <label className="text-xs font-semibold text-[#0B1F33]" htmlFor="p-logo-url">
+                      <label className="text-xs font-semibold text-[#0B1F33] dark:text-slate-200" htmlFor="p-logo-url">
                         {isEs
                           ? 'Logo o imagen representativa (aparecerá en la vista previa y vitrina)'
                           : 'Logo ou imagem representativa (aparece na prévia e na vitrine)'}
@@ -1673,7 +1961,7 @@ export const ParceirosPage: React.FC = () => {
                             setLogoUrl('');
                             setLogoUploadError(null);
                           }}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#C82333] hover:underline"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:underline"
                         >
                           <X className="w-3.5 h-3.5" />
                           {isEs ? 'Quitar imagen' : 'Remover imagem'}
@@ -1682,7 +1970,7 @@ export const ParceirosPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                      <div className="h-14 w-24 rounded-lg border border-[#DDD6C7] bg-white flex items-center justify-center overflow-hidden shrink-0">
+                      <div className="h-14 w-24 rounded-lg border border-[#DDD6C7] dark:border-[#253D58] bg-white flex items-center justify-center overflow-hidden shrink-0">
                         {safeFormLogoPreview ? (
                           <OptimizedImage
                             src={safeFormLogoPreview}
@@ -1708,7 +1996,7 @@ export const ParceirosPage: React.FC = () => {
                           type="button"
                           disabled={uploadingLogo}
                           onClick={() => logoFileInputRef.current?.click()}
-                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-[#0B1F33] disabled:opacity-50 whitespace-nowrap shrink-0"
+                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#11263D] hover:bg-slate-50 dark:hover:bg-[#173352] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 disabled:opacity-50 whitespace-nowrap shrink-0"
                         >
                           {uploadingLogo ? (
                             <>
@@ -1743,18 +2031,18 @@ export const ParceirosPage: React.FC = () => {
                               ? 'O pega una URL pública de tu logo (https://...)'
                               : 'Ou cole a URL pública da sua logo (https://...)'
                           }
-                          className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-xs text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                          className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-xs text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                         />
                       </div>
                     </div>
 
                     {logoUploadError && (
-                      <p className="text-xs font-medium text-[#C82333]">{logoUploadError}</p>
+                      <p className="text-xs font-medium text-[#C82333] dark:text-red-400">{logoUploadError}</p>
                     )}
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-prop">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-prop">
                       {isEs
                         ? 'Propuesta comercial, plazos y beneficios para clientes'
                         : 'Proposta de valores, prazos e benefícios para clientes'}
@@ -1770,12 +2058,12 @@ export const ParceirosPage: React.FC = () => {
                           ? 'Describe tarifas referenciales, tiempos de entrega y condiciones especiales para clientes derivados...'
                           : 'Descreva prazos de entrega, tabela referencial e condições especiais para clientes indicados...'
                       }
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="p-msg">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5" htmlFor="p-msg">
                       {isEs
                         ? 'Presentación institucional y diferenciales'
                         : 'Apresentação institucional e diferenciais'}
@@ -1791,12 +2079,12 @@ export const ParceirosPage: React.FC = () => {
                           ? 'Experiencia con brasileños en Chile, certificaciones, idiomas de atención...'
                           : 'Experiência com brasileiros no Chile, registros profissionais, atendimento em português...'
                       }
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm text-[#0B1523] focus:outline-none focus:border-[#0B1F33]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] bg-white dark:bg-[#081524] text-sm text-[#0B1523] dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#0B1F33] dark:focus:border-[#E5C76B]"
                     />
                   </div>
 
                   <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {isEs
                         ? 'Sin cuota mensual · Revisión confidencial en hasta 48h hábiles.'
                         : 'Zero mensalidade · Análise confidencial em até 48h úteis.'}
@@ -1804,8 +2092,7 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold text-white disabled:opacity-50 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold bg-[#0B1F33] dark:bg-[#C8A236] text-white dark:text-[#0B1F33] disabled:opacity-50 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
                     >
                       {submitting ? (
                         <>
@@ -1831,14 +2118,14 @@ export const ParceirosPage: React.FC = () => {
               <p className="brand-kicker mb-1.5">
                 {isEs ? 'Preguntas frecuentes de aliados' : 'Perguntas frequentes de parceiros'}
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33]">
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] dark:text-white">
                 {isEs
                   ? 'Dudas habituales sobre el programa B2B'
                   : 'Dúvidas frequentes sobre o programa B2B'}
               </h2>
             </div>
 
-            <div className="bg-white border border-[#E5DFD2] rounded-2xl divide-y divide-[#E5DFD2]">
+            <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl divide-y divide-[#E5DFD2] dark:divide-[#1C324B]">
               {partnerFaqs.map((item, idx) => {
                 const isOpen = openFaqIdx === idx;
                 return (
@@ -1847,13 +2134,13 @@ export const ParceirosPage: React.FC = () => {
                       type="button"
                       onClick={() => setOpenFaqIdx(isOpen ? null : idx)}
                       aria-expanded={isOpen}
-                      className="w-full px-6 py-5 flex items-center justify-between gap-4 text-left hover:bg-[#FAF9F6] transition-colors"
+                      className="w-full px-6 py-5 flex items-center justify-between gap-4 text-left hover:bg-[#FAF9F6] dark:hover:bg-[#11263D] transition-colors"
                     >
-                      <span className="text-sm sm:text-base font-bold text-[#0B1F33] leading-snug">
+                      <span className="text-sm sm:text-base font-bold text-[#0B1F33] dark:text-white leading-snug">
                         {item.q}
                       </span>
                       <ChevronDown
-                        className={`w-4 h-4 text-[#8C6D14] shrink-0 transition-transform duration-200 ${
+                        className={`w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B] shrink-0 transition-transform duration-200 ${
                           isOpen ? 'rotate-180' : ''
                         }`}
                       />
@@ -1867,7 +2154,7 @@ export const ParceirosPage: React.FC = () => {
                           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                           className="overflow-hidden"
                         >
-                          <p className="px-6 pb-5 text-sm text-[#4A5A6D] leading-relaxed max-w-4xl">
+                          <p className="px-6 pb-5 text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-4xl">
                             {item.a}
                           </p>
                         </motion.div>
@@ -1887,6 +2174,7 @@ export const ParceirosPage: React.FC = () => {
             const safeExternal = normalizePartnerExternalUrl(selectedPartner.siteInstagram);
             const safeModalLogo = sanitizePartnerImageUrl(selectedPartner.logoUrl);
             const referralText = buildReferralMessage(selectedPartner);
+            const modalSaved = isFavorite(selectedPartner.id);
 
             return (
               <motion.div
@@ -1907,7 +2195,7 @@ export const ParceirosPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 12, scale: 0.98 }}
                   transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                  className="bg-white border border-[#E5DFD2] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
+                  className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-4">
@@ -1948,35 +2236,35 @@ export const ParceirosPage: React.FC = () => {
                   </div>
 
                   <div className="p-6 space-y-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#4A5A6D] pb-4 border-b border-[#F1EDE4]">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#4A5A6D] dark:text-slate-300 pb-4 border-b border-[#F1EDE4] dark:border-[#1C324B]">
                       <span className="inline-flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-[#8C6D14]" />
+                        <MapPin className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" />
                         {selectedPartner.cidadeRegiao || translatePartnerCountry(selectedPartner.pais, locale)}
                       </span>
-                      <span className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] font-mono tabular-nums">
+                      <span className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] dark:text-white font-mono tabular-nums">
                         <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
                         {Number(selectedPartner.avaliacao || 5).toFixed(1)}/5 · Homologado
                       </span>
                     </div>
 
                     <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-[#0B1F33]">
+                      <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-200">
                         {isEs ? 'Sobre el aliado' : 'Sobre o parceiro'}
                       </p>
-                      <p className="text-sm text-[#4A5A6D] leading-relaxed">
+                      <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
                         {selectedPartner.descricaoPublica}
                       </p>
                     </div>
 
-                    <div className="rounded-xl bg-[#F7F5F0] border border-[#E5DFD2] p-4 space-y-2">
+                    <div className="rounded-xl bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] p-4 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-[#0B1F33]">
+                        <p className="text-xs font-semibold text-[#0B1F33] dark:text-white">
                           {isEs ? 'Mensaje sugerido de presentación' : 'Mensagem sugerida de indicação'}
                         </p>
                         <button
                           type="button"
                           onClick={() => void handleCopyText(referralText, selectedPartner.id)}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#8C6D14] hover:underline whitespace-nowrap shrink-0"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] hover:underline whitespace-nowrap shrink-0"
                         >
                           {copiedId === selectedPartner.id ? (
                             <>
@@ -1991,32 +2279,56 @@ export const ParceirosPage: React.FC = () => {
                           )}
                         </button>
                       </div>
-                      <p className="text-xs text-[#4A5A6D] leading-relaxed">{referralText}</p>
+                      <p className="text-xs text-[#4A5A6D] dark:text-slate-300 leading-relaxed">{referralText}</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
-                      {safeExternal && (
-                        <a
-                          href={safeExternal}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
-                        >
-                          {isEs ? 'Visitar sitio / Instagram' : 'Visitar site / Instagram'}
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      {selectedPartner.whatsapp && (
-                        <a
-                          href={buildWhatsAppUrl(selectedPartner.whatsapp, referralText)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#146B43] hover:bg-[#115a38] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          {isEs ? 'Contactar por WhatsApp' : 'Falar pelo WhatsApp'}
-                        </a>
-                      )}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2">
+                      <button
+                        type="button"
+                        aria-pressed={modalSaved}
+                        onClick={() => toggleFavorite(selectedPartner.id)}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                          modalSaved
+                            ? 'border-[#C82333]/35 bg-red-50 dark:bg-red-950/40 text-[#C82333] dark:text-red-300'
+                            : 'border-slate-300 dark:border-[#253D58] text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#11263D]'
+                        }`}
+                      >
+                        <Heart
+                          className={`w-3.5 h-3.5 ${modalSaved ? 'fill-[#C82333] text-[#C82333] dark:fill-red-400 dark:text-red-400' : ''}`}
+                        />
+                        {modalSaved
+                          ? isEs
+                            ? 'Guardado en favoritos'
+                            : 'Salvo nos favoritos'
+                          : isEs
+                            ? 'Guardar aliado'
+                            : 'Favoritar parceiro'}
+                      </button>
+
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        {safeExternal && (
+                          <a
+                            href={safeExternal}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-[#253D58] text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#11263D] whitespace-nowrap shrink-0"
+                          >
+                            {isEs ? 'Visitar sitio / Instagram' : 'Visitar site / Instagram'}
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        {selectedPartner.whatsapp && (
+                          <a
+                            href={buildWhatsAppUrl(selectedPartner.whatsapp, referralText)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#146B43] hover:bg-[#115a38] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            {isEs ? 'Contactar por WhatsApp' : 'Falar pelo WhatsApp'}
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>

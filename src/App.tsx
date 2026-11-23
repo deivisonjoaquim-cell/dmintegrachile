@@ -6,6 +6,7 @@ import { PublicLayout } from './components/PublicLayout';
 import { SkeletonBlock } from './components/ui/DesignSystem';
 import { AppProvider } from './contexts/AppContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { HomePage } from './pages/HomePage';
 import { installGlobalErrorHandlers } from './services/errorService';
 import { routeLoaders } from './utils/routePrefetch';
@@ -25,7 +26,7 @@ function normalizePath(raw: string): string {
 }
 
 function getInitialPath(): string {
-  if (window.location.hash && window.location.hash.length > 1) {
+  if (window.location.hash && window.location.hash.startsWith('#/')) {
     return normalizePath(window.location.hash);
   }
   return normalizePath(window.location.pathname);
@@ -39,12 +40,12 @@ const PageLoader: React.FC = () => (
 
 const NotFoundView: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
   <div className="py-16 sm:py-24 px-4">
-    <div className="max-w-lg mx-auto bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
+    <div className="max-w-lg mx-auto bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl overflow-hidden text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
       <BrandRibbon className="h-[3px] w-full" />
       <div className="p-8 sm:p-10 space-y-4">
         <p className="brand-kicker">Erro 404 · Página não encontrada</p>
-        <h1 className="font-display text-3xl font-bold text-[#0B1F33]">Este endereço não está disponível.</h1>
-        <p className="text-sm text-[#4A5A6D] leading-relaxed">
+        <h1 className="font-display text-3xl font-bold text-[#0B1F33] dark:text-white">Este endereço não está disponível.</h1>
+        <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
           O caminho acessado foi movido ou não existe mais. Retorne à página inicial ou inicie o diagnóstico migratório completo.
         </p>
         <div className="flex flex-wrap justify-center gap-3 pt-2">
@@ -59,7 +60,7 @@ const NotFoundView: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavi
           <button
             type="button"
             onClick={() => onNavigate('/diagnostico')}
-            className="px-5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] hover:bg-[#F1EDE4] text-xs font-semibold text-[#0B1F33] transition-colors"
+            className="px-5 py-2.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] hover:bg-[#F1EDE4] dark:hover:bg-[#183350] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 transition-colors"
           >
             Fazer Diagnóstico Completo
           </button>
@@ -86,7 +87,13 @@ function RouterView() {
   const [currentPath, setCurrentPath] = useState<string>(getInitialPath);
 
   useEffect(() => {
-    const sync = () => setCurrentPath(getInitialPath());
+    const sync = () => {
+      // Ignore in-page section anchors (#seja-parceiro, #diretorio-parceiros) so they never trigger 404
+      if (window.location.hash && !window.location.hash.startsWith('#/')) {
+        return;
+      }
+      setCurrentPath(getInitialPath());
+    };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
@@ -172,12 +179,14 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <LanguageProvider>
-        <AppProvider>
-          <RouterView />
-          <GlobalErrorToast />
-        </AppProvider>
-      </LanguageProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AppProvider>
+            <RouterView />
+            <GlobalErrorToast />
+          </AppProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

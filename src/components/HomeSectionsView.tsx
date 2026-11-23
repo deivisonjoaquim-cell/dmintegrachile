@@ -74,22 +74,22 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       isDark: false,
       sectionStyle: { backgroundColor: 'var(--color-bg)' } as React.CSSProperties,
       sectionClass: 'text-[var(--color-text)]',
-      headingClass: 'text-[#0B1F33]',
-      subClass: 'text-[#4A5A6D]',
-      eyebrowClass: 'text-[#8C6D14]',
+      headingClass: 'text-[#0B1F33] dark:text-white',
+      subClass: 'text-[#4A5A6D] dark:text-slate-300',
+      eyebrowClass: 'text-[#8C6D14] dark:text-[#E5C76B]',
       cardClass:
-        'bg-[var(--color-surface)] border border-[#E5DFD2] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
+        'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
     };
   }
   return {
     isDark: false,
     sectionStyle: { backgroundColor: 'var(--color-surface)' } as React.CSSProperties,
-    sectionClass: 'border-y border-[#E5DFD2] text-[var(--color-text)]',
-    headingClass: 'text-[#0B1F33]',
-    subClass: 'text-[#4A5A6D]',
-    eyebrowClass: 'text-[#8C6D14]',
+    sectionClass: 'border-y border-[#E5DFD2] dark:border-[#1C324B] text-[var(--color-text)]',
+    headingClass: 'text-[#0B1F33] dark:text-white',
+    subClass: 'text-[#4A5A6D] dark:text-slate-300',
+    eyebrowClass: 'text-[#8C6D14] dark:text-[#E5C76B]',
     cardClass:
-      'bg-[var(--color-surface)] border border-[#E5DFD2] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
+      'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
   };
 }
 

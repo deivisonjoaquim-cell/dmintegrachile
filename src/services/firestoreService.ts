@@ -45,6 +45,7 @@ import type {
   CaseDocument,
   CaseFinancialSummary,
   Client,
+  ClientTestimonial,
   CommunicationLog,
   Deadline,
   Dependent,
@@ -2586,5 +2587,63 @@ export async function syncRuleEngineDecisionLogToFirestore(
     role || 'cliente',
   );
 }
+
+export async function fetchPublicClientTestimonials(): Promise<ClientTestimonial[]> {
+  try {
+    const q = query(
+      collection(db, 'clientTestimonials'),
+      where('aprovado', '==', true),
+      where('autorizado', '==', true),
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<ClientTestimonial, 'id'>) }))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'clientTestimonials');
+    return [];
+  }
+}
+
+export async function submitClientTestimonialPublic(
+  input: Omit<ClientTestimonial, 'id' | 'createdAt' | 'updatedAt' | 'aprovado'>,
+): Promise<ClientTestimonial> {
+  const id = makeId('dep');
+  const now = new Date().toISOString();
+  const safeVideoUrl =
+    input.videoUrl && /^\/uploads\/testimonials\/[a-zA-Z0-9_\-\.]+$/.test(input.videoUrl)
+      ? input.videoUrl.slice(0, 500)
+      : '';
+
+  const payload: ClientTestimonial = stripUndefined({
+    id,
+    nome: (input.nome || '').trim().slice(0, 140),
+    cidadeOrigem: (input.cidadeOrigem || '').trim().slice(0, 120),
+    cidadeDestino: (input.cidadeDestino || '').trim().slice(0, 120),
+    tipoVisto: (input.tipoVisto || '').trim().slice(0, 120),
+    categoriaParceiro: (input.categoriaParceiro || '').trim().slice(0, 100),
+    depoimento: (input.depoimento || '').trim().slice(0, 1200),
+    videoUrl: safeVideoUrl,
+    videoMimeType: safeVideoUrl ? (input.videoMimeType || 'video/webm').slice(0, 60) : '',
+    duracaoSegundos: safeVideoUrl
+      ? Math.max(0, Math.min(45, Math.round(Number(input.duracaoSegundos || 0))))
+      : 0,
+    avaliacao: Math.max(1, Math.min(5, Math.round(Number(input.avaliacao || 5)))),
+    autorizado: Boolean(input.autorizado),
+    aprovado: true,
+    honeypot: '',
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  try {
+    await setDoc(doc(db, 'clientTestimonials', id), payload);
+    return payload;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `clientTestimonials/${id}`);
+    throw err;
+  }
+}
+
 
 
