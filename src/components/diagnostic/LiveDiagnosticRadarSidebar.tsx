@@ -43,7 +43,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
         : 'Protocolo digital realizado pelo portal oficial SERMIG ainda fora do Chile, com aprovação prévia ao embarque.';
 
   return (
-    <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
+    <aside data-onboarding-target="live-radar" className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
       {/* Painel Principal: Radar de Viabilidade ao Vivo (Azul Marinho + Ouro) */}
       <div className="rounded-2xl overflow-hidden border border-[#1E3349] bg-[#0B1F33] text-white shadow-[0_14px_34px_rgba(11,31,51,0.16)]">
         <BrandRibbon className="h-[3px] w-full" />

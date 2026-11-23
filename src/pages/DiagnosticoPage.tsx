@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BookmarkCheck,
   Check,
+  Compass,
   Copy,
   HelpCircle,
   Lock,
@@ -17,6 +18,11 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { BrandRibbon } from '../components/BrandLogo';
 import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../components/DiagnosticReportView';
+import {
+  DiagnosticOnboardingGuide,
+  hasSeenDiagnosticOnboarding,
+  markDiagnosticOnboardingSeen,
+} from '../components/diagnostic/DiagnosticOnboardingGuide';
 import { LiveDiagnosticRadarSidebar } from '../components/diagnostic/LiveDiagnosticRadarSidebar';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { useApp } from '../contexts/AppContext';
@@ -330,6 +336,43 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   const [calendlyOpen, setCalendlyOpen] = useState(false);
   const [lawOpen, setLawOpen] = useState(false);
   const [lgpdOpen, setLgpdOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+
+  // Abre o guia interativo de 3 passos automaticamente na primeira visita ao Diagnóstico
+  useEffect(() => {
+    if (result) return;
+    if (hasSeenDiagnosticOnboarding()) return;
+    const queryStr =
+      window.location.search || (window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '');
+    const params = new URLSearchParams(queryStr);
+    if (params.get('retomar')) return;
+    if (answers.nome.trim().length > 0 || step > 1) return;
+
+    const timer = window.setTimeout(() => {
+      setOnboardingOpen(true);
+    }, 360);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCloseOnboarding = useCallback((dontShowAgain: boolean) => {
+    if (dontShowAgain) {
+      markDiagnosticOnboardingSeen();
+    }
+    setOnboardingOpen(false);
+  }, []);
+
+  const handleCompleteOnboarding = useCallback(() => {
+    markDiagnosticOnboardingSeen();
+    setOnboardingOpen(false);
+    window.setTimeout(() => {
+      const firstInput = document.getElementById('diag-nome');
+      if (firstInput) {
+        firstInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstInput.focus({ preventScroll: true });
+      }
+    }, 180);
+  }, []);
 
   // Refinamento opcional por IA
   const [aiLoading, setAiLoading] = useState(false);
@@ -1096,7 +1139,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 </p>
               </div>
 
-              <div className="flex items-center gap-4 shrink-0 border-t lg:border-t-0 border-white/10 pt-3 lg:pt-0">
+              <div className="flex flex-wrap items-center justify-between lg:justify-end gap-4 shrink-0 border-t lg:border-t-0 border-white/10 pt-3 lg:pt-0">
+                <button
+                  type="button"
+                  onClick={() => setOnboardingOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border border-[#E6C55A]/35 bg-white/[0.07] hover:bg-white/[0.13] text-xs font-semibold text-[#E6C55A] transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Compass className="w-3.5 h-3.5 shrink-0" />
+                  Guia rápido
+                </button>
                 <div className="text-left lg:text-right">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                     Progresso da análise
@@ -1171,7 +1222,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         </section>
 
         {/* Barra Compacta de Radar ao Vivo em Telas Mobile (< lg) */}
-        <div className="lg:hidden rounded-xl border border-[#1E3349] bg-[#0B1F33] text-white px-4 py-3 flex items-center justify-between gap-3">
+        <div
+          data-onboarding-target="live-radar-mobile"
+          className="lg:hidden rounded-xl border border-[#1E3349] bg-[#0B1F33] text-white px-4 py-3 flex items-center justify-between gap-3"
+        >
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#E6C55A]">
               Radar ao Vivo · Tendência SERMIG
@@ -1216,6 +1270,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         {/* Layout 12 colunas: Formulário adaptativo em 6 etapas (8 cols) + Radar de Viabilidade ao Vivo (4 cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form
+            data-onboarding-target="wizard-form"
             onSubmit={handleSubmit}
             className="lg:col-span-8 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 space-y-6 shadow-[0_6px_24px_rgba(11,31,51,0.04)]"
           >
@@ -2250,7 +2305,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             </AnimatePresence>
 
             {/* Barra de Navegação do Formulário (6 Etapas) */}
-            <div className="pt-5 border-t border-[#E5DFD2] flex flex-wrap items-center justify-between gap-3">
+            <div
+              data-onboarding-target="final-actions"
+              className="pt-5 border-t border-[#E5DFD2] flex flex-wrap items-center justify-between gap-3"
+            >
               <div className="flex items-center gap-2">
                 {step > 1 && (
                   <motion.button
@@ -2353,6 +2411,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           </motion.div>
         </div>
       )}
+      <DiagnosticOnboardingGuide
+        open={onboardingOpen}
+        onClose={handleCloseOnboarding}
+        onComplete={handleCompleteOnboarding}
+      />
     </div>
     </MotionConfig>
   );
