@@ -207,3 +207,50 @@ test('analyzePartnerSynergy parses valid Gemini JSON response and propagates ups
     assert.match(upstreamFailure.error, /alta demanda/i);
   }
 });
+
+test('analyzePartnerSynergy fails over to fallback model when primary returns 503', async () => {
+  const modelsTried: string[] = [];
+  const res = await analyzePartnerSynergy({
+    profile: {
+      objetivo: 'Empreender no Chile',
+      etapaAtual: 'Documentação no Brasil',
+      composicaoFamiliar: 'Casal',
+      urgencia: '1 a 3 meses',
+      locale: 'pt-BR',
+    },
+    partners: SAMPLE_PARTNERS,
+    model: 'gemini-4-hydrogen',
+    fallbackModel: 'gemini-3.1-flash-lite',
+    generateFn: async (args) => {
+      modelsTried.push(args.model);
+      if (args.model === 'gemini-4-hydrogen') {
+        const err = new Error('503 UNAVAILABLE') as Error & { status?: number };
+        err.status = 503;
+        throw err;
+      }
+      return {
+        text: JSON.stringify({
+          resumoEstrategico: 'Plano via modelo reserva.',
+          etapaSugerida: 'Fase 1',
+          recomendacoes: [
+            {
+              partnerId: 'part_trad',
+              scoreSinergia: 92,
+              prioridade: 'Essencial',
+              justificativa: 'Traduções oficiais.',
+              momentoIdeal: 'Imediato',
+              proximoPasso: 'Solicitar orçamento',
+            },
+          ],
+        }),
+        candidates: [{ finishReason: 'STOP' }],
+      } as unknown as GenerateContentResponse;
+    },
+  });
+
+  assert.equal(res.ok, true);
+  assert.deepEqual(modelsTried, ['gemini-4-hydrogen', 'gemini-3.1-flash-lite']);
+  if (res.ok) {
+    assert.equal(res.data.modeloUsado, 'gemini-3.1-flash-lite');
+  }
+});

@@ -1,6 +1,7 @@
 import { GoogleGenAI, ThinkingLevel, Type, type GenerateContentResponse } from '@google/genai';
 import {
   classifyGeminiError,
+  DEFAULT_GEMINI_FALLBACK_MODEL,
   DEFAULT_GEMINI_PRIMARY_MODEL,
   extractAndValidateJson,
   normalizeGeminiApiKey,
@@ -52,6 +53,7 @@ export interface AnalyzePartnerSynergyOptions {
   partners: SynergyPartnerCatalogItem[];
   apiKey?: string;
   model?: string;
+  fallbackModel?: string;
   timeoutMs?: number;
   generateFn?: (args: {
     model: string;
@@ -331,94 +333,119 @@ export async function analyzePartnerSynergy(
     partners,
   });
 
-  const isGemini4 = /^gemini-4-/i.test(model);
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const fallbackModel = resolveGeminiModelFromEnv(
+    options.fallbackModel ?? process.env.GEMINI_MODEL_FALLBACK,
+    DEFAULT_GEMINI_FALLBACK_MODEL,
+  );
+  const candidateModels =
+    fallbackModel && fallbackModel !== model ? [model, fallbackModel] : [model];
 
-  try {
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new Error(`Timeout after ${timeoutMs}ms`));
-      }, timeoutMs);
-    });
+  let lastClassified: ReturnType<typeof classifyGeminiError> | null = null;
 
-    const callPromise = generateFn({
-      model,
-      contents,
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-        responseSchema: buildPartnerSynergySchema(),
-        ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
-        abortSignal: controller.signal,
-      },
-    });
-    callPromise.catch(() => {});
+  for (let idx = 0; idx < candidateModels.length; idx += 1) {
+    const activeModel = candidateModels[idx];
+    const isGemini4 = /^gemini-4-/i.test(activeModel);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const response = await Promise.race([callPromise, timeoutPromise]);
-    const extracted = extractAndValidateJson(response, (parsed) =>
-      validateAndGroundSynergyResponse(parsed, partners),
-    );
+    try {
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`Timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
 
-    if (!extracted.ok) {
-      if (extracted.blocked) {
+      const callPromise = generateFn({
+        model: activeModel,
+        contents,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: buildPartnerSynergySchema(),
+          ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+          abortSignal: controller.signal,
+        },
+      });
+      callPromise.catch(() => {});
+
+      const response = await Promise.race([callPromise, timeoutPromise]);
+      const extracted = extractAndValidateJson(response, (parsed) =>
+        validateAndGroundSynergyResponse(parsed, partners),
+      );
+
+      if (!extracted.ok) {
+        if (extracted.blocked) {
+          return {
+            ok: false,
+            statusCode: 400,
+            code: 'response_blocked',
+            error: isEs
+              ? 'La consulta fue bloqueada por filtros de seguridad. Ajusta la descripción e intenta nuevamente.'
+              : 'A análise foi bloqueada pelos filtros de segurança. Ajuste a descrição e tente novamente.',
+          };
+        }
+        if (idx + 1 < candidateModels.length) continue;
         return {
           ok: false,
-          statusCode: 400,
-          code: 'response_blocked',
+          statusCode: 502,
+          code: 'invalid_ai_response',
           error: isEs
-            ? 'La consulta fue bloqueada por filtros de seguridad. Ajusta la descripción e intenta nuevamente.'
-            : 'A análise foi bloqueada pelos filtros de segurança. Ajuste a descrição e tente novamente.',
+            ? 'La IA devolvió una respuesta incompleta. Intenta analizar nuevamente en unos segundos.'
+            : 'A IA retornou uma resposta incompleta. Tente analisar novamente em alguns segundos.',
         };
       }
+
       return {
-        ok: false,
-        statusCode: 502,
-        code: 'invalid_ai_response',
-        error: isEs
-          ? 'La IA devolvió una respuesta incompleta. Intenta analizar nuevamente en unos segundos.'
-          : 'A IA retornou uma resposta incompleta. Tente analisar novamente em alguns segundos.',
+        ok: true,
+        data: {
+          ...extracted.data,
+          modeloUsado: activeModel,
+          analisadoEm: new Date().toISOString(),
+        },
       };
+    } catch (err) {
+      const classified = classifyGeminiError(err);
+      lastClassified = classified;
+      if ((classified.retryable || classified.statusCode === 404) && idx + 1 < candidateModels.length) {
+        continue;
+      }
+      break;
+    } finally {
+      if (timer) clearTimeout(timer);
     }
-
-    return {
-      ok: true,
-      data: {
-        ...extracted.data,
-        modeloUsado: model,
-        analisadoEm: new Date().toISOString(),
-      },
-    };
-  } catch (err) {
-    const classified = classifyGeminiError(err);
-    const statusCode =
-      classified.kind === 'timeout'
-        ? 504
-        : classified.statusCode === 429
-          ? 429
-          : classified.statusCode === 401 || classified.statusCode === 403
-            ? 502
-            : classified.statusCode === 400
-              ? 400
-              : 502;
-
-    const errorMessage =
-      classified.isHighDemand || statusCode === 429 || statusCode === 504
-        ? isEs
-          ? 'El servicio de IA está con alta demanda en este momento. Intenta nuevamente en unos segundos.'
-          : 'O serviço de IA está com alta demanda no momento. Tente novamente em alguns segundos.'
-        : isEs
-          ? 'No fue posible completar el análisis de sinergia con IA en este momento.'
-          : 'Não foi possível concluir a análise de sinergia com IA no momento.';
-
-    return {
-      ok: false,
-      statusCode,
-      code: classified.safeReason,
-      error: errorMessage,
-    };
-  } finally {
-    if (timer) clearTimeout(timer);
   }
+
+  const classified = lastClassified || {
+    kind: 'temporary' as const,
+    isHighDemand: false,
+    retryable: true,
+    safeReason: 'transient_unknown',
+  };
+  const statusCode =
+    classified.kind === 'timeout'
+      ? 504
+      : classified.statusCode === 429
+        ? 429
+        : classified.statusCode === 401 || classified.statusCode === 403
+          ? 502
+          : classified.statusCode === 400
+            ? 400
+            : 502;
+
+  const errorMessage =
+    classified.isHighDemand || statusCode === 429 || statusCode === 504
+      ? isEs
+        ? 'El servicio de IA está con alta demanda en este momento. Intenta nuevamente en unos segundos.'
+        : 'O serviço de IA está com alta demanda no momento. Tente novamente em alguns segundos.'
+      : isEs
+        ? 'No fue posible completar el análisis de sinergia con IA en este momento.'
+        : 'Não foi possível concluir a análise de sinergia com IA no momento.';
+
+  return {
+    ok: false,
+    statusCode,
+    code: classified.safeReason,
+    error: errorMessage,
+  };
 }

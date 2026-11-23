@@ -994,6 +994,69 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
       }
     }
   });
+
+  it('rejects out-of-range numeric env vars like GEMINI_MAX_ATTEMPTS=30000 and falls back to safe default 2', () => {
+    const saved = {
+      GEMINI_MAX_ATTEMPTS: process.env.GEMINI_MAX_ATTEMPTS,
+      GEMINI_FALLBACK_ATTEMPTS: process.env.GEMINI_FALLBACK_ATTEMPTS,
+      GEMINI_TIMEOUT_MS: process.env.GEMINI_TIMEOUT_MS,
+    };
+    try {
+      process.env.GEMINI_MAX_ATTEMPTS = '30000';
+      process.env.GEMINI_FALLBACK_ATTEMPTS = '30000';
+      process.env.GEMINI_TIMEOUT_MS = '200';
+      const cfg = getGeminiRuntimeConfig();
+      assert.equal(cfg.maxAttempts, 2);
+      assert.equal(cfg.fallbackAttempts, 2);
+      assert.equal(cfg.timeoutMs, 25000);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  it('compacts oversized inputs and accepts valid partial parecer and stringified custos numbers', () => {
+    const parecerSpec = buildParecerSpec({
+      caseData: { titulo: 'Mercosul', observacoes: 'A'.repeat(4000) },
+      clientData: { localizacaoAtual: 'Brasil', passaporte: { validade: '2030-01-01' } },
+      dependents: Array.from({ length: 15 }, (_, i) => ({ vinculo: `Filho ${i}`, nomeCompleto: 'Privado' })),
+      legalSources: Array.from({ length: 20 }, (_, i) => ({
+        titulo: `Norma ${i}`,
+        textoIntegral: 'Z'.repeat(5000),
+      })),
+    });
+    const promptStr = String(parecerSpec.contents);
+    assert.equal(promptStr.includes('Privado'), false);
+    assert.equal(promptStr.length < 18000, true);
+
+    const validatedParecer = parecerSpec.validateJson({
+      enquadramentoLegal: 'Acordo Mercosul (Subcategoria 15).',
+      elegibilidadeRiscos: '',
+      fundamentacaoNormativa: '',
+      recomendacoes: 'Emitir antecedentes PF e apostilar.',
+    });
+    assert.ok(validatedParecer);
+    assert.equal(validatedParecer.enquadramentoLegal, 'Acordo Mercosul (Subcategoria 15).');
+    assert.ok(validatedParecer.elegibilidadeRiscos.length > 0);
+    assert.ok(validatedParecer.fundamentacaoNormativa.length > 0);
+
+    const custosSpec = buildCustosSpec({});
+    const validatedCustos = custosSpec.validateJson({
+      taxaSermigMercosulUsd: '90',
+      taxaSermigTemporalUsd: '90,5',
+      taxaSermigDefinitivaUsd: 120,
+      apostilaCnjBrl: '185',
+      traducaoJuramentadaBrl: '210',
+      cedulaIdentidadeClp: '4270',
+      observacao: 'Estimativa — confirmar na fonte oficial',
+      atualizadoEm: '2026-11-23',
+    });
+    assert.ok(validatedCustos);
+    assert.equal(validatedCustos.taxaSermigMercosulUsd, 90);
+    assert.equal(validatedCustos.taxaSermigTemporalUsd, 90.5);
+  });
 });
 
 

@@ -201,12 +201,68 @@ export function resolveAttachmentFromUploadUrl(
 }
 
 function asStringArray(val: unknown): string[] | null {
-  if (!Array.isArray(val)) return null;
-  return val.filter((x): x is string => typeof x === 'string');
+  if (Array.isArray(val)) {
+    return val
+      .filter((x): x is string => typeof x === 'string')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+  if (typeof val === 'string' && val.trim()) {
+    return [val.trim()];
+  }
+  return null;
 }
 
 function asFiniteNumber(val: unknown): number | null {
-  return typeof val === 'number' && Number.isFinite(val) ? val : null;
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const cleaned = val.trim().replace(',', '.');
+    if (cleaned && /^-?\d+(?:\.\d+)?$/.test(cleaned)) {
+      const parsed = Number(cleaned);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
+function compactServerLegalSources(raw: unknown, maxItems = 15) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .slice(0, maxItems)
+    .map((s) => ({
+      titulo: typeof s.titulo === 'string' ? s.titulo.slice(0, 160) : '',
+      numeroAno: typeof s.numeroAno === 'string' ? s.numeroAno.slice(0, 60) : '',
+      artigos: typeof s.artigos === 'string' ? s.artigos.slice(0, 240) : '',
+      resumoPortugues:
+        typeof s.resumoPortugues === 'string'
+          ? s.resumoPortugues.slice(0, 420)
+          : typeof s.explicacaoSimples === 'string'
+            ? s.explicacaoSimples.slice(0, 420)
+            : '',
+    }))
+    .filter((s) => Boolean(s.titulo));
+}
+
+function compactServerCurrentSource(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return {};
+  const s = raw as Record<string, unknown>;
+  return {
+    id: typeof s.id === 'string' ? s.id.slice(0, 128) : '',
+    titulo: typeof s.titulo === 'string' ? s.titulo.slice(0, 200) : '',
+    numeroAno: typeof s.numeroAno === 'string' ? s.numeroAno.slice(0, 80) : '',
+    pais: typeof s.pais === 'string' ? s.pais.slice(0, 40) : 'Chile',
+    artigos: typeof s.artigos === 'string' ? s.artigos.slice(0, 600) : '',
+    resumoPortugues: typeof s.resumoPortugues === 'string' ? s.resumoPortugues.slice(0, 1200) : '',
+    explicacaoCliente: typeof s.explicacaoCliente === 'string' ? s.explicacaoCliente.slice(0, 800) : '',
+    linkOficial: typeof s.linkOficial === 'string' ? s.linkOficial.slice(0, 320) : '',
+    statusVigencia: typeof s.statusVigencia === 'string' ? s.statusVigencia.slice(0, 40) : '',
+  };
+}
+
+function stripBase64DataPrefix(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.replace(/^data:[^;]+;base64,/i, '').replace(/\s+/g, '');
 }
 
 // =============================================================================
@@ -302,14 +358,7 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
 
 export function buildDiagnosticoSpec(body: Record<string, unknown>) {
   const { answers, regrasAcionadas, visaCategories, legalSources, subcategoriaRecomendada } = body;
-  const sourcesBrief = Array.isArray(legalSources)
-    ? legalSources.slice(0, 20).map((s: Record<string, unknown>) => ({
-        titulo: s.titulo,
-        numeroAno: s.numeroAno,
-        artigos: s.artigos,
-        resumoPortugues: s.resumoPortugues,
-      }))
-    : [];
+  const sourcesBrief = compactServerLegalSources(legalSources, 20);
   const categoriesBrief = Array.isArray(visaCategories) ? visaCategories.slice(0, 20) : [];
 
   return {
@@ -352,12 +401,66 @@ export function buildDiagnosticoSpec(body: Record<string, unknown>) {
 }
 
 export function buildParecerSpec(body: Record<string, unknown>) {
-  const { caseData, clientData, dependents, legalSources } = body;
+  const rawCase = (body.caseData && typeof body.caseData === 'object' ? body.caseData : {}) as Record<string, unknown>;
+  const rawClient = (body.clientData && typeof body.clientData === 'object' ? body.clientData : {}) as Record<string, unknown>;
+  const rawPassport =
+    rawClient.passaporte && typeof rawClient.passaporte === 'object'
+      ? (rawClient.passaporte as Record<string, unknown>)
+      : null;
+
+  const caseBrief = {
+    id: rawCase.id,
+    titulo: typeof rawCase.titulo === 'string' ? rawCase.titulo.slice(0, 200) : '',
+    tipoServico: typeof rawCase.tipoServico === 'string' ? rawCase.tipoServico.slice(0, 120) : '',
+    subcategoria: typeof rawCase.subcategoria === 'string' ? rawCase.subcategoria.slice(0, 160) : '',
+    etapaPipeline: rawCase.etapaPipeline,
+    statusPipeline: rawCase.statusPipeline,
+    statusSermig: rawCase.statusSermig,
+    localSolicitacao: rawCase.localSolicitacao,
+    notaViabilidadeGeral: rawCase.notaViabilidadeGeral,
+    observacoes: typeof rawCase.observacoes === 'string' ? rawCase.observacoes.slice(0, 1000) : '',
+    parecerConsultor: typeof rawCase.parecerConsultor === 'string' ? rawCase.parecerConsultor.slice(0, 800) : '',
+  };
+
+  const clientBrief = {
+    nomeCompleto: typeof rawClient.nomeCompleto === 'string' ? rawClient.nomeCompleto.slice(0, 120) : undefined,
+    nacionalidade: typeof rawClient.nacionalidade === 'string' ? rawClient.nacionalidade.slice(0, 60) : undefined,
+    localizacaoAtual: rawClient.localizacaoAtual,
+    situacaoMigratoriaAtual: rawClient.situacaoMigratoriaAtual,
+    motivoMudanca: rawClient.motivoMudanca,
+    prazoDesejado: rawClient.prazoDesejado,
+    profissao: rawClient.profissao,
+    possuiFilhosMenores: rawClient.possuiFilhosMenores,
+    quantidadeDependentes: rawClient.quantidadeDependentes,
+    antecedentesCriminais: rawClient.antecedentesCriminais,
+    restricaoEntrada: rawClient.restricaoEntrada,
+    validadePassaporte: rawClient.validadePassaporte ?? rawPassport?.validade,
+  };
+
+  const dependentsBrief = Array.isArray(body.dependents)
+    ? body.dependents
+        .filter((d): d is Record<string, unknown> => Boolean(d && typeof d === 'object'))
+        .slice(0, 12)
+        .map((d) => ({
+          parentesco: d.parentesco,
+          idade: d.idade,
+          estudante: d.estudante,
+          passaporteValidade: d.passaporteValidade,
+        }))
+    : [];
+
+  const sourcesBrief = compactServerLegalSources(body.legalSources, 15);
+
   return {
     route: '/api/ai/parecer',
-    contents: JSON.stringify({ caseData, clientData, dependents, legalSources }),
+    contents: JSON.stringify({
+      caseData: caseBrief,
+      clientData: clientBrief,
+      dependents: dependentsBrief,
+      legalSources: sourcesBrief,
+    }),
     systemInstruction:
-      'Elabore um rascunho de Parecer Técnico Migratório em português do Brasil. Cite SOMENTE normas existentes em legalSources enviadas no contexto; caso falte base para alguma afirmação, escreva "fonte a cadastrar".',
+      'Elabore um rascunho de Parecer Técnico Migratório em português do Brasil para a consultoria D&M Integra Chile. Preencha os 4 campos (enquadramentoLegal, elegibilidadeRiscos, fundamentacaoNormativa, recomendacoes) com texto técnico claro e objetivo. Cite SOMENTE normas existentes em legalSources enviadas no contexto; caso falte base para alguma afirmação, escreva literalmente "fonte a cadastrar".',
     responseSchema: {
       type: Type.OBJECT,
       properties: {
@@ -369,21 +472,20 @@ export function buildParecerSpec(body: Record<string, unknown>) {
       required: ['enquadramentoLegal', 'elegibilidadeRiscos', 'fundamentacaoNormativa', 'recomendacoes'],
     },
     validateJson: (parsed: Record<string, unknown>) => {
-      if (
-        typeof parsed.enquadramentoLegal !== 'string' ||
-        typeof parsed.elegibilidadeRiscos !== 'string' ||
-        typeof parsed.fundamentacaoNormativa !== 'string' ||
-        typeof parsed.recomendacoes !== 'string'
-      ) {
+      const enquadramentoLegal = typeof parsed.enquadramentoLegal === 'string' ? parsed.enquadramentoLegal.trim() : '';
+      const elegibilidadeRiscos = typeof parsed.elegibilidadeRiscos === 'string' ? parsed.elegibilidadeRiscos.trim() : '';
+      const fundamentacaoNormativa =
+        typeof parsed.fundamentacaoNormativa === 'string' ? parsed.fundamentacaoNormativa.trim() : '';
+      const recomendacoes = typeof parsed.recomendacoes === 'string' ? parsed.recomendacoes.trim() : '';
+      if (!enquadramentoLegal || !recomendacoes) {
         return null;
       }
-      if (!parsed.enquadramentoLegal.trim() || !parsed.recomendacoes.trim()) return null;
       return {
         rascunho: true,
-        enquadramentoLegal: parsed.enquadramentoLegal,
-        elegibilidadeRiscos: parsed.elegibilidadeRiscos,
-        fundamentacaoNormativa: parsed.fundamentacaoNormativa,
-        recomendacoes: parsed.recomendacoes,
+        enquadramentoLegal,
+        elegibilidadeRiscos: elegibilidadeRiscos || 'Revisar elegibilidade documental e prazos na conferência técnica.',
+        fundamentacaoNormativa: fundamentacaoNormativa || 'fonte a cadastrar',
+        recomendacoes,
       };
     },
     buildFallback: () => buildParecerFallback(body),
@@ -392,8 +494,8 @@ export function buildParecerSpec(body: Record<string, unknown>) {
 
 export function buildAnalisarDocumentoSpec(body: Record<string, unknown>, uploadDir: string) {
   const { nomeEsperado, textoObservacao, arquivoUrl } = body;
-  let fileBase64 = typeof body.fileBase64 === 'string' ? body.fileBase64 : '';
-  let mimeType = typeof body.mimeType === 'string' ? body.mimeType : '';
+  let fileBase64 = stripBase64DataPrefix(body.fileBase64);
+  let mimeType = typeof body.mimeType === 'string' ? body.mimeType.trim().toLowerCase() : '';
 
   if ((!fileBase64 || !mimeType) && arquivoUrl) {
     const resolved = resolveAttachmentFromUploadUrl(uploadDir, arquivoUrl);
@@ -520,10 +622,22 @@ export function buildCustosSpec(body: Record<string, unknown>) {
 }
 
 export function buildPropostaSpec(body: Record<string, unknown>) {
-  const { proposal, legalSources } = body;
+  const rawProp = (body.proposal && typeof body.proposal === 'object' ? body.proposal : {}) as Record<string, unknown>;
+  const proposalBrief = {
+    nome_empresa: typeof rawProp.nome_empresa === 'string' ? rawProp.nome_empresa.slice(0, 200) : '',
+    categoria: typeof rawProp.categoria === 'string' ? rawProp.categoria.slice(0, 100) : '',
+    pais: typeof rawProp.pais === 'string' ? rawProp.pais.slice(0, 60) : '',
+    cidade: typeof rawProp.cidade === 'string' ? rawProp.cidade.slice(0, 120) : '',
+    responsavel: typeof rawProp.responsavel === 'string' ? rawProp.responsavel.slice(0, 120) : '',
+    moeda: typeof rawProp.moeda === 'string' ? rawProp.moeda.slice(0, 20) : '',
+    proposta: typeof rawProp.proposta === 'string' ? rawProp.proposta.slice(0, 2400) : '',
+    mensagem: typeof rawProp.mensagem === 'string' ? rawProp.mensagem.slice(0, 2400) : '',
+    status: typeof rawProp.status === 'string' ? rawProp.status.slice(0, 40) : '',
+  };
+  const sourcesBrief = compactServerLegalSources(body.legalSources, 15);
   return {
     route: '/api/ai/proposta',
-    contents: JSON.stringify({ proposal, legalSources }),
+    contents: JSON.stringify({ proposal: proposalBrief, legalSources: sourcesBrief }),
     systemInstruction:
       'Avalie a proposta comercial de parceria para a D&M Integra Chile em português do Brasil, confrontando aderência legal/compliance somente com legalSources fornecidas (ou escreva "fonte a cadastrar"). Gere nota de 0 a 100, riscos, base aplicada, sugestão (indicar | indicar com ressalvas | recusar) e texto curto de indicação ao cliente.',
     responseSchema: {
@@ -544,11 +658,11 @@ export function buildPropostaSpec(body: Record<string, unknown>) {
       }
       return {
         rascunho: true,
-        nota,
+        nota: Math.round(Math.min(100, Math.max(0, nota))),
         riscos: asStringArray(parsed.riscos) || [],
-        baseAplicada: parsed.baseAplicada,
-        sugestaoDecisao: parsed.sugestaoDecisao,
-        textoIndicacao: typeof parsed.textoIndicacao === 'string' ? parsed.textoIndicacao : '',
+        baseAplicada: parsed.baseAplicada.trim(),
+        sugestaoDecisao: parsed.sugestaoDecisao.trim(),
+        textoIndicacao: typeof parsed.textoIndicacao === 'string' ? parsed.textoIndicacao.trim() : '',
       };
     },
     buildFallback: () => buildPropostaFallback(body),
@@ -556,9 +670,11 @@ export function buildPropostaSpec(body: Record<string, unknown>) {
 }
 
 export function buildNormaSpec(body: Record<string, unknown>, uploadDir: string) {
-  const { currentSource, newText, arquivoUrl } = body;
-  let fileBase64 = typeof body.fileBase64 === 'string' ? body.fileBase64 : '';
-  let mimeType = typeof body.mimeType === 'string' ? body.mimeType : '';
+  const currentSourceBrief = compactServerCurrentSource(body.currentSource);
+  const newText = typeof body.newText === 'string' ? body.newText.trim().slice(0, 18000) : '';
+  const { arquivoUrl } = body;
+  let fileBase64 = stripBase64DataPrefix(body.fileBase64);
+  let mimeType = typeof body.mimeType === 'string' ? body.mimeType.trim().toLowerCase() : '';
 
   if ((!fileBase64 || !mimeType) && arquivoUrl) {
     const resolved = resolveAttachmentFromUploadUrl(uploadDir, arquivoUrl);
@@ -571,7 +687,7 @@ export function buildNormaSpec(body: Record<string, unknown>, uploadDir: string)
   const enrichedBody = { ...body, fileBase64, mimeType };
   const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
     {
-      text: `Analise o texto/documento normativo e compare com a norma vigente cadastrada:\nNorma atual: ${JSON.stringify(currentSource || {})}\nNovo texto: ${newText || '(ver anexo)'}`,
+      text: `Analise o texto/documento normativo e compare com a norma vigente cadastrada:\nNorma atual: ${JSON.stringify(currentSourceBrief)}\nNovo texto: ${newText || '(ver anexo)'}`,
     },
   ];
   if (fileBase64 && mimeType) {
@@ -599,8 +715,8 @@ export function buildNormaSpec(body: Record<string, unknown>, uploadDir: string)
       return {
         rascunho: true,
         artigosExtraidos: typeof parsed.artigosExtraidos === 'string' ? parsed.artigosExtraidos : 'fonte a cadastrar',
-        resumoExecutivo: parsed.resumoExecutivo,
-        explicacaoCliente: typeof parsed.explicacaoCliente === 'string' ? parsed.explicacaoCliente : '',
+        resumoExecutivo: parsed.resumoExecutivo.trim(),
+        explicacaoCliente: typeof parsed.explicacaoCliente === 'string' ? parsed.explicacaoCliente.trim() : '',
         impactosVistos: asStringArray(parsed.impactosVistos) || [],
         divergencias: asStringArray(parsed.divergencias) || [],
       };
@@ -610,11 +726,11 @@ export function buildNormaSpec(body: Record<string, unknown>, uploadDir: string)
 }
 
 export function buildNormaVerificarSpec(body: Record<string, unknown>) {
-  const currentSource = (body.currentSource && typeof body.currentSource === 'object' ? body.currentSource : {}) as Record<string, unknown>;
-  const titulo = typeof currentSource.titulo === 'string' ? currentSource.titulo : '';
-  const numeroAno = typeof currentSource.numeroAno === 'string' ? currentSource.numeroAno : '';
-  const pais = typeof currentSource.pais === 'string' ? currentSource.pais : 'Chile';
-  const linkOficial = typeof currentSource.linkOficial === 'string' ? currentSource.linkOficial : '';
+  const currentSourceBrief = compactServerCurrentSource(body.currentSource);
+  const titulo = currentSourceBrief.titulo || '';
+  const numeroAno = currentSourceBrief.numeroAno || '';
+  const pais = currentSourceBrief.pais || 'Chile';
+  const linkOficial = currentSourceBrief.linkOficial || '';
   const dataHoje = new Date().toISOString().slice(0, 10);
 
   return {
@@ -625,7 +741,7 @@ Pesquise nas fontes oficiais (${pais === 'Brasil' ? 'planalto.gov.br, cnj.jus.br
 Título: ${titulo}
 Número/Ano: ${numeroAno}
 Link oficial cadastrado: ${linkOficial || 'Não informado'}
-Resumo vigente cadastrado no sistema: ${JSON.stringify(currentSource)}
+Resumo vigente cadastrado no sistema: ${JSON.stringify(currentSourceBrief)}
 
 Verifique se existem atualizações normativas recentes, resoluções exentas complementares, mudanças de prazo (ex.: validade de antecedentes, prorrogação, estampado electrónico, requisitos por subcategoria) ou alterações na BCN LeyChile / SERMIG / Planalto. Retorne um comparativo técnico objetivo em português do Brasil sem inventar artigos ou números não encontrados na busca.`,
     systemInstruction:

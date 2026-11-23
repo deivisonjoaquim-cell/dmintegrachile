@@ -56,6 +56,7 @@ import {
   openExternalSafe,
 } from '../../utils/formatters';
 import {
+  compactLegalSourcesForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
@@ -250,7 +251,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
             nomePortugues: v.nomePortugues,
             permiteDentroChile: v.permiteDentroChile,
           })),
-          legalSources: inspectedResult.fontesLegais,
+          legalSources: compactLegalSourcesForAi(inspectedResult.fontesLegais),
         },
         {
           onProgress: (msg) => setAiProgress(msg),

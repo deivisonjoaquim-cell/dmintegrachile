@@ -156,6 +156,8 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   // IA Custos Referenciais
   const [aiCustosLoading, setAiCustosLoading] = useState(false);
   const [aiCustosProgress, setAiCustosProgress] = useState<string | null>(null);
+  const [aiCustosError, setAiCustosError] = useState<string | null>(null);
+  const [approvingCustos, setApprovingCustos] = useState(false);
   const [custosDraft, setCustosDraft] = useState<(CustosPadrao & AiResponseMeta) | null>(null);
 
   useEffect(() => {
@@ -299,6 +301,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
     if (aiCustosLoading) return;
     setAiCustosLoading(true);
     setAiCustosProgress('Consultando custos referenciais...');
+    setAiCustosError(null);
     setErrorMsg(null);
     try {
       const res = await callAiEndpoint<CustosPadrao & AiResponseMeta>(
@@ -313,7 +316,9 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
       setCustosDraft(res);
       saveAiDraftCache('custos_padrao', res);
     } catch (err) {
-      setErrorMsg(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      setAiCustosError(msg);
+      setErrorMsg(msg);
     } finally {
       setAiCustosLoading(false);
       setAiCustosProgress(null);
@@ -321,27 +326,39 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
   };
 
   const handleApproveCustos = async () => {
-    if (!custosDraft || role !== 'admin') return;
-    const {
-      rascunho: _r,
-      estimativa: _e,
-      fallback: _f,
-      origem: _o,
-      origemLabel: _ol,
-      modeloUsado: _m,
-      tentativas: _t,
-      mensagemUsuario: _mu,
-      ...pureCustos
-    } = custosDraft;
-    const nextCfg: EmpresaConfig = {
-      ...empresa,
-      custosPadrao: { ...pureCustos, fonteObservacao: 'Aprovado pelo administrador a partir da estimativa referencial' },
-    };
-    await saveEmpresaConfigAdmin(nextCfg, empresa);
-    setCustosDraft(null);
-    clearAiDraftCache('custos_padrao');
-    setFeedback('Tabela de custos de referência atualizada em Configurações!');
-    await onRefreshPublic();
+    if (!custosDraft || role !== 'admin' || approvingCustos) return;
+    setApprovingCustos(true);
+    setAiCustosError(null);
+    setErrorMsg(null);
+    try {
+      const {
+        rascunho: _r,
+        estimativa: _e,
+        fallback: _f,
+        origem: _o,
+        origemLabel: _ol,
+        modeloUsado: _m,
+        tentativas: _t,
+        mensagemUsuario: _mu,
+        ...pureCustos
+      } = custosDraft;
+      const nextCfg: EmpresaConfig = {
+        ...empresa,
+        custosPadrao: { ...pureCustos, fonteObservacao: 'Aprovado pelo administrador a partir da estimativa referencial' },
+      };
+      await saveEmpresaConfigAdmin(nextCfg, empresa);
+      setCustosDraft(null);
+      clearAiDraftCache('custos_padrao');
+      setFeedback('Tabela de custos de referência atualizada em Configurações!');
+      await onRefreshPublic();
+    } catch (err) {
+      const translated = translateAppError(err, { path: 'config/empresa' });
+      const msg = translated.actionHint ? `${translated.title}: ${translated.message} ${translated.actionHint}` : translated.message;
+      setAiCustosError(msg);
+      setErrorMsg(msg);
+    } finally {
+      setApprovingCustos(false);
+    }
   };
 
   if (role === 'assistente') {
@@ -823,6 +840,20 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
             </p>
           )}
 
+          {aiCustosError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium flex flex-wrap items-center justify-between gap-2">
+              <span>{aiCustosError}</span>
+              <button
+                type="button"
+                disabled={aiCustosLoading}
+                onClick={() => void handleConsultarCustosIa()}
+                className="px-2.5 py-1 rounded border border-red-300 bg-white text-[#C82333] font-semibold hover:bg-red-50 disabled:opacity-50"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
               <p className="text-slate-500">Taxa SERMIG Mercosul</p>
@@ -859,7 +890,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                 </div>
                 <button
                   type="button"
-                  disabled={aiCustosLoading}
+                  disabled={aiCustosLoading || approvingCustos}
                   onClick={() => void handleConsultarCustosIa()}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
                 >
@@ -872,25 +903,28 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                 Mercosul: {formatCurrency(custosDraft.taxaSermigMercosulUsd, 'USD')} · Temporal:{' '}
                 {formatCurrency(custosDraft.taxaSermigTemporalUsd, 'USD')} · Definitiva:{' '}
                 {formatCurrency(custosDraft.taxaSermigDefinitivaUsd, 'USD')} · Apostila CNJ:{' '}
-                {formatCurrency(custosDraft.apostilaCnjBrl, 'BRL')} · Cédula CLP:{' '}
+                {formatCurrency(custosDraft.apostilaCnjBrl, 'BRL')} · Tradução:{' '}
+                {formatCurrency(custosDraft.traducaoJuramentadaBrl, 'BRL')} · Cédula CLP:{' '}
                 {formatCurrency(custosDraft.cedulaIdentidadeClp, 'CLP')}
               </p>
               {role === 'admin' && (
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={handleApproveCustos}
-                    className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                    disabled={approvingCustos}
+                    onClick={() => void handleApproveCustos()}
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] disabled:opacity-50"
                   >
-                    Aprovar e Salvar em Configurações
+                    {approvingCustos ? 'Salvando...' : 'Aprovar e Salvar em Configurações'}
                   </button>
                   <button
                     type="button"
+                    disabled={approvingCustos}
                     onClick={() => {
                       setCustosDraft(null);
                       clearAiDraftCache('custos_padrao');
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs disabled:opacity-50"
                   >
                     Descartar
                   </button>

@@ -28,6 +28,10 @@ import { ClientDossierModal } from './ClientDossierModal';
 import { ContractGeneratorModal } from './ContractGeneratorModal';
 import {
   clearAiDraftCache,
+  compactCaseForAi,
+  compactClientForAi,
+  compactDependentsForAi,
+  compactLegalSourcesForAi,
   loadAiDraftCache,
   sanitizeClientAiError,
   saveAiDraftCache,
@@ -314,6 +318,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   // IA e Cronograma na ficha do caso
   const [aiParecerLoading, setAiParecerLoading] = useState(false);
   const [aiParecerProgress, setAiParecerProgress] = useState<string | null>(null);
+  const [aiParecerError, setAiParecerError] = useState<string | null>(null);
+  const [savingParecer, setSavingParecer] = useState(false);
   const [parecerDraft, setParecerDraft] = useState<(AiResponseMeta & {
     enquadramentoLegal: string;
     elegibilidadeRiscos: string;
@@ -331,6 +337,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [casePdfBusy, setCasePdfBusy] = useState(false);
   const [aiDocLoadingId, setAiDocLoadingId] = useState<string | null>(null);
   const [aiDocProgress, setAiDocProgress] = useState<string | null>(null);
+  const [aiDocError, setAiDocError] = useState<string | null>(null);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
 
   // Filtros, seleção em lote, modal completo e preview na aba Documentos
@@ -358,6 +365,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       }
     >(`parecer_${selectedCaseId}`);
     setParecerDraft(cached);
+    setAiParecerError(null);
+    setAiDocError(null);
     setSelectedDocIds([]);
     setDocPersonFilter('Todos');
     setDocStatusFilter('Todos');
@@ -1360,11 +1369,18 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   // Parecer Técnico IA (Admin/Consultor)
   // ===========================================================================
   const handleGenerateAiParecer = async () => {
-    if (!activeCase || !activeClient || isAssistente || aiParecerLoading) return;
+    if (!activeCase || isAssistente || aiParecerLoading) return;
     setAiParecerLoading(true);
     setAiParecerProgress('Iniciando consulta à IA...');
+    setAiParecerError(null);
     setErrorMsg(null);
     try {
+      const compactClient = activeClient
+        ? {
+            nomeCompleto: activeClient.nomeCompleto,
+            ...compactClientForAi(activeClient as unknown as Record<string, unknown>),
+          }
+        : {};
       const resp = await callAiEndpoint<
         AiResponseMeta & {
           enquadramentoLegal: string;
@@ -1375,10 +1391,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       >(
         '/api/ai/parecer',
         {
-          caseData: activeCase,
-          clientData: activeClient,
-          dependents: caseDependents,
-          legalSources,
+          caseData: compactCaseForAi(activeCase as unknown as Record<string, unknown>),
+          clientData: compactClient,
+          dependents: compactDependentsForAi(caseDependents as unknown as Array<Record<string, unknown>>),
+          legalSources: compactLegalSourcesForAi(legalSources),
         },
         {
           onProgress: (msg) => setAiParecerProgress(msg),
@@ -1388,6 +1404,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         fallback: resp.fallback,
         origem: resp.origem,
         origemLabel: resp.origemLabel,
+        modeloUsado: resp.modeloUsado,
         mensagemUsuario: resp.mensagemUsuario,
         enquadramentoLegal: resp.enquadramentoLegal || '',
         elegibilidadeRiscos: resp.elegibilidadeRiscos || '',
@@ -1397,7 +1414,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         liberadoAoCliente: false,
       });
     } catch (err) {
-      setErrorMsg(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      setAiParecerError(msg);
+      setErrorMsg(msg);
     } finally {
       setAiParecerLoading(false);
       setAiParecerProgress(null);
@@ -1406,32 +1425,44 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
 
   const handleSaveParecerDraft = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeCase || !parecerDraft || isAssistente) return;
-    const id = makeId('viab');
-    const nextVersion = (caseAssessments[0]?.versao || 0) + 1;
-    const record: ViabilityAssessment = {
-      id,
-      caseId: activeCase.id,
-      clientId: activeCase.clientId,
-      versao: nextVersion,
-      enquadramentoLegal: parecerDraft.enquadramentoLegal,
-      elegibilidadeRiscos: parecerDraft.elegibilidadeRiscos,
-      fundamentacaoNormativa: parecerDraft.fundamentacaoNormativa,
-      recomendacoes: parecerDraft.recomendacoes,
-      notaGeral: parecerDraft.notaGeral,
-      rascunhoIa: parecerDraft.origem !== 'regras',
-      liberadoAoCliente: parecerDraft.liberadoAoCliente,
-      autorNome: userProfile.nome || userProfile.email,
-      createdAt: new Date().toISOString(),
-    };
-    await saveDocumentAudited('viabilityAssessments', id, record as unknown as Record<string, unknown>, true, role, 'parecer_tecnico');
-    if (parecerDraft.liberadoAoCliente && !activeCase.relatorioViabilidadeLiberado) {
-      await handleSaveCaseField({ relatorioViabilidadeLiberado: true, parecerConsultor: parecerDraft.recomendacoes }, 'liberar_parecer');
-    } else {
-      await onRefresh();
+    if (!activeCase || !parecerDraft || isAssistente || savingParecer) return;
+    setSavingParecer(true);
+    setAiParecerError(null);
+    setErrorMsg(null);
+    try {
+      const id = makeId('viab');
+      const nextVersion = (caseAssessments[0]?.versao || 0) + 1;
+      const record: ViabilityAssessment = {
+        id,
+        caseId: activeCase.id,
+        clientId: activeCase.clientId,
+        versao: nextVersion,
+        enquadramentoLegal: parecerDraft.enquadramentoLegal,
+        elegibilidadeRiscos: parecerDraft.elegibilidadeRiscos,
+        fundamentacaoNormativa: parecerDraft.fundamentacaoNormativa,
+        recomendacoes: parecerDraft.recomendacoes,
+        notaGeral: parecerDraft.notaGeral,
+        rascunhoIa: parecerDraft.origem !== 'regras',
+        liberadoAoCliente: parecerDraft.liberadoAoCliente,
+        autorNome: userProfile.nome || userProfile.email,
+        createdAt: new Date().toISOString(),
+      };
+      await saveDocumentAudited('viabilityAssessments', id, record as unknown as Record<string, unknown>, true, role, 'parecer_tecnico');
+      if (parecerDraft.liberadoAoCliente && !activeCase.relatorioViabilidadeLiberado) {
+        await handleSaveCaseField({ relatorioViabilidadeLiberado: true, parecerConsultor: parecerDraft.recomendacoes }, 'liberar_parecer');
+      } else {
+        await onRefresh();
+      }
+      updateParecerDraft(null);
+      setFeedback(`Parecer Técnico v${nextVersion} aprovado e salvo.`);
+    } catch (err) {
+      const translated = translateAppError(err, { path: 'viabilityAssessments' });
+      const msg = translated.actionHint ? `${translated.title}: ${translated.message} ${translated.actionHint}` : translated.message;
+      setAiParecerError(msg);
+      setErrorMsg(msg);
+    } finally {
+      setSavingParecer(false);
     }
-    updateParecerDraft(null);
-    setFeedback(`Parecer Técnico v${nextVersion} aprovado e salvo.`);
   };
 
   // ===========================================================================
@@ -1777,6 +1808,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     if (aiDocLoadingId) return;
     setAiDocLoadingId(docItem.id);
     setAiDocProgress('Analisando anexo...');
+    setAiDocError(null);
     setErrorMsg(null);
     try {
       const resp = await callAiEndpoint<
@@ -1803,17 +1835,19 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       );
       const tag =
         resp.fallback || resp.origem === 'regras'
-          ? `[${resp.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'} · Sugestão: ${resp.sugestao}]`
+          ? `[${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'} · Sugestão: ${resp.sugestao}]`
           : `[Sugestão IA: ${resp.sugestao}]`;
       const resumo = `${tag} Órgão: ${resp.orgaoEmissor} · Emissão: ${resp.dataEmissao} · Apostila: ${resp.possuiApostila ? 'Sim' : 'Não'} · ${resp.justificativa}`;
       await handleUpdateDoc(docItem, { analiseIaSugestao: resumo });
       setFeedback(
         resp.fallback || resp.origem === 'regras'
-          ? `${resp.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
+          ? `${resp.origemLabel || 'Assistente de Regras SERMIG/BCN'}. ${resp.mensagemUsuario || 'A decisão final permanece com o analista.'}`
           : 'Pré-análise sugestiva da IA concluída. A decisão final permanece com o analista.',
       );
     } catch (err) {
-      setErrorMsg(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      setAiDocError(msg);
+      setErrorMsg(msg);
     } finally {
       setAiDocLoadingId(null);
       setAiDocProgress(null);
@@ -2449,6 +2483,20 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     </p>
                   )}
 
+                  {aiParecerError && (
+                    <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium flex flex-wrap items-center justify-between gap-2">
+                      <span>{aiParecerError}</span>
+                      <button
+                        type="button"
+                        disabled={aiParecerLoading}
+                        onClick={() => void handleGenerateAiParecer()}
+                        className="px-2.5 py-1 rounded border border-red-300 bg-white text-[#C82333] font-semibold hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Tentar novamente
+                      </button>
+                    </div>
+                  )}
+
                   {parecerDraft && (
                     <form onSubmit={handleSaveParecerDraft} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2463,14 +2511,14 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                               )}
                             </>
                           ) : (
-                            <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                            <p className="text-xs font-semibold text-emerald-900 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
                               {parecerDraft.origemLabel || 'Rascunho editável gerado pela IA'} — revise e ajuste antes de aprovar.
                             </p>
                           )}
                         </div>
                         <button
                           type="button"
-                          disabled={aiParecerLoading}
+                          disabled={aiParecerLoading || savingParecer}
                           onClick={() => void handleGenerateAiParecer()}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                         >
@@ -2528,16 +2576,18 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
+                            disabled={savingParecer}
                             onClick={() => updateParecerDraft(null)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium"
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium disabled:opacity-50"
                           >
                             Descartar
                           </button>
                           <button
                             type="submit"
-                            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34]"
+                            disabled={savingParecer}
+                            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#1E7E34] disabled:opacity-50"
                           >
-                            Aprovar e Salvar Versão
+                            {savingParecer ? 'Salvando...' : 'Aprovar e Salvar Versão'}
                           </button>
                         </div>
                       </div>
@@ -2913,6 +2963,20 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   Novo Documento Completo
                 </button>
               </div>
+
+              {aiDocError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium flex items-center justify-between gap-2 no-print">
+                  <span>{aiDocError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAiDocError(null)}
+                    className="p-1 rounded hover:bg-red-100"
+                    aria-label="Fechar aviso"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Barra de ações em lote */}
               {selectedDocIds.length > 0 && (

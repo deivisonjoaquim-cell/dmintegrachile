@@ -2241,6 +2241,7 @@ export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): 
 
 export interface CallAiOptions {
   onProgress?: (message: string, attempt?: number, maxAttempts?: number) => void;
+  timeoutMs?: number;
 }
 
 export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
@@ -2249,84 +2250,110 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
     throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
   }
   const token = await user.getIdToken();
-  let resp: Response;
+  const clientTimeoutMs = Math.max(15000, Math.min(180000, options?.timeoutMs ?? 90000));
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutHandle = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, clientTimeoutMs);
+
   try {
-    resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(options?.onProgress ? { 'x-ai-progress': '1' } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (networkErr) {
-    throw new Error(sanitizeClientAiError(networkErr));
-  }
+    let resp: Response;
+    try {
+      resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(options?.onProgress ? { 'x-ai-progress': '1' } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (networkErr) {
+      if (timedOut) {
+        throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
+      }
+      throw new Error(sanitizeClientAiError(networkErr));
+    }
 
-  const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-  if (contentType.includes('application/x-ndjson') && resp.body) {
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: T | null = null;
-    let streamError: string | null = null;
+    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+    if (contentType.includes('application/x-ndjson') && resp.body) {
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalResult: T | null = null;
+      let streamError: string | null = null;
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const ev = JSON.parse(trimmed) as {
-            type?: string;
-            message?: string;
-            attempt?: number;
-            maxAttempts?: number;
-            data?: T;
-            error?: string;
-          };
-          if (ev.type === 'progress' && ev.message) {
-            options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
-          } else if (ev.type === 'result' && ev.data) {
-            finalResult = ev.data;
-          } else if (ev.type === 'error') {
-            streamError = sanitizeClientAiError(ev.error || '');
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const ev = JSON.parse(trimmed) as {
+                type?: string;
+                message?: string;
+                attempt?: number;
+                maxAttempts?: number;
+                data?: T;
+                error?: string;
+              };
+              if (ev.type === 'progress' && ev.message) {
+                options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
+              } else if (ev.type === 'result' && ev.data) {
+                finalResult = ev.data;
+              } else if (ev.type === 'error') {
+                streamError = sanitizeClientAiError(ev.error || '');
+              }
+            } catch {
+              // ignore partial line
+            }
           }
+        }
+      } catch (readErr) {
+        if (timedOut) {
+          throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
+        }
+        throw new Error(sanitizeClientAiError(readErr));
+      }
+      if (buffer.trim()) {
+        try {
+          const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
+          if (ev.type === 'result' && ev.data) finalResult = ev.data;
+          else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
         } catch {
-          // ignore partial line
+          // ignore
         }
       }
+
+      if (streamError) throw new Error(streamError);
+      if (finalResult) return finalResult;
+      throw new Error(sanitizeClientAiError(''));
     }
-    if (buffer.trim()) {
-      try {
-        const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
-        if (ev.type === 'result' && ev.data) finalResult = ev.data;
-        else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
-      } catch {
-        // ignore
+
+    let rawText = '';
+    try {
+      rawText = await resp.text();
+      const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
+      if (!resp.ok) {
+        throw new Error(sanitizeClientAiError(data.error || rawText || String(resp.status)));
       }
+      return data;
+    } catch (err) {
+      if (timedOut) {
+        throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
+      }
+      throw new Error(sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)));
     }
-
-    if (streamError) throw new Error(streamError);
-    if (finalResult) return finalResult;
-    throw new Error(sanitizeClientAiError(''));
-  }
-
-  let rawText = '';
-  try {
-    rawText = await resp.text();
-    const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
-    if (!resp.ok) {
-      throw new Error(sanitizeClientAiError(data.error || rawText || String(resp.status)));
-    }
-    return data;
-  } catch (err) {
-    throw new Error(sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)));
+  } finally {
+    clearTimeout(timeoutHandle);
   }
 }
 

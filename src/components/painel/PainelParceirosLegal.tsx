@@ -75,6 +75,7 @@ import {
 import {
   clearAiDraftCache,
   compactLegalSourcesForAi,
+  compactProposalForAi,
   compactSourceForAi,
   loadAiDraftCache,
   prepareAiAttachment,
@@ -224,6 +225,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   }) | null>(null);
   const [normaAiLoading, setNormaAiLoading] = useState(false);
   const [normaAiProgress, setNormaAiProgress] = useState<string | null>(null);
+  const [normaAiError, setNormaAiError] = useState<string | null>(null);
 
   // Modais de consulta Base Legal
   const [usageSource, setUsageSource] = useState<LegalSource | null>(null);
@@ -232,6 +234,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const [legalDrawerData, setLegalDrawerData] = useState<{ title: string; sources: LegalSource[] } | null>(null);
 
   useEffect(() => {
+    setNormaAiError(null);
     if (!editingSource?.id) {
       setNormaAiDraft(null);
       setNormaAttachment(null);
@@ -480,7 +483,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       >(
         '/api/ai/proposta',
         {
-          proposal: prop,
+          proposal: compactProposalForAi(prop as unknown as Record<string, unknown>),
           legalSources: compactLegalSourcesForAi(legalSources),
         },
         {
@@ -875,9 +878,16 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   };
 
   const handleAnalyzeNormaIa = async () => {
-    if (!editingSource || normaAiLoading || (!normaNewText.trim() && !normaAttachment)) return;
+    if (
+      !editingSource ||
+      normaAiLoading ||
+      (!normaNewText.trim() && !normaAttachment && !editingSource.arquivoPdfUrl)
+    ) {
+      return;
+    }
     setNormaAiLoading(true);
     setNormaAiProgress('Analisando norma...');
+    setNormaAiError(null);
     setErrorMsg(null);
     try {
       const res = await callAiEndpoint<
@@ -895,6 +905,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
           newText: normaNewText,
           fileBase64: normaAttachment?.fileBase64,
           mimeType: normaAttachment?.mimeType,
+          arquivoUrl: !normaAttachment && editingSource.arquivoPdfUrl ? editingSource.arquivoPdfUrl : undefined,
         },
         {
           onProgress: (msg) => setNormaAiProgress(msg),
@@ -903,7 +914,9 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       setNormaAiDraft(res);
       saveAiDraftCache(`norma_${editingSource.id}`, res);
     } catch (err) {
-      setErrorMsg(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      setNormaAiError(msg);
+      setErrorMsg(msg);
     } finally {
       setNormaAiLoading(false);
       setNormaAiProgress(null);
@@ -919,6 +932,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     }
     setNormaAiLoading(true);
     setNormaAiProgress('Consultando SERMIG e BCN LeyChile online...');
+    setNormaAiError(null);
     setErrorMsg(null);
     try {
       const res = await callAiEndpoint<
@@ -941,7 +955,9 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       setNormaAiDraft(res);
       saveAiDraftCache(`norma_${src.id}`, res);
     } catch (err) {
-      setErrorMsg(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      setNormaAiError(msg);
+      setErrorMsg(msg);
     } finally {
       setNormaAiLoading(false);
       setNormaAiProgress(null);
@@ -2778,7 +2794,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 </label>
                 <button
                   type="button"
-                  disabled={normaAiLoading || (!normaNewText.trim() && !normaAttachment)}
+                  disabled={normaAiLoading || (!normaNewText.trim() && !normaAttachment && !editingSource.arquivoPdfUrl)}
                   onClick={handleAnalyzeNormaIa}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 disabled:opacity-50"
                 >
@@ -2786,6 +2802,19 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   {normaAiLoading ? normaAiProgress || 'Comparando...' : 'Analisar Texto/Anexo com IA'}
                 </button>
               </div>
+              {normaAiError && (
+                <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium flex flex-wrap items-center justify-between gap-2">
+                  <span>{normaAiError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNormaAiError(null)}
+                    className="p-0.5 rounded hover:bg-red-100"
+                    aria-label="Fechar erro"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               {normaAiDraft && (
                 <div className="p-3 rounded-lg bg-white border border-slate-200 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2827,12 +2856,13 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       </button>
                       <button
                         type="button"
+                        disabled={normaAiLoading}
                         onClick={() =>
-                          normaNewText.trim() || normaAttachment
+                          normaNewText.trim() || normaAttachment || editingSource.arquivoPdfUrl
                             ? void handleAnalyzeNormaIa()
                             : void handleVerifyNormaOnlineIa()
                         }
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold disabled:opacity-50"
                       >
                         <RotateCcw className="w-3 h-3" /> Reconsultar
                       </button>

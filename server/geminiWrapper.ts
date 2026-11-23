@@ -269,23 +269,41 @@ export function formatFatalAiErrorMessage(fatal: ClassifiedGeminiError): string 
   return MSG_AI_OTHER_ERROR;
 }
 
+export function resolveBoundedIntEnv(
+  raw: string | undefined,
+  defaultValue: number,
+  min: number,
+  max: number,
+  envName: string,
+): number {
+  if (raw === undefined || raw === null) return defaultValue;
+  const trimmed = String(raw).trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+  if (!trimmed) return defaultValue;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < min || parsed > max) {
+    console.warn(`[Gemini] Valor inválido para ${envName} ("${trimmed}"); usando padrão ${defaultValue}.`);
+    return defaultValue;
+  }
+  return parsed;
+}
+
 export function getGeminiRuntimeConfig(): GeminiRuntimeConfig {
   const apiKey = resolveGeminiApiKeyFromEnv();
   const primaryModel = resolveGeminiModelFromEnv(process.env.GEMINI_MODEL_PRIMARY, DEFAULT_GEMINI_PRIMARY_MODEL);
   const fallbackModel = resolveGeminiModelFromEnv(process.env.GEMINI_MODEL_FALLBACK, DEFAULT_GEMINI_FALLBACK_MODEL);
-  const parsedTimeout = Number(process.env.GEMINI_TIMEOUT_MS || 40000);
-  const parsedMaxAttempts = Number(process.env.GEMINI_MAX_ATTEMPTS || 4);
-  const parsedFallbackAttempts = Number(process.env.GEMINI_FALLBACK_ATTEMPTS || 2);
-  const parsedBaseDelay = Number(process.env.GEMINI_RETRY_BASE_MS || 1000);
+  const timeoutMs = resolveBoundedIntEnv(process.env.GEMINI_TIMEOUT_MS, 25000, 1000, 120000, 'GEMINI_TIMEOUT_MS');
+  const maxAttempts = resolveBoundedIntEnv(process.env.GEMINI_MAX_ATTEMPTS, 2, 1, 6, 'GEMINI_MAX_ATTEMPTS');
+  const fallbackAttempts = resolveBoundedIntEnv(process.env.GEMINI_FALLBACK_ATTEMPTS, 2, 1, 4, 'GEMINI_FALLBACK_ATTEMPTS');
+  const baseDelayMs = resolveBoundedIntEnv(process.env.GEMINI_RETRY_BASE_MS, 700, 0, 15000, 'GEMINI_RETRY_BASE_MS');
 
   return {
     apiKey,
     primaryModel,
     fallbackModel,
-    timeoutMs: Number.isFinite(parsedTimeout) && parsedTimeout >= 1000 ? Math.min(120000, parsedTimeout) : 40000,
-    maxAttempts: Number.isFinite(parsedMaxAttempts) && parsedMaxAttempts >= 1 ? Math.min(6, parsedMaxAttempts) : 4,
-    fallbackAttempts: Number.isFinite(parsedFallbackAttempts) && parsedFallbackAttempts >= 1 ? Math.min(3, parsedFallbackAttempts) : 2,
-    baseDelayMs: Number.isFinite(parsedBaseDelay) && parsedBaseDelay >= 0 ? Math.min(15000, parsedBaseDelay) : 1000,
+    timeoutMs,
+    maxAttempts,
+    fallbackAttempts,
+    baseDelayMs,
   };
 }
 

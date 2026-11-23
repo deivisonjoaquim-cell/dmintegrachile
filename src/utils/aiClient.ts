@@ -260,7 +260,12 @@ export function compactCaseForAi(caseData: Record<string, unknown> | null | unde
 
 export function compactClientForAi(clientData: Record<string, unknown> | null | undefined) {
   if (!clientData) return {};
+  const passportObj =
+    clientData.passaporte && typeof clientData.passaporte === 'object'
+      ? (clientData.passaporte as Record<string, unknown>)
+      : null;
   return {
+    nacionalidade: clientData.nacionalidade,
     localizacaoAtual: clientData.localizacaoAtual,
     situacaoMigratoriaAtual: clientData.situacaoMigratoriaAtual,
     motivoMudanca: clientData.motivoMudanca,
@@ -270,7 +275,33 @@ export function compactClientForAi(clientData: Record<string, unknown> | null | 
     quantidadeDependentes: clientData.quantidadeDependentes,
     antecedentesCriminais: clientData.antecedentesCriminais,
     restricaoEntrada: clientData.restricaoEntrada,
-    validadePassaporte: clientData.validadePassaporte,
+    validadePassaporte: clientData.validadePassaporte ?? passportObj?.validade,
+  };
+}
+
+export function compactDependentsForAi(dependents: Array<Record<string, unknown>> | undefined, maxItems = 12) {
+  if (!Array.isArray(dependents)) return [];
+  return dependents.slice(0, maxItems).map((d) => ({
+    parentesco: d.parentesco,
+    idade: d.idade,
+    estudante: d.estudante,
+    passaporteValidade: d.passaporteValidade,
+  }));
+}
+
+export function compactProposalForAi(proposal: Record<string, unknown> | null | undefined) {
+  if (!proposal) return {};
+  return {
+    id: proposal.id,
+    nome_empresa: typeof proposal.nome_empresa === 'string' ? proposal.nome_empresa.slice(0, 200) : '',
+    categoria: typeof proposal.categoria === 'string' ? proposal.categoria.slice(0, 100) : '',
+    pais: typeof proposal.pais === 'string' ? proposal.pais.slice(0, 60) : '',
+    cidade: typeof proposal.cidade === 'string' ? proposal.cidade.slice(0, 120) : '',
+    responsavel: typeof proposal.responsavel === 'string' ? proposal.responsavel.slice(0, 120) : '',
+    moeda: typeof proposal.moeda === 'string' ? proposal.moeda.slice(0, 20) : '',
+    proposta: typeof proposal.proposta === 'string' ? proposal.proposta.slice(0, 2400) : '',
+    mensagem: typeof proposal.mensagem === 'string' ? proposal.mensagem.slice(0, 2400) : '',
+    status: typeof proposal.status === 'string' ? proposal.status.slice(0, 40) : '',
   };
 }
 

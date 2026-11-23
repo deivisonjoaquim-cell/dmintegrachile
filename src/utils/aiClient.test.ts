@@ -7,7 +7,9 @@ import {
   CLIENT_MSG_AI_HIGH_DEMAND,
   compactCaseForAi,
   compactClientForAi,
+  compactDependentsForAi,
   compactLegalSourcesForAi,
+  compactProposalForAi,
   compactSourceForAi,
   estimateBase64DecodedBytes,
   loadAiDraftCache,
@@ -45,7 +47,7 @@ describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cach
     }
   });
 
-  it('compacts legal sources, cases, and clients cleanly without leaking unnecessary sensitive fields', () => {
+  it('compacts legal sources, cases, clients, dependents, and proposals cleanly without leaking unnecessary sensitive or base64 fields', () => {
     const compactedSrc = compactSourceForAi({
       id: 'src_1',
       titulo: 'Ley 21.325'.repeat(30),
@@ -65,10 +67,12 @@ describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cach
       email: 'privado@cliente.com',
       localizacaoAtual: 'Brasil',
       profissao: 'Engenheiro',
+      passaporte: { numero: 'AB123', validade: '2030-05-01' },
     });
     assert.equal('cpf' in compactedClient, false);
     assert.equal('email' in compactedClient, false);
     assert.equal(compactedClient.localizacaoAtual, 'Brasil');
+    assert.equal(compactedClient.validadePassaporte, '2030-05-01');
 
     const compactedCase = compactCaseForAi({
       id: 'case_1',
@@ -76,6 +80,30 @@ describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cach
       observacoes: 'X'.repeat(2000),
     });
     assert.equal(compactedCase.observacoes?.length, 800);
+
+    const compactedDeps = compactDependentsForAi(
+      Array.from({ length: 15 }, (_, i) => ({
+        nomeCompleto: `Dependente Privado ${i}`,
+        parentesco: 'Filho(a)',
+        idade: 10 + i,
+        estudante: true,
+        passaporteValidade: '2030-01-01',
+      })),
+    );
+    assert.equal(compactedDeps.length, 12);
+    assert.equal('nomeCompleto' in compactedDeps[0], false);
+    assert.equal(compactedDeps[0].parentesco, 'Filho(a)');
+
+    const compactedProposal = compactProposalForAi({
+      nome_empresa: 'Imobiliária Santiago',
+      categoria: 'Imobiliário',
+      pais: 'Chile',
+      logoUrl: `data:image/png;base64,${'A'.repeat(50_000)}`,
+      proposta: 'Atendimento exclusivo '.repeat(200),
+    });
+    assert.equal('logoUrl' in compactedProposal, false);
+    assert.equal(compactedProposal.nome_empresa, 'Imobiliária Santiago');
+    assert.equal(compactedProposal.proposta?.length, 2400);
   });
 
   it('stores, loads, expires and clears short-lived local cache entries', () => {
