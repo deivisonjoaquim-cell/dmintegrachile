@@ -684,6 +684,12 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   const sleep = params.sleepFn || defaultSleep;
   const rng = params.rngFn || Math.random;
 
+  if (isLiveExecution) {
+    console.info(
+      `[Gemini][${params.route}] start primary=${runtime.primaryModel} backup=${runtime.fallbackModel} timeoutMs=${runtime.timeoutMs} maxAttempts=${runtime.maxAttempts}`,
+    );
+  }
+
   const alternativeProviders =
     params.alternativeProviders !== undefined
       ? params.alternativeProviders
@@ -840,6 +846,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
               ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             };
 
+        const attemptStartedAt = Date.now();
         const attemptTimeoutMs = Math.max(
           20,
           Math.min(effectiveAttemptTimeoutCap, Math.max(20, remainingBudgetMs - 1000)),
@@ -870,6 +877,11 @@ export async function chamarGemini<T extends Record<string, unknown>>(
 
         const parsed = extractAndValidateJson<T>(resp, params.validateJson);
         if (parsed.ok) {
+          if (isLiveExecution) {
+            console.info(
+              `[Gemini][${params.route}] ok model=${modelName} tier=${tier} attempt=${attempt}/${maxTries} latencyMs=${Date.now() - attemptStartedAt}`,
+            );
+          }
           return { matched: attachGrounding(parsed.data) };
         }
         if (parsed.blocked) {
@@ -961,6 +973,9 @@ export async function chamarGemini<T extends Record<string, unknown>>(
         // alterna imediatamente para o modelo reserva para responder em ~2s sem travar o proxy.
         if (isLiveExecution && tier === 'principal' && hasDistinctBackupModel && classified.isHighDemand) {
           liveModelCooldownUntil.set(modelName, Date.now() + LIVE_PRIMARY_HIGH_DEMAND_COOLDOWN_MS);
+          console.warn(
+            `[Gemini][${params.route}] failover_to_backup from=${modelName} to=${runtime.fallbackModel} reason=${classified.safeReason} elapsedMs=${Date.now() - startedAtMs}`,
+          );
           break;
         }
 
@@ -1024,7 +1039,18 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       },
     };
   }
-  if (primaryOutcome.fatal && primaryOutcome.fatal.statusCode !== 404) {
+  const isPrimaryAuthOrBlockFatal = Boolean(
+    primaryOutcome.fatal &&
+      (primaryOutcome.fatal.kind === 'blocked' ||
+        primaryOutcome.fatal.statusCode === 401 ||
+        primaryOutcome.fatal.statusCode === 403 ||
+        primaryOutcome.fatal.safeReason === 'definitive_api_error'),
+  );
+  if (
+    primaryOutcome.fatal &&
+    primaryOutcome.fatal.statusCode !== 404 &&
+    (!isLiveExecution || !hasDistinctBackupModel || isPrimaryAuthOrBlockFatal)
+  ) {
     return {
       ok: false,
       statusCode: primaryOutcome.fatal.statusCode || 400,
@@ -1117,6 +1143,11 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   const finalErr = lastError as ClassifiedGeminiError | null;
   const isHighDemand = Boolean(finalErr?.isHighDemand);
   const mensagemUsuario = isHighDemand ? MSG_AI_HIGH_DEMAND : MSG_AI_OTHER_ERROR;
+  if (isLiveExecution) {
+    console.warn(
+      `[Gemini][${params.route}] fallback_regras attempts=${totalAttempts} reason=${finalErr?.safeReason || 'fallback'} totalMs=${Date.now() - startedAtMs}`,
+    );
+  }
 
   return {
     ok: true,

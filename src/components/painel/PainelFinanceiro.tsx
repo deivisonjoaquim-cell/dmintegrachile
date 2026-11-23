@@ -599,7 +599,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
 
       {/* ABA LANÇAMENTOS */}
       {tab === 'lancamentos' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto max-w-full">
           {financialRecords.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500">Nenhum lançamento registrado ainda.</div>
           ) : (
@@ -1044,7 +1044,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
       {/* Modal Novo Lançamento */}
       {finModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handleCreateFin} className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+          <form onSubmit={handleCreateFin} className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <h2 className="text-lg font-bold text-slate-900">Novo Lançamento Financeiro</h2>
             <select
               value={fClientId}

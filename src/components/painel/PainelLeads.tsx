@@ -870,7 +870,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           </div>
 
           {view === 'lista' ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-w-full">
               {filtered.length === 0 ? (
                 <div className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">Nenhum lead encontrado.</div>
               ) : (
@@ -1103,7 +1103,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       {/* Modal Editar Lead */}
       {editingLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handleSaveEdit} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+          <form onSubmit={handleSaveEdit} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl">
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Editar Lead: {editingLead.nome}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>

@@ -489,7 +489,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 max-w-full">
             {(['editor', 'preview', 'historico', 'assinar'] as const).map((m) => (
               <button
                 key={m}
@@ -811,11 +811,11 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
               </div>
 
               {/* A4 Sheet */}
-              <div className="bg-white border border-slate-300 rounded-xl p-8 sm:p-10 max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
-                <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-                  <div className="flex items-center gap-3">
+              <div className="bg-white border border-slate-300 rounded-xl p-4 sm:p-8 lg:p-10 max-w-full sm:max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                  <div className="flex items-center gap-3 min-w-0">
                     {empresa.logoUrl ? (
-                      <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain" />
+                      <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain shrink-0" />
                     ) : (
                       <span
                         className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
@@ -824,15 +824,15 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                         D&amp;M
                       </span>
                     )}
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">{empresa.nome_empresa}</p>
-                      <p className="text-[11px] text-slate-500">{empresa.razao_social_cnpj_rut}</p>
-                      <p className="text-[11px] text-slate-500">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 break-words">{empresa.nome_empresa}</p>
+                      <p className="text-[11px] text-slate-500 break-words">{empresa.razao_social_cnpj_rut}</p>
+                      <p className="text-[11px] text-slate-500 break-words">
                         {empresa.endereco_cidade} · {empresa.email} · {empresa.whatsapp}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2.5 text-right">
+                  <div className="flex items-center gap-2.5 text-right shrink-0">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Verificação</p>
                       <p className="text-xs font-mono font-bold text-slate-900">{verCode}</p>

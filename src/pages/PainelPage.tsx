@@ -837,7 +837,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-x-clip">
         {/* Topbar Limpa: Breadcrumb à esquerda · Busca + Ação Primária à direita */}
         <header className="bg-white/95 dark:bg-[#0D1E31]/95 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] px-4 sm:px-6 min-h-14 py-2 flex flex-wrap items-center justify-between gap-2 sm:gap-3 no-print sticky top-0 z-30">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1384,31 +1384,31 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       {/* Modal de Busca Global */}
       {globalSearchOpen && (
         <div
-          className="fixed inset-0 z-50 bg-[#071422]/70 dark:bg-slate-950/85 backdrop-blur-[2px] flex items-start justify-center p-4 pt-16"
+          className="fixed inset-0 z-50 bg-[#071422]/70 dark:bg-slate-950/85 backdrop-blur-[2px] flex items-start justify-center p-3 sm:p-4 pt-12 sm:pt-16 overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-label="Busca rápida"
         >
-          <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
-            <BrandRibbon className="h-[3px] w-full" />
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E5DFD2] dark:border-[#1C324B]">
-              <Search className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
+          <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <BrandRibbon className="h-[3px] w-full shrink-0" />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E5DFD2] dark:border-[#1C324B] shrink-0">
+              <Search className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B] shrink-0" />
               <input
                 ref={searchInputRef}
                 value={globalQuery}
                 onChange={(e) => setGlobalQuery(e.target.value)}
                 placeholder="Buscar cliente, processo, lead, tarefa ou norma..."
-                className="flex-1 text-sm bg-transparent text-[#0B1F33] dark:text-slate-100 placeholder:text-[#4A5A6D] dark:placeholder:text-slate-400 focus:outline-none"
+                className="flex-1 min-w-0 text-sm bg-transparent text-[#0B1F33] dark:text-slate-100 placeholder:text-[#4A5A6D] dark:placeholder:text-slate-400 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setGlobalSearchOpen(false)}
-                className="px-2 py-1 rounded text-xs font-mono text-[#4A5A6D] dark:text-slate-400 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]"
+                className="px-2 py-1 rounded text-xs font-mono text-[#4A5A6D] dark:text-slate-400 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] shrink-0"
               >
                 Esc
               </button>
             </div>
-            <div className="max-h-80 overflow-y-auto divide-y divide-[#F1EDE4] dark:divide-[#1C324B]">
+            <div className="flex-1 max-h-80 overflow-y-auto divide-y divide-[#F1EDE4] dark:divide-[#1C324B]">
               {!globalQuery.trim() ? (
                 <p className="p-6 text-center text-xs text-[#4A5A6D] dark:text-slate-400">
                   Digite um nome, CPF, e-mail, nº SERMIG, tarefa ou norma legal...

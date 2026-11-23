@@ -1368,6 +1368,45 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   // ===========================================================================
   // Parecer Técnico IA (Admin/Consultor)
   // ===========================================================================
+  const buildLocalParecerDraft = () => {
+    if (!activeCase) return null;
+    const activeSources = legalSources.filter((s) => s.statusVigencia !== 'Revogada').slice(0, 6);
+    const fundamentacao =
+      activeSources.length > 0
+        ? activeSources
+            .map((s) => `• ${s.titulo}${s.numeroAno ? ` (${s.numeroAno})` : ''}${s.artigos ? ` — ${s.artigos}` : ''}`)
+            .join('\n')
+        : 'fonte a cadastrar (nenhuma norma vigente vinculada na Base Legal).';
+    const nomeCliente = activeClient?.nomeCompleto || 'o(a) requerente';
+    const subcat = activeCase.subcategoriaIa || activeCase.tipoServico || 'Residencia Temporal';
+    const nota = activeCase.notaViabilidadeGeral || thermo.notaGeral || 85;
+    const depCount = caseDependents.length;
+    return {
+      fallback: true,
+      origem: 'regras' as const,
+      origemLabel: 'Rascunho estruturado pelas regras locais SERMIG/BCN',
+      modeloUsado: 'regras-locais',
+      mensagemUsuario:
+        'Rascunho preenchido automaticamente com os dados do caso e da Base Legal cadastrada. Revise e edite antes de aprovar.',
+      enquadramentoLegal: `Análise preliminar do caso "${activeCase.titulo}" para ${nomeCliente}, enquadrado em ${subcat} (${activeCase.tipoServico || 'Consultoria Migratória'}). Etapa atual: ${activeCase.etapaPipeline}/15 (${activeCase.statusSermig || 'A preparar'}).`,
+      elegibilidadeRiscos: `Índice de prontidão documental atual: ${thermo.notaGeral}% (${caseDocs.filter((d) => d.status !== 'Aprovado').length} pendência(s) no checklist). ${
+        depCount > 0 ? `Grupo familiar com ${depCount} dependente(s) cadastrado(s) — conferir validade de passaportes e vínculos apostilados.` : 'Processo individual — verificar validade mínima do passaporte (12+ meses) e antecedentes federais apostilados.'
+      }`,
+      fundamentacaoNormativa: fundamentacao,
+      recomendacoes: `1. Conferir todas as pendências do checklist documental antes do protocolo no Portal SERMIG.\n2. Validar apostilamento de Haia e prazos de validade das certidões (especialmente antecedentes PF — 60 dias).\n3. Revisar manualmente este parecer técnico e ajustar os pontos específicos do caso antes de liberar ao cliente.`,
+      notaGeral: nota,
+      liberadoAoCliente: false,
+    };
+  };
+
+  const handleApplyLocalParecerFallback = () => {
+    const draft = buildLocalParecerDraft();
+    if (!draft) return;
+    setAiParecerError(null);
+    setErrorMsg(null);
+    updateParecerDraft(draft);
+  };
+
   const handleGenerateAiParecer = async () => {
     if (!activeCase || isAssistente || aiParecerLoading) return;
     setAiParecerLoading(true);
@@ -2135,26 +2174,26 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4 overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium text-slate-500">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 break-words">
                 Cliente: {activeClient?.nomeCompleto || '—'} · {activeClient?.email} · {activeClient?.whatsapp}
               </p>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">{activeCase.titulo}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5 break-words">{activeCase.titulo}</h1>
               {activeCase.encerradoEm && (
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-600 mt-1 break-words">
                   Caso encerrado em {formatDateTimeBR(activeCase.encerradoEm)} · Motivo: {activeCase.motivoEncerramento}
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 no-print">
+            <div className="flex flex-wrap items-center gap-2 max-w-full no-print">
               {canManageClients && activeClient && (
                 <select
                   aria-label="Modalidade de consultoria"
                   value={normalizePaidModality(activeClient.modalidadeConsultoria || activeCase.modalidadeConsultoria)}
                   onChange={(e) => void handleChangeClientModality(activeClient, e.target.value as PaidConsultancyModality)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-800"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-800 max-w-full"
                 >
                   <option value="orientativa">Consultoria Orientativa</option>
                   <option value="completa">Consultoria Completa</option>
@@ -2169,7 +2208,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     await handleSaveCaseField({ portalLiberado: !activeCase.portalLiberado }, 'portalLiberado');
                   }
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border max-w-full ${
                   activeClient?.portalLiberado || activeCase.portalLiberado
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : 'bg-white border-slate-300 text-slate-700'
@@ -2182,7 +2221,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               <button
                 type="button"
                 onClick={() => void handleSaveCaseField({ relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado }, 'relatorioViabilidadeLiberado')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border max-w-full ${
                   activeCase.relatorioViabilidadeLiberado ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-300 text-slate-700'
                 }`}
               >
@@ -2198,9 +2237,9 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       label: activeCase.titulo,
                     })
                   }
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-[#C82333] bg-white hover:bg-red-50 whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-[#C82333] bg-white hover:bg-red-50 shrink-0"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
                   Excluir Processo
                 </button>
               )}
@@ -2469,11 +2508,11 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       type="button"
                       disabled={aiParecerLoading}
                       onClick={handleGenerateAiParecer}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 max-w-full"
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {aiParecerLoading ? aiParecerProgress || 'Gerando rascunho...' : 'Gerar Rascunho de Parecer com IA'}
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      <span>{aiParecerLoading ? aiParecerProgress || 'Gerando rascunho...' : 'Gerar Rascunho de Parecer com IA'}</span>
                     </button>
                   </div>
 
@@ -2485,15 +2524,25 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
 
                   {aiParecerError && (
                     <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium flex flex-wrap items-center justify-between gap-2">
-                      <span>{aiParecerError}</span>
-                      <button
-                        type="button"
-                        disabled={aiParecerLoading}
-                        onClick={() => void handleGenerateAiParecer()}
-                        className="px-2.5 py-1 rounded border border-red-300 bg-white text-[#C82333] font-semibold hover:bg-red-50 disabled:opacity-50"
-                      >
-                        Tentar novamente
-                      </button>
+                      <span className="min-w-0 flex-1 break-words">{aiParecerError}</span>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={aiParecerLoading}
+                          onClick={() => void handleGenerateAiParecer()}
+                          className="px-2.5 py-1 rounded border border-red-300 bg-white text-[#C82333] font-semibold hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Tentar novamente com IA
+                        </button>
+                        <button
+                          type="button"
+                          disabled={aiParecerLoading}
+                          onClick={handleApplyLocalParecerFallback}
+                          className="px-2.5 py-1 rounded border border-amber-300 bg-amber-50 text-amber-950 font-semibold hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          Preencher pelas regras locais
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -2829,7 +2878,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       {zipBusy ? 'Gerando...' : 'Baixar ZIP'}
                     </button>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setPrintMode('relacao')}
@@ -3407,40 +3456,42 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         <strong>Cliente:</strong> {activeClient?.nomeCompleto} · <strong>Processo:</strong> {activeCase.titulo} ·{' '}
                         <strong>SERMIG:</strong> {activeCase.statusSermig} ({activeCase.numeroPedidoSermig || 'S/Nº'})
                       </p>
-                      <table className="w-full border-collapse border border-slate-300 text-left">
-                        <thead>
-                          <tr className="bg-slate-100">
-                            <th className="p-2 border border-slate-300">Ordem</th>
-                            <th className="p-2 border border-slate-300">Pessoa</th>
-                            <th className="p-2 border border-slate-300">Documento</th>
-                            <th className="p-2 border border-slate-300">Prazo Sugerido</th>
-                            <th className="p-2 border border-slate-300">Apostila / Tradução</th>
-                            <th className="p-2 border border-slate-300">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {caseDocs
-                            .filter((d) => {
-                              if (printMode === 'apostila') return d.exigeApostila || d.exigeTraducao;
-                              if (printMode === 'pacote') return d.status === 'Aprovado';
-                              return true;
-                            })
-                            .sort((a, b) => a.ordemEmissao - b.ordemEmissao)
-                            .map((d) => (
-                              <tr key={d.id}>
-                                <td className="p-2 border border-slate-300 tabular-nums">#{d.ordemEmissao}</td>
-                                <td className="p-2 border border-slate-300">{d.pessoa}</td>
-                                <td className="p-2 border border-slate-300">{d.nomeDocumento}</td>
-                                <td className="p-2 border border-slate-300 tabular-nums">{formatDateBR(d.prazoSugeridoEmissao)}</td>
-                                <td className="p-2 border border-slate-300">
-                                  {d.exigeApostila ? (d.apostilado ? 'Apostilado' : 'Pendente Apostila') : 'Não exige'} /{' '}
-                                  {d.exigeTraducao ? (d.traduzido ? 'Traduzido' : 'Pendente Trad.') : 'Não exige'}
-                                </td>
-                                <td className="p-2 border border-slate-300">{d.status}</td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                      <div className="overflow-x-auto max-w-full">
+                        <table className="w-full min-w-[600px] border-collapse border border-slate-300 text-left">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="p-2 border border-slate-300">Ordem</th>
+                              <th className="p-2 border border-slate-300">Pessoa</th>
+                              <th className="p-2 border border-slate-300">Documento</th>
+                              <th className="p-2 border border-slate-300">Prazo Sugerido</th>
+                              <th className="p-2 border border-slate-300">Apostila / Tradução</th>
+                              <th className="p-2 border border-slate-300">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {caseDocs
+                              .filter((d) => {
+                                if (printMode === 'apostila') return d.exigeApostila || d.exigeTraducao;
+                                if (printMode === 'pacote') return d.status === 'Aprovado';
+                                return true;
+                              })
+                              .sort((a, b) => a.ordemEmissao - b.ordemEmissao)
+                              .map((d) => (
+                                <tr key={d.id}>
+                                  <td className="p-2 border border-slate-300 tabular-nums">#{d.ordemEmissao}</td>
+                                  <td className="p-2 border border-slate-300">{d.pessoa}</td>
+                                  <td className="p-2 border border-slate-300">{d.nomeDocumento}</td>
+                                  <td className="p-2 border border-slate-300 tabular-nums">{formatDateBR(d.prazoSugeridoEmissao)}</td>
+                                  <td className="p-2 border border-slate-300">
+                                    {d.exigeApostila ? (d.apostilado ? 'Apostilado' : 'Pendente Apostila') : 'Não exige'} /{' '}
+                                    {d.exigeTraducao ? (d.traduzido ? 'Traduzido' : 'Pendente Trad.') : 'Não exige'}
+                                  </td>
+                                  <td className="p-2 border border-slate-300">{d.status}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
                       {printMode === 'dossie_caso' && caseDeadlines.length > 0 && (
                         <div className="pt-2">
                           <p className="font-bold mb-1">Prazos do Processo:</p>
@@ -4234,7 +4285,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         {/* Modal de Override do Bloqueio Mínimo de Protocolo */}
         {overrideModal && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-            <form onSubmit={handleConfirmOverride} className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+            <form onSubmit={handleConfirmOverride} className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
               <div className="flex items-center gap-2 text-[#C82333]">
                 <Lock className="w-5 h-5" />
                 <h3 className="text-base font-bold">Bloqueio de Protocolo Mínimo ({empresa.bloqueioProtocoloMinimo || 100}%)</h3>
@@ -4272,7 +4323,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         {/* Modal Encerrar Caso */}
         {closeCaseModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-            <form onSubmit={handleCloseCaseConfirm} className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+            <form onSubmit={handleCloseCaseConfirm} className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
               <h3 className="text-base font-bold text-slate-900">Encerrar Caso Migratório</h3>
               <p className="text-xs text-slate-600">
                 O caso avançará para a Etapa 15 (Encerrado) mantendo todo o dossiê, documentos e auditoria preservados.
@@ -4301,12 +4352,12 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         {previewDocModal && previewDocModal.arquivoUrl && (
           <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
-              <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{previewDocModal.nomeDocumento}</p>
-                  <p className="text-[11px] text-slate-500">{previewDocModal.pessoa} · Versão {previewDocModal.versao}</p>
+              <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{previewDocModal.nomeDocumento}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{previewDocModal.pessoa} · Versão {previewDocModal.versao}</p>
                 </div>
-                <button type="button" onClick={() => setPreviewDocModal(null)} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                <button type="button" onClick={() => setPreviewDocModal(null)} aria-label="Fechar pré-visualização" className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 shrink-0">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -4760,7 +4811,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       </div>
 
       {subView === 'clientes' ? (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto max-w-full">
           {filteredClients.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500">Nenhum cliente encontrado com os filtros atuais.</div>
           ) : (
@@ -4872,7 +4923,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
           )}
         </div>
       ) : casesLayout === 'lista' ? (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto max-w-full">
           {filteredCases.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500">Nenhum caso encontrado.</div>
           ) : (
@@ -4987,7 +5038,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               return (
                 <div
                   key={macro.id}
-                  className="w-[295px] sm:w-[308px] 2xl:flex-1 2xl:min-w-[274px] shrink-0 bg-slate-100/80 border border-slate-200 rounded-xl overflow-hidden flex flex-col"
+                  className="w-[295px] sm:w-[308px] max-w-[calc(100vw-2rem)] 2xl:flex-1 2xl:min-w-[274px] shrink-0 bg-slate-100/80 border border-slate-200 rounded-xl overflow-hidden flex flex-col"
                 >
                   <div className="h-1.5 w-full" style={{ backgroundColor: macro.corHex }} />
                   <div className="p-3 space-y-2.5">
@@ -5136,10 +5187,10 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       {/* Modal Novo/Editar Cliente */}
       {clientModalOpen && editingClient && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handleSaveClient} className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4">
+          <form onSubmit={handleSaveClient} className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <h2 className="text-lg font-bold text-slate-900">Cadastro de Cliente</h2>
             {editingClientDuplicate && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-center justify-between gap-2">
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2">
                 <span>
                   Possível duplicado encontrado: <strong>{editingClientDuplicate.nomeCompleto}</strong> ({editingClientDuplicate.email}).
                 </span>
@@ -5314,7 +5365,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       {/* Modal Novo Caso com Template Selector */}
       {caseModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <form onSubmit={handleCreateCase} className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4">
+          <form onSubmit={handleCreateCase} className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <h2 className="text-lg font-bold text-slate-900">Abrir Novo Caso Migratório</h2>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Template Operacional</label>

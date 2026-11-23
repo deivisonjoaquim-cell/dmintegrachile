@@ -403,20 +403,20 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
     <div className="fixed inset-0 z-50 bg-slate-900/65 flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
       <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <User className="w-5 h-5 text-[var(--color-primary)] shrink-0" />
               <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate">Dossiê do Cliente — {form.nomeCompleto}</h2>
               {form.arquivado && (
-                <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold">ARQUIVADO</span>
+                <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold shrink-0">ARQUIVADO</span>
               )}
             </div>
             <p className="text-xs text-slate-500 truncate">
               {form.email} · {form.whatsapp} · Portal: {form.portalLiberado ? 'Liberado' : form.statusAcessoPortal}
             </p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar dossiê do cliente" className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+          <button type="button" onClick={onClose} aria-label="Fechar dossiê do cliente" className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -679,12 +679,12 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                   {clientDeps.map((dep) => {
                     const depDays = daysUntilDate(dep.passaporteValidade);
                     return (
-                      <div key={dep.id} className="p-3.5 flex items-center justify-between gap-3 text-xs">
-                        <div>
-                          <p className="font-bold text-slate-900">
+                      <div key={dep.id} className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 break-words">
                             {dep.nomeCompleto} ({dep.parentesco})
                           </p>
-                          <p className="text-slate-500">
+                          <p className="text-slate-500 break-words">
                             {dep.idade !== undefined ? `${dep.idade} anos · ` : ''}
                             {dep.estudante ? 'Estudante · ' : ''}
                             {dep.passaporteNumero ? `Passaporte ${dep.passaporteNumero} · ` : ''}
@@ -701,7 +701,7 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                               await deleteDocumentAudited('dependents', dep.id, role, dep);
                               await onRefresh();
                             }}
-                            className="p-1.5 rounded border border-red-200 text-[#C82333]"
+                            className="p-1.5 rounded border border-red-200 text-[#C82333] shrink-0"
                             aria-label="Remover dependente"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -722,10 +722,10 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                 <p className="text-xs text-slate-500">Nenhum processo migratório aberto para este cliente ainda.</p>
               ) : (
                 clientCases.map((c) => (
-                  <div key={c.id} className="p-4 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">{c.titulo}</p>
-                      <p className="text-slate-500">
+                  <div key={c.id} className="p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-900 break-words">{c.titulo}</p>
+                      <p className="text-slate-500 break-words">
                         {c.tipoServico} · Etapa {c.etapaPipeline}/15 · SERMIG: {c.statusSermig}
                       </p>
                     </div>
@@ -1071,11 +1071,11 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                 <p className="text-slate-500">Nenhuma alteração auditada registrada ainda.</p>
               ) : (
                 clientAudit.map((a) => (
-                  <div key={a.id} className="p-3 rounded-lg border border-slate-200 flex justify-between gap-2">
-                    <span className="font-semibold text-slate-800">
+                  <div key={a.id} className="p-3 rounded-lg border border-slate-200 flex flex-wrap justify-between gap-2">
+                    <span className="font-semibold text-slate-800 break-words">
                       {a.acao} · {a.entidade} ({a.campo || 'registro'})
                     </span>
-                    <span className="text-slate-500">
+                    <span className="text-slate-500 break-all">
                       {formatDateTimeBR(a.createdAt)} · {a.actorEmail}
                     </span>
                   </div>

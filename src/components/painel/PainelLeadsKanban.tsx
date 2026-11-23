@@ -1015,9 +1015,9 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
         >
           <form
             onSubmit={(e) => void handleSubmitQuickEdit(e)}
-            className="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden"
+            className="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden"
           >
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/70">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/70 shrink-0">
               <div className="min-w-0">
                 <h3 id="kanban-quick-edit-title" className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">
                   Edição Rápida — {quickEditLead.nome}
@@ -1039,7 +1039,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 flex-1 overflow-y-auto">
               {quickError && (
                 <div role="alert" className="rounded-lg border border-red-200 dark:border-red-800/70 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-xs text-[#C82333] dark:text-red-300 font-medium">
                   {quickError}
@@ -1075,7 +1075,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Urgência / Prioridade</p>
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
                     {PRIORITIES.map((p) => (
                       <button
                         key={p}
@@ -1099,7 +1099,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
 
                 <div>
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Temperatura comercial</p>
-                  <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
                     {TEMPERATURES.map((temp) => (
                       <button
                         key={temp}
@@ -1169,7 +1169,7 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
               </div>
             </div>
 
-            <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/70 flex flex-wrap items-center justify-between gap-2">
+            <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/70 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div className="flex flex-wrap items-center gap-2">
                 {quickEditLead.respostasTriagem && (
                   <button
@@ -1236,14 +1236,14 @@ export const PainelLeadsKanban: React.FC<PainelLeadsKanbanProps> = ({
             if (e.target === e.currentTarget) setLossModalLead(null);
           }}
         >
-          <form onSubmit={handleConfirmLoss} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Mover para &quot;Perdido&quot; — {lossModalLead.nome}</h3>
+          <form onSubmit={handleConfirmLoss} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 min-w-0 break-words">Mover para &quot;Perdido&quot; — {lossModalLead.nome}</h3>
               <button
                 type="button"
                 onClick={() => setLossModalLead(null)}
                 aria-label="Cancelar movimentação"
-                className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>

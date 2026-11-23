@@ -2374,12 +2374,18 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
         rawText = await resp.text();
         const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
         if (!resp.ok) {
-          const isTransientProxy = resp.status === 502 || resp.status === 503 || resp.status === 504;
+          const isTransientHttp =
+            resp.status === 408 ||
+            resp.status === 429 ||
+            resp.status === 500 ||
+            resp.status === 502 ||
+            resp.status === 503 ||
+            resp.status === 504;
           return {
             ok: false,
             status: resp.status,
             message: sanitizeClientAiError(data.error || rawText || String(resp.status)),
-            retryable: isTransientProxy,
+            retryable: isTransientHttp,
           };
         }
         return { ok: true, data };
@@ -2405,24 +2411,38 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
     }
   };
 
-  options?.onProgress?.('Consultando IA…');
+  options?.onProgress?.('Consultando IA…', 1, 3);
   let outcome = await executeAttempt(false);
 
-  // Se o token Firebase expirou ou houve pequena diferença de relógio, força renovação e tenta novamente 1 vez
+  // Se o token Firebase expirou ou houve pequena diferença de relógio, força renovação e tenta novamente
   if (!outcome.ok && outcome.status === 401) {
-    options?.onProgress?.('Renovando sessão e tentando novamente…');
+    options?.onProgress?.('Renovando sessão e tentando novamente…', 2, 3);
     outcome = await executeAttempt(true);
-  } else if (!outcome.ok && outcome.retryable) {
-    options?.onProgress?.('Reconectando ao servidor de IA…');
-    await new Promise((resolve) => setTimeout(resolve, 650));
+  }
+
+  // Re-tentativa automática com backoff exponencial (até 2 tentativas extras) para falhas transitórias de rede/proxy/5xx/429
+  const retryDelaysMs = [700, 1600];
+  for (let retryIdx = 0; retryIdx < retryDelaysMs.length && !outcome.ok && outcome.retryable; retryIdx++) {
+    const attemptNum = retryIdx + 2;
+    const totalAttempts = retryDelaysMs.length + 1;
+    options?.onProgress?.(
+      `Reconectando ao servidor de IA (tentativa ${attemptNum} de ${totalAttempts})…`,
+      attemptNum,
+      totalAttempts,
+    );
+    await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[retryIdx]));
     outcome = await executeAttempt(false);
+    if (!outcome.ok && outcome.status === 401) {
+      options?.onProgress?.('Renovando sessão e tentando novamente…', attemptNum, totalAttempts);
+      outcome = await executeAttempt(true);
+    }
   }
 
   if (outcome.ok) {
     return outcome.data;
   }
 
-  console.warn(`[AI] Falha em ${endpoint} (status=${outcome.status}): ${outcome.message}`);
+  console.warn(`[AI] Falha em ${endpoint} após re-tentativas (status=${outcome.status}): ${outcome.message}`);
   throw new Error(outcome.message);
 }
 
