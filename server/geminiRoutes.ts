@@ -343,7 +343,8 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
     }
 
     return result;
-  } catch {
+  } catch (err) {
+    console.error(`[AI_ROUTE_ERROR] rota=${params.route}`, err instanceof Error ? err.message : err);
     if (wantsProgressStream && streamStarted) {
       writeNdjson({ type: 'error', statusCode: 500, error: MSG_AI_OTHER_ERROR });
       res.end();

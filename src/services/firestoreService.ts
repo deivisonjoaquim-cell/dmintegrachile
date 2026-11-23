@@ -2242,6 +2242,7 @@ export async function deleteMediaAssetAdmin(asset: MediaAsset, role: UserRole): 
 export interface CallAiOptions {
   onProgress?: (message: string, attempt?: number, maxAttempts?: number) => void;
   timeoutMs?: number;
+  streamProgress?: boolean;
 }
 
 export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
@@ -2249,112 +2250,180 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   if (!user) {
     throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
   }
-  const token = await user.getIdToken();
+
   const clientTimeoutMs = Math.max(15000, Math.min(180000, options?.timeoutMs ?? 90000));
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeoutHandle = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, clientTimeoutMs);
+  const useStream = options?.streamProgress === true && Boolean(options?.onProgress);
+  const serializedBody = JSON.stringify(body);
 
-  try {
-    let resp: Response;
+  const executeAttempt = async (forceRefreshToken: boolean): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string; retryable: boolean }> => {
+    const token = await user.getIdToken(forceRefreshToken);
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, clientTimeoutMs);
+
     try {
-      resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...(options?.onProgress ? { 'x-ai-progress': '1' } : {}),
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (networkErr) {
-      if (timedOut) {
-        throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
-      }
-      throw new Error(sanitizeClientAiError(networkErr));
-    }
-
-    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-    if (contentType.includes('application/x-ndjson') && resp.body) {
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalResult: T | null = null;
-      let streamError: string | null = null;
-
+      let resp: Response;
       try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const ev = JSON.parse(trimmed) as {
-                type?: string;
-                message?: string;
-                attempt?: number;
-                maxAttempts?: number;
-                data?: T;
-                error?: string;
-              };
-              if (ev.type === 'progress' && ev.message) {
-                options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
-              } else if (ev.type === 'result' && ev.data) {
-                finalResult = ev.data;
-              } else if (ev.type === 'error') {
-                streamError = sanitizeClientAiError(ev.error || '');
+        resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: useStream ? 'application/x-ndjson, application/json' : 'application/json',
+            Authorization: `Bearer ${token}`,
+            ...(useStream ? { 'x-ai-progress': '1' } : {}),
+          },
+          body: serializedBody,
+          signal: controller.signal,
+        });
+      } catch (networkErr) {
+        if (timedOut) {
+          return {
+            ok: false,
+            status: 504,
+            message: 'Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.',
+            retryable: false,
+          };
+        }
+        return {
+          ok: false,
+          status: 0,
+          message: sanitizeClientAiError(networkErr),
+          retryable: true,
+        };
+      }
+
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+      if (contentType.includes('application/x-ndjson') && resp.body) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult: T | null = null;
+        let streamError: string | null = null;
+
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const ev = JSON.parse(trimmed) as {
+                  type?: string;
+                  message?: string;
+                  attempt?: number;
+                  maxAttempts?: number;
+                  data?: T;
+                  error?: string;
+                };
+                if (ev.type === 'progress' && ev.message) {
+                  options?.onProgress?.(ev.message, ev.attempt, ev.maxAttempts);
+                } else if (ev.type === 'result' && ev.data) {
+                  finalResult = ev.data;
+                } else if (ev.type === 'error') {
+                  streamError = sanitizeClientAiError(ev.error || '');
+                }
+              } catch {
+                // ignore partial line
               }
-            } catch {
-              // ignore partial line
             }
           }
+        } catch (readErr) {
+          if (timedOut) {
+            return {
+              ok: false,
+              status: 504,
+              message: 'Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.',
+              retryable: false,
+            };
+          }
+          return { ok: false, status: resp.status || 502, message: sanitizeClientAiError(readErr), retryable: true };
         }
-      } catch (readErr) {
+        if (buffer.trim()) {
+          try {
+            const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
+            if (ev.type === 'result' && ev.data) finalResult = ev.data;
+            else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
+          } catch {
+            // ignore
+          }
+        }
+
+        if (streamError) {
+          return { ok: false, status: resp.status || 500, message: streamError, retryable: false };
+        }
+        if (finalResult) {
+          return { ok: true, data: finalResult };
+        }
+        return {
+          ok: false,
+          status: resp.status || 502,
+          message: 'Resposta incompleta do servidor de IA. Tente novamente em instantes.',
+          retryable: true,
+        };
+      }
+
+      let rawText = '';
+      try {
+        rawText = await resp.text();
+        const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
+        if (!resp.ok) {
+          const isTransientProxy = resp.status === 502 || resp.status === 503 || resp.status === 504;
+          return {
+            ok: false,
+            status: resp.status,
+            message: sanitizeClientAiError(data.error || rawText || String(resp.status)),
+            retryable: isTransientProxy,
+          };
+        }
+        return { ok: true, data };
+      } catch (err) {
         if (timedOut) {
-          throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
+          return {
+            ok: false,
+            status: 504,
+            message: 'Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.',
+            retryable: false,
+          };
         }
-        throw new Error(sanitizeClientAiError(readErr));
+        const isTransientHttp = resp.status >= 500 || !resp.ok;
+        return {
+          ok: false,
+          status: resp.status || 502,
+          message: sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)),
+          retryable: isTransientHttp,
+        };
       }
-      if (buffer.trim()) {
-        try {
-          const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
-          if (ev.type === 'result' && ev.data) finalResult = ev.data;
-          else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
-        } catch {
-          // ignore
-        }
-      }
-
-      if (streamError) throw new Error(streamError);
-      if (finalResult) return finalResult;
-      throw new Error(sanitizeClientAiError(''));
+    } finally {
+      clearTimeout(timeoutHandle);
     }
+  };
 
-    let rawText = '';
-    try {
-      rawText = await resp.text();
-      const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
-      if (!resp.ok) {
-        throw new Error(sanitizeClientAiError(data.error || rawText || String(resp.status)));
-      }
-      return data;
-    } catch (err) {
-      if (timedOut) {
-        throw new Error('Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.');
-      }
-      throw new Error(sanitizeClientAiError(err instanceof Error ? err.message : rawText || String(resp.status)));
-    }
-  } finally {
-    clearTimeout(timeoutHandle);
+  options?.onProgress?.('Consultando IA…');
+  let outcome = await executeAttempt(false);
+
+  // Se o token Firebase expirou ou houve pequena diferença de relógio, força renovação e tenta novamente 1 vez
+  if (!outcome.ok && outcome.status === 401) {
+    options?.onProgress?.('Renovando sessão e tentando novamente…');
+    outcome = await executeAttempt(true);
+  } else if (!outcome.ok && outcome.retryable) {
+    options?.onProgress?.('Reconectando ao servidor de IA…');
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    outcome = await executeAttempt(false);
   }
+
+  if (outcome.ok) {
+    return outcome.data;
+  }
+
+  console.warn(`[AI] Falha em ${endpoint} (status=${outcome.status}): ${outcome.message}`);
+  throw new Error(outcome.message);
 }
 
 export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {

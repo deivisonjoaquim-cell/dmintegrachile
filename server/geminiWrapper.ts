@@ -667,9 +667,13 @@ async function runSingleAttemptWithTimeout(
   }
 }
 
+const LIVE_PRIMARY_HIGH_DEMAND_COOLDOWN_MS = 60_000;
+const liveModelCooldownUntil = new Map<string, number>();
+
 export async function chamarGemini<T extends Record<string, unknown>>(
   params: ChamarGeminiParams<T>,
 ): Promise<ChamarGeminiResult<T>> {
+  const isLiveExecution = !params.generateFn && !params.configOverride;
   const baseRuntime = { ...getGeminiRuntimeConfig(), ...(params.configOverride || {}) };
   const runtime = getEffectiveRuntimeConfig(
     baseRuntime,
@@ -782,6 +786,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   let totalAttempts = 0;
   let lastError: ClassifiedGeminiError | null = null;
   let sawMalformedJson = false;
+  const hasDistinctBackupModel = Boolean(runtime.fallbackModel && runtime.fallbackModel !== runtime.primaryModel);
 
   const tryModelPhase = async (
     modelName: string,
@@ -789,6 +794,8 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     maxTries: number,
   ): Promise<{ matched?: T; fatal?: ClassifiedGeminiError }> => {
     let malformedRetriesLeft = 1;
+    const effectiveAttemptTimeoutCap =
+      isLiveExecution && tier === 'principal' && hasDistinctBackupModel ? Math.min(runtime.timeoutMs, 12000) : runtime.timeoutMs;
 
     for (let attempt = 1; attempt <= maxTries; attempt++) {
       const remainingBudgetMs = runtime.maxWallClockMs - (Date.now() - startedAtMs);
@@ -833,7 +840,10 @@ export async function chamarGemini<T extends Record<string, unknown>>(
               ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             };
 
-        const attemptTimeoutMs = Math.max(20, Math.min(runtime.timeoutMs, Math.max(20, remainingBudgetMs - 1000)));
+        const attemptTimeoutMs = Math.max(
+          20,
+          Math.min(effectiveAttemptTimeoutCap, Math.max(20, remainingBudgetMs - 1000)),
+        );
         const resp = await runSingleAttemptWithTimeout(
           generateFn!,
           {
@@ -889,7 +899,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
           const retryTimeoutMs =
             runtime.timeoutMs <= 200
               ? runtime.timeoutMs
-              : Math.max(20, Math.min(runtime.timeoutMs, Math.max(20, retryRemainingMs - 1000)));
+              : Math.max(20, Math.min(effectiveAttemptTimeoutCap, Math.max(20, retryRemainingMs - 1000)));
           const retryResp = await runSingleAttemptWithTimeout(
             generateFn!,
             {
@@ -947,6 +957,13 @@ export async function chamarGemini<T extends Record<string, unknown>>(
           return { fatal: classified };
         }
 
+        // Em execução real, ao receber 503/429 (alta demanda) ou timeout no modelo principal,
+        // alterna imediatamente para o modelo reserva para responder em ~2s sem travar o proxy.
+        if (isLiveExecution && tier === 'principal' && hasDistinctBackupModel && classified.isHighDemand) {
+          liveModelCooldownUntil.set(modelName, Date.now() + LIVE_PRIMARY_HIGH_DEMAND_COOLDOWN_MS);
+          break;
+        }
+
         if (attempt < maxTries) {
           const delayMs = computeRetryDelayMs(attempt, runtime.baseDelayMs, classified.retryAfterMs, rng);
           const remainingAfter = runtime.maxWallClockMs - (Date.now() - startedAtMs);
@@ -966,17 +983,26 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     return {};
   };
 
-  // Phase 1: Primary model (up to maxAttempts within wall clock budget)
+  // Phase 1: Primary model (skip temporarily during 60s live high-demand cooldown if backup is available)
   let effectivePrimaryModel = runtime.primaryModel;
-  let primaryOutcome = await tryModelPhase(effectivePrimaryModel, 'principal', runtime.maxAttempts);
-  if (primaryOutcome.fatal?.statusCode === 404 && effectivePrimaryModel !== DEFAULT_GEMINI_PRIMARY_MODEL) {
-    console.warn(
-      `[Gemini][${params.route}] Modelo configurado "${effectivePrimaryModel}" retornou 404; alternando para "${DEFAULT_GEMINI_PRIMARY_MODEL}".`,
-    );
-    effectivePrimaryModel = DEFAULT_GEMINI_PRIMARY_MODEL;
+  const primaryInLiveCooldown =
+    isLiveExecution &&
+    hasDistinctBackupModel &&
+    (liveModelCooldownUntil.get(effectivePrimaryModel) ?? 0) > Date.now();
+
+  let primaryOutcome: { matched?: T; fatal?: ClassifiedGeminiError } = {};
+  if (!primaryInLiveCooldown) {
     primaryOutcome = await tryModelPhase(effectivePrimaryModel, 'principal', runtime.maxAttempts);
+    if (primaryOutcome.fatal?.statusCode === 404 && effectivePrimaryModel !== DEFAULT_GEMINI_PRIMARY_MODEL) {
+      console.warn(
+        `[Gemini][${params.route}] Modelo configurado "${effectivePrimaryModel}" retornou 404; alternando para "${DEFAULT_GEMINI_PRIMARY_MODEL}".`,
+      );
+      effectivePrimaryModel = DEFAULT_GEMINI_PRIMARY_MODEL;
+      primaryOutcome = await tryModelPhase(effectivePrimaryModel, 'principal', runtime.maxAttempts);
+    }
   }
   if (primaryOutcome.matched) {
+    liveModelCooldownUntil.delete(effectivePrimaryModel);
     return {
       ok: true,
       statusCode: 200,
@@ -1019,7 +1045,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   if (
     runtime.fallbackModel &&
     runtime.fallbackModel !== effectivePrimaryModel &&
-    !sawMalformedJson &&
+    (!sawMalformedJson || isLiveExecution) &&
     remainingBeforeBackup >= 2500
   ) {
     const backupOutcome = await tryModelPhase(runtime.fallbackModel, 'reserva', runtime.fallbackAttempts);

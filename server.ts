@@ -93,8 +93,8 @@ interface DecodedToken {
 
 let cachedCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
 
-async function getFirebasePublicCerts(): Promise<Record<string, string>> {
-  if (cachedCerts && Date.now() < cachedCerts.expiresAt) {
+async function getFirebasePublicCerts(forceRefresh = false): Promise<Record<string, string>> {
+  if (!forceRefresh && cachedCerts && Date.now() < cachedCerts.expiresAt) {
     return cachedCerts.certs;
   }
   const resp = await fetch(
@@ -114,29 +114,11 @@ async function getFirebasePublicCerts(): Promise<Record<string, string>> {
 async function verifyFirebaseIdToken(idToken: string): Promise<DecodedToken> {
   const parts = idToken.split('.');
   if (parts.length !== 3) {
-    throw new Error('Token de autenticação inválido.');
+    throw new Error('Sessão inválida ou expirada. Faça login novamente.');
   }
   const [headerB64, payloadB64, sigB64] = parts;
-  const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8')) as {
-    alg?: string;
-    kid?: string;
-  };
-  if (header.alg !== 'RS256' || !header.kid) {
-    throw new Error('Cabeçalho do token inválido.');
-  }
-  const certs = await getFirebasePublicCerts();
-  const cert = certs[header.kid];
-  if (!cert) {
-    throw new Error('Chave de assinatura do token não encontrada.');
-  }
-  const verifier = crypto.createVerify('RSA-SHA256');
-  verifier.update(`${headerB64}.${payloadB64}`);
-  verifier.end();
-  const signature = Buffer.from(sigB64, 'base64url');
-  if (!verifier.verify(cert, signature)) {
-    throw new Error('Assinatura do token inválida.');
-  }
-  const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as {
+  let header: { alg?: string; kid?: string };
+  let payload: {
     aud?: string;
     iss?: string;
     sub?: string;
@@ -146,6 +128,35 @@ async function verifyFirebaseIdToken(idToken: string): Promise<DecodedToken> {
     name?: string;
     picture?: string;
   };
+  try {
+    header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8')) as {
+      alg?: string;
+      kid?: string;
+    };
+    payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as typeof payload;
+  } catch {
+    throw new Error('Sessão inválida ou expirada. Faça login novamente.');
+  }
+  if (header.alg !== 'RS256' || !header.kid) {
+    throw new Error('Sessão inválida ou expirada. Faça login novamente.');
+  }
+  let certs = await getFirebasePublicCerts(false);
+  let cert = certs[header.kid];
+  if (!cert) {
+    certs = await getFirebasePublicCerts(true);
+    cert = certs[header.kid];
+  }
+  if (!cert) {
+    throw new Error('Chave de assinatura do token não encontrada. Faça login novamente.');
+  }
+  const verifier = crypto.createVerify('RSA-SHA256');
+  verifier.update(`${headerB64}.${payloadB64}`);
+  verifier.end();
+  const signature = Buffer.from(sigB64, 'base64url');
+  if (!verifier.verify(cert, signature)) {
+    throw new Error('Assinatura do token inválida. Faça login novamente.');
+  }
+  // Tolerância de 120s para pequenas diferenças de relógio entre servidor e cliente
   const nowSec = Math.floor(Date.now() / 1000);
   if (payload.aud !== PROJECT_ID) {
     throw new Error('Audiência do token incompatível.');
@@ -153,7 +164,7 @@ async function verifyFirebaseIdToken(idToken: string): Promise<DecodedToken> {
   if (payload.iss !== `https://securetoken.google.com/${PROJECT_ID}`) {
     throw new Error('Emissor do token inválido.');
   }
-  if (!payload.sub || !payload.exp || payload.exp < nowSec) {
+  if (!payload.sub || !payload.exp || payload.exp < nowSec - 120) {
     throw new Error('Token expirado ou sem identificador de usuário.');
   }
   return {
@@ -211,7 +222,9 @@ async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction
     req.authUser = { ...decoded, role, status, rawToken: token };
     next();
   } catch (err) {
-    res.status(401).json({ error: err instanceof Error ? err.message : 'Sessão inválida ou expirada.' });
+    const message = err instanceof Error ? err.message : 'Sessão inválida ou expirada.';
+    console.warn(`[AUTH] Falha na verificação de token em ${req.path}: ${message}`);
+    res.status(401).json({ error: message });
   }
 }
 
