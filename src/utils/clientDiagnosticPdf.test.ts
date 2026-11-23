@@ -170,3 +170,66 @@ test('buildSimulatedPublicAnswers aplica cenários E-se sem mutar o perfil base 
   assert.ok(simPdfDoc.output('arraybuffer').byteLength > 2500, 'O PDF com radar vetorial e 4 fases deve conter geometria completa');
 });
 
+test('buildClientDiagnosticDossierDoc mantém exatamente 2 páginas com perfil complexo (família, riscos, custos e resumo IA)', () => {
+  const complexAnswers = createBaseAnswers({
+    nome: 'Carlos Eduardo Pereira & Família',
+    localizacao: 'No Chile como turista',
+    passaporteStatus: 'vencido',
+    passaporteValidadeMeses: 3,
+    overstay: true,
+    familiaAcompanhante: true,
+    composicaoFamiliar: 'familia_com_filhos',
+    quantidadeDependentes: 2,
+    objetivo: 'trabalho_formal',
+    possuiOfertaTrabalhoFormal: true,
+  });
+
+  const result = runDiagnosticEngine(
+    complexAnswers,
+    SEED_VISA_CATEGORIES,
+    SEED_VISA_REQUIREMENTS,
+    SEED_LEGAL_SOURCES,
+    DEFAULT_EMPRESA_CONFIG,
+  );
+
+  const { doc, filename } = buildClientDiagnosticDossierDoc({
+    empresa: DEFAULT_EMPRESA_CONFIG,
+    result,
+    answers: complexAnswers,
+    protocolo: 'DM-COMPLEX-99',
+    aiDraft: {
+      resumoExecutivo:
+        'Perfil com demanda de regularização prévia antes do protocolo oficial no SERMIG e emissão coordenada de certidões familiares.',
+    },
+  });
+
+  assert.equal(doc.getNumberOfPages(), 2, 'Mesmo com alertas críticos, riscos e família, o PDF deve permanecer em 2 páginas');
+  assert.match(filename, /^Dossie-Diagnostico-DM-Integra-Carlos-Eduardo-Pereira-Familia-DM-COMPLEX-99\.pdf$/);
+  assert.ok(doc.output('arraybuffer').byteLength > 2800);
+});
+
+test('buildClientDiagnosticDossierDoc suporta idioma es-CL e opção hideCosts preservando 2 páginas', () => {
+  const answers = createBaseAnswers({ nome: 'Sofía Martínez' });
+  const result = runDiagnosticEngine(
+    answers,
+    SEED_VISA_CATEGORIES,
+    SEED_VISA_REQUIREMENTS,
+    SEED_LEGAL_SOURCES,
+    DEFAULT_EMPRESA_CONFIG,
+  );
+
+  const { doc, filename } = buildClientDiagnosticDossierDoc({
+    empresa: DEFAULT_EMPRESA_CONFIG,
+    result,
+    answers,
+    protocolo: 'CL-2026-01',
+    locale: 'es-CL',
+    hideCosts: true,
+  });
+
+  assert.equal(doc.getNumberOfPages(), 2, 'A versão es-CL sem exibição de custos deve manter exatamente 2 páginas');
+  assert.match(filename, /^Dossier-Diagnostico-DM-Integra-Sofia-Martinez-CL-2026-01\.pdf$/);
+  assert.ok(doc.output('datauristring').startsWith('data:application/pdf'));
+});
+
+

@@ -54,6 +54,7 @@ import {
   buildBasicDiagnosticSummary,
   CONSULTANCY_PLANS,
 } from '../utils/portalAccess';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export interface AiDiagnosticDraft {
   rascunho?: boolean;
@@ -122,9 +123,10 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
   onSimulatePublicAnswers,
   leadHistory,
 }) => {
+  const { locale, isEsCL } = useLanguage();
   const [explainTab, setExplainTab] = useState<'cliente' | 'tecnico'>(mode === 'consultant' ? 'tecnico' : 'cliente');
   const [copiedMsg, setCopiedMsg] = useState(false);
-  const [pdfBusy, setPdfBusy] = useState<'download' | 'preview' | null>(null);
+  const [pdfBusy, setPdfBusy] = useState<'download' | 'preview' | 'download-2p' | 'preview-2p' | null>(null);
   const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
   const [pdfPreview, setPdfPreview] = useState<{ title: string; filename: string; blobUrl: string } | null>(null);
   const [publicSimLevers, setPublicSimLevers] = useState<PublicSimLeverId[]>([]);
@@ -235,10 +237,23 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           answers,
           protocolo: protocoloRef,
           simulatedDimensions: publicSimulatedDimensions,
+          hideCosts,
+          locale,
+          aiDraft,
         });
-        setPdfFeedback(`Dossiê executivo com Gráfico Radar e 4 Fases baixado (${filename}).`);
+        setPdfFeedback(
+          isEsCL
+            ? `Diagnóstico migratorio completo (2 páginas PDF) descargado (${filename}).`
+            : `Diagnóstico migratório completo em PDF (2 páginas) baixado (${filename}).`,
+        );
       } catch (err) {
-        setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o Dossiê em PDF.');
+        setPdfFeedback(
+          err instanceof Error
+            ? err.message
+            : isEsCL
+              ? 'No fue posible generar el diagnóstico en PDF.'
+              : 'Não foi possível gerar o diagnóstico em PDF.',
+        );
       } finally {
         setPdfBusy(null);
       }
@@ -257,18 +272,29 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           answers,
           protocolo: protocoloRef,
           simulatedDimensions: publicSimulatedDimensions,
+          hideCosts,
+          locale,
+          aiDraft,
         });
         const blobUrl = URL.createObjectURL(blob);
         setPdfPreview((prev) => {
           if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
           return {
-            title: 'Dossiê Executivo de Elegibilidade — Gráfico Radar & 4 Fases (2 Páginas)',
+            title: isEsCL
+              ? 'Diagnóstico Migratorio Completo D&M Integra (PDF 2 Páginas)'
+              : 'Diagnóstico Migratório Completo D&M Integra (PDF 2 Páginas)',
             filename,
             blobUrl,
           };
         });
       } catch (err) {
-        setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível abrir a pré-visualização em PDF.');
+        setPdfFeedback(
+          err instanceof Error
+            ? err.message
+            : isEsCL
+              ? 'No fue posible abrir la vista previa en PDF.'
+              : 'Não foi possível abrir a pré-visualização em PDF.',
+        );
       } finally {
         setPdfBusy(null);
       }
@@ -406,27 +432,45 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                   type="button"
                   disabled={pdfBusy !== null}
                   onClick={() => void handleDownloadPublicDossierPdf()}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523] font-bold transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523] font-bold whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {pdfBusy === 'download' ? 'Gerando Dossiê PDF...' : 'Exportar Dossiê PDF (Radar + 4 Fases)'}
+                  {pdfBusy === 'download'
+                    ? isEsCL
+                      ? 'Generando PDF...'
+                      : 'Gerando PDF...'
+                    : isEsCL
+                      ? 'Exportar Diagnóstico PDF (2 Páginas)'
+                      : 'Exportar Diagnóstico PDF (2 Páginas)'}
                 </button>
                 <button
                   type="button"
                   disabled={pdfBusy !== null}
                   onClick={() => void handlePreviewPublicDossierPdf()}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  {pdfBusy === 'preview' ? 'Abrindo...' : 'Pré-visualizar PDF'}
+                  {pdfBusy === 'preview'
+                    ? isEsCL
+                      ? 'Abriendo...'
+                      : 'Abrindo...'
+                    : isEsCL
+                      ? 'Vista previa PDF'
+                      : 'Pré-visualizar PDF'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCopyPublicSummary}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold whitespace-nowrap shrink-0 transition-colors"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  {copiedMsg ? 'Resumo copiado' : 'Copiar resumo'}
+                  {copiedMsg
+                    ? isEsCL
+                      ? 'Resumen copiado'
+                      : 'Resumo copiado'
+                    : isEsCL
+                      ? 'Copiar resumen'
+                      : 'Copiar resumo'}
                 </button>
               </div>
             </div>
@@ -940,7 +984,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
 
   const handleDownloadExecutiveClientJsPdf = async () => {
     if (pdfBusy) return;
-    setPdfBusy('download');
+    setPdfBusy('download-2p');
     setPdfFeedback(null);
     try {
       const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
@@ -950,10 +994,45 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
         result,
         answers,
         protocolo: protocoloRef,
+        hideCosts,
+        locale,
+        aiDraft,
       });
-      setPdfFeedback(`Dossiê Executivo Cliente (jsPDF com Radar + 4 Fases) baixado (${filename}).`);
+      setPdfFeedback(`Diagnóstico Completo D&M Integra (jsPDF 2 páginas) baixado (${filename}).`);
     } catch (err) {
-      setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o Dossiê Executivo em PDF.');
+      setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível gerar o Diagnóstico em PDF.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const handlePreviewExecutiveClientJsPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('preview-2p');
+    setPdfFeedback(null);
+    try {
+      const { buildClientDiagnosticPdfBlob } = await import('../utils/clientDiagnosticPdf');
+      const protocoloRef = savedLeadId ? savedLeadId.slice(-8).toUpperCase() : 'PRELIMINAR';
+      const { blob, filename } = await buildClientDiagnosticPdfBlob({
+        empresa,
+        result,
+        answers,
+        protocolo: protocoloRef,
+        hideCosts,
+        locale,
+        aiDraft,
+      });
+      const blobUrl = URL.createObjectURL(blob);
+      setPdfPreview((prev) => {
+        if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+        return {
+          title: 'Diagnóstico Migratório Completo D&M Integra (PDF 2 Páginas)',
+          filename,
+          blobUrl,
+        };
+      });
+    } catch (err) {
+      setPdfFeedback(err instanceof Error ? err.message : 'Não foi possível abrir a pré-visualização em PDF.');
     } finally {
       setPdfBusy(null);
     }
@@ -1157,7 +1236,16 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-[#0B1523] bg-[#C8A236] hover:bg-[#d6b145] whitespace-nowrap shrink-0 disabled:opacity-50 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            {pdfBusy === 'download' ? 'Gerando...' : 'Dossiê Cliente (Radar PDF)'}
+            {pdfBusy === 'download-2p' ? 'Gerando PDF...' : 'Exportar Diagnóstico PDF (2 Págs)'}
+          </button>
+          <button
+            type="button"
+            disabled={pdfBusy !== null}
+            onClick={() => void handlePreviewExecutiveClientJsPdf()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#C8A236]/50 bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-[#F3EFE4] whitespace-nowrap shrink-0 disabled:opacity-50 transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 text-[#8C6D14]" />
+            {pdfBusy === 'preview-2p' ? 'Preparando...' : 'Pré-visualizar (2 Págs)'}
           </button>
           <button
             type="button"
@@ -1176,7 +1264,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
           >
             <Eye className="w-3.5 h-3.5" />
-            {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar PDF'}
+            {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar Interno'}
           </button>
           <button
             type="button"
