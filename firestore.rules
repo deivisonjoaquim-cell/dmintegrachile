@@ -295,6 +295,44 @@ service cloud.firestore {
         && isOptString(data, 'reason', 500);
     }
 
+    function isValidUserIdentityDocument(data, uid) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'docType', 'title', 'fileName', 'mimeType',
+          'sizeBytes', 'imageDataUrl', 'storageBackend', 'captureMethod',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'docType', 'title', 'documentNumber', 'issuingCountry',
+          'expirationDate', 'notes', 'fileName', 'mimeType', 'sizeBytes',
+          'width', 'height', 'imageDataUrl', 'storageBackend', 'captureMethod',
+          'enhancedScan', 'createdAt', 'updatedAt'
+        ])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'ownerUid', 1, 128)
+        && data.ownerUid == uid
+        && data.docType in ['passaporte', 'rg_cin', 'cnh', 'cedula_chile', 'cpf', 'comprovante_residencia', 'outro']
+        && isReqString(data, 'title', 2, 140)
+        && isOptString(data, 'documentNumber', 60)
+        && isOptString(data, 'issuingCountry', 60)
+        && isOptString(data, 'expirationDate', 20)
+        && isOptString(data, 'notes', 500)
+        && isReqString(data, 'fileName', 3, 200)
+        && data.mimeType in ['image/jpeg', 'image/webp', 'image/png']
+        && data.sizeBytes is number
+        && data.sizeBytes > 0
+        && data.sizeBytes <= 600000
+        && isOptNum(data, 'width')
+        && isOptNum(data, 'height')
+        && isReqString(data, 'imageDataUrl', 30, 650000)
+        && data.imageDataUrl.matches('^data:image/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$')
+        && data.storageBackend == 'firestore_profile'
+        && data.captureMethod in ['camera', 'upload']
+        && isOptBool(data, 'enhancedScan')
+        && isReqString(data, 'createdAt', 10, 64)
+        && isReqString(data, 'updatedAt', 10, 64);
+    }
+
     function isValidPartnerProposal(data) {
       return data.keys().hasAll(['nome_empresa', 'categoria', 'pais', 'responsavel', 'whatsapp', 'email', 'moeda', 'status'])
         && isReqString(data, 'nome_empresa', 2, 200)
@@ -686,6 +724,39 @@ service cloud.firestore {
           (isValidatedAdmin() && isValidUserRoleLog(incoming(), uid) && incoming().id == logId)
         );
         allow update, delete: if false;
+      }
+
+      match /identityDocuments/{docId} {
+        allow get: if isSignedIn() && isValidId(uid) && isValidId(docId) && (
+          (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
+          isAdminOrConsultor()
+        );
+        allow list: if isSignedIn() && (
+          (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
+          isAdminOrConsultor()
+        );
+        allow create: if isSignedIn() && isValidId(uid) && isValidId(docId)
+          && isValidUserIdentityDocument(incoming(), uid)
+          && incoming().id == docId
+          && (
+            (isBootstrappedAdmin() && request.auth.uid == uid) ||
+            (request.auth.uid == uid && exists(/databases/$(database)/documents/users/$(uid)))
+          );
+        allow update: if isSignedIn() && isValidId(uid) && isValidId(docId)
+          && isValidUserIdentityDocument(incoming(), uid)
+          && incoming().id == docId
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().createdAt == existing().createdAt
+          && (
+            (request.auth.uid == uid
+              && existing().ownerUid == request.auth.uid
+              && incoming().diff(existing()).affectedKeys().hasOnly(['docType', 'title', 'documentNumber', 'issuingCountry', 'expirationDate', 'notes', 'updatedAt'])) ||
+            isValidatedAdmin()
+          );
+        allow delete: if isSignedIn() && isValidId(uid) && isValidId(docId) && (
+          (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
+          isValidatedAdmin()
+        );
       }
     }
 

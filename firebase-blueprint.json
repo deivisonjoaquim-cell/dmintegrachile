@@ -650,10 +650,38 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "nome", "depoimento", "avaliacao", "autorizado", "aprovado", "createdAt"]
+    },
+    "UserIdentityDocument": {
+      "title": "UserIdentityDocument",
+      "description": "Documento de identificação digitalizado via câmera ou envio de arquivo e salvo diretamente na subcoleção privada do perfil do usuário no Firestore.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "docType": { "type": "string", "enum": ["passaporte", "rg_cin", "cnh", "cedula_chile", "cpf", "comprovante_residencia", "outro"] },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "documentNumber": { "type": "string", "maxLength": 60 },
+        "issuingCountry": { "type": "string", "maxLength": 60 },
+        "expirationDate": { "type": "string", "maxLength": 20 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "fileName": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "mimeType": { "type": "string", "enum": ["image/jpeg", "image/webp", "image/png"] },
+        "sizeBytes": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "imageDataUrl": { "type": "string", "minLength": 30, "maxLength": 650000, "pattern": "^data:image/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$" },
+        "storageBackend": { "type": "string", "enum": ["firestore_profile"] },
+        "captureMethod": { "type": "string", "enum": ["camera", "upload"] },
+        "enhancedScan": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerUid", "docType", "title", "fileName", "mimeType", "sizeBytes", "imageDataUrl", "storageBackend", "captureMethod", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{uid}": { "schema": { "$ref": "#/entities/UserProfile" }, "description": "Perfis e papéis RBAC dos usuários" },
+    "/users/{uid}/identityDocuments/{docId}": { "schema": { "$ref": "#/entities/UserIdentityDocument" }, "description": "Documentos de identificação digitalizados via câmera ou upload armazenados no perfil privado do usuário" },
     "/config/{docId}": { "schema": { "$ref": "#/entities/EmpresaConfig" }, "description": "Configuração empresa (pública) e bancário (somente admin)" },
     "/siteContent/{sectionId}": { "schema": { "$ref": "#/entities/SiteContent" }, "description": "Conteúdo CMS do site público" },
     "/mediaAssets/{assetId}": { "schema": { "$ref": "#/entities/MediaAsset" }, "description": "Biblioteca institucional de mídias, logos e banners" },

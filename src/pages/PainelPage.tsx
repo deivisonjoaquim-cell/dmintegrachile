@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Briefcase,
   CalendarClock,
+  Camera,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -20,6 +21,7 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
+import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
@@ -152,8 +154,18 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalQuery, setGlobalQuery] = useState('');
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [profileIdModalOpen, setProfileIdModalOpen] = useState(false);
   const [recents, setRecents] = useState<RecentCaseItem[]>([]);
   const [panelTheme, setPanelTheme] = useState<PanelTheme>(() => loadPanelTheme());
+
+  useEffect(() => {
+    if (!profileIdModalOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setProfileIdModalOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [profileIdModalOpen]);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const quickCreateRef = useRef<HTMLDivElement | null>(null);
@@ -802,6 +814,22 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             </div>
           )}
 
+          <button
+            type="button"
+            onClick={() => {
+              setProfileIdModalOpen(true);
+              setMobileMenuOpen(false);
+            }}
+            title="Escanear e guardar documentos de identificação no meu perfil"
+            aria-label="Meus Docs ID (Câmera)"
+            className={`w-full inline-flex items-center justify-center gap-2 px-2.5 py-2 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 hover:bg-[#F3EFE6] dark:hover:bg-[#16304C] transition-colors ${
+              sidebarCollapsed ? 'px-2' : ''
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B] shrink-0" aria-hidden="true" />
+            {!sidebarCollapsed && <span className="truncate">Meus Docs ID (Câmera)</span>}
+          </button>
+
           <div className={`flex items-center gap-1.5 ${sidebarCollapsed ? 'flex-col' : ''}`}>
             <button
               type="button"
@@ -1436,6 +1464,40 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {profileIdModalOpen && userProfile && (
+        <div
+          className="fixed inset-0 z-50 bg-[#0B1F33]/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Documentos de Identificação no Perfil"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setProfileIdModalOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-[#FAF9F6] border border-[#E5DFD2] shadow-2xl p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-[#E5DFD2]">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                  Perfil no Firestore · Câmera Integrada
+                </p>
+                <p className="text-sm font-bold text-[#0B1F33] truncate">
+                  {userProfile.nome} ({userProfile.email})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileIdModalOpen(false)}
+                aria-label="Fechar janela de documentos de identificação"
+                className="p-2 rounded-lg border border-[#DDD6C7] bg-white text-[#0B1F33] hover:bg-[#FAF9F6] shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ProfileIdentityDocumentsCard userProfile={userProfile} />
           </div>
         </div>
       )}

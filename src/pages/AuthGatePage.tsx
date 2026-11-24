@@ -28,6 +28,7 @@ import {
   type BasicDiagnosticSummary,
 } from '../utils/portalAccess';
 import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
+import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 
 interface AuthGatePageProps {
   mode: 'cliente' | 'equipe';
@@ -441,6 +442,10 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
 
               {renderBasicDiagnosticCard(accessResolution.basicDiagnostic)}
 
+              <div className="text-left">
+                <ProfileIdentityDocumentsCard userProfile={userProfile} compact />
+              </div>
+
               <div className="flex flex-wrap justify-center gap-3 pt-2">
                 <button
                   type="button"
@@ -510,6 +515,10 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               </div>
 
               {accessResolution.basicDiagnostic && renderBasicDiagnosticCard(accessResolution.basicDiagnostic)}
+
+              <div className="text-left">
+                <ProfileIdentityDocumentsCard userProfile={userProfile} compact />
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -528,6 +537,10 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                   {checkMsg}
                 </div>
               )}
+
+              <div className="text-left">
+                <ProfileIdentityDocumentsCard userProfile={userProfile} compact />
+              </div>
 
               <div className="flex flex-wrap justify-center gap-3">
                 <button

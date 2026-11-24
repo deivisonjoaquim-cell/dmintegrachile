@@ -27,3 +27,7 @@
 13. **FCM Token & Notification Isolation (`/fcmTokens/{id}`, `/clientNotifications/{id}`)**:
     - Clients can register/update/deactivate ONLY their own `/fcmTokens/{id}` (`uid == request.auth.uid` and `clientId == userClientId()`) and cannot read or list tokens of other users/clients.
     - Only verified staff (`admin`, `consultor`, `assistente`) can create `/clientNotifications/{id}`; clients can ONLY read notifications matching their `clientId` and update strictly `['lida', 'lidaEm', 'updatedAt']` without mutating `titulo`, `mensagem`, or `clientId`.
+14. **User Profile Identity Document Isolation (`/users/{uid}/identityDocuments/{docId}`)**:
+    - PII Isolation & Master Gate: Only the verified owner (`request.auth.uid == uid` with existing `/users/{uid}`) can create, update metadata (`['docType', 'title', 'documentNumber', 'issuingCountry', 'expirationDate', 'notes', 'updatedAt']`), or delete their own scanned identification documents. `admin` and `consultor` have read-only review access; `assistente` and other users receive `PERMISSION_DENIED`.
+    - Anti-XSS & Anti-Resource-Poisoning: `imageDataUrl` must strictly match `^data:image/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$` and `<= 650000` chars (`sizeBytes <= 600000`), blocking SVG/HTML/script `data:` URIs, oversized payloads, shadow fields, and immutable `ownerUid`/`createdAt` tampering.
+

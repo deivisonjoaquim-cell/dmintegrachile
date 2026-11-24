@@ -295,6 +295,44 @@ service cloud.firestore {
         && isOptString(data, 'reason', 500);
     }
 
+    function isValidUserIdentityDocument(data, uid) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'docType', 'title', 'fileName', 'mimeType',
+          'sizeBytes', 'imageDataUrl', 'storageBackend', 'captureMethod',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'docType', 'title', 'documentNumber', 'issuingCountry',
+          'expirationDate', 'notes', 'fileName', 'mimeType', 'sizeBytes',
+          'width', 'height', 'imageDataUrl', 'storageBackend', 'captureMethod',
+          'enhancedScan', 'createdAt', 'updatedAt'
+        ])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'ownerUid', 1, 128)
+        && data.ownerUid == uid
+        && data.docType in ['passaporte', 'rg_cin', 'cnh', 'cedula_chile', 'cpf', 'comprovante_residencia', 'outro']
+        && isReqString(data, 'title', 2, 140)
+        && isOptString(data, 'documentNumber', 60)
+        && isOptString(data, 'issuingCountry', 60)
+        && isOptString(data, 'expirationDate', 20)
+        && isOptString(data, 'notes', 500)
+        && isReqString(data, 'fileName', 3, 200)
+        && data.mimeType in ['image/jpeg', 'image/webp', 'image/png']
+        && data.sizeBytes is number
+        && data.sizeBytes > 0
+        && data.sizeBytes <= 600000
+        && isOptNum(data, 'width')
+        && isOptNum(data, 'height')
+        && isReqString(data, 'imageDataUrl', 30, 650000)
+        && data.imageDataUrl.matches('^data:image/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$')
+        && data.storageBackend == 'firestore_profile'
+        && data.captureMethod in ['camera', 'upload']
+        && isOptBool(data, 'enhancedScan')
+        && isReqString(data, 'createdAt', 10, 64)
+        && isReqString(data, 'updatedAt', 10, 64);
+    }
+
     function isValidPartnerProposal(data) {
       return data.keys().hasAll(['nome_empresa', 'categoria', 'pais', 'responsavel', 'whatsapp', 'email', 'moeda', 'status'])
         && isReqString(data, 'nome_empresa', 2, 200)
@@ -308,6 +346,7 @@ service cloud.firestore {
         && isOptString(data, 'cidade', 150)
         && isOptString(data, 'proposta', 3000)
         && isOptString(data, 'mensagem', 3000)
+        && isOptString(data, 'logoUrl', 300000)
         && (!('honeypot' in data) || data.honeypot == '');
     }
 
@@ -318,6 +357,7 @@ service cloud.firestore {
         && isReqString(data, 'pais', 1, 60)
         && data.recomendadoAosClientes is bool
         && data.statusHomologacao in ['Ativo/Indicado', 'Em Análise', 'Não Indicado/Suspenso']
+        && isOptString(data, 'logoUrl', 800000)
         && isOptString(data, 'tabelaValoresComissao', 2000)
         && isOptString(data, 'condicoesParceria', 2000)
         && isOptString(data, 'observacoes', 3000);
@@ -325,10 +365,11 @@ service cloud.firestore {
 
     function isValidPartnerPublic(data) {
       return data.keys().hasAll(['nome', 'categoria', 'pais', 'recomendadoAosClientes', 'statusHomologacao'])
-        && data.keys().hasOnly(['id', 'nome', 'categoria', 'pais', 'cidadeRegiao', 'whatsapp', 'siteInstagram', 'avaliacao', 'descricaoPublica', 'recomendadoAosClientes', 'statusHomologacao', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'nome', 'categoria', 'pais', 'cidadeRegiao', 'whatsapp', 'siteInstagram', 'logoUrl', 'avaliacao', 'descricaoPublica', 'recomendadoAosClientes', 'statusHomologacao', 'updatedAt'])
         && isReqString(data, 'nome', 1, 200)
         && isReqString(data, 'categoria', 1, 100)
         && isReqString(data, 'pais', 1, 60)
+        && isOptString(data, 'logoUrl', 800000)
         && data.recomendadoAosClientes is bool
         && data.statusHomologacao == 'Ativo/Indicado';
     }
@@ -614,6 +655,35 @@ service cloud.firestore {
         && isOptString(data, 'updatedAt', 64);
     }
 
+    function isValidClientTestimonial(data) {
+      return data.keys().hasAll(['id', 'nome', 'depoimento', 'avaliacao', 'autorizado', 'aprovado', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'nome', 'cidadeOrigem', 'cidadeDestino', 'tipoVisto', 'categoriaParceiro',
+          'depoimento', 'videoUrl', 'videoMimeType', 'duracaoSegundos', 'avaliacao',
+          'autorizado', 'aprovado', 'honeypot', 'createdAt', 'updatedAt'
+        ])
+        && isReqString(data, 'id', 1, 128)
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && isReqString(data, 'nome', 2, 140)
+        && isOptString(data, 'cidadeOrigem', 120)
+        && isOptString(data, 'cidadeDestino', 120)
+        && isOptString(data, 'tipoVisto', 120)
+        && isOptString(data, 'categoriaParceiro', 100)
+        && isReqString(data, 'depoimento', 10, 1200)
+        && isOptString(data, 'videoUrl', 500)
+        && (!('videoUrl' in data) || data.videoUrl == null || data.videoUrl == '' || data.videoUrl.matches('^/uploads/testimonials/[a-zA-Z0-9_\\-\\.]+$'))
+        && isOptString(data, 'videoMimeType', 60)
+        && (!('duracaoSegundos' in data) || data.duracaoSegundos == null || (data.duracaoSegundos is number && data.duracaoSegundos >= 0 && data.duracaoSegundos <= 45))
+        && data.avaliacao is number
+        && data.avaliacao >= 1
+        && data.avaliacao <= 5
+        && data.autorizado is bool
+        && data.aprovado is bool
+        && (!('honeypot' in data) || data.honeypot == '')
+        && isReqString(data, 'createdAt', 10, 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
     // =========================================================================
     // Collections
     // =========================================================================
@@ -654,6 +724,39 @@ service cloud.firestore {
           (isValidatedAdmin() && isValidUserRoleLog(incoming(), uid) && incoming().id == logId)
         );
         allow update, delete: if false;
+      }
+
+      match /identityDocuments/{docId} {
+        allow get: if isSignedIn() && isValidId(uid) && isValidId(docId) && (
+          (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
+          isAdminOrConsultor()
+        );
+        allow list: if isSignedIn() && (
+          (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
+          isAdminOrConsultor()
+        );
+        allow create: if isSignedIn() && isValidId(uid) && isValidId(docId)
+          && isValidUserIdentityDocument(incoming(), uid)
+          && incoming().id == docId
+          && (
+            (isBootstrappedAdmin() && request.auth.uid == uid) ||
+            (request.auth.uid == uid && exists(/databases/$(database)/documents/users/$(uid)))
+          );
+        allow update: if isSignedIn() && isValidId(uid) && isValidId(docId)
+          && isValidUserIdentityDocument(incoming(), uid)
+          && incoming().id == docId
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().createdAt == existing().createdAt
+          && (
+            (request.auth.uid == uid
+              && existing().ownerUid == request.auth.uid
+              && incoming().diff(existing()).affectedKeys().hasOnly(['docType', 'title', 'documentNumber', 'issuingCountry', 'expirationDate', 'notes', 'updatedAt'])) ||
+            isValidatedAdmin()
+          );
+        allow delete: if isSignedIn() && isValidId(uid) && isValidId(docId) && (
+          (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
+          isValidatedAdmin()
+        );
       }
     }
 
@@ -1113,6 +1216,20 @@ service cloud.firestore {
         ))
       );
       allow delete: if isAdminOrConsultor() && isValidId(notifId);
+    }
+
+    match /clientTestimonials/{testimonialId} {
+      allow get: if isValidId(testimonialId) && ((existing().aprovado == true && existing().autorizado == true) || isStaff());
+      allow list: if (existing().aprovado == true && existing().autorizado == true) || isStaff();
+      allow create: if isValidId(testimonialId) && (
+        isBootstrappedAdmin() ||
+        (isValidClientTestimonial(incoming()) && incoming().id == testimonialId && incoming().autorizado == true)
+      );
+      allow update: if isValidId(testimonialId) && (
+        isBootstrappedAdmin() ||
+        (isAdminOrConsultor() && isValidClientTestimonial(incoming()) && incoming().id == testimonialId && incoming().createdAt == existing().createdAt)
+      );
+      allow delete: if isAdminOrConsultor() && isValidId(testimonialId);
     }
   }
 }

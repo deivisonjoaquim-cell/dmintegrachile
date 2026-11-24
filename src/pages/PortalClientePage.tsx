@@ -40,6 +40,7 @@ import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
 import { ImmigrationStatusTimeline } from '../components/portal/ImmigrationStatusTimeline';
 import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
+import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { PIPELINE_STAGES } from '../data/seeds';
@@ -1794,6 +1795,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     Salvar alterações
                   </button>
                 </form>
+
+                {userProfile && <ProfileIdentityDocumentsCard userProfile={userProfile} />}
 
                 {dependents.length > 0 && (
                   <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-2.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">

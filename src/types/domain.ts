@@ -1060,3 +1060,33 @@ export interface ClientTestimonial {
   updatedAt?: string;
 }
 
+export type IdentityDocumentType =
+  | 'passaporte'
+  | 'rg_cin'
+  | 'cnh'
+  | 'cedula_chile'
+  | 'cpf'
+  | 'comprovante_residencia'
+  | 'outro';
+
+export interface UserIdentityDocument {
+  id: string;
+  ownerUid: string;
+  docType: IdentityDocumentType;
+  title: string;
+  documentNumber?: string;
+  issuingCountry?: string;
+  expirationDate?: string;
+  notes?: string;
+  fileName: string;
+  mimeType: 'image/jpeg' | 'image/webp' | 'image/png';
+  sizeBytes: number;
+  width?: number;
+  height?: number;
+  imageDataUrl: string;
+  storageBackend: 'firestore_profile';
+  captureMethod: 'camera' | 'upload';
+  enhancedScan?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

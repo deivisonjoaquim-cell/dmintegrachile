@@ -3,6 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import {
   AlertTriangle,
   BookOpen,
+  Camera,
   CheckCircle2,
   Clock,
   CloudUpload,
@@ -16,6 +17,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
+import { CameraDocumentScannerModal } from '../CameraDocumentScannerModal';
 import { db, handleFirestoreError, OperationType } from '../../firebase';
 import { translateAppError } from '../../services/errorService';
 import { uploadClientDocumentSecure } from '../../services/storageService';
@@ -138,6 +140,8 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
   const [uploadFeedback, setUploadFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<DocFilterKey>('todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [cameraTargetDoc, setCameraTargetDoc] = useState<CaseDocument | null>(null);
   const dropInputRef = useRef<HTMLInputElement | null>(null);
 
   const effectiveSelectedId =
@@ -496,6 +500,20 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
                         ? 'Substituir arquivo enviado'
                         : 'Escolher arquivo para envio'}
                   </button>
+                  {userProfile && (
+                    <button
+                      type="button"
+                      disabled={uploadingDocId !== null}
+                      onClick={() => {
+                        setCameraTargetDoc(selectedDoc);
+                        setCameraModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                    >
+                      <Camera className="w-4 h-4 text-[#8C6D14]" aria-hidden="true" />
+                      Escanear com Câmera
+                    </button>
+                  )}
                   <input
                     ref={dropInputRef}
                     type="file"
@@ -704,6 +722,22 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
                         Ver enviado
                       </a>
                     )}
+                    {userProfile && (
+                      <button
+                        type="button"
+                        disabled={uploadingDocId !== null}
+                        onClick={() => {
+                          setSelectedDocId(d.id);
+                          setCameraTargetDoc(d);
+                          setCameraModalOpen(true);
+                        }}
+                        title="Escanear documento com a câmera e salvar no perfil"
+                        className="inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-[#8C6D14]" aria-hidden="true" />
+                        Câmera
+                      </button>
+                    )}
                     <label className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-lg text-xs font-semibold text-white cursor-pointer whitespace-nowrap shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}>
                       <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                       {isUploadingThis
@@ -733,6 +767,32 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
           </div>
         )}
       </section>
+
+      {userProfile && (
+        <CameraDocumentScannerModal
+          open={cameraModalOpen}
+          onClose={() => {
+            setCameraModalOpen(false);
+            setCameraTargetDoc(null);
+          }}
+          userProfile={userProfile}
+          initialMode="camera"
+          caseDocumentTargetName={cameraTargetDoc?.nomeDocumento}
+          onSaved={async (savedDoc, scannedFile, alsoAttachToCase) => {
+            const targetDoc = cameraTargetDoc;
+            setCameraModalOpen(false);
+            setCameraTargetDoc(null);
+            if (alsoAttachToCase && scannedFile && targetDoc) {
+              await executeSecureUpload(targetDoc, scannedFile, issueDate);
+            } else {
+              setUploadFeedback({
+                type: 'success',
+                text: `Documento "${savedDoc.title}" escaneado e salvo diretamente no seu perfil no Firestore.`,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

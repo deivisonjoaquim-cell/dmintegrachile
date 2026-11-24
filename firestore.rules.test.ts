@@ -167,7 +167,15 @@ test('all isValid* rule validators stay well under Firestore 1,000 evaluated-exp
   assert.ok(checked >= 15, `expected to audit at least 15 validators, audited ${checked}`);
 });
 
+test('rules isolate users/{uid}/identityDocuments/{docId} to owner and admin/consultor with strict raster data-URL validation', () => {
+  assert.match(rulesText, /function isValidUserIdentityDocument\(data, uid\)/);
+  assert.match(rulesText, /\^data:image\/\(jpeg\|webp\|png\);base64,\[A-Za-z0-9\+\/=\]\+\$/);
+  assert.match(rulesText, /isReqString\(data, 'imageDataUrl', 30, 650000\)/);
+  assert.match(rulesText, /data\.sizeBytes > 0[\s\S]*data\.sizeBytes <= 600000/);
 
-
-
-
+  const usersBlock = rulesText.slice(rulesText.indexOf('match /users/{uid}'), rulesText.indexOf('match /config/{docId}'));
+  assert.match(usersBlock, /match \/identityDocuments\/\{docId\}/);
+  assert.match(usersBlock, /request\.auth\.uid == uid && existing\(\)\.ownerUid == request\.auth\.uid/);
+  assert.match(usersBlock, /exists\(\/databases\/\$\(database\)\/documents\/users\/\$\(uid\)\)/);
+  assert.match(usersBlock, /affectedKeys\(\)\.hasOnly\(\['docType', 'title', 'documentNumber', 'issuingCountry', 'expirationDate', 'notes', 'updatedAt'\]\)/);
+});
