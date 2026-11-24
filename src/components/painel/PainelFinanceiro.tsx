@@ -25,8 +25,10 @@ import {
   makeId,
   saveDocumentAudited,
   saveEmpresaConfigAdmin,
+  setClientPortalAccessAudited,
   callAiEndpoint,
 } from '../../services/firestoreService';
+import { normalizePaidModality } from '../../utils/portalAccess';
 import { ConfirmActionModal } from '../ui/DesignSystem';
 import { ContractGeneratorModal } from './ContractGeneratorModal';
 import type {
@@ -727,7 +729,10 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {generatedDocuments.map((gd) => (
+              {generatedDocuments.map((gd) => {
+                const docClient = clientMap.get(gd.clientId);
+                const portalStillLocked = Boolean(gd.liberadoAoCliente && docClient && !docClient.portalLiberado);
+                return (
                 <div key={gd.id} className="p-4 rounded-xl border border-slate-200 text-xs space-y-2 flex flex-col justify-between">
                   <div className="space-y-1">
                     <div className="flex items-start justify-between gap-2">
@@ -747,13 +752,38 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                       </span>
                     </div>
                     <p className="text-slate-500">
-                      Cliente: {clientMap.get(gd.clientId)?.nomeCompleto || gd.clientId} · {formatDateBR(gd.createdAt)}
+                      Cliente: {docClient?.nomeCompleto || gd.clientId} · {formatDateBR(gd.createdAt)}
                       {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
                     </p>
                     <p className={gd.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
                       {gd.liberadoAoCliente ? 'Disponível no Portal do Cliente' : 'Uso Interno'}
                       {gd.confirmadoLeituraEm ? ' · Leitura confirmada pelo cliente' : ''}
                     </p>
+                    {portalStillLocked && docClient && (
+                      <div className="mt-1.5 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-950 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] leading-snug">
+                          O acesso ao Portal de <strong>{docClient.nomeCompleto}</strong> ainda está bloqueado (aparecerá como Diagnóstico Gratuito até liberar).
+                        </span>
+                        {(role === 'admin' || role === 'consultor') && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await setClientPortalAccessAudited({
+                                client: docClient,
+                                portalLiberado: true,
+                                modalidadeConsultoria: normalizePaidModality(docClient.modalidadeConsultoria),
+                                role,
+                              });
+                              setFeedback(`Portal do Cliente LIBERADO para ${docClient.nomeCompleto}! Os documentos já ficam visíveis.`);
+                              await onRefresh();
+                            }}
+                            className="px-2.5 py-1 rounded bg-[#0B1F33] text-white text-[11px] font-semibold hover:opacity-95 whitespace-nowrap shrink-0"
+                          >
+                            Liberar Portal Agora
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
@@ -773,14 +803,26 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                       <button
                         type="button"
                         onClick={async () => {
+                          const nextLib = !gd.liberadoAoCliente;
                           await saveDocumentAudited(
                             'generatedDocuments',
                             gd.id,
-                            { ...gd, liberadoAoCliente: !gd.liberadoAoCliente },
+                            { ...gd, liberadoAoCliente: nextLib },
                             false,
                             role,
                             'liberar_doc_gerado',
                           );
+                          if (nextLib && docClient && !docClient.portalLiberado) {
+                            setFeedback(
+                              `Documento "${gd.titulo}" marcado como visível. Atenção: libere também o Portal de ${docClient.nomeCompleto} no botão acima para que o cliente consiga visualizar.`,
+                            );
+                          } else {
+                            setFeedback(
+                              nextLib
+                                ? `Documento "${gd.titulo}" liberado para visualização no Portal do Cliente.`
+                                : `Documento "${gd.titulo}" ocultado do Portal do Cliente.`,
+                            );
+                          }
                           await onRefresh();
                         }}
                         className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium"
@@ -807,7 +849,8 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -1892,10 +1892,16 @@ export async function fetchClientPortalData(clientId: string): Promise<{
     if (extraWhere) constraints.push(extraWhere);
     return getDocs(query(collection(db, col), ...constraints))
       .then((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }) as T))
-      .catch(() => [] as T[]);
+      .catch((err) => {
+        console.warn(`[Portal] Falha ao consultar ${col} para clientId=${clientId}:`, err instanceof Error ? err.message : String(err));
+        return [] as T[];
+      });
   };
 
-  const clientSnap = await getDoc(doc(db, 'clients', clientId)).catch(() => null);
+  const clientSnap = await getDoc(doc(db, 'clients', clientId)).catch((err) => {
+    console.warn(`[Portal] Falha ao ler clients/${clientId}:`, err instanceof Error ? err.message : String(err));
+    return null;
+  });
   const client = clientSnap?.exists() ? ({ id: clientSnap.id, ...(clientSnap.data() as Omit<Client, 'id'>) }) : null;
 
   const userEmail = (auth.currentUser?.email || client?.email || '').trim().toLowerCase();
@@ -1903,14 +1909,14 @@ export async function fetchClientPortalData(clientId: string): Promise<{
 
   const [
     dependents,
-    cases,
+    rawCases,
     caseDocuments,
     deadlines,
     appointments,
-    viabilityAssessments,
+    rawAssessments,
     budgets,
     financialRecords,
-    generatedDocuments,
+    rawGeneratedDocuments,
     leads,
   ] = await Promise.all([
     byClient<Dependent>('dependents'),
@@ -1924,6 +1930,27 @@ export async function fetchClientPortalData(clientId: string): Promise<{
     byClient<GeneratedDocument>('generatedDocuments', where('liberadoAoCliente', '==', true)),
     fetchClientLeads,
   ]);
+
+  const docsCountByCase = new Map<string, number>();
+  for (const d of caseDocuments) {
+    docsCountByCase.set(d.caseId, (docsCountByCase.get(d.caseId) || 0) + 1);
+  }
+
+  const cases = [...rawCases].sort((a, b) => {
+    const aDocs = docsCountByCase.get(a.id) || 0;
+    const bDocs = docsCountByCase.get(b.id) || 0;
+    if (aDocs > 0 && bDocs === 0) return -1;
+    if (bDocs > 0 && aDocs === 0) return 1;
+    return (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '');
+  });
+
+  const viabilityAssessments = [...rawAssessments].sort((a, b) =>
+    (b.createdAt || '').localeCompare(a.createdAt || ''),
+  );
+
+  const generatedDocuments = [...rawGeneratedDocuments].sort((a, b) =>
+    (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''),
+  );
 
   return {
     client,
@@ -1967,32 +1994,54 @@ export async function fetchSignedInUserDiagnosticLeads(email?: string | null): P
   );
 }
 
-export async function fetchSignedInClientRecord(uid: string, email?: string | null): Promise<Client | null> {
-  const rawEmail = (email || auth.currentUser?.email || '').trim();
+export async function fetchSignedInClientRecord(
+  uid: string,
+  email?: string | null,
+  knownClientId?: string | null,
+): Promise<Client | null> {
+  const authEmail = (auth.currentUser?.email || '').trim();
+  const rawEmail = (email || authEmail || '').trim();
   const lowerEmail = rawEmail.toLowerCase();
+  const authLowerEmail = authEmail.toLowerCase();
   const found: Client[] = [];
 
-  const tryQuery = async (q: ReturnType<typeof query>) => {
-    try {
-      const snap = await getDocs(q);
-      for (const d of snap.docs) {
-        if (!found.some((c) => c.id === d.id)) {
-          found.push({ id: d.id, ...(d.data() as Omit<Client, 'id'>) });
-        }
-      }
-    } catch {
-      // ignore
+  const addClient = (id: string, data: Omit<Client, 'id'>) => {
+    if (!found.some((c) => c.id === id)) {
+      found.push({ id, ...data });
     }
   };
 
-  if (lowerEmail) {
-    await tryQuery(query(collection(db, 'clients'), where('email', '==', lowerEmail)));
+  if (knownClientId) {
+    try {
+      const directSnap = await getDoc(doc(db, 'clients', knownClientId));
+      if (directSnap.exists()) {
+        addClient(directSnap.id, directSnap.data() as Omit<Client, 'id'>);
+      }
+    } catch (err) {
+      console.warn(`[Portal] Falha ao ler clients/${knownClientId}:`, err instanceof Error ? err.message : String(err));
+    }
   }
-  if (rawEmail && rawEmail !== lowerEmail) {
-    await tryQuery(query(collection(db, 'clients'), where('email', '==', rawEmail)));
-  }
+
+  const tryQuery = async (label: string, q: ReturnType<typeof query>) => {
+    try {
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        addClient(d.id, d.data() as Omit<Client, 'id'>);
+      }
+    } catch (err) {
+      console.warn(`[Portal] Falha na consulta clients (${label}):`, err instanceof Error ? err.message : String(err));
+    }
+  };
+
   if (uid) {
-    await tryQuery(query(collection(db, 'clients'), where('userId', '==', uid)));
+    await tryQuery('userId', query(collection(db, 'clients'), where('userId', '==', uid)));
+  }
+
+  const emailCandidates = Array.from(
+    new Set([lowerEmail, rawEmail, authLowerEmail, authEmail].filter(Boolean)),
+  );
+  for (const candidate of emailCandidates) {
+    await tryQuery(`email=${candidate}`, query(collection(db, 'clients'), where('email', '==', candidate)));
   }
 
   if (found.length === 0) return null;
@@ -2491,7 +2540,7 @@ export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<U
   }
 
   try {
-    const matchedClient = await fetchSignedInClientRecord(user.uid, user.email);
+    const matchedClient = await fetchSignedInClientRecord(user.uid, user.email, user.clientId);
     if (!matchedClient) {
       // Sem cadastro de cliente: permanece pendente (pode visualizar apenas diagnóstico gratuito básico)
       return user;

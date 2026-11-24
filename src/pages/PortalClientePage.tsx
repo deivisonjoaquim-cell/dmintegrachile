@@ -125,7 +125,7 @@ function readInitialPortalTab(): PortalTab {
 }
 
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
-  const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout } = useApp();
+  const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout, refreshUserProfile } = useApp();
   const [tab, setTab] = useState<PortalTab>(readInitialPortalTab);
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(null);
@@ -199,6 +199,18 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       return null;
     }
   }, [clientLeads, visaCategories, visaRequirements, legalSources, empresa]);
+
+  const [recoveringLink, setRecoveringLink] = useState(false);
+  const recoveryAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    if (!userProfile || userProfile.role !== 'cliente' || userProfile.clientId || recoveryAttemptedRef.current) {
+      return;
+    }
+    recoveryAttemptedRef.current = true;
+    setRecoveringLink(true);
+    void refreshUserProfile().finally(() => setRecoveringLink(false));
+  }, [userProfile, refreshUserProfile]);
 
   const loadPortal = useCallback(async () => {
     if (!userProfile?.clientId) {
@@ -319,6 +331,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     };
   }, [userProfile?.clientId, userProfile?.uid, loadPortal]);
 
+  if (recoveringLink) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-3">
+          <h1 className="text-lg font-bold text-slate-900">Sincronizando Portal do Cliente...</h1>
+          <p className="text-sm text-slate-600">Validando sua liberação e carregando seus documentos.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!userProfile || userProfile.role !== 'cliente' || !userProfile.clientId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
@@ -379,9 +402,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const planSpec = CONSULTANCY_PLANS[paidModality];
   const isOrientativa = paidModality === 'orientativa';
 
-  const activeDocs = activeCase ? docs.filter((d) => d.caseId === activeCase.id) : docs;
+  const activeCaseDocs = activeCase ? docs.filter((d) => d.caseId === activeCase.id) : docs;
+  const activeDocs = activeCaseDocs.length > 0 ? activeCaseDocs : docs;
   const primaryLead = clientLeads[0] || null;
-  const releasedAssessments = activeCase?.relatorioViabilidadeLiberado ? assessments : [];
+  const releasedAssessments = assessments.filter((a) => a.liberadoAoCliente === true);
   const thermo = calcularTermometroDocumentos(activeDocs, empresa.bloqueioProtocoloMinimo || 100);
   const needsLgpdAccept =
     client && (!client.lgpdAceito || client.lgpdVersao !== (empresa.termoLgpdVersao || '1.0'));
@@ -1481,19 +1505,128 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
             {/* ABA 2: DOCUMENTOS & ENVIO SEGURO */}
             {tab === 'documentos' && (
-              <SecureDocumentUploadSection
-                client={client}
-                activeCase={activeCase}
-                docs={activeDocs}
-                dependents={dependents}
-                visaRequirements={visaRequirements}
-                userProfile={userProfile}
-                onDocumentUploaded={loadPortal}
-                onOpenBiblioteca={() => setTab('biblioteca')}
-                onOpenLaw={() => setLawOpen(true)}
-                onExportPdf={handleExportProgressoPdf}
-                pdfBusy={pdfBusy}
-              />
+              <div className="space-y-6">
+                {(genDocs.length > 0 || releasedAssessments.length > 0) && (
+                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="brand-kicker">Acervo Liberado pela Consultoria</p>
+                        <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1F33] mt-0.5">
+                          Documentos Oficiais &amp; Pareceres Disponíveis ({genDocs.length + releasedAssessments.length})
+                        </h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void loadPortal()}
+                        className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-white"
+                      >
+                        Atualizar lista
+                      </button>
+                    </div>
+
+                    {genDocs.length > 0 && (
+                      <div className="space-y-2.5">
+                        {genDocs.map((gd) => {
+                          const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
+                          return (
+                            <div
+                              key={gd.id}
+                              className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div className="space-y-0.5 min-w-0">
+                                <p className="text-sm font-bold text-[#0B1F33] break-words">{gd.titulo}</p>
+                                <p className="text-xs text-[#4A5A6D] font-mono tabular-nums">
+                                  Status: <strong className="font-sans text-[#0B1F33]">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
+                                  {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
+                                </p>
+                                {gd.confirmadoLeituraEm && (
+                                  <p className="text-[11px] text-[#146B43] font-medium">
+                                    Leitura confirmada em {formatDateTimeBR(gd.confirmadoLeituraEm)}
+                                  </p>
+                                )}
+                                {gd.assinadoEm && (
+                                  <p className="text-[11px] text-[#146B43] font-medium">
+                                    Assinado em {formatDateTimeBR(gd.assinadoEm)}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingGenDoc(gd)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Visualizar / Imprimir A4
+                                </button>
+                                {!gd.canceladoEm && gd.status !== 'Assinado' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSigningGenDoc(gd)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-95"
+                                    style={{ backgroundColor: 'var(--color-primary)' }}
+                                  >
+                                    <FileSignature className="w-3.5 h-3.5 text-[#E5C76B]" />
+                                    Assinar / Anexar Assinado
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {releasedAssessments.length > 0 && (
+                      <div className="space-y-2.5 pt-2 border-t border-[#E5DFD2]">
+                        {releasedAssessments.map((va) => (
+                          <div
+                            key={va.id}
+                            className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6]/70 space-y-2"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-bold text-[#0B1F33]">
+                                Parecer Técnico de Viabilidade · Versão {va.versao} ({va.notaGeral}/100)
+                              </p>
+                              <button
+                                type="button"
+                                disabled={pdfBusy !== null}
+                                onClick={() => void handleExportDiagnosticoPdf()}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B1F33] text-xs font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                              >
+                                <Download className="w-3.5 h-3.5 text-[#E5C76B]" />
+                                Baixar Dossiê (PDF)
+                              </button>
+                            </div>
+                            <p className="text-xs text-[#4A5A6D] whitespace-pre-wrap leading-relaxed">
+                              {va.enquadramentoLegal}
+                            </p>
+                            {va.recomendacoes && (
+                              <p className="text-xs text-[#0B1F33] whitespace-pre-wrap leading-relaxed">
+                                {va.recomendacoes}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <SecureDocumentUploadSection
+                  client={client}
+                  activeCase={activeCase}
+                  docs={activeDocs}
+                  dependents={dependents}
+                  visaRequirements={visaRequirements}
+                  userProfile={userProfile}
+                  onDocumentUploaded={loadPortal}
+                  onOpenBiblioteca={() => setTab('biblioteca')}
+                  onOpenLaw={() => setLawOpen(true)}
+                  onExportPdf={handleExportProgressoPdf}
+                  pdfBusy={pdfBusy}
+                />
+              </div>
             )}
 
             {/* ABA: BIBLIOTECA LEGAL */}

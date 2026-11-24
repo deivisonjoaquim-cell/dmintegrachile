@@ -101,7 +101,7 @@ service cloud.firestore {
         && 'email' in request.auth.token
         && request.auth.token.email is string
         && email is string
-        && email.lower() == request.auth.token.email.lower();
+        && (email == request.auth.token.email || email.lower() == request.auth.token.email.lower());
     }
 
     function hasUnlockedClientRecord(clientId) {
@@ -111,7 +111,10 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/clients/$(clientId))
         && get(/databases/$(database)/documents/clients/$(clientId)).data.portalLiberado == true
         && (!('arquivado' in get(/databases/$(database)/documents/clients/$(clientId)).data) || get(/databases/$(database)/documents/clients/$(clientId)).data.arquivado != true)
-        && matchesSignedInEmail(get(/databases/$(database)/documents/clients/$(clientId)).data.email);
+        && (
+          ('userId' in get(/databases/$(database)/documents/clients/$(clientId)).data && get(/databases/$(database)/documents/clients/$(clientId)).data.userId == request.auth.uid) ||
+          ('email' in get(/databases/$(database)/documents/clients/$(clientId)).data && matchesSignedInEmail(get(/databases/$(database)/documents/clients/$(clientId)).data.email))
+        );
     }
 
     function hasUnlockedClientPortal() {
@@ -125,7 +128,11 @@ service cloud.firestore {
     }
 
     function isCliente() {
-      return hasUserRole(['cliente']) && hasUnlockedClientPortal();
+      return isSignedIn()
+        && hasUserDoc()
+        && userRole() == 'cliente'
+        && (!('status' in userDoc()) || userDoc().status == null || userDoc().status.lower() != 'inativo')
+        && hasUnlockedClientPortal();
     }
 
     function userClientId() {
@@ -708,7 +715,7 @@ service cloud.firestore {
           isValidatedAdmin() ||
           (isConsultor() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
           (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
-          (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && existing().status != 'inativo' && incoming().uid == uid && incoming().email == existing().email && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'nome', 'fotoUrl', 'updatedAt']) && (
+          (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && existing().status != 'inativo' && incoming().uid == uid && incoming().email.lower() == existing().email.lower() && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'nome', 'fotoUrl', 'updatedAt']) && (
             (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
             incoming().status == 'pendente'
           ))
@@ -878,8 +885,8 @@ service cloud.firestore {
     }
 
     match /leads/{leadId} {
-      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email)));
-      allow list: if isStaff() || (isSignedIn() && 'email' in existing() && matchesSignedInEmail(existing().email));
+      allow get: if isValidId(leadId) && (isStaff() || (isSignedIn() && 'email' in existing() && (existing().email == request.auth.token.email || matchesSignedInEmail(existing().email))));
+      allow list: if isStaff() || (isSignedIn() && 'email' in existing() && (existing().email == request.auth.token.email || matchesSignedInEmail(existing().email)));
       allow create: if isValidId(leadId) && (
         isBootstrappedAdmin() ||
         (isStaff() && isValidLead(incoming())) ||
@@ -917,8 +924,21 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      allow get: if isValidId(clientId) && (isStaff() || (isSignedIn() && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))));
-      allow list: if isStaff() || (isSignedIn() && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email)));
+      allow get: if isValidId(clientId) && (
+        isStaff() ||
+        (isSignedIn() && (
+          ('userId' in existing() && existing().userId == request.auth.uid) ||
+          ('email' in existing() && (existing().email == request.auth.token.email || matchesSignedInEmail(existing().email))) ||
+          (hasUserDoc() && 'clientId' in userDoc() && userDoc().clientId == clientId)
+        ))
+      );
+      allow list: if isStaff() || (
+        isSignedIn() && (
+          ('userId' in existing() && existing().userId == request.auth.uid) ||
+          ('email' in existing() && existing().email == request.auth.token.email) ||
+          ('email' in existing() && matchesSignedInEmail(existing().email))
+        )
+      );
       allow create: if isValidId(clientId) && (
         isBootstrappedAdmin() ||
         (isAdminOrConsultor() && isValidClient(incoming()))
@@ -928,6 +948,7 @@ service cloud.firestore {
         (isValidClient(incoming()) && (
           isAdminOrConsultor() ||
           (isSignedIn()
+            && 'email' in existing()
             && matchesSignedInEmail(existing().email)
             && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
             && incoming().userId == request.auth.uid
@@ -936,7 +957,7 @@ service cloud.firestore {
             && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
             && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
           (isCliente()
-            && (existing().userId == request.auth.uid || matchesSignedInEmail(existing().email))
+            && (('userId' in existing() && existing().userId == request.auth.uid) || ('email' in existing() && matchesSignedInEmail(existing().email)))
             && incoming().portalLiberado == existing().portalLiberado
             && incoming().statusAcessoPortal == existing().statusAcessoPortal
             && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)

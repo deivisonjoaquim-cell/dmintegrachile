@@ -179,3 +179,15 @@ test('rules isolate users/{uid}/identityDocuments/{docId} to owner and admin/con
   assert.match(usersBlock, /exists\(\/databases\/\$\(database\)\/documents\/users\/\$\(uid\)\)/);
   assert.match(usersBlock, /affectedKeys\(\)\.hasOnly\(\['docType', 'title', 'documentNumber', 'issuingCountry', 'expirationDate', 'notes', 'updatedAt'\]\)/);
 });
+
+test('rules safely guard optional userId on clients list/get and allow direct email equality for static query verification', () => {
+  const clientsBlock = rulesText.slice(
+    rulesText.indexOf('match /clients/{clientId}'),
+    rulesText.indexOf('match /dependents/{dependentId}'),
+  );
+  assert.match(clientsBlock, /'userId' in existing\(\) && existing\(\)\.userId == request\.auth\.uid/);
+  assert.match(clientsBlock, /'email' in existing\(\) && existing\(\)\.email == request\.auth\.token\.email/);
+  assert.match(clientsBlock, /'clientId' in userDoc\(\) && userDoc\(\)\.clientId == clientId/);
+  assert.match(rulesText, /function isCliente\(\)[\s\S]*?userDoc\(\)\.status\.lower\(\) != 'inativo'[\s\S]*?hasUnlockedClientPortal\(\)/);
+});
+

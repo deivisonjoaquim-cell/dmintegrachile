@@ -61,7 +61,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     setCheckingAccess(true);
     try {
       const [cl, leads] = await Promise.all([
-        fetchSignedInClientRecord(userProfile.uid, userProfile.email),
+        fetchSignedInClientRecord(userProfile.uid, userProfile.email, userProfile.clientId),
         fetchSignedInUserDiagnosticLeads(userProfile.email),
       ]);
       setClientRecord(cl);
@@ -115,12 +115,15 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
       await refreshUserProfile();
       if (userProfile) {
         const [cl, leads] = await Promise.all([
-          fetchSignedInClientRecord(userProfile.uid, userProfile.email),
+          fetchSignedInClientRecord(userProfile.uid, userProfile.email, userProfile.clientId),
           fetchSignedInUserDiagnosticLeads(userProfile.email),
         ]);
         setClientRecord(cl);
         setUserLeads(leads);
         if (cl && cl.portalLiberado === true && !cl.arquivado) {
+          if (userProfile.status !== 'ativo' || userProfile.clientId !== cl.id) {
+            await refreshUserProfile();
+          }
           onNavigate('/portal');
           return;
         }

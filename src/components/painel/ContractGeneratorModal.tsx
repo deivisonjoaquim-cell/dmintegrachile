@@ -18,7 +18,12 @@ import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
 import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
 import { reportAppError } from '../../services/errorService';
-import { makeId, saveDocumentAudited, uploadFileToServer } from '../../services/firestoreService';
+import {
+  makeId,
+  saveDocumentAudited,
+  setClientPortalAccessAudited,
+  uploadFileToServer,
+} from '../../services/firestoreService';
 import type {
   Case,
   Client,
@@ -754,6 +759,37 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                   Disponibilizar no Portal do Cliente
                 </label>
               </div>
+              {liberadoAoCliente && selectedClient && !selectedClient.portalLiberado && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    Atenção: o acesso ao Portal do Cliente de <strong>{selectedClient.nomeCompleto}</strong> ainda está bloqueado (o cliente verá apenas &ldquo;Diagnóstico Gratuito&rdquo; até o portal ser liberado).
+                  </span>
+                  {(role === 'admin' || role === 'consultor') && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          await setClientPortalAccessAudited({
+                            client: selectedClient,
+                            portalLiberado: true,
+                            modalidadeConsultoria: normalizePaidModality(selectedClient.modalidadeConsultoria),
+                            role,
+                          });
+                          setFeedback(`Portal do Cliente LIBERADO para ${selectedClient.nomeCompleto}!`);
+                          await onRefresh();
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#0B1F33] text-white text-xs font-semibold hover:opacity-95 whitespace-nowrap shrink-0 disabled:opacity-50"
+                    >
+                      Liberar Portal do Cliente Agora
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

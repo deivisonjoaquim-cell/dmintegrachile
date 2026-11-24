@@ -667,6 +667,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     const isNew = !clients.some((c) => c.id === editingClient.id);
     const chosenModality: PaidConsultancyModality = normalizePaidModality(editingClient.modalidadeConsultoria);
     const payload: Client = {
+      ...editingClient,
       id: editingClient.id || makeId('cli'),
       nomeCompleto: trimmedName,
       cpf: editingClient.cpf || '',
@@ -2217,18 +2218,36 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                   }
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border max-w-full ${
-                  activeClient?.portalLiberado || activeCase.portalLiberado
+                  (activeClient ? activeClient.portalLiberado : activeCase.portalLiberado)
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : 'bg-white border-slate-300 text-slate-700'
                 }`}
               >
-                {activeClient?.portalLiberado || activeCase.portalLiberado
+                {(activeClient ? activeClient.portalLiberado : activeCase.portalLiberado)
                   ? 'Portal Liberado ao Cliente'
                   : 'Liberar Portal do Cliente'}
               </button>
               <button
                 type="button"
-                onClick={() => void handleSaveCaseField({ relatorioViabilidadeLiberado: !activeCase.relatorioViabilidadeLiberado }, 'relatorioViabilidadeLiberado')}
+                onClick={async () => {
+                  const nextVisible = !activeCase.relatorioViabilidadeLiberado;
+                  await handleSaveCaseField({ relatorioViabilidadeLiberado: nextVisible }, 'relatorioViabilidadeLiberado');
+                  if (canManageClients && caseAssessments.length > 0) {
+                    const latestAssessment = caseAssessments[0];
+                    if (latestAssessment && latestAssessment.liberadoAoCliente !== nextVisible) {
+                      await saveDocumentAudited(
+                        'viabilityAssessments',
+                        latestAssessment.id,
+                        { ...latestAssessment, liberadoAoCliente: nextVisible },
+                        false,
+                        role,
+                        'liberar_parecer',
+                        latestAssessment,
+                      );
+                      await onRefresh();
+                    }
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border max-w-full ${
                   activeCase.relatorioViabilidadeLiberado ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-300 text-slate-700'
                 }`}
@@ -2669,6 +2688,36 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                               <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
                                 {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
                               </span>
+                              {canManageClients && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const nextLib = !va.liberadoAoCliente;
+                                    await saveDocumentAudited(
+                                      'viabilityAssessments',
+                                      va.id,
+                                      { ...va, liberadoAoCliente: nextLib },
+                                      false,
+                                      role,
+                                      'liberar_parecer',
+                                      va,
+                                    );
+                                    if (nextLib && !activeCase.relatorioViabilidadeLiberado) {
+                                      await handleSaveCaseField({ relatorioViabilidadeLiberado: true }, 'liberar_parecer');
+                                    } else {
+                                      await onRefresh();
+                                    }
+                                    setFeedback(
+                                      nextLib
+                                        ? `Parecer v${va.versao} liberado para visualização no Portal do Cliente.`
+                                        : `Parecer v${va.versao} ocultado do Portal do Cliente.`,
+                                    );
+                                  }}
+                                  className="px-2 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-[11px] font-semibold whitespace-nowrap shrink-0"
+                                >
+                                  {va.liberadoAoCliente ? 'Ocultar do Portal' : 'Liberar no Portal'}
+                                </button>
+                              )}
                               {canManageClients && (
                                 <button
                                   type="button"
