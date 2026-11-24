@@ -4,6 +4,7 @@ import {
   Archive,
   Briefcase,
   Download,
+  Eye,
   FileText,
   GitMerge,
   Lock,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { ConfirmTypedModal, UiButton } from '../ui/DesignSystem';
+import { ProfileIdentityDocumentsCard } from '../ProfileIdentityDocumentsCard';
 import {
   archiveClientAudited,
   deleteClientCascadeAudited,
@@ -158,6 +160,7 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
     orgaoEmissor: '',
   });
   const [docUploading, setDocUploading] = useState(false);
+  const [previewCaseDoc, setPreviewCaseDoc] = useState<CaseDocument | null>(null);
 
   // Comunicação rápida
   const [commMsg, setCommMsg] = useState('');
@@ -750,6 +753,26 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
           {/* TAB 5: DOCUMENTOS */}
           {tab === 'documentos' && (
             <div className="space-y-4">
+              {client.userId && (
+                <ProfileIdentityDocumentsCard
+                  userProfile={{
+                    uid: client.userId,
+                    nome: client.nomeCompleto,
+                    email: client.email,
+                    role,
+                    status: 'ativo',
+                    clientId: client.id,
+                    createdAt: client.createdAt || new Date().toISOString(),
+                    updatedAt: client.updatedAt || new Date().toISOString(),
+                  }}
+                  targetUid={client.userId}
+                  readOnly
+                  compact
+                  title="Documentos Digitalizados via Câmera pelo Cliente"
+                  subtitle="Capturas salvas diretamente no perfil Firestore do cliente (/users/{uid}/identityDocuments)."
+                />
+              )}
+
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
                 <p className="font-bold text-slate-900">Adicionar / Anexar Documento na Ficha do Cliente</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -800,31 +823,109 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                 <p className="text-xs text-slate-500">Nenhum documento vinculado a este cliente.</p>
               ) : (
                 <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl">
-                  {clientDocs.map((d) => (
-                    <div key={d.id} className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          [{d.pessoa}] {d.nomeDocumento}
-                        </p>
-                        <p className="text-slate-500">
-                          {d.categoriaDoc} · {d.status} · Emissão: {formatDateBR(d.dataEmissao)} · Validade: {formatDateBR(d.dataValidadeCalculada)}
-                        </p>
+                  {clientDocs.map((d) => {
+                    const isImg =
+                      Boolean(d.arquivoUrl) &&
+                      ((d.arquivoMimeType || '').toLowerCase().startsWith('image/') ||
+                        (d.arquivoUrl || '').toLowerCase().startsWith('data:image/') ||
+                        /\.(webp|png|jpe?g|gif)(\?|#|$)/i.test(d.arquivoUrl || ''));
+                    return (
+                      <div key={d.id} className="p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {isImg && d.arquivoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void logSensitiveDocumentAccess(d, 'visualizar', role);
+                                setPreviewCaseDoc(d);
+                              }}
+                              className="w-14 h-11 rounded-md overflow-hidden border border-slate-200 bg-slate-900 shrink-0"
+                              title="Ampliar imagem"
+                            >
+                              <img src={d.arquivoUrl} alt={d.nomeDocumento} className="w-full h-full object-cover" />
+                            </button>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 break-words">
+                              [{d.pessoa}] {d.nomeDocumento}
+                            </p>
+                            <p className="text-slate-500">
+                              {d.categoriaDoc} · {d.status} · Emissão: {formatDateBR(d.dataEmissao)} · Validade: {formatDateBR(d.dataValidadeCalculada)}
+                            </p>
+                          </div>
+                        </div>
+                        {d.arquivoUrl && (
+                          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void logSensitiveDocumentAccess(d, 'visualizar', role);
+                                setPreviewCaseDoc(d);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Visualizar
+                            </button>
+                            <a
+                              href={d.arquivoUrl}
+                              download={d.arquivoNome || formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao, isImg ? 'webp' : 'pdf')}
+                              onClick={() => void logSensitiveDocumentAccess(d, 'baixar', role)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Baixar
+                            </a>
+                          </div>
+                        )}
                       </div>
-                      {d.arquivoUrl && (
-                        <a
-                          href={d.arquivoUrl}
-                          download={formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => void logSensitiveDocumentAccess(d, 'baixar', role)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          Abrir / Baixar
-                        </a>
+                    );
+                  })}
+                </div>
+              )}
+
+              {previewCaseDoc && previewCaseDoc.arquivoUrl && (
+                <div
+                  className="fixed inset-0 z-[70] bg-slate-950/85 flex items-center justify-center p-4"
+                  role="dialog"
+                  aria-modal="true"
+                  onClick={() => setPreviewCaseDoc(null)}
+                >
+                  <div
+                    className="bg-white rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="px-4 py-3 bg-[#0B1F33] text-white flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold truncate">
+                        [{previewCaseDoc.pessoa}] {previewCaseDoc.nomeDocumento}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewCaseDoc(null)}
+                        className="p-1.5 rounded hover:bg-white/10"
+                        aria-label="Fechar pré-visualização"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="p-4 bg-slate-950 flex-1 overflow-auto flex items-center justify-center min-h-[260px]">
+                      {(previewCaseDoc.arquivoMimeType || '').toLowerCase().startsWith('image/') ||
+                      previewCaseDoc.arquivoUrl.toLowerCase().startsWith('data:image/') ||
+                      /\.(webp|png|jpe?g|gif)(\?|#|$)/i.test(previewCaseDoc.arquivoUrl) ? (
+                        <img
+                          src={previewCaseDoc.arquivoUrl}
+                          alt={previewCaseDoc.nomeDocumento}
+                          className="max-h-[64vh] w-auto object-contain rounded-lg"
+                        />
+                      ) : (
+                        <iframe
+                          src={previewCaseDoc.arquivoUrl}
+                          title={previewCaseDoc.nomeDocumento}
+                          className="w-full h-[64vh] rounded-lg bg-white"
+                        />
                       )}
                     </div>
-                  ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -2435,7 +2435,8 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
         }
 
         if (streamError) {
-          return { ok: false, status: resp.status || 500, message: streamError, retryable: false };
+          const isTransientStream = resp.status >= 500 || resp.status === 429;
+          return { ok: false, status: resp.status || 500, message: streamError, retryable: isTransientStream };
         }
         if (finalResult) {
           return { ok: true, data: finalResult };
@@ -2451,6 +2452,14 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
       let rawText = '';
       try {
         rawText = await resp.text();
+        if (rawText.trim().startsWith('<')) {
+          return {
+            ok: false,
+            status: resp.status || 502,
+            message: 'Falha temporária de comunicação com o servidor de IA. Tente novamente em instantes.',
+            retryable: true,
+          };
+        }
         const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
         if (!resp.ok) {
           const isTransientHttp =
@@ -2518,7 +2527,9 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   }
 
   if (outcome.ok) {
-    if (useCache && cacheKey) {
+    const meta = outcome.data as unknown as { fallback?: boolean; origem?: string } | null;
+    const isDegradedFallback = Boolean(meta && (meta.fallback === true || meta.origem === 'regras'));
+    if (useCache && cacheKey && !isDegradedFallback) {
       void setAiCachedResponse({
         key: cacheKey,
         endpoint,

@@ -748,31 +748,111 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               </div>
             </div>
 
-            {/* 5. ROTAS ALTERNATIVAS MAPEADAS */}
+            {/* 4C. ORDEM OPERACIONAL RECOMENDADA DE EMISSÃO DOCUMENTAL */}
+            <div className="rounded-xl border border-[#E5DFD2] bg-white p-5 space-y-3.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C6D14]">
+                    Sequência para Evitar Vencimento de Documentos
+                  </p>
+                  <h3 className="text-sm font-bold text-[#0B1F33] mt-0.5">
+                    Ordem prática recomendada antes do protocolo no SERMIG
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-500">Evita reemissão de taxas e cartório</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-[#E5DFD2] bg-[#FAF9F6] p-3.5 space-y-1">
+                  <span className="font-mono text-[11px] font-bold text-[#8C6D14]">PASSO 01</span>
+                  <p className="text-xs font-bold text-[#0B1F33]">Passaporte &amp; Certidões Civis</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Verifique validade do passaporte (ideal ≥ 12 meses) e emita certidões de nascimento/casamento atualizadas.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[#E5DFD2] bg-[#FAF9F6] p-3.5 space-y-1">
+                  <span className="font-mono text-[11px] font-bold text-[#8C6D14]">PASSO 02</span>
+                  <p className="text-xs font-bold text-[#0B1F33]">Apostila da Haia (CNJ)</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Apostile em cartório brasileiro habilitado todas as certidões e vínculos com QR Code legível em PDF colorido.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[#E5DFD2] bg-[#FAF9F6] p-3.5 space-y-1">
+                  <span className="font-mono text-[11px] font-bold text-[#A61C2B]">PASSO 03 · POR ÚLTIMO</span>
+                  <p className="text-xs font-bold text-[#0B1F33]">Antecedentes PF (60 dias)</p>
+                  <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
+                    Emita e apostile os antecedentes criminais somente quando todo o restante estiver pronto para protocolar.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. MATRIZ COMPARATIVA: ROTA PRINCIPAL VS. ALTERNATIVAS MAPEADAS */}
             {basic.alternativasMapeadas && basic.alternativasMapeadas.length > 0 && (
               <div className="space-y-3 pt-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-sm font-bold text-[#0B1F33]">
-                    Rotas secundárias também avaliadas no seu perfil
-                  </h3>
-                  <span className="text-[11px] text-slate-500">Comparativo técnico completo disponível na consultoria</span>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C6D14]">
+                      Comparativo de Enquadramento SERMIG
+                    </p>
+                    <h3 className="text-sm font-bold text-[#0B1F33] mt-0.5">
+                      Rota principal recomendada vs. rotas alternativas avaliadas
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-slate-500">Análise jurídica integral liberada na consultoria</span>
                 </div>
-                <div className="rounded-xl border border-[#E5DFD2] overflow-hidden">
-                  <table className="w-full text-left border-collapse text-xs">
+                <div className="rounded-xl border border-[#E5DFD2] overflow-x-auto">
+                  <table className="w-full min-w-[540px] text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#FAF9F6] border-b border-[#E5DFD2] text-[11px] text-slate-500">
-                        <th className="py-2.5 px-4 font-semibold">Subcategoria Alternativa</th>
+                        <th className="py-2.5 px-4 font-semibold">Subcategoria SERMIG</th>
                         <th className="py-2.5 px-4 font-semibold">Pedido dentro do Chile</th>
-                        <th className="py-2.5 px-4 font-semibold text-right">Aderência Preliminar</th>
+                        <th className="py-2.5 px-4 font-semibold w-44 text-right">Aderência ao Perfil</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5DFD2] bg-white">
+                      {/* Linha 1: Rota Principal Recomendada */}
+                      <tr className="bg-[#0B1F33]/[0.03]">
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-[#0B1F33]">{basic.subcategoriaNome}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#146B43]">
+                              · Rota Principal
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-[#0B1F33]">
+                          {basic.permiteDentroChile || 'Condicional'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-2.5">
+                            <div className="w-20 h-1.5 rounded-full bg-[#EFECE4] overflow-hidden shrink-0">
+                              <div
+                                className="h-full rounded-full bg-[#146B43]"
+                                style={{ width: `${Math.max(8, Math.min(100, basic.notaViabilidade))}%` }}
+                              />
+                            </div>
+                            <span className="font-mono font-bold tabular-nums text-[#0B1F33] w-12 text-right">
+                              {basic.notaViabilidade}/100
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
                       {basic.alternativasMapeadas.map((alt) => (
                         <tr key={alt.codigo}>
-                          <td className="py-3 px-4 font-semibold text-slate-900">{alt.nome}</td>
+                          <td className="py-3 px-4 font-medium text-slate-800">{alt.nome}</td>
                           <td className="py-3 px-4 text-slate-600">{alt.permiteDentroChile}</td>
-                          <td className="py-3 px-4 text-right font-bold tabular-nums text-[#0B1F33]">
-                            {alt.aderencia}/100
+                          <td className="py-3 px-4">
+                            <div className="flex items-center justify-end gap-2.5">
+                              <div className="w-20 h-1.5 rounded-full bg-[#EFECE4] overflow-hidden shrink-0">
+                                <div
+                                  className="h-full rounded-full bg-[#0B1F33]/70"
+                                  style={{ width: `${Math.max(8, Math.min(100, alt.aderencia))}%` }}
+                                />
+                              </div>
+                              <span className="font-mono font-semibold tabular-nums text-slate-700 w-12 text-right">
+                                {alt.aderencia}/100
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       ))}

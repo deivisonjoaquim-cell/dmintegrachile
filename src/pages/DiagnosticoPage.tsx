@@ -85,6 +85,98 @@ const STEP_LABELS = [
   { num: 6, title: 'Documentos & LGPD' },
 ] as const;
 
+const STEP_SERMIG_CONTEXT: Record<number, { foco: string; justificativa: string }> = {
+  1: {
+    foco: 'Identificação & link de retomada',
+    justificativa: 'Permite salvar seu progresso por 30 dias e enviar o resumo técnico do seu diagnóstico.',
+  },
+  2: {
+    foco: 'Elegibilidade territorial & nacionalidade',
+    justificativa: 'A Ley Nº 21.325 exige protocolo do exterior na regra geral; brasileiros têm acesso à rota Mercosul.',
+  },
+  3: {
+    foco: 'Vínculos familiares & dependentes',
+    justificativa: 'Define exceções de pedido dentro do Chile (Reunificação) e o enquadramento de dependentes.',
+  },
+  4: {
+    foco: 'Subcategoria de Residência Temporal',
+    justificativa: 'Cruza seu objetivo real com as 16 subcategorias oficiais do Decreto Supremo Nº 177/2022.',
+  },
+  5: {
+    foco: 'Triagem preventiva de impedimentos',
+    justificativa: 'Detecta antecipadamente alertas de overstay, ordem de abandono ou antecedentes que exigem estratégia.',
+  },
+  6: {
+    foco: 'Prontidão documental & autorização LGPD',
+    justificativa: 'Calcula o que falta emitir/apostilar antes do protocolo e libera seu relatório técnico completo.',
+  },
+};
+
+const COMMON_PROFILE_PRESETS: {
+  id: string;
+  label: string;
+  detail: string;
+  patch: Partial<DiagnosticAnswers>;
+}[] = [
+  {
+    id: 'mercosul_br',
+    label: 'Brasileiro indo pelo Mercosul',
+    detail: 'No Brasil · Exploração/Mercosul',
+    patch: {
+      localizacao: 'No Brasil',
+      nacionalidadeBrasileira: true,
+      objetivo: 'explorar',
+      possuiOfertaTrabalhoFormal: false,
+      possuiRendaPassiva: false,
+      composicaoFamiliar: 'individual',
+      familiaAcompanhante: false,
+      quantidadeDependentes: 0,
+    },
+  },
+  {
+    id: 'trabalho_cl',
+    label: 'Proposta de Trabalho Formal',
+    detail: 'Contrato com empresa chilena',
+    patch: {
+      localizacao: 'No Brasil',
+      nacionalidadeBrasileira: true,
+      objetivo: 'trabalho_formal',
+      possuiOfertaTrabalhoFormal: true,
+      composicaoFamiliar: 'individual',
+      familiaAcompanhante: false,
+      quantidadeDependentes: 0,
+    },
+  },
+  {
+    id: 'aposentado_renda',
+    label: 'Aposentado / Renda Passiva',
+    detail: 'Rentista ou jubilado',
+    patch: {
+      localizacao: 'No Brasil',
+      nacionalidadeBrasileira: true,
+      objetivo: 'aposentado_renda',
+      possuiRendaPassiva: true,
+      faixaRendaMensalUsd: 'acima_2500',
+      composicaoFamiliar: 'individual',
+      familiaAcompanhante: false,
+      quantidadeDependentes: 0,
+    },
+  },
+  {
+    id: 'familia_mudanca',
+    label: 'Mudança em Casal / Família',
+    detail: 'Titular + dependentes',
+    patch: {
+      localizacao: 'No Brasil',
+      nacionalidadeBrasileira: true,
+      objetivo: 'explorar',
+      composicaoFamiliar: 'familia_com_filhos',
+      familiaAcompanhante: true,
+      quantidadeDependentes: 2,
+    },
+  },
+];
+
 const INITIAL_ANSWERS: DiagnosticAnswers = {
   nome: '',
   whatsapp: '',
@@ -1337,6 +1429,30 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               </div>
             )}
 
+            {/* Faixa contextual da etapa atual (por que o SERMIG avalia estes dados) */}
+            {STEP_SERMIG_CONTEXT[step] && (
+              <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8C6D14]">
+                    Etapa 0{step}/06 · {STEP_SERMIG_CONTEXT[step].foco}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                    {STEP_SERMIG_CONTEXT[step].justificativa}
+                  </p>
+                </div>
+                {livePreview.subcategoriaLider && (
+                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E5DFD2]">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      Rota líder atual
+                    </p>
+                    <p className="text-xs font-bold text-[#0B1F33] truncate max-w-[220px]">
+                      {livePreview.subcategoriaLider.nomePortugues}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Transição suave (fade-in + scale-up) entre as 6 etapas do Diagnóstico Inteligente */}
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -1354,6 +1470,47 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   <p className="text-xs text-slate-500">
                     Privacidade (Legislação Brasileira — LGPD, Lei nº 13.709/2018): não solicitamos CPF nem número de passaporte nesta triagem inicial.
                   </p>
+                </div>
+
+                {/* Atalho opcional de cenários frequentes (pré-configura etapas seguintes mantendo seus dados de contato) */}
+                <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-3.5 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0B1F33]">
+                      Cenários frequentes (atalho opcional)
+                    </p>
+                    <span className="text-[11px] text-slate-500">
+                      Você poderá ajustar qualquer detalhe nas próximas etapas
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {COMMON_PROFILE_PRESETS.map((preset) => {
+                      const isMatched =
+                        answers.objetivo === preset.patch.objetivo &&
+                        Boolean(answers.familiaAcompanhante) === Boolean(preset.patch.familiaAcompanhante) &&
+                        answers.localizacao === preset.patch.localizacao;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => updateAnswers(preset.patch)}
+                          className={`text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                            isMatched
+                              ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
+                              : 'bg-white text-slate-800 border-[#E5DFD2] hover:border-[#C8A236]'
+                          }`}
+                        >
+                          <span className="block text-xs font-semibold leading-snug">{preset.label}</span>
+                          <span
+                            className={`block text-[11px] mt-0.5 ${
+                              isMatched ? 'text-[#E6C55A]' : 'text-slate-500'
+                            }`}
+                          >
+                            {preset.detail}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -54,6 +54,7 @@ const SAFE_PT_MESSAGES = [
   'Tempo limite excedido',
   'Resposta incompleta do servidor',
   'Falha de conexão com o servidor',
+  'Falha temporária de comunicação',
   'Informe a norma atual',
   'Formato JSON inválido',
   'Falha interna ao processar',
@@ -105,6 +106,23 @@ export function sanitizeClientAiError(raw: unknown): string {
     lower.includes('alta demanda')
   ) {
     return CLIENT_MSG_AI_HIGH_DEMAND;
+  }
+
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('networkerror') ||
+    lower.includes('load failed') ||
+    lower.includes('err_network')
+  ) {
+    return 'Falha de conexão com o servidor de IA. Verifique sua internet e tente novamente; seus dados foram mantidos.';
+  }
+
+  if (lower.includes('aborterror') || lower.includes('timeout')) {
+    return 'Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.';
+  }
+
+  if (lower.includes('unexpected token') && (lower.includes('<') || lower.includes('doctype'))) {
+    return 'Falha temporária de comunicação com o servidor de IA. Tente novamente em instantes.';
   }
 
   // Only pass through already-vetted Portuguese messages that don't look like raw JSON

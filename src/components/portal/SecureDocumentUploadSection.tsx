@@ -8,6 +8,7 @@ import {
   Clock,
   CloudUpload,
   Download,
+  Eye,
   FileCheck2,
   FileText,
   Scale,
@@ -15,6 +16,7 @@ import {
   ShieldCheck,
   Tag,
   Upload,
+  X,
   XCircle,
 } from 'lucide-react';
 import { CameraDocumentScannerModal } from '../CameraDocumentScannerModal';
@@ -48,6 +50,15 @@ function addDaysIso(isoDate: string, days: number): string {
   if (Number.isNaN(base.getTime())) return isoDate;
   base.setUTCDate(base.getUTCDate() + days);
   return base.toISOString().slice(0, 10);
+}
+
+function isImageCaseDoc(d: Pick<CaseDocument, 'arquivoUrl' | 'arquivoMimeType' | 'arquivoNome'>): boolean {
+  const url = (d.arquivoUrl || '').trim().toLowerCase();
+  const mime = (d.arquivoMimeType || '').trim().toLowerCase();
+  const name = (d.arquivoNome || '').trim().toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  if (url.startsWith('data:image/')) return true;
+  return /\.(webp|png|jpe?g|gif)(\?|#|$)/i.test(url) || /\.(webp|png|jpe?g|gif)$/i.test(name);
 }
 
 interface SecureDocumentUploadSectionProps {
@@ -142,6 +153,7 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
   const [searchTerm, setSearchTerm] = useState('');
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const [cameraTargetDoc, setCameraTargetDoc] = useState<CaseDocument | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
   const dropInputRef = useRef<HTMLInputElement | null>(null);
 
   const effectiveSelectedId =
@@ -243,13 +255,17 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
         onProgress: (pct) => setUploadProgress(pct),
       });
 
-      const prevHist = targetDoc.historicoVersoes || [];
+      const prevHist = (targetDoc.historicoVersoes || []).slice(-6);
+      const safePrevUrl =
+        targetDoc.arquivoUrl && !targetDoc.arquivoUrl.startsWith('data:')
+          ? targetDoc.arquivoUrl
+          : '';
       const nextHist = targetDoc.arquivoUrl
         ? [
             ...prevHist,
             {
               versao: targetDoc.versao || 1,
-              arquivoUrl: targetDoc.arquivoUrl,
+              arquivoUrl: safePrevUrl,
               data: uploadRes.uploadedAt,
               motivo: targetDoc.motivoReprovacao || 'Substituído pelo cliente',
             },
@@ -648,15 +664,35 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
               const suggestedName = formatStandardDocFilename(d.pessoa, d.nomeDocumento, d.dataEmissao, 'pdf');
               const isUploadingThis = uploadingDocId === d.id;
 
+              const isImgDoc = Boolean(d.arquivoUrl && isImageCaseDoc(d));
+
               return (
                 <div key={d.id} className="py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="space-y-1.5 min-w-0">
-                    <p className="text-xs text-slate-500 tabular-nums">
-                      Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
-                      {d.obrigatorio ? ' · Obrigatório' : ' · Opcional'}
-                      {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
-                    </p>
-                    <p className="text-sm font-bold text-slate-900">{d.nomeDocumento}</p>
+                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                    {isImgDoc && d.arquivoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDoc(d)}
+                        title={`Visualizar ${d.nomeDocumento}`}
+                        className="w-20 h-16 sm:w-24 sm:h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-900 shrink-0 group relative focus:outline-none focus:ring-2 focus:ring-[#C8A236]"
+                      >
+                        <img
+                          src={d.arquivoUrl}
+                          alt={d.nomeDocumento}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <span className="absolute inset-0 bg-slate-950/0 group-hover:bg-slate-950/35 transition-colors flex items-center justify-center">
+                          <Eye className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </span>
+                      </button>
+                    )}
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <p className="text-xs text-slate-500 tabular-nums">
+                        Ordem #{d.ordemEmissao} · {d.pessoa} · {d.categoriaDoc}
+                        {d.obrigatorio ? ' · Obrigatório' : ' · Opcional'}
+                        {d.prazoSugeridoEmissao ? ` · Emitir até ${formatDateBR(d.prazoSugeridoEmissao)}` : ''}
+                      </p>
+                      <p className="text-sm font-bold text-slate-900">{d.nomeDocumento}</p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <span className={`inline-flex items-center gap-1.5 font-semibold ${statusMeta.colorClass}`}>
                         <StatusIcon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -708,19 +744,19 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
                         Motivo da pendência: {d.motivoReprovacao}
                       </p>
                     )}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0 no-print">
                     {d.arquivoUrl && (
-                      <a
-                        href={d.arquivoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDoc(d)}
                         className="inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
                       >
-                        <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+                        <Eye className="w-3.5 h-3.5 text-[#0B1F33]" aria-hidden="true" />
                         Ver enviado
-                      </a>
+                      </button>
                     )}
                     {userProfile && (
                       <button
@@ -768,6 +804,79 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
         )}
       </section>
 
+      {previewDoc && previewDoc.arquivoUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-[#071422]/85 backdrop-blur-[2px] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            className="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 bg-[#0B1F33] text-white flex items-center justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">
+                  {previewDoc.pessoa} · {previewDoc.categoriaDoc} · v{previewDoc.versao}
+                </p>
+                <h4 className="font-display text-base font-bold text-white truncate mt-0.5">
+                  {previewDoc.nomeDocumento}
+                </h4>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={previewDoc.arquivoUrl}
+                  download={
+                    previewDoc.arquivoNome ||
+                    formatStandardDocFilename(
+                      previewDoc.pessoa,
+                      previewDoc.nomeDocumento,
+                      previewDoc.dataEmissao,
+                      isImageCaseDoc(previewDoc) ? 'webp' : 'pdf',
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C8A236] hover:bg-[#B89228] text-xs font-bold text-[#0B1523] whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Baixar arquivo
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  aria-label="Fechar visualização"
+                  className="p-1.5 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 bg-[#071422] flex-1 overflow-auto flex items-center justify-center min-h-[300px]">
+              {isImageCaseDoc(previewDoc) ? (
+                <img
+                  src={previewDoc.arquivoUrl}
+                  alt={previewDoc.nomeDocumento}
+                  className="max-h-[66vh] w-auto object-contain rounded-lg border border-white/15 shadow-xl"
+                />
+              ) : (
+                <iframe
+                  src={previewDoc.arquivoUrl}
+                  title={previewDoc.nomeDocumento}
+                  className="w-full h-[66vh] rounded-lg bg-white border border-white/15"
+                />
+              )}
+            </div>
+            <div className="px-5 py-3 bg-[#FAF9F6] border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 font-mono">
+              <span className="truncate">{previewDoc.arquivoNome || previewDoc.nomeDocumento}</span>
+              <span className="tabular-nums">
+                {previewDoc.arquivoTamanhoBytes ? `${formatFileSizeBytes(previewDoc.arquivoTamanhoBytes)} · ` : ''}
+                {previewDoc.enviadoEm ? `Enviado em ${formatDateTimeBR(previewDoc.enviadoEm)}` : `Status: ${previewDoc.status}`}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {userProfile && (
         <CameraDocumentScannerModal
           open={cameraModalOpen}
@@ -787,7 +896,7 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
             } else {
               setUploadFeedback({
                 type: 'success',
-                text: `Documento "${savedDoc.title}" escaneado e salvo diretamente no seu perfil no Firestore.`,
+                text: `Documento "${savedDoc.title}" escaneado e salvo diretamente no seu perfil no Firestore. Ele já aparece no seu Cofre de Identidade acima.`,
               });
             }
           }}

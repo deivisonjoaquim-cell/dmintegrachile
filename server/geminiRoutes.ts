@@ -200,6 +200,87 @@ export function resolveAttachmentFromUploadUrl(
   return { fileBase64: buf.toString('base64'), mimeType };
 }
 
+const ALLOWED_REMOTE_ATTACHMENT_HOSTS = new Set([
+  'firebasestorage.googleapis.com',
+  'storage.googleapis.com',
+]);
+
+const ALLOWED_REMOTE_ATTACHMENT_MIMES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
+/**
+ * Resolves allowlisted Firebase Storage HTTPS URLs into base64 inlineData
+ * so Gemini multimodal routes can inspect documents uploaded to Cloud Storage.
+ */
+export async function enrichBodyWithRemoteAttachment(
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const existingBase64 = stripBase64DataPrefix(body.fileBase64);
+  const existingMime = typeof body.mimeType === 'string' ? body.mimeType.trim().toLowerCase() : '';
+  if (existingBase64 && existingMime) {
+    return body;
+  }
+
+  const rawUrl = typeof body.arquivoUrl === 'string' ? body.arquivoUrl.trim() : '';
+  if (!rawUrl.startsWith('https://')) {
+    return body;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    return body;
+  }
+
+  if (parsedUrl.protocol !== 'https:' || !ALLOWED_REMOTE_ATTACHMENT_HOSTS.has(parsedUrl.hostname)) {
+    return body;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const resp = await fetch(parsedUrl.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    if (!resp.ok) return body;
+
+    const headerMime = (resp.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const fallbackMime = /\.pdf(\?|$)/i.test(rawUrl)
+      ? 'application/pdf'
+      : /\.png(\?|$)/i.test(rawUrl)
+        ? 'image/png'
+        : /\.webp(\?|$)/i.test(rawUrl)
+          ? 'image/webp'
+          : /\.jpe?g(\?|$)/i.test(rawUrl)
+            ? 'image/jpeg'
+            : '';
+    const mimeType = ALLOWED_REMOTE_ATTACHMENT_MIMES.has(headerMime) ? headerMime : fallbackMime;
+    if (!ALLOWED_REMOTE_ATTACHMENT_MIMES.has(mimeType)) return body;
+
+    const arrBuf = await resp.arrayBuffer();
+    if (arrBuf.byteLength <= 0 || arrBuf.byteLength > 6 * 1024 * 1024) {
+      return body;
+    }
+
+    return {
+      ...body,
+      fileBase64: Buffer.from(arrBuf).toString('base64'),
+      mimeType,
+    };
+  } catch {
+    return body;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function asStringArray(val: unknown): string[] | null {
   if (Array.isArray(val)) {
     return val
@@ -478,15 +559,16 @@ export function buildParecerSpec(body: Record<string, unknown>) {
       const fundamentacaoNormativa =
         typeof parsed.fundamentacaoNormativa === 'string' ? parsed.fundamentacaoNormativa.trim() : '';
       const recomendacoes = typeof parsed.recomendacoes === 'string' ? parsed.recomendacoes.trim() : '';
-      if (!enquadramentoLegal || !recomendacoes) {
+      if (!enquadramentoLegal && !recomendacoes && !elegibilidadeRiscos) {
         return null;
       }
+      const fb = buildParecerFallback(body);
       return {
         rascunho: true,
-        enquadramentoLegal,
-        elegibilidadeRiscos: elegibilidadeRiscos || 'Revisar elegibilidade documental e prazos na conferência técnica.',
-        fundamentacaoNormativa: fundamentacaoNormativa || 'fonte a cadastrar',
-        recomendacoes,
+        enquadramentoLegal: enquadramentoLegal || fb.enquadramentoLegal,
+        elegibilidadeRiscos: elegibilidadeRiscos || fb.elegibilidadeRiscos,
+        fundamentacaoNormativa: fundamentacaoNormativa || fb.fundamentacaoNormativa || 'fonte a cadastrar',
+        recomendacoes: recomendacoes || fb.recomendacoes,
       };
     },
     buildFallback: () => buildParecerFallback(body),

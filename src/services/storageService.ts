@@ -51,7 +51,7 @@ function uploadToFirebaseStorageWithProgress(params: {
         }
         reject(new Error('storage/timeout: Tempo limite excedido ao enviar para o Firebase Storage.'));
       }
-    }, params.timeoutMs ?? 25000);
+    }, params.timeoutMs ?? 5000);
 
     task.on(
       'state_changed',

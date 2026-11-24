@@ -736,11 +736,11 @@ service cloud.firestore {
       match /identityDocuments/{docId} {
         allow get: if isSignedIn() && isValidId(uid) && isValidId(docId) && (
           (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
-          isAdminOrConsultor()
+          isStaff()
         );
         allow list: if isSignedIn() && (
           (request.auth.uid == uid && existing().ownerUid == request.auth.uid) ||
-          isAdminOrConsultor()
+          isStaff()
         );
         allow create: if isSignedIn() && isValidId(uid) && isValidId(docId)
           && isValidUserIdentityDocument(incoming(), uid)

@@ -64,6 +64,91 @@ export interface PanelSubTabDefinition<T extends string> {
   roles: UserRole[];
 }
 
+export type OperationalStageId =
+  | 'etapa_1_leads'
+  | 'etapa_2_clientes'
+  | 'etapa_3_casos'
+  | 'etapa_4_documentos'
+  | 'etapa_5_agenda'
+  | 'etapa_6_financeiro';
+
+export interface OperationalWorkflowStage {
+  id: OperationalStageId;
+  stepNumber: number;
+  label: string;
+  shortLabel: string;
+  description: string;
+  hub: PanelHubId;
+  processosTab?: ProcessosSubTab;
+  financeiroTab?: FinanceiroSubTab;
+  roles: UserRole[];
+}
+
+/**
+ * Fluxo Operacional Sequencial do Painel da Equipe (Etapas 1 a 6):
+ * Ordena todas as telas operacionais exatamente na sequência prática de trabalho da consultoria.
+ */
+export const OPERATIONAL_WORKFLOW_STAGES: OperationalWorkflowStage[] = [
+  {
+    id: 'etapa_1_leads',
+    stepNumber: 1,
+    label: 'Triagem & Leads',
+    shortLabel: 'Leads',
+    description: 'Diagnósticos recebidos, qualificação comercial e primeiro contato',
+    hub: 'leads',
+    roles: ['admin', 'consultor', 'assistente'],
+  },
+  {
+    id: 'etapa_2_clientes',
+    stepNumber: 2,
+    label: 'Clientes & Portal',
+    shortLabel: 'Clientes',
+    description: 'Cadastro CRM, dependentes, modalidade e liberação do Portal do Cliente',
+    hub: 'processos',
+    processosTab: 'clientes',
+    roles: ['admin', 'consultor', 'assistente'],
+  },
+  {
+    id: 'etapa_3_casos',
+    stepNumber: 3,
+    label: 'Casos & Parecer IA',
+    shortLabel: 'Casos',
+    description: 'Ficha do processo, parecer técnico com IA e protocolo SERMIG',
+    hub: 'processos',
+    processosTab: 'casos',
+    roles: ['admin', 'consultor', 'assistente'],
+  },
+  {
+    id: 'etapa_4_documentos',
+    stepNumber: 4,
+    label: 'Documentos & Dossiê',
+    shortLabel: 'Documentos',
+    description: 'Conferência documental, validades de 60 dias e pacotes PDF SERMIG',
+    hub: 'processos',
+    processosTab: 'checklist',
+    roles: ['admin', 'consultor', 'assistente'],
+  },
+  {
+    id: 'etapa_5_agenda',
+    stepNumber: 5,
+    label: 'Agenda & Prazos',
+    shortLabel: 'Prazos',
+    description: 'Prazos legais SERMIG, tarefas diárias e reuniões com clientes',
+    hub: 'agenda',
+    roles: ['admin', 'consultor', 'assistente'],
+  },
+  {
+    id: 'etapa_6_financeiro',
+    stepNumber: 6,
+    label: 'Financeiro & Contratos',
+    shortLabel: 'Financeiro',
+    description: 'Orçamentos, parcelas, recibos e contratos oficiais A4',
+    hub: 'financeiro',
+    financeiroTab: 'financeiro',
+    roles: ['admin', 'consultor'],
+  },
+];
+
 export const PANEL_HUBS: PanelHubDefinition[] = [
   {
     id: 'hoje',
@@ -215,6 +300,26 @@ export function getVisibleFinanceiroSubTabs(role?: UserRole): PanelSubTabDefinit
 export function getVisibleConfigSubTabs(role?: UserRole): PanelSubTabDefinition<ConfigSubTab>[] {
   if (!role) return [];
   return CONFIG_SUBTABS.filter((tab) => tab.roles.includes(role));
+}
+
+export function getVisibleWorkflowStages(role?: UserRole): OperationalWorkflowStage[] {
+  if (!role) return [];
+  return OPERATIONAL_WORKFLOW_STAGES.filter((stage) => stage.roles.includes(role));
+}
+
+export function resolveActiveWorkflowStage(
+  activeHub: PanelHubId,
+  processosTab: ProcessosSubTab,
+): OperationalStageId | null {
+  if (activeHub === 'leads') return 'etapa_1_leads';
+  if (activeHub === 'processos') {
+    if (processosTab === 'clientes') return 'etapa_2_clientes';
+    if (processosTab === 'casos') return 'etapa_3_casos';
+    return 'etapa_4_documentos';
+  }
+  if (activeHub === 'agenda') return 'etapa_5_agenda';
+  if (activeHub === 'financeiro') return 'etapa_6_financeiro';
+  return null;
 }
 
 export interface ResolvedPanelRoute {

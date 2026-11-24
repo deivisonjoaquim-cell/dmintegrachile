@@ -14,6 +14,7 @@ import {
   buildNormaVerificarSpec,
   buildParecerSpec,
   buildPropostaSpec,
+  enrichBodyWithRemoteAttachment,
   getAiEngineHealthStatus,
   runAiRouteExecution,
   type AiRouteDependencies,
@@ -182,7 +183,10 @@ async function fetchUserRoleFromFirestore(uid: string, idToken: string): Promise
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.warn(`[Auth] Firestore REST lookup users/${uid} retornou HTTP ${resp.status}.`);
+      return null;
+    }
     const doc = (await resp.json()) as {
       fields?: {
         role?: { stringValue?: string };
@@ -190,8 +194,8 @@ async function fetchUserRoleFromFirestore(uid: string, idToken: string): Promise
       };
     };
     return {
-      role: doc.fields?.role?.stringValue || 'cliente',
-      status: doc.fields?.status?.stringValue || 'pendente',
+      role: (doc.fields?.role?.stringValue || 'cliente').trim().toLowerCase(),
+      status: (doc.fields?.status?.stringValue || 'pendente').trim().toLowerCase(),
     };
   } catch {
     return null;
@@ -729,7 +733,8 @@ app.post(
   requireRole(['admin', 'consultor', 'assistente']),
   aiRateLimit,
   async (req: AuthedRequest, res: Response) => {
-    const body = (req.body || {}) as Record<string, unknown>;
+    const rawBody = (req.body || {}) as Record<string, unknown>;
+    const body = await enrichBodyWithRemoteAttachment(rawBody);
     const wantsStream = req.headers['x-ai-progress'] === '1';
     await runAiRouteExecution(req.authUser, wantsStream, res, buildAnalisarDocumentoSpec(body, UPLOAD_DIR), aiRouteDeps);
   },
@@ -774,7 +779,8 @@ app.post(
   requireRole(['admin', 'consultor']),
   aiRateLimit,
   async (req: AuthedRequest, res: Response) => {
-    const body = (req.body || {}) as Record<string, unknown>;
+    const rawBody = (req.body || {}) as Record<string, unknown>;
+    const body = await enrichBodyWithRemoteAttachment(rawBody);
     const wantsStream = req.headers['x-ai-progress'] === '1';
     await runAiRouteExecution(req.authUser, wantsStream, res, buildNormaSpec(body, UPLOAD_DIR), aiRouteDeps);
   },

@@ -3,6 +3,7 @@ import {
   Briefcase,
   CalendarClock,
   Camera,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -19,6 +20,7 @@ import {
   Settings,
   Sun,
   UserCheck,
+  Users,
   X,
 } from 'lucide-react';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
@@ -55,10 +57,14 @@ import {
   getVisibleFinanceiroSubTabs,
   getVisiblePanelHubs,
   getVisibleProcessosSubTabs,
+  getVisibleWorkflowStages,
+  resolveActiveWorkflowStage,
   resolveLegacyPanelRoute,
   type ConfigSubTab,
   type FinanceiroSubTab,
   type LegacyPanelSection,
+  type OperationalStageId,
+  type OperationalWorkflowStage,
   type PanelHubId,
   type ProcessosSubTab,
 } from '../utils/panelNavigation';
@@ -447,9 +453,26 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   );
 
   const visibleHubs = useMemo(() => getVisiblePanelHubs(role), [role]);
+  const visibleWorkflowStages = useMemo(() => getVisibleWorkflowStages(role), [role]);
   const visibleProcessosTabs = useMemo(() => getVisibleProcessosSubTabs(role), [role]);
   const visibleFinanceiroTabs = useMemo(() => getVisibleFinanceiroSubTabs(role), [role]);
   const visibleConfigTabs = useMemo(() => getVisibleConfigSubTabs(role), [role]);
+  const activeStageId = useMemo(
+    () => resolveActiveWorkflowStage(activeHub, processosTab),
+    [activeHub, processosTab],
+  );
+
+  const handleSelectWorkflowStage = useCallback((stage: OperationalWorkflowStage) => {
+    setActiveHub(stage.hub);
+    setSelectedCaseId(null);
+    if (stage.processosTab) {
+      setProcessosTab(stage.processosTab);
+    }
+    if (stage.financeiroTab) {
+      setFinanceiroTab(stage.financeiroTab);
+    }
+    setMobileMenuOpen(false);
+  }, []);
 
   const unreadChatCount = useMemo(
     () => countUnreadChatForStaff(effectiveWorkspace?.communicationLogs || []),
@@ -473,6 +496,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         hoje: 0,
         funil: 0,
         leads: 0,
+        clientes: 0,
         processos: 0,
         agenda: 0,
         financeiro: 0,
@@ -493,6 +517,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     const activeLeadsCount = effectiveWorkspace.leads.filter(
       (l) => l.statusFunil !== 'Perdido' && l.statusFunil !== 'Fechado' && !l.convertedCaseId,
     ).length;
+    const activeClientsCount = effectiveWorkspace.clients.filter((c) => !c.arquivado).length;
     const activeCasesList = effectiveWorkspace.cases.filter((c) => !c.arquivado);
     const activeCaseIds = new Set(activeCasesList.map((c) => c.id));
     const pendingChecklist = effectiveWorkspace.caseDocuments.filter(
@@ -509,6 +534,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       hoje: urgentDeadlines + unreadChatCount,
       funil: activeLeadsCount + activeCasesList.length,
       leads: newLeads,
+      clientes: activeClientsCount,
       processos: activeCasesList.length,
       agenda: openTasks + urgentDeadlines,
       financeiro: effectiveWorkspace.generatedDocuments.length,
@@ -519,6 +545,24 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       parceiros: openProposals,
     };
   }, [effectiveWorkspace, legalSources, empresa.diasAlertaRevisaoLegal, role, unreadChatCount]);
+
+  const stageBadges: Record<OperationalStageId, number> = {
+    etapa_1_leads: hubBadges.leads,
+    etapa_2_clientes: hubBadges.clientes,
+    etapa_3_casos: hubBadges.processos,
+    etapa_4_documentos: hubBadges.docsToCheck > 0 ? hubBadges.docsToCheck : hubBadges.checklist,
+    etapa_5_agenda: hubBadges.agenda,
+    etapa_6_financeiro: hubBadges.financeiro,
+  };
+
+  const STAGE_ICONS: Record<OperationalStageId, React.ReactNode> = {
+    etapa_1_leads: <UserCheck className="w-4 h-4 shrink-0" />,
+    etapa_2_clientes: <Users className="w-4 h-4 shrink-0" />,
+    etapa_3_casos: <Briefcase className="w-4 h-4 shrink-0" />,
+    etapa_4_documentos: <CheckSquare className="w-4 h-4 shrink-0" />,
+    etapa_5_agenda: <CalendarClock className="w-4 h-4 shrink-0" />,
+    etapa_6_financeiro: <DollarSign className="w-4 h-4 shrink-0" />,
+  };
 
   const searchResults = useMemo(() => {
     if (!effectiveWorkspace || !globalQuery.trim()) return [];
@@ -749,41 +793,147 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto" aria-label="Navegação principal do painel">
-          {visibleHubs.map((hub) => {
-            const isActive = activeHub === hub.id;
-            const badge = hubBadges[hub.id];
-            return (
-              <button
-                key={hub.id}
-                type="button"
-                title={hub.description}
-                onClick={() => handleSelectHub(hub.id)}
-                className={`w-full flex items-center ${
-                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
-                } py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'text-white font-semibold shadow-[0_4px_12px_rgba(11,31,51,0.16)]'
-                    : 'text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] hover:text-[#0B1F33] dark:hover:text-white'
-                }`}
-                style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
-              >
-                <span className="flex items-center gap-2.5 min-w-0">
-                  <span className={isActive ? 'text-[#E5C76B]' : ''}>{HUB_ICONS[hub.id]}</span>
-                  {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
-                </span>
-                {!sidebarCollapsed && badge > 0 && (
-                  <span
-                    className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
-                      isActive ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-slate-400'
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto" aria-label="Navegação principal do painel">
+          {/* Bloco 1: Visão Geral */}
+          <div className="space-y-1">
+            {!sidebarCollapsed && (
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]/85">
+                Visão Geral
+              </p>
+            )}
+            {visibleHubs
+              .filter((h) => h.id === 'hoje' || h.id === 'funil')
+              .map((hub) => {
+                const isActive = activeHub === hub.id;
+                const badge = hubBadges[hub.id];
+                return (
+                  <button
+                    key={hub.id}
+                    type="button"
+                    title={hub.description}
+                    onClick={() => handleSelectHub(hub.id)}
+                    className={`w-full flex items-center ${
+                      sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+                    } py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                      isActive
+                        ? 'text-white font-semibold shadow-[0_4px_12px_rgba(11,31,51,0.16)]'
+                        : 'text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] hover:text-[#0B1F33] dark:hover:text-white'
                     }`}
+                    style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
                   >
-                    {badge}
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <span className={isActive ? 'text-[#E5C76B]' : ''}>{HUB_ICONS[hub.id]}</span>
+                      {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
+                    </span>
+                    {!sidebarCollapsed && badge > 0 && (
+                      <span
+                        className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
+                          isActive ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-slate-400'
+                        }`}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+
+          {/* Bloco 2: Fluxo Operacional em Ordem de Etapas (1 a 6) */}
+          <div className="pt-3 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-1">
+            {!sidebarCollapsed && (
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]/85">
+                Fluxo por Etapas
+              </p>
+            )}
+            {visibleWorkflowStages.map((stage) => {
+              const isActive = activeStageId === stage.id;
+              const badge = stageBadges[stage.id];
+              return (
+                <button
+                  key={stage.id}
+                  type="button"
+                  title={`Etapa ${stage.stepNumber}: ${stage.label} — ${stage.description}`}
+                  onClick={() => handleSelectWorkflowStage(stage)}
+                  className={`w-full flex items-center ${
+                    sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-2.5'
+                  } py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                    isActive
+                      ? 'text-white font-semibold shadow-[0_4px_12px_rgba(11,31,51,0.16)]'
+                      : 'text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] hover:text-[#0B1F33] dark:hover:text-white'
+                  }`}
+                  style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`font-mono text-[11px] font-bold tabular-nums w-5 h-5 rounded flex items-center justify-center shrink-0 ${
+                        isActive
+                          ? 'bg-[#E5C76B] text-[#0B1523]'
+                          : 'bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] text-[#8C6D14] dark:text-[#E5C76B]'
+                      }`}
+                    >
+                      {stage.stepNumber}
+                    </span>
+                    {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{stage.label}</span>}
                   </span>
-                )}
-              </button>
-            );
-          })}
+                  {!sidebarCollapsed && badge > 0 && (
+                    <span
+                      className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
+                        isActive ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-slate-400'
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bloco 3: Base & Sistema */}
+          <div className="pt-3 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-1">
+            {!sidebarCollapsed && (
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]/85">
+                Base &amp; Sistema
+              </p>
+            )}
+            {visibleHubs
+              .filter((h) => h.id === 'config')
+              .map((hub) => {
+                const isActive = activeHub === hub.id;
+                const badge = hubBadges[hub.id];
+                return (
+                  <button
+                    key={hub.id}
+                    type="button"
+                    title={hub.description}
+                    onClick={() => handleSelectHub(hub.id)}
+                    className={`w-full flex items-center ${
+                      sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+                    } py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                      isActive
+                        ? 'text-white font-semibold shadow-[0_4px_12px_rgba(11,31,51,0.16)]'
+                        : 'text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] hover:text-[#0B1F33] dark:hover:text-white'
+                    }`}
+                    style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <span className={isActive ? 'text-[#E5C76B]' : ''}>{HUB_ICONS[hub.id]}</span>
+                      {!sidebarCollapsed && <span className="truncate whitespace-nowrap">{hub.label}</span>}
+                    </span>
+                    {!sidebarCollapsed && badge > 0 && (
+                      <span
+                        className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
+                          isActive ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-slate-400'
+                        }`}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+          </div>
 
           {!sidebarCollapsed && recents.length > 0 && (
             <div className="pt-4 mt-4 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-1">
@@ -1012,31 +1162,93 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </div>
         </header>
 
-        {/* Menu Mobile Simplificado */}
+        {/* Menu Mobile Ordenado por Etapas */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-3 space-y-1 no-print">
-            {visibleHubs.map((hub) => {
-              const badge = hubBadges[hub.id];
-              return (
+          <div className="lg:hidden bg-white dark:bg-[#0D1E31] border-b border-[#E5DFD2] dark:border-[#1C324B] p-3 space-y-3 no-print">
+            <div className="space-y-1">
+              <p className="px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                Visão Geral
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {visibleHubs
+                  .filter((h) => h.id === 'hoje' || h.id === 'funil')
+                  .map((hub) => {
+                    const badge = hubBadges[hub.id];
+                    const active = activeHub === hub.id;
+                    return (
+                      <button
+                        key={hub.id}
+                        type="button"
+                        onClick={() => handleSelectHub(hub.id)}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${
+                          active
+                            ? 'text-white'
+                            : 'text-[#0B1F33] dark:text-slate-200 bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]'
+                        }`}
+                        style={active ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          {HUB_ICONS[hub.id]}
+                          <span className="truncate">{hub.label}</span>
+                        </span>
+                        {badge > 0 && <span className="font-mono tabular-nums">{badge}</span>}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                Fluxo Operacional (Etapas 1 → {visibleWorkflowStages.length})
+              </p>
+              {visibleWorkflowStages.map((stage) => {
+                const active = activeStageId === stage.id;
+                const badge = stageBadges[stage.id];
+                return (
+                  <button
+                    key={stage.id}
+                    type="button"
+                    onClick={() => handleSelectWorkflowStage(stage)}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${
+                      active
+                        ? 'text-white'
+                        : 'text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]'
+                    }`}
+                    style={active ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                  >
+                    <span className="flex items-center gap-2.5 truncate">
+                      <span className="font-mono text-[11px] font-bold opacity-85">0{stage.stepNumber}</span>
+                      {STAGE_ICONS[stage.id]}
+                      <span className="truncate">{stage.label}</span>
+                    </span>
+                    {badge > 0 && <span className="font-mono tabular-nums opacity-90">{badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {visibleHubs
+              .filter((h) => h.id === 'config')
+              .map((hub) => (
                 <button
                   key={hub.id}
                   type="button"
                   onClick={() => handleSelectHub(hub.id)}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold border border-[#E5DFD2] dark:border-[#1C324B] ${
                     activeHub === hub.id
-                      ? 'text-white font-semibold'
-                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      ? 'text-white border-transparent'
+                      : 'text-[#0B1F33] dark:text-slate-200'
                   }`}
                   style={activeHub === hub.id ? { backgroundColor: 'var(--color-primary)' } : undefined}
                 >
-                  <span className="flex items-center gap-2.5">
+                  <span className="flex items-center gap-2">
                     {HUB_ICONS[hub.id]}
                     <span>{hub.label}</span>
                   </span>
-                  {badge > 0 && <span className="text-xs tabular-nums opacity-85">{badge}</span>}
+                  {hubBadges[hub.id] > 0 && <span className="font-mono tabular-nums">{hubBadges[hub.id]}</span>}
                 </button>
-              );
-            })}
+              ))}
             <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
               <button
                 type="button"
@@ -1074,6 +1286,65 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 Dispensar
               </button>
             </div>
+          )}
+
+          {/* Régua Horizontal Prática: Ordem de Etapas Operacionais (1 → 6) */}
+          {activeHub !== 'config' && !selectedCaseId && (
+            <section
+              aria-label="Fluxo operacional por etapas"
+              className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-2 no-print"
+            >
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                {visibleWorkflowStages.map((stage, idx) => {
+                  const isActive = activeStageId === stage.id;
+                  const count = stageBadges[stage.id];
+                  return (
+                    <React.Fragment key={stage.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectWorkflowStage(stage)}
+                        title={stage.description}
+                        className={`flex-1 min-w-[140px] flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors ${
+                          isActive
+                            ? 'bg-[#0B1F33] dark:bg-[#C8A236] text-white dark:text-[#0B1523] border-[#0B1F33] dark:border-[#C8A236]'
+                            : 'bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-200 border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/70'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`font-mono text-[11px] font-bold tabular-nums shrink-0 ${
+                              isActive
+                                ? 'text-[#E5C76B] dark:text-[#0B1523]'
+                                : 'text-[#8C6D14] dark:text-[#E5C76B]'
+                            }`}
+                          >
+                            0{stage.stepNumber}
+                          </span>
+                          <span className="text-xs font-semibold truncate whitespace-nowrap">
+                            {stage.label}
+                          </span>
+                        </div>
+                        <span
+                          className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
+                            isActive
+                              ? 'text-[#E5C76B] dark:text-[#0B1523]'
+                              : 'text-[#4A5A6D] dark:text-slate-400'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                      {idx < visibleWorkflowStages.length - 1 && (
+                        <ChevronRight
+                          className="w-3.5 h-3.5 text-[#C5BCB0] dark:text-[#2A4666] shrink-0 hidden xl:block"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </section>
           )}
 
           {/* Barra de Sub-Abas Contextuais (Processos / Financeiro / Config) */}

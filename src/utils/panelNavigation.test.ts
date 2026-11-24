@@ -7,6 +7,8 @@ import {
   getVisibleFinanceiroSubTabs,
   getVisiblePanelHubs,
   getVisibleProcessosSubTabs,
+  getVisibleWorkflowStages,
+  resolveActiveWorkflowStage,
   resolveLegacyPanelRoute,
 } from './panelNavigation';
 
@@ -49,6 +51,40 @@ describe('panelNavigation — Simplified 6-Hub Panel Architecture & RBAC', () =>
       ['hoje', 'funil', 'leads', 'processos', 'agenda', 'config'],
     );
     assert.deepEqual(resolveLegacyPanelRoute('funil', 'assistente'), { hub: 'funil' });
+  });
+
+  it('orders operational workflow stages 1 to 6 sequentially and enforces RBAC on Stage 6 (Financeiro)', () => {
+    const adminStages = getVisibleWorkflowStages('admin');
+    assert.deepEqual(
+      adminStages.map((s) => s.stepNumber),
+      [1, 2, 3, 4, 5, 6],
+    );
+    assert.deepEqual(
+      adminStages.map((s) => s.id),
+      [
+        'etapa_1_leads',
+        'etapa_2_clientes',
+        'etapa_3_casos',
+        'etapa_4_documentos',
+        'etapa_5_agenda',
+        'etapa_6_financeiro',
+      ],
+    );
+
+    const assistenteStages = getVisibleWorkflowStages('assistente');
+    assert.deepEqual(
+      assistenteStages.map((s) => s.stepNumber),
+      [1, 2, 3, 4, 5],
+    );
+
+    assert.equal(resolveActiveWorkflowStage('leads', 'casos'), 'etapa_1_leads');
+    assert.equal(resolveActiveWorkflowStage('processos', 'clientes'), 'etapa_2_clientes');
+    assert.equal(resolveActiveWorkflowStage('processos', 'casos'), 'etapa_3_casos');
+    assert.equal(resolveActiveWorkflowStage('processos', 'checklist'), 'etapa_4_documentos');
+    assert.equal(resolveActiveWorkflowStage('processos', 'dossies'), 'etapa_4_documentos');
+    assert.equal(resolveActiveWorkflowStage('agenda', 'casos'), 'etapa_5_agenda');
+    assert.equal(resolveActiveWorkflowStage('financeiro', 'casos'), 'etapa_6_financeiro');
+    assert.equal(resolveActiveWorkflowStage('hoje', 'casos'), null);
   });
 
   it('enforces RBAC cleanly across Processos, Financeiro and Config sub-tabs', () => {

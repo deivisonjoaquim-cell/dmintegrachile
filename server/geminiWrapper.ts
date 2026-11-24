@@ -800,8 +800,11 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     maxTries: number,
   ): Promise<{ matched?: T; fatal?: ClassifiedGeminiError }> => {
     let malformedRetriesLeft = 1;
+    let omitThinkingConfig = false;
     const effectiveAttemptTimeoutCap =
-      isLiveExecution && tier === 'principal' && hasDistinctBackupModel ? Math.min(runtime.timeoutMs, 12000) : runtime.timeoutMs;
+      isLiveExecution && tier === 'principal' && hasDistinctBackupModel
+        ? Math.min(runtime.timeoutMs, 25000)
+        : runtime.timeoutMs;
 
     for (let attempt = 1; attempt <= maxTries; attempt++) {
       const remainingBudgetMs = runtime.maxWallClockMs - (Date.now() - startedAtMs);
@@ -832,18 +835,19 @@ export async function chamarGemini<T extends Record<string, unknown>>(
         const hasTools = Boolean(params.tools && params.tools.length > 0);
         const schemaHint = hasTools ? describeResponseSchemaHint(params.responseSchema) : '';
         const isGemini4 = /^gemini-4-/i.test(modelName);
+        const includeThinking = isGemini4 && !omitThinkingConfig;
         const requestConfig: Record<string, unknown> = hasTools
           ? {
               // When search grounding tools are active, omit responseMimeType/responseSchema to prevent 400 INVALID_ARGUMENT
               systemInstruction: `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido (sem markdown ou texto fora do JSON) seguindo exatamente o esquema solicitado.${schemaHint}`,
               tools: params.tools,
-              ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+              ...(includeThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             }
           : {
               systemInstruction: params.systemInstruction,
               responseMimeType: 'application/json',
               responseSchema: params.responseSchema,
-              ...(isGemini4 ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+              ...(includeThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             };
 
         const attemptStartedAt = Date.now();
@@ -961,9 +965,26 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       } catch (err) {
         const classified = classifyGeminiError(err);
         lastError = classified;
+        const rawErrSnippet = (err instanceof Error ? err.message : String(err || ''))
+          .replace(/AIza[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
+          .replace(/\s+/g, ' ')
+          .slice(0, 180);
         console.error(
-          `[Gemini][${params.route}] model=${modelName} tier=${tier} attempt=${attempt}/${maxTries} reason=${classified.safeReason}`,
+          `[Gemini][${params.route}] model=${modelName} tier=${tier} attempt=${attempt}/${maxTries} reason=${classified.safeReason} detail=${rawErrSnippet}`,
         );
+
+        // If Gemini 4 rejects thinkingConfig with HTTP 400 in live mode, retry once immediately without thinkingConfig
+        if (
+          isLiveExecution &&
+          /^gemini-4-/i.test(modelName) &&
+          classified.statusCode === 400 &&
+          !omitThinkingConfig &&
+          attempt < maxTries
+        ) {
+          omitThinkingConfig = true;
+          console.warn(`[Gemini][${params.route}] Repetindo ${modelName} sem thinkingConfig após HTTP 400.`);
+          continue;
+        }
 
         if (!classified.retryable) {
           return { fatal: classified };
@@ -1098,34 +1119,48 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       };
     }
     if (backupOutcome.fatal) {
+      const canGracefullyDegradeLive =
+        isLiveExecution &&
+        backupOutcome.fatal.kind !== 'blocked' &&
+        (backupOutcome.fatal.statusCode === 404 || backupOutcome.fatal.statusCode === 400);
+      if (!canGracefullyDegradeLive) {
+        return {
+          ok: false,
+          statusCode: backupOutcome.fatal.statusCode || 400,
+          errorMessage: formatFatalAiErrorMessage(backupOutcome.fatal),
+          audit: {
+            rota: params.route,
+            modeloTipo: 'reserva',
+            modeloNome: runtime.fallbackModel,
+            tentativas: totalAttempts,
+            resultado: 'erro_definitivo',
+            statusMotivo: backupOutcome.fatal.safeReason,
+          },
+        };
+      }
+      lastError = backupOutcome.fatal;
+    }
+  } else if (primaryOutcome.fatal) {
+    const canGracefullyDegradeLive =
+      isLiveExecution &&
+      primaryOutcome.fatal.kind !== 'blocked' &&
+      primaryOutcome.fatal.statusCode === 404;
+    if (!canGracefullyDegradeLive) {
       return {
         ok: false,
-        statusCode: backupOutcome.fatal.statusCode || 400,
-        errorMessage: formatFatalAiErrorMessage(backupOutcome.fatal),
+        statusCode: primaryOutcome.fatal.statusCode || 400,
+        errorMessage: formatFatalAiErrorMessage(primaryOutcome.fatal),
         audit: {
           rota: params.route,
-          modeloTipo: 'reserva',
-          modeloNome: runtime.fallbackModel,
+          modeloTipo: 'principal',
+          modeloNome: effectivePrimaryModel,
           tentativas: totalAttempts,
           resultado: 'erro_definitivo',
-          statusMotivo: backupOutcome.fatal.safeReason,
+          statusMotivo: primaryOutcome.fatal.safeReason,
         },
       };
     }
-  } else if (primaryOutcome.fatal) {
-    return {
-      ok: false,
-      statusCode: primaryOutcome.fatal.statusCode || 400,
-      errorMessage: formatFatalAiErrorMessage(primaryOutcome.fatal),
-      audit: {
-        rota: params.route,
-        modeloTipo: 'principal',
-        modeloNome: effectivePrimaryModel,
-        tentativas: totalAttempts,
-        resultado: 'erro_definitivo',
-        statusMotivo: primaryOutcome.fatal.safeReason,
-      },
-    };
+    lastError = primaryOutcome.fatal;
   }
 
   // Phase 2.5: Alternative free-tier cloud providers (Groq / OpenRouter) if Gemini had transient failure
@@ -1142,7 +1177,11 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   const fallbackDraft = await params.buildFallback();
   const finalErr = lastError as ClassifiedGeminiError | null;
   const isHighDemand = Boolean(finalErr?.isHighDemand);
-  const mensagemUsuario = isHighDemand ? MSG_AI_HIGH_DEMAND : MSG_AI_OTHER_ERROR;
+  const mensagemUsuario = isHighDemand
+    ? MSG_AI_HIGH_DEMAND
+    : isLiveExecution
+      ? MSG_AI_MISSING_KEY
+      : MSG_AI_OTHER_ERROR;
   if (isLiveExecution) {
     console.warn(
       `[Gemini][${params.route}] fallback_regras attempts=${totalAttempts} reason=${finalErr?.safeReason || 'fallback'} totalMs=${Date.now() - startedAtMs}`,

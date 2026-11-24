@@ -26,6 +26,7 @@ import {
   Printer,
   Scale,
   Shield,
+  ShieldCheck,
   Star,
   Trash2,
   Upload,
@@ -1506,6 +1507,38 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 2: DOCUMENTOS & ENVIO SEGURO */}
             {tab === 'documentos' && (
               <div className="space-y-6">
+                {/* Faixa de confirmação de permissão Firestore (Acesso Completo / Orientativa) */}
+                <div className="bg-white border border-[#E5DFD2] rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#146B43]">
+                        Permissão Verificada no Firestore · {planSpec.nome} Liberada
+                      </p>
+                      <p className="text-xs text-[#4A5A6D] mt-0.5 leading-relaxed">
+                        Acesso completo confirmado para <strong className="text-[#0B1F33]">{client?.email || userProfile.email}</strong>. Seus documentos oficiais liberados, digitalizações via câmera e checklist do processo estão sincronizados em tempo real.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-mono tabular-nums shrink-0 text-[#0B1F33]">
+                    <span className="px-2.5 py-1 rounded-md border border-[#E5DFD2] bg-[#FAF9F6]">
+                      Oficiais: <strong>{genDocs.length + releasedAssessments.length}</strong>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-md border border-[#E5DFD2] bg-[#FAF9F6]">
+                      Checklist: <strong>{activeDocs.length}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Cofre de Documentos Digitalizados via Câmera (/users/{uid}/identityDocuments) */}
+                <ProfileIdentityDocumentsCard
+                  userProfile={userProfile}
+                  title="Documentos Escaneados via Câmera & Identificação"
+                  subtitle="Todos os documentos capturados pela câmera ou enviados para seu perfil aparecem aqui com visualização instantânea, edição de metadados e download."
+                />
+
                 {(genDocs.length > 0 || releasedAssessments.length > 0) && (
                   <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
                     <div className="flex flex-wrap items-center justify-between gap-2">
