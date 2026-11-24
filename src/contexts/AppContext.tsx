@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
+import { useTheme } from './ThemeContext';
 import {
   clearAdminVerificationCache,
   isPrimaryAdminEmail,
@@ -121,6 +122,7 @@ function mapFirebaseAuthErrorPT(err: unknown): string {
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isDark } = useTheme();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -154,14 +156,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastSyncFeedback, setLastSyncFeedback] = useState<string | null>(null);
 
   // Aplica tema e layout dinâmicos lidos do Firestore (config/empresa) via CSS variables + Favicon
+  // No modo escuro (.dark), remove overrides inline de cores claras para respeitar a paleta escura em index.css
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--color-primary', empresa.corPrimaria || '#0B1F33');
-    root.style.setProperty('--color-accent', empresa.corDestaque || '#C8A236');
-    root.style.setProperty('--color-bg', empresa.corFundo || '#F7F5F0');
-    root.style.setProperty('--color-surface', empresa.corSuperficie || '#FFFFFF');
-    root.style.setProperty('--color-text', empresa.corTexto || '#0B1523');
-    root.style.setProperty('--color-footer-bg', empresa.corRodapeBg || '#081726');
+    if (isDark) {
+      root.style.removeProperty('--color-primary');
+      root.style.removeProperty('--color-accent');
+      root.style.removeProperty('--color-bg');
+      root.style.removeProperty('--color-surface');
+      root.style.removeProperty('--color-text');
+      root.style.removeProperty('--color-footer-bg');
+    } else {
+      root.style.setProperty('--color-primary', empresa.corPrimaria || '#0B1F33');
+      root.style.setProperty('--color-accent', empresa.corDestaque || '#C8A236');
+      root.style.setProperty('--color-bg', empresa.corFundo || '#F7F5F0');
+      root.style.setProperty('--color-surface', empresa.corSuperficie || '#FFFFFF');
+      root.style.setProperty('--color-text', empresa.corTexto || '#0B1523');
+      root.style.setProperty('--color-footer-bg', empresa.corRodapeBg || '#081726');
+    }
 
     const fontMap: Record<string, string> = {
       'Plus Jakarta Sans': "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
@@ -203,7 +215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       link.href = empresa.faviconUrl;
     }
-  }, [empresa]);
+  }, [empresa, isDark]);
 
   const refreshPublicDataWithStatus = useCallback(async (): Promise<boolean> => {
     const bundle = await fetchRuleEngineBundleWithSync();

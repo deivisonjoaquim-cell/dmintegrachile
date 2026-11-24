@@ -1036,7 +1036,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       <div className="flex-1">
                         <p
                           className={`text-[11px] font-bold uppercase tracking-[0.12em] mb-2.5 tabular-nums ${
-                            theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16]'
+                            theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16] dark:text-[#E5C76B]'
                           }`}
                         >
                           {localizedItem.numero} · {t.services.solutionPrefix}
@@ -1046,14 +1046,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </h3>
                         <p className={`text-sm leading-relaxed ${theme.subClass}`}>{localizedItem.descricao}</p>
                       </div>
-                      <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'}`}>
+                      <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4] dark:border-[#1C324B]'}`}>
                         <button
                           type="button"
                           onClick={() => !previewMode && setServiceDrawer(localizedItem)}
                           className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
-                            theme.isDark ? 'text-[#E5C76B]' : ''
+                            theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33] dark:text-[#E5C76B]'
                           }`}
-                          style={!theme.isDark ? { color: 'var(--color-primary)' } : undefined}
                         >
                           {t.services.learnMore}
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -1392,11 +1391,11 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               {passos.map((p) => (
                 <div key={p.passo} className={`${theme.cardClass} card-radius p-6 sm:p-7 flex flex-col justify-between`}>
                   <div>
-                    <div className={`flex items-center justify-between gap-2 mb-4 pb-3 border-b ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4]'}`}>
+                    <div className={`flex items-center justify-between gap-2 mb-4 pb-3 border-b ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4] dark:border-[#1C324B]'}`}>
                       <p className="font-mono text-2xl font-bold tracking-tight tabular-nums" style={{ color: 'var(--color-accent)' }}>
                         {p.passo}
                       </p>
-                      <span className={`h-[2px] w-6 ${theme.isDark ? 'bg-white/25' : 'bg-[#DDD6C7]'}`} aria-hidden="true" />
+                      <span className={`h-[2px] w-6 ${theme.isDark ? 'bg-white/25' : 'bg-[#DDD6C7] dark:bg-[#243E5C]'}`} aria-hidden="true" />
                     </div>
                     <h3 className={`text-base font-bold tracking-tight mb-2 ${theme.headingClass}`}>
                       {translateText(p.titulo)}
@@ -1499,7 +1498,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <article key={dep.id} className={`${theme.cardClass} card-radius p-6 space-y-3`}>
                   <Quote className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
                   <p className={`text-sm leading-relaxed ${theme.subClass}`}>&ldquo;{dep.depoimento}&rdquo;</p>
-                  <div className={`pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2]'} text-xs`}>
+                  <div className={`pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2] dark:border-[#1C324B]'} text-xs`}>
                     <p className={`font-bold ${theme.headingClass}`}>{dep.nome}</p>
                     <p className={theme.eyebrowClass}>{[dep.cidadeOrigem, dep.subcategoria].filter(Boolean).join(' · ')}</p>
                   </div>
@@ -1687,7 +1686,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   )}
                 </div>
                 <div className={`lg:col-span-5 ${imgLeft ? 'lg:order-1' : 'lg:order-2'}`}>
-                  <div className="h-72 sm:h-80 card-radius overflow-hidden border border-slate-200/80 bg-slate-100">
+                  <div className="h-72 sm:h-80 card-radius overflow-hidden border border-slate-200/80 dark:border-[#1C324B] bg-slate-100 dark:bg-[#0D1E31]">
                     <OptimizedImage
                       src={sec.imagemUrl}
                       alt={translateText(sec.titulo)}
@@ -1716,7 +1715,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 )}
                 {sec.imagemUrl && (
                   <div className="pt-3 max-w-xl mx-auto">
-                    <div className="max-h-80 overflow-hidden card-radius border border-slate-200">
+                    <div className="max-h-80 overflow-hidden card-radius border border-slate-200 dark:border-[#1C324B]">
                       <OptimizedImage
                         src={sec.imagemUrl}
                         alt={translateText(sec.titulo)}
@@ -1761,7 +1760,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
         {serviceDrawer && !previewMode && (
           <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end" role="dialog" aria-modal="true">
-            <div className="bg-white w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2]">
+            <div className="bg-white dark:bg-[#0D1E31] w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2] dark:border-[#1C324B]">
               <BrandRibbon className="h-[3px] w-full shrink-0" />
               <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
                 <div>
@@ -1781,47 +1780,46 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
 
               <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                <p className="text-sm text-[#4A5A6D] leading-relaxed">{serviceDrawer.descricao}</p>
+                <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">{serviceDrawer.descricao}</p>
                 <div className="space-y-3 text-xs pt-1">
-                  <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                  <div className="p-4 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
                       {t.services.drawer.whoFor}
                     </p>
-                    <p className="text-[#0B1F33] mt-1 leading-relaxed">
+                    <p className="text-[#0B1F33] dark:text-slate-100 mt-1 leading-relaxed">
                       {serviceDrawer.paraQuem || drawerFallback?.paraQuem || t.services.drawer.defaultWhoFor}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                  <div className="p-4 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
                       {t.services.drawer.framework}
                     </p>
-                    <p className="text-[#0B1F33] mt-1 leading-relaxed">
+                    <p className="text-[#0B1F33] dark:text-slate-100 mt-1 leading-relaxed">
                       {serviceDrawer.subcategoriaTipica || drawerFallback?.subcategoriaTipica || t.services.drawer.defaultFramework}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                  <div className="p-4 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
                       {t.services.drawer.timeline}
                     </p>
-                    <p className="text-[#0B1F33] font-mono tabular-nums mt-1 leading-relaxed">
+                    <p className="text-[#0B1F33] dark:text-slate-100 font-mono tabular-nums mt-1 leading-relaxed">
                       {serviceDrawer.faixaPrazo || drawerFallback?.faixaPrazo || t.services.drawer.defaultTimeline}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="px-6 py-4 bg-[#FAF9F6] border-t border-[#E5DFD2] space-y-2 shrink-0">
+              <div className="px-6 py-4 bg-[#FAF9F6] dark:bg-[#081524] border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setServiceDrawer(null);
                     onNavigate('/diagnostico');
                   }}
-                  className="w-full py-3 px-4 btn-radius text-xs font-bold text-white inline-flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  className="w-full py-3 px-4 btn-radius text-xs font-bold text-white bg-[#0B1F33] dark:bg-[#C8A236] dark:text-[#0B1523] inline-flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
                 >
                   {t.services.drawer.ctaDiagnostic}
-                  <ArrowRight className="w-3.5 h-3.5 text-[#E5C76B]" />
+                  <ArrowRight className="w-3.5 h-3.5 text-[#E5C76B] dark:text-[#0B1523]" />
                 </button>
                 <a
                   href={buildWhatsAppUrl(
@@ -1830,9 +1828,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 hover:bg-[#FAF9F6] dark:hover:bg-[#16304C]"
                 >
-                  <MessageCircle className="w-4 h-4 text-[#146B43]" />
+                  <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
                   {t.services.drawer.ctaWhatsapp}
                 </a>
               </div>

@@ -60,10 +60,10 @@ test('computeCalculatedExpirationIso adds validadeDias accurately', () => {
   assert.equal(computeCalculatedExpirationIso('', 60), undefined);
 });
 
-test('resolveDocumentExpiration flags items expiring in less than 30 days and ignores >= 30 days', () => {
+test('resolveDocumentExpiration flags items expiring in <= 30 days and ignores > 30 days', () => {
   const hoje = new Date('2026-11-18T12:00:00-03:00');
 
-  // 20 days remaining -> atencao (< 30d)
+  // 20 days remaining -> atencao (<= 30d)
   const doc20d = makeDoc({ id: 'doc_20d', dataValidadeCalculada: '2026-12-08' });
   const res20d = resolveDocumentExpiration({ doc: doc20d, hoje });
   assert.equal(res20d.daysRemaining, 20);
@@ -77,12 +77,19 @@ test('resolveDocumentExpiration flags items expiring in less than 30 days and ig
   assert.equal(res5d.severity, 'critico');
   assert.equal(res5d.isExpiringUnder30Days, true);
 
-  // 30 days remaining -> NOT under 30 days (valido)
+  // 30 days remaining -> inclusive boundary (atencao)
   const doc30d = makeDoc({ id: 'doc_30d', dataValidadeCalculada: '2026-12-18' });
   const res30d = resolveDocumentExpiration({ doc: doc30d, hoje });
   assert.equal(res30d.daysRemaining, 30);
-  assert.equal(res30d.severity, 'valido');
-  assert.equal(res30d.isExpiringUnder30Days, false);
+  assert.equal(res30d.severity, 'atencao');
+  assert.equal(res30d.isExpiringUnder30Days, true);
+
+  // 31 days remaining -> outside 30-day window (valido)
+  const doc31d = makeDoc({ id: 'doc_31d', dataValidadeCalculada: '2026-12-19' });
+  const res31d = resolveDocumentExpiration({ doc: doc31d, hoje });
+  assert.equal(res31d.daysRemaining, 31);
+  assert.equal(res31d.severity, 'valido');
+  assert.equal(res31d.isExpiringUnder30Days, false);
 
   // Computed directly from dataEmissao + requirement.validadeDias when dataValidadeCalculada is absent
   const reqs: VisaRequirement[] = [

@@ -40,6 +40,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   referrerPolicy = 'no-referrer',
 }) => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const [inView, setInView] = useState<boolean>(priority);
   const [loaded, setLoaded] = useState<boolean>(false);
   const [webpFailed, setWebpFailed] = useState<boolean>(false);
@@ -50,6 +51,14 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     setLoaded(false);
     setWebpFailed(false);
   }, [src]);
+
+  useEffect(() => {
+    if (!inView) return;
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, [inView, src, webpFailed]);
 
   useEffect(() => {
     if (priority || inView) return;
@@ -115,6 +124,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
             />
           )}
           <img
+            ref={imgRef}
             src={sources.fallbackSrc}
             alt={alt}
             width={width}

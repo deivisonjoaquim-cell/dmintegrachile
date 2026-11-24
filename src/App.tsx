@@ -116,7 +116,9 @@ function RouterView() {
         window.history.pushState({}, '', nextFull);
         setCurrentPath(next);
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!queryPart || !queryPart.includes('secao=')) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     },
     [currentPath],
   );

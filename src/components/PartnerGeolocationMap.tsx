@@ -238,16 +238,28 @@ const MapsCanvasInner: React.FC<MapsCanvasInnerProps> = ({
 }) => {
   const apiStatus = useApiLoadingStatus();
   const markerInstancesRef = useRef<Record<string, google.maps.marker.AdvancedMarkerElement | null>>({});
+  const selectedPartnerIdRef = useRef<string | null>(selectedItem?.partner.id ?? null);
   const [selectedAnchor, setSelectedAnchor] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    selectedPartnerIdRef.current = selectedItem?.partner.id ?? null;
+  }, [selectedItem]);
+
+  useEffect(() => {
+    const onQuota = () => setQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', onQuota);
+    return () => window.removeEventListener('gmp-quota-exceeded', onQuota);
+  }, []);
 
   const handleMarkerReady = useCallback(
     (partnerId: string, marker: google.maps.marker.AdvancedMarkerElement | null) => {
       markerInstancesRef.current[partnerId] = marker;
-      if (selectedItem && selectedItem.partner.id === partnerId) {
+      if (selectedPartnerIdRef.current === partnerId) {
         setSelectedAnchor(marker);
       }
     },
-    [selectedItem],
+    [],
   );
 
   useEffect(() => {
@@ -258,19 +270,25 @@ const MapsCanvasInner: React.FC<MapsCanvasInnerProps> = ({
     setSelectedAnchor(markerInstancesRef.current[selectedItem.partner.id] || null);
   }, [selectedItem]);
 
-  if (apiStatus === APILoadingStatus.AUTH_FAILURE || apiStatus === APILoadingStatus.FAILED) {
+  if (quotaExceeded || apiStatus === APILoadingStatus.AUTH_FAILURE || apiStatus === APILoadingStatus.FAILED) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#F7F5F0] dark:bg-[#0A192A]">
         <div className="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 flex items-center justify-center text-amber-800 dark:text-amber-300 mb-3">
           <AlertTriangle className="w-5 h-5" />
         </div>
         <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
-          {isEs ? 'Mapa interactivo temporalmente indisponible' : 'Mapa interativo temporariamente indisponível'}
+          {quotaExceeded
+            ? isEs
+              ? 'Cuota temporal de Google Maps alcanzada'
+              : 'Cota temporária do Google Maps atingida'
+            : isEs
+              ? 'Mapa interactivo temporalmente indisponible'
+              : 'Mapa interativo temporariamente indisponível'}
         </h4>
         <p className="text-xs text-[#4A5A6D] dark:text-slate-300 max-w-sm mt-1.5 leading-relaxed">
           {isEs
-            ? 'No fue posible autenticar Google Maps en este momento. Puedes seguir explorando los aliados geolocalizados en la lista lateral.'
-            : 'Não foi possível autenticar o Google Maps neste momento. Você pode continuar explorando todos os parceiros por comuna na lista ao lado.'}
+            ? 'No fue posible cargar el mapa interactivo en este momento. Puedes seguir explorando todos los aliados por comuna en la lista lateral.'
+            : 'Não foi possível carregar o mapa interativo neste momento. Você pode continuar explorando todos os parceiros por comuna na lista ao lado.'}
         </p>
       </div>
     );
@@ -434,6 +452,8 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
   buildReferralMessage,
 }) => {
   const isEs = locale === 'es-CL';
+  // Freeze initial Maps JS loader language so switching PT/ES-CL never conflicts with an already-loaded Google Maps script
+  const initialMapLanguageRef = useRef<'es' | 'pt-BR'>(isEs ? 'es' : 'pt-BR');
   const [categoryFilter, setCategoryFilter] = useState<MapCategoryFilter>('Todos');
   const [onlyChile, setOnlyChile] = useState<boolean>(true);
   const [activeHub, setActiveHub] = useState<ChileHubId>('all_chile');
@@ -891,7 +911,7 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
             <APIProvider
               apiKey={MAPS_API_KEY}
               libraries={['marker']}
-              language={isEs ? 'es' : 'pt-BR'}
+              language={initialMapLanguageRef.current}
               region="CL"
             >
               <MapsCanvasInner
@@ -928,7 +948,7 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
         </div>
       </div>
 
-      {/* Bottom Geographic Coverage Summary Strip */}
+      {/* Bottom Geographic Coverage Summary Strip + Google Maps ToS Attribution */}
       <div className="px-5 sm:px-7 py-3.5 bg-[#FAF9F6] dark:bg-[#0A1828] border-t border-[#EFECE3] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[#4A5A6D] dark:text-slate-300">
           <span className="font-bold text-[#0B1F33] dark:text-white">
@@ -944,10 +964,28 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
             </span>
           ))}
         </div>
-        <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400">
+        <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 leading-relaxed">
           {isEs
-            ? 'Coordenadas de referencia de la red homologada D&M Integra Chile'
-            : 'Coordenadas de referência dos polos da rede homologada D&M Integra Chile'}
+            ? 'Mapa con Google Maps · Uso sujeto a los '
+            : 'Mapa via Google Maps · Uso sujeito aos '}
+          <a
+            href="https://maps.google.com/help/terms_maps/?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-[#0B1F33] dark:hover:text-white"
+          >
+            {isEs ? 'Términos de Google Maps' : 'Termos do Google Maps'}
+          </a>
+          {isEs ? ' y la ' : ' e à '}
+          <a
+            href="https://policies.google.com/privacy?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-[#0B1F33] dark:hover:text-white"
+          >
+            {isEs ? 'Política de Privacidad' : 'Política de Privacidade'}
+          </a>
+          {isEs ? ' (ubicación opcional y revocable).' : ' (geolocalização opcional e revogável).'}
         </p>
       </div>
     </section>
