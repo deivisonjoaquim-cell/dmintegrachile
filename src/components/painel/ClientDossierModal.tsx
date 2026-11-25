@@ -1119,6 +1119,48 @@ export const ClientDossierModal: React.FC<ClientDossierModalProps> = ({
                     </select>
                   </div>
                 )}
+
+                {canEdit && (
+                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Simulador SERMIG no Portal do Cliente</p>
+                      <p className="text-[11px] text-slate-500">
+                        Status atual: <strong>{form.simuladorSermigLiberado ? 'Liberado ao cliente' : 'Bloqueado'}</strong>. Libera a aba interativa de simulação de prazos e taxas SERMIG.
+                      </p>
+                    </div>
+                    <UiButton
+                      type="button"
+                      size="sm"
+                      variant={form.simuladorSermigLiberado ? 'outline' : 'success'}
+                      onClick={async () => {
+                        const nextSim = !form.simuladorSermigLiberado;
+                        const updated: Client = {
+                          ...form,
+                          simuladorSermigLiberado: nextSim,
+                          updatedAt: new Date().toISOString(),
+                        };
+                        await saveDocumentAudited(
+                          'clients',
+                          form.id,
+                          updated as unknown as Record<string, unknown>,
+                          false,
+                          role,
+                          'simuladorSermigLiberado',
+                          form.simuladorSermigLiberado ?? false,
+                        );
+                        setForm(updated);
+                        setFeedback(
+                          nextSim
+                            ? 'Simulador SERMIG LIBERADO no Portal do Cliente.'
+                            : 'Simulador SERMIG revogado no Portal do Cliente.',
+                        );
+                        await onRefresh();
+                      }}
+                    >
+                      {form.simuladorSermigLiberado ? 'Revogar Simulador SERMIG' : 'Liberar Simulador SERMIG'}
+                    </UiButton>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 rounded-xl border border-slate-200 space-y-3">

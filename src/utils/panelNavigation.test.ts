@@ -37,20 +37,21 @@ const baseCase: Case = {
 };
 
 describe('panelNavigation — Simplified 6-Hub Panel Architecture & RBAC', () => {
-  it('exposes streamlined hubs including Funil Kanban for admin/consultor and hides financeiro for assistente', () => {
+  it('exposes streamlined hubs including Funil Kanban and Simulador SERMIG for staff and hides financeiro for assistente', () => {
     assert.deepEqual(
       getVisiblePanelHubs('admin').map((h) => h.id),
-      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'financeiro', 'config'],
+      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'financeiro', 'simulador', 'config'],
     );
     assert.deepEqual(
       getVisiblePanelHubs('consultor').map((h) => h.id),
-      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'financeiro', 'config'],
+      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'financeiro', 'simulador', 'config'],
     );
     assert.deepEqual(
       getVisiblePanelHubs('assistente').map((h) => h.id),
-      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'config'],
+      ['hoje', 'funil', 'leads', 'processos', 'agenda', 'simulador', 'config'],
     );
     assert.deepEqual(resolveLegacyPanelRoute('funil', 'assistente'), { hub: 'funil' });
+    assert.deepEqual(resolveLegacyPanelRoute('simulador', 'admin'), { hub: 'simulador' });
   });
 
   it('orders operational workflow stages 1 to 6 sequentially and enforces RBAC on Stage 6 (Financeiro)', () => {

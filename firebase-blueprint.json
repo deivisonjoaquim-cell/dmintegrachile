@@ -339,6 +339,7 @@
         "portalLiberado": { "type": "boolean" },
         "statusAcessoPortal": { "type": "string", "enum": ["Não solicitado", "Pendente liberação", "Liberado"] },
         "modalidadeConsultoria": { "type": "string", "enum": ["orientativa", "completa"] },
+        "simuladorSermigLiberado": { "type": "boolean" },
         "observacoesInternas": { "type": "string", "maxLength": 10000 },
         "arquivado": { "type": "boolean" },
         "arquivadoEm": { "type": "string", "format": "date-time" },

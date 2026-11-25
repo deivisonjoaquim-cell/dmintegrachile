@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Briefcase,
+  Calculator,
   CalendarClock,
   Camera,
   CheckSquare,
@@ -24,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
+import { SermigSimulator } from '../components/SermigSimulator';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
@@ -37,6 +39,7 @@ import { PainelLeads } from '../components/painel/PainelLeads';
 import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
 import { useFirestore } from '../hooks/useFirestore';
 import { subscribeStaffDocumentChat } from '../services/chatService';
@@ -112,6 +115,7 @@ const HUB_ICONS: Record<PanelHubId, React.ReactNode> = {
   processos: <Briefcase className="w-4 h-4 shrink-0" />,
   agenda: <CalendarClock className="w-4 h-4 shrink-0" />,
   financeiro: <DollarSign className="w-4 h-4 shrink-0" />,
+  simulador: <Calculator className="w-4 h-4 shrink-0" />,
   config: <Settings className="w-4 h-4 shrink-0" />,
 };
 
@@ -162,7 +166,6 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [profileIdModalOpen, setProfileIdModalOpen] = useState(false);
   const [recents, setRecents] = useState<RecentCaseItem[]>([]);
-  const [panelTheme, setPanelTheme] = useState<PanelTheme>(() => loadPanelTheme());
 
   useEffect(() => {
     if (!profileIdModalOpen) return;
@@ -176,16 +179,14 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const quickCreateRef = useRef<HTMLDivElement | null>(null);
 
-  const isDark = panelTheme === 'dark';
+  const { theme: globalTheme, isDark, toggleTheme } = useTheme();
+  const panelTheme: PanelTheme = globalTheme;
   const panelThemeClass = isDark ? 'dark panel-dark' : '';
 
   const handleTogglePanelTheme = useCallback(() => {
-    setPanelTheme((prev) => {
-      const next: PanelTheme = prev === 'dark' ? 'light' : 'dark';
-      savePanelTheme(next);
-      return next;
-    });
-  }, []);
+    toggleTheme();
+    savePanelTheme(isDark ? 'light' : 'dark');
+  }, [toggleTheme, isDark]);
 
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<typeof fetchStaffWorkspaceData>> | null>(null);
   const [liveChatLogs, setLiveChatLogs] = useState<CommunicationLog[]>([]);
@@ -500,6 +501,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         processos: 0,
         agenda: 0,
         financeiro: 0,
+        simulador: 0,
         config: role === 'assistente' ? 0 : legalAttention,
         checklist: 0,
         docsToCheck: 0,
@@ -518,6 +520,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       (l) => l.statusFunil !== 'Perdido' && l.statusFunil !== 'Fechado' && !l.convertedCaseId,
     ).length;
     const activeClientsCount = effectiveWorkspace.clients.filter((c) => !c.arquivado).length;
+    const simulatorReleasedCount = effectiveWorkspace.clients.filter(
+      (c) => !c.arquivado && c.simuladorSermigLiberado === true,
+    ).length;
     const activeCasesList = effectiveWorkspace.cases.filter((c) => !c.arquivado);
     const activeCaseIds = new Set(activeCasesList.map((c) => c.id));
     const pendingChecklist = effectiveWorkspace.caseDocuments.filter(
@@ -538,6 +543,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       processos: activeCasesList.length,
       agenda: openTasks + urgentDeadlines,
       financeiro: effectiveWorkspace.generatedDocuments.length,
+      simulador: simulatorReleasedCount,
       config: role === 'assistente' ? 0 : legalAttention + openProposals,
       checklist: pendingChecklist,
       docsToCheck,
@@ -898,7 +904,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               </p>
             )}
             {visibleHubs
-              .filter((h) => h.id === 'config')
+              .filter((h) => h.id === 'simulador' || h.id === 'config')
               .map((hub) => {
                 const isActive = activeHub === hub.id;
                 const badge = hubBadges[hub.id];
@@ -1229,7 +1235,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             </div>
 
             {visibleHubs
-              .filter((h) => h.id === 'config')
+              .filter((h) => h.id === 'simulador' || h.id === 'config')
               .map((hub) => (
                 <button
                   key={hub.id}
@@ -1612,7 +1618,37 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 />
               )}
 
-              {/* HUB 6: RECURSOS & CONFIGURAÇÕES */}
+              {/* HUB 6: SIMULADOR SERMIG (ÁREA DO ADMINISTRADOR / EQUIPE) */}
+              {activeHub === 'simulador' && (
+                <SermigSimulator
+                  mode="admin"
+                  visaCategories={visaCategories}
+                  visaRequirements={visaRequirements}
+                  empresa={empresa}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  allDependents={effectiveWorkspace.dependents}
+                  canManageRelease={role === 'admin' || role === 'consultor'}
+                  onToggleClientSimulatorAccess={async (targetClient, nextEnabled) => {
+                    await saveDocumentAudited(
+                      'clients',
+                      targetClient.id,
+                      {
+                        ...targetClient,
+                        simuladorSermigLiberado: nextEnabled,
+                        updatedAt: new Date().toISOString(),
+                      },
+                      false,
+                      userProfile.role,
+                      'simuladorSermigLiberado',
+                      targetClient.simuladorSermigLiberado ?? false,
+                    );
+                    await handleRefreshAll();
+                  }}
+                />
+              )}
+
+              {/* HUB 7: RECURSOS & CONFIGURAÇÕES */}
               {activeHub === 'config' && configTab === 'ferramentas' && (
                 <PainelFerramentas
                   role={userProfile.role}

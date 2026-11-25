@@ -18,7 +18,7 @@ import { toIsoDate } from './formatters';
  * Nova arquitetura simplificada do Painel da Equipe:
  * Reduz 15 itens fragmentados na barra lateral para 6 hubs orientados ao fluxo real de trabalho.
  */
-export type PanelHubId = 'hoje' | 'funil' | 'leads' | 'processos' | 'agenda' | 'financeiro' | 'config';
+export type PanelHubId = 'hoje' | 'funil' | 'leads' | 'processos' | 'agenda' | 'financeiro' | 'simulador' | 'config';
 
 export type ProcessosSubTab = 'casos' | 'clientes' | 'checklist' | 'dossies';
 export type FinanceiroSubTab = 'financeiro' | 'contratos';
@@ -45,6 +45,7 @@ export type LegacyPanelSection =
   | 'parceiros'
   | 'legal'
   | 'ferramentas'
+  | 'simulador'
   | 'admin_site'
   | 'admin_regras'
   | 'admin_gov';
@@ -191,6 +192,13 @@ export const PANEL_HUBS: PanelHubDefinition[] = [
     shortLabel: 'Financeiro',
     description: 'Orçamentos, lançamentos, contratos e recibos oficiais',
     roles: ['admin', 'consultor'],
+  },
+  {
+    id: 'simulador',
+    label: 'Simulador SERMIG',
+    shortLabel: 'Simulador',
+    description: 'Simulador interativo SERMIG (Ley 21.325), cronograma reverso, taxas e liberação para clientes',
+    roles: ['admin', 'consultor', 'assistente'],
   },
   {
     id: 'config',
@@ -366,6 +374,8 @@ export function resolveLegacyPanelRoute(
       return canCommercial
         ? { hub: 'financeiro', financeiroTab: 'contratos' }
         : { hub: 'hoje' };
+    case 'simulador':
+      return { hub: 'simulador' };
     case 'ferramentas':
       return { hub: 'config', configTab: 'ferramentas' };
     case 'legal':

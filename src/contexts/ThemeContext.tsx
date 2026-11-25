@@ -16,7 +16,9 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 function resolveInitialTheme(): ThemeMode {
   if (typeof window === 'undefined') return 'light';
   try {
-    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const saved =
+      window.localStorage.getItem(THEME_STORAGE_KEY) ||
+      window.localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') return saved;
   } catch {
     // Storage restricted
@@ -30,17 +32,27 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    root.classList.toggle('dark', theme === 'dark');
+    root.dataset.theme = theme;
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.localStorage.setItem('theme', theme);
     } catch {
       // Ignore quota or restricted storage errors
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== THEME_STORAGE_KEY && event.key !== 'theme') return;
+      if (event.newValue === 'dark' || event.newValue === 'light') {
+        setThemeState(event.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const setTheme = useCallback((next: ThemeMode) => {
     setThemeState(next);

@@ -681,6 +681,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
       portalLiberado: Boolean(editingClient.portalLiberado),
       statusAcessoPortal: editingClient.portalLiberado ? 'Liberado' : editingClient.statusAcessoPortal || 'Não solicitado',
       modalidadeConsultoria: chosenModality,
+      simuladorSermigLiberado: Boolean(editingClient.simuladorSermigLiberado),
       observacoes: editingClient.observacoes || '',
       createdAt: editingClient.createdAt || new Date().toISOString(),
     };
@@ -5332,14 +5333,24 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                 </select>
               </div>
             </div>
-            <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-              <input
-                type="checkbox"
-                checked={Boolean(editingClient.portalLiberado)}
-                onChange={(e) => setEditingClient({ ...editingClient, portalLiberado: e.target.checked })}
-              />
-              Liberar acesso ao Portal do Cliente imediatamente (sincroniza automaticamente com a conta Google)
-            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editingClient.portalLiberado)}
+                  onChange={(e) => setEditingClient({ ...editingClient, portalLiberado: e.target.checked })}
+                />
+                Liberar acesso ao Portal do Cliente imediatamente (sincroniza automaticamente com a conta Google)
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editingClient.simuladorSermigLiberado)}
+                  onChange={(e) => setEditingClient({ ...editingClient, simuladorSermigLiberado: e.target.checked })}
+                />
+                Liberar Simulador SERMIG interativo no Portal deste cliente
+              </label>
+            </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"

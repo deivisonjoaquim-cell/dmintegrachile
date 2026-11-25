@@ -325,6 +325,7 @@ export interface LegalSource {
   artigosEstruturados?: { numero: string; titulo: string; resumo: string }[];
   dataPublicacao?: string;
   dataVigencia?: string;
+  dataExpiracao?: string;
   resumoPortugues: string;
   explicacaoCliente: string;
   textoIntegral: string;
@@ -622,6 +623,7 @@ export interface Client {
   portalLiberado: boolean;
   statusAcessoPortal: 'Não solicitado' | 'Pendente liberação' | 'Liberado';
   modalidadeConsultoria?: PaidConsultancyModality;
+  simuladorSermigLiberado?: boolean;
   lgpdAceito?: boolean;
   lgpdAceitoEm?: string;
   lgpdVersao?: string;

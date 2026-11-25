@@ -6,6 +6,7 @@ import {
   BellRing,
   BookOpen,
   Briefcase,
+  Calculator,
   Calendar,
   Check,
   CheckCircle2,
@@ -25,12 +26,14 @@ import {
   Lock,
   LogOut,
   MessageCircle,
+  Moon,
   Printer,
   RefreshCw,
   Scale,
   Shield,
   ShieldCheck,
   Star,
+  Sun,
   Trash2,
   Upload,
   User,
@@ -45,8 +48,10 @@ import { ImmigrationStatusTimeline } from '../components/portal/ImmigrationStatu
 import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
+import { SermigSimulator } from '../components/SermigSimulator';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { PIPELINE_STAGES } from '../data/seeds';
 import {
   fetchClientPortalData,
@@ -117,9 +122,9 @@ interface PortalClientePageProps {
   onNavigate: (path: string) => void;
 }
 
-type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
+type PortalTab = 'processo' | 'documentos' | 'biblioteca' | 'simulador' | 'financeiro' | 'suporte' | 'dados';
 
-const ALLOWED_PORTAL_TABS: PortalTab[] = ['processo', 'documentos', 'biblioteca', 'financeiro', 'suporte', 'dados'];
+const ALLOWED_PORTAL_TABS: PortalTab[] = ['processo', 'documentos', 'biblioteca', 'simulador', 'financeiro', 'suporte', 'dados'];
 
 function readInitialPortalTab(): PortalTab {
   if (typeof window === 'undefined') return 'processo';
@@ -144,6 +149,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     logout,
     refreshClientPortalAccess,
   } = useApp();
+  const { isDark, toggleTheme } = useTheme();
   const [tab, setTab] = useState<PortalTab>(readInitialPortalTab);
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(portalClient);
@@ -236,6 +242,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setEditProfissao((prev) => prev || portalClient.profissao || '');
     }
   }, [portalClient]);
+
+  const canAccessSimulator = Boolean(
+    (client || portalClient)?.simuladorSermigLiberado === true ||
+      (portalAccess && 'capabilities' in portalAccess && portalAccess.capabilities.showSermigSimulator),
+  );
+
+  useEffect(() => {
+    if (tab === 'simulador' && !canAccessSimulator) {
+      setTab('processo');
+    }
+  }, [tab, canAccessSimulator]);
 
   useEffect(() => {
     if (portalLeads.length > 0) {
@@ -489,6 +506,15 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
+                onClick={toggleTheme}
+                aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
+                aria-pressed={isDark}
+                className="inline-flex items-center justify-center p-2 rounded-lg border border-[#DDD6C7] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#1E293B]"
+              >
+                {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                type="button"
                 disabled={syncCheckBusy}
                 onClick={() => void handleManualPortalRefresh()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap disabled:opacity-50"
@@ -589,6 +615,19 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Simulador SERMIG liberado expressamente pelo administrador */}
+          {canAccessSimulator && (
+            <SermigSimulator
+              mode="client"
+              visaCategories={visaCategories}
+              visaRequirements={visaRequirements}
+              empresa={empresa}
+              client={portalClient}
+              activeCase={null}
+              dependents={[]}
+            />
           )}
 
           {/* Documentos de identidade escaneados via câmera sempre acessíveis ao titular */}
@@ -1093,6 +1132,15 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
+              aria-pressed={isDark}
+              className="inline-flex items-center justify-center p-2 rounded-lg border border-[#DDD6C7] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#1E293B] transition-colors"
+            >
+              {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
               onClick={() => setNotifDrawerOpen(true)}
               aria-label="Abrir central de notificações do processo"
               className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors whitespace-nowrap"
@@ -1124,11 +1172,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
 
         {/* Abas desktop/tablet */}
-        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#F1EDE4] no-print">
+        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#F1EDE4] dark:border-[#1E293B] no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
             { id: 'biblioteca', label: 'Biblioteca Legal' },
+            ...(canAccessSimulator ? [{ id: 'simulador', label: 'Simulador SERMIG' }] : []),
             { id: 'financeiro', label: 'Orçamentos & Financeiro' },
             { id: 'suporte', label: 'Agendamento & Suporte' },
             { id: 'dados', label: 'Meus Dados & LGPD' },
@@ -1139,8 +1188,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={() => setTab(item.id as PortalTab)}
               className={`px-3.5 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 tab === item.id
-                  ? 'border-[#C8A236] text-[#0B1F33] font-semibold'
-                  : 'border-transparent text-[#4A5A6D] hover:text-[#0B1F33]'
+                  ? 'border-[#10B981] text-[#090F1A] dark:text-[#34D399] font-semibold'
+                  : 'border-transparent text-[#4A5A6D] dark:text-slate-400 hover:text-[#090F1A] dark:hover:text-white'
               }`}
             >
               {item.label}
@@ -1887,6 +1936,19 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               />
             )}
 
+            {/* ABA: SIMULADOR SERMIG (Somente quando liberado pelo administrador) */}
+            {tab === 'simulador' && canAccessSimulator && (
+              <SermigSimulator
+                mode="client"
+                visaCategories={visaCategories}
+                visaRequirements={visaRequirements}
+                empresa={empresa}
+                client={resolvedClient}
+                activeCase={activeCase}
+                dependents={dependents}
+              />
+            )}
+
             {/* ABA 3: ORÇAMENTOS & FINANCEIRO */}
             {tab === 'financeiro' && (
               <div className="space-y-6">
@@ -2234,12 +2296,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       {/* Barra inferior mobile fixa com >=48px touch targets */}
       <nav
         aria-label="Navegação rápida do portal"
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E5DFD2] grid grid-cols-6 no-print shadow-[0_-4px_16px_rgba(11,31,51,0.06)]"
+        className={`md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1524]/95 backdrop-blur-md border-t border-[#E2E8F0] dark:border-[#1E293B] grid ${
+          canAccessSimulator ? 'grid-cols-7' : 'grid-cols-6'
+        } no-print shadow-[0_-4px_16px_rgba(9,15,26,0.06)]`}
       >
         {[
           { id: 'processo', label: 'Processo', icon: <Briefcase className="w-4 h-4" /> },
           { id: 'documentos', label: 'Docs', icon: <FolderOpen className="w-4 h-4" /> },
           { id: 'biblioteca', label: 'Normas', icon: <Scale className="w-4 h-4" /> },
+          ...(canAccessSimulator
+            ? [{ id: 'simulador', label: 'Simulador', icon: <Calculator className="w-4 h-4" /> }]
+            : []),
           { id: 'financeiro', label: 'Financeiro', icon: <CreditCard className="w-4 h-4" /> },
           { id: 'suporte', label: 'Suporte', icon: <HelpCircle className="w-4 h-4" /> },
           { id: 'dados', label: 'Dados', icon: <User className="w-4 h-4" /> },
@@ -2250,11 +2317,13 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               key={item.id}
               type="button"
               onClick={() => setTab(item.id as PortalTab)}
-              className={`relative min-h-[54px] min-w-0 px-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
-                active ? 'text-[#0B1F33] bg-[#FAF9F6]' : 'text-[#4A5A6D]'
+              className={`relative min-h-[54px] min-w-0 px-0.5 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+                active
+                  ? 'text-[#090F1A] dark:text-[#34D399] bg-[#F8FAFC] dark:bg-[#131F33]'
+                  : 'text-[#64748B] dark:text-slate-400'
               }`}
             >
-              {active && <span className="absolute top-0 inset-x-1.5 h-[2.5px] bg-[#C8A236] rounded-b" aria-hidden="true" />}
+              {active && <span className="absolute top-0 inset-x-1.5 h-[2.5px] bg-[#10B981] rounded-b" aria-hidden="true" />}
               {item.icon}
               <span className="max-w-full truncate leading-tight">{item.label}</span>
             </button>

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   BookOpen,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   ExternalLink,
@@ -20,9 +21,15 @@ import {
   filterLegalLibrarySources,
   getApplicableVisaCategories,
   LEGAL_DOC_KIND_FILTERS,
+  LEGAL_EXPIRATION_FILTERS,
+  LEGAL_FILE_FORMAT_FILTERS,
   resolveActiveCaseVisaCategory,
+  resolveLegalSourceExpirationMeta,
+  resolveLegalSourceFileFormat,
   VISA_LIBRARY_GROUPS,
   type LegalDocKindFilter,
+  type LegalExpirationFilter,
+  type LegalFileFormatFilter,
   type VisaLibraryGroupId,
 } from '../../utils/legalLibrary';
 
@@ -51,6 +58,9 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
   const [visaGroup, setVisaGroup] = useState<VisaLibraryGroupId>(activeCaseVisa ? 'meu_visto' : 'all');
   const [selectedVisaId, setSelectedVisaId] = useState<string>(activeCaseVisa?.id || 'all');
   const [docKind, setDocKind] = useState<LegalDocKindFilter>('all');
+  const [fileFormat, setFileFormat] = useState<LegalFileFormatFilter>('all');
+  const [expirationFilter, setExpirationFilter] = useState<LegalExpirationFilter>('all');
+  const [expirationBeforeDate, setExpirationBeforeDate] = useState<string>('');
   const [jurisdictionFilter, setJurisdictionFilter] = useState<'all' | LegalSource['pais']>('all');
   const [readingSource, setReadingSource] = useState<LegalSource | null>(null);
 
@@ -79,11 +89,26 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
       visaGroup,
       selectedVisaId,
       docKind,
+      fileFormat,
+      expirationFilter,
+      expirationBeforeDate,
       activeCaseVisaId: activeCaseVisa?.id,
     });
     if (jurisdictionFilter === 'all') return base;
     return base.filter((s) => s.pais === jurisdictionFilter);
-  }, [legalSources, activeVisas, query, visaGroup, selectedVisaId, docKind, jurisdictionFilter, activeCaseVisa?.id]);
+  }, [
+    legalSources,
+    activeVisas,
+    query,
+    visaGroup,
+    selectedVisaId,
+    docKind,
+    fileFormat,
+    expirationFilter,
+    expirationBeforeDate,
+    jurisdictionFilter,
+    activeCaseVisa?.id,
+  ]);
 
   const proceduralSteps = useMemo(() => buildProceduralGuideSteps(selectedVisaObject), [selectedVisaObject]);
 
@@ -124,17 +149,27 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
     setVisaGroup('all');
     setSelectedVisaId('all');
     setDocKind('all');
+    setFileFormat('all');
+    setExpirationFilter('all');
+    setExpirationBeforeDate('');
     setJurisdictionFilter('all');
   };
 
   const hasActiveFilters = Boolean(
-    query.trim() || visaGroup !== 'all' || selectedVisaId !== 'all' || docKind !== 'all' || jurisdictionFilter !== 'all',
+    query.trim() ||
+      visaGroup !== 'all' ||
+      selectedVisaId !== 'all' ||
+      docKind !== 'all' ||
+      fileFormat !== 'all' ||
+      expirationFilter !== 'all' ||
+      expirationBeforeDate.trim() ||
+      jurisdictionFilter !== 'all',
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="portal-biblioteca-legal">
       {/* Cabeçalho e Alternador de Modo */}
-      <section className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+      <section className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(9,15,26,0.04)]">
         <BrandRibbon className="h-[3px] w-full" />
         <div className="p-6 space-y-5">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -142,90 +177,152 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
               <p className="brand-kicker">
                 Fontes Oficiais · SERMIG · BCN LeyChile · Planalto · CNJ
               </p>
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F33]">
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-[#090F1A] dark:text-white">
                 Biblioteca Legal &amp; Guia Procedimental SERMIG
               </h1>
-              <p className="text-sm text-[#4A5A6D] max-w-2xl leading-relaxed">
-                Pesquise leis, decretos, circulares operacionais e o roteiro completo de tramitação filtrando pelo seu tipo de visto.
+              <p className="text-sm text-[#475569] dark:text-slate-300 max-w-2xl leading-relaxed">
+                Busca em tempo real por palavras-chave, tipo de arquivo/documento e data de expiração ou revisão normativa.
               </p>
             </div>
 
-            <div className="flex items-center p-1 bg-[#FAF9F6] border border-[#E5DFD2] rounded-xl self-start lg:self-auto shrink-0">
+            <div className="flex items-center p-1 bg-[#F8FAFC] dark:bg-[#090F1A] border border-[#E2E8F0] dark:border-[#1E293B] rounded-xl self-start lg:self-auto shrink-0">
               <button
                 type="button"
                 onClick={() => setLibraryView('acervo')}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
-                  libraryView === 'acervo' ? 'bg-[#0B1F33] text-white shadow-xs' : 'text-[#4A5A6D] hover:text-[#0B1F33]'
+                  libraryView === 'acervo'
+                    ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] shadow-xs'
+                    : 'text-[#475569] dark:text-slate-300 hover:text-[#090F1A] dark:hover:text-white'
                 }`}
               >
-                <Scale className={`w-3.5 h-3.5 ${libraryView === 'acervo' ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`} />
+                <Scale className="w-3.5 h-3.5" />
                 Normas &amp; Circulares ({filteredSources.length})
               </button>
               <button
                 type="button"
                 onClick={() => setLibraryView('guia_sermig')}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
-                  libraryView === 'guia_sermig' ? 'bg-[#0B1F33] text-white shadow-xs' : 'text-[#4A5A6D] hover:text-[#0B1F33]'
+                  libraryView === 'guia_sermig'
+                    ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] shadow-xs'
+                    : 'text-[#475569] dark:text-slate-300 hover:text-[#090F1A] dark:hover:text-white'
                 }`}
               >
-                <ClipboardList className={`w-3.5 h-3.5 ${libraryView === 'guia_sermig' ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`} />
+                <ClipboardList className="w-3.5 h-3.5" />
                 Guia Procedimental SERMIG
               </button>
             </div>
           </div>
 
-          {/* Resumo quantitativo limpo (zero cards aninhados) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-[#E5DFD2] text-xs">
+          {/* Resumo quantitativo limpo */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-[#E2E8F0] dark:border-[#1E293B] text-xs">
             <div>
-              <p className="text-[#4A5A6D]">Normas &amp; Portais</p>
-              <p className="font-mono text-lg font-bold text-[#0B1F33] tabular-nums mt-0.5">{legalSources.length}</p>
+              <p className="text-[#64748B] dark:text-slate-400">Normas &amp; Portais</p>
+              <p className="font-mono text-lg font-bold text-[#090F1A] dark:text-white tabular-nums mt-0.5">
+                {legalSources.length}
+              </p>
             </div>
             <div>
-              <p className="text-[#4A5A6D]">Circulares &amp; Resoluções</p>
-              <p className="font-mono text-lg font-bold text-[#0B1F33] tabular-nums mt-0.5">{sermigCircularCount}</p>
+              <p className="text-[#64748B] dark:text-slate-400">Circulares &amp; Resoluções</p>
+              <p className="font-mono text-lg font-bold text-[#090F1A] dark:text-white tabular-nums mt-0.5">
+                {sermigCircularCount}
+              </p>
             </div>
             <div>
-              <p className="text-[#4A5A6D]">Subcategorias Mapeadas</p>
-              <p className="font-mono text-lg font-bold text-[#0B1F33] tabular-nums mt-0.5">{activeVisas.length}</p>
+              <p className="text-[#64748B] dark:text-slate-400">Resultados Filtrados</p>
+              <p className="font-mono text-lg font-bold text-[#047857] dark:text-[#34D399] tabular-nums mt-0.5">
+                {filteredSources.length}
+              </p>
             </div>
             <div>
-              <p className="text-[#4A5A6D]">Visto em foco</p>
-              <p className="text-sm font-bold text-[#0B1F33] truncate mt-1">
+              <p className="text-[#64748B] dark:text-slate-400">Visto em foco</p>
+              <p className="text-sm font-bold text-[#090F1A] dark:text-white truncate mt-1">
                 {selectedVisaObject ? `${selectedVisaObject.codigo} · ${selectedVisaObject.nomePortugues}` : 'Visão Geral'}
               </p>
             </div>
           </div>
 
-          {/* Barra de Busca e Filtros por Visto */}
-          <div className="pt-4 border-t border-[#E5DFD2] space-y-3">
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-[#8C6D14] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          {/* Barra de Busca em Tempo Real: Palavras-chave, Tipo de Arquivo e Data de Expiração */}
+          <div className="pt-4 border-t border-[#E2E8F0] dark:border-[#1E293B] space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Busca por palavras-chave */}
+              <div className="relative md:col-span-5">
+                <Search className="w-4 h-4 text-[#047857] dark:text-[#34D399] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  aria-label="Buscar na Biblioteca Legal"
-                  placeholder="Buscar por visto, circular SERMIG, Ley 21.325, decreto, antecedentes, apostila ou estampado..."
-                  className="w-full pl-10 pr-9 py-2.5 rounded-lg border border-[#DDD6C7] text-sm text-[#0B1F33] bg-[#FAF9F6] focus:bg-white focus:border-[#0B1F33] focus:outline-none transition-colors"
+                  data-testid="legal-library-search-input"
+                  aria-label="Buscar na Biblioteca Legal por palavras-chave"
+                  placeholder="Palavras-chave: Ley 21.325, Mercosul, apostila, PDF..."
+                  className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-[#CBD5E1] dark:border-[#1E293B] text-sm text-[#090F1A] dark:text-slate-100 bg-[#F8FAFC] dark:bg-[#090F1A] focus:bg-white dark:focus:bg-[#131F33] focus:border-[#10B981] focus:outline-none transition-colors"
                 />
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
                     aria-label="Limpar busca"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#4A5A6D] hover:text-[#0B1F33]"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#64748B] hover:text-[#090F1A] dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
 
+              {/* Filtro por Tipo de Arquivo / Formato */}
+              <div className="md:col-span-3">
+                <select
+                  value={fileFormat}
+                  onChange={(e) => setFileFormat(e.target.value as LegalFileFormatFilter)}
+                  data-testid="legal-library-file-type-select"
+                  aria-label="Filtrar por tipo de arquivo"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] dark:border-[#1E293B] text-xs sm:text-sm text-[#090F1A] dark:text-slate-100 bg-[#F8FAFC] dark:bg-[#090F1A] focus:border-[#10B981] focus:outline-none"
+                >
+                  {LEGAL_FILE_FORMAT_FILTERS.map((fmt) => (
+                    <option key={fmt.id} value={fmt.id}>
+                      Arquivo: {fmt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro por Status de Vigência / Expiração */}
+              <div className="md:col-span-2">
+                <select
+                  value={expirationFilter}
+                  onChange={(e) => setExpirationFilter(e.target.value as LegalExpirationFilter)}
+                  data-testid="legal-library-expiration-select"
+                  aria-label="Filtrar por vigência ou expiração"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] dark:border-[#1E293B] text-xs sm:text-sm text-[#090F1A] dark:text-slate-100 bg-[#F8FAFC] dark:bg-[#090F1A] focus:border-[#10B981] focus:outline-none"
+                >
+                  {LEGAL_EXPIRATION_FILTERS.map((exp) => (
+                    <option key={exp.id} value={exp.id}>
+                      {exp.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro por Data Limite de Expiração / Revisão */}
+              <div className="md:col-span-2">
+                <input
+                  type="date"
+                  value={expirationBeforeDate}
+                  onChange={(e) => setExpirationBeforeDate(e.target.value)}
+                  data-testid="legal-library-expiration-date"
+                  aria-label="Filtrar documentos que expiram ou vencem revisão até a data"
+                  title="Expiração / revisão até esta data"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] dark:border-[#1E293B] text-xs font-mono text-[#090F1A] dark:text-slate-100 bg-[#F8FAFC] dark:bg-[#090F1A] focus:border-[#10B981] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Subcategoria de visto + Botões interativos de filtro por grupo */}
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
               <select
                 value={selectedVisaId}
                 onChange={(e) => handleSelectSpecificVisa(e.target.value)}
                 aria-label="Filtrar por subcategoria específica de visto"
-                className="px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] text-sm text-[#0B1F33] bg-[#FAF9F6] focus:bg-white focus:border-[#0B1F33] focus:outline-none md:w-72"
+                className="px-3.5 py-2 rounded-xl border border-[#CBD5E1] dark:border-[#1E293B] text-xs sm:text-sm text-[#090F1A] dark:text-slate-100 bg-[#F8FAFC] dark:bg-[#090F1A] focus:border-[#10B981] focus:outline-none md:w-72 shrink-0"
               >
                 <option value="all">Todas as subcategorias ({activeVisas.length})</option>
                 {activeVisas.map((v) => (
@@ -234,40 +331,39 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                   </option>
                 ))}
               </select>
-            </div>
 
-            {/* Botões interativos de filtro por grupo de visto */}
-            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por tipo de visto">
-              {activeCaseVisa && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectVisaGroup('meu_visto')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors border ${
-                    visaGroup === 'meu_visto'
-                      ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
-                      : 'bg-[#FAF9F6] text-[#0B1F33] border-[#DDD6C7] hover:border-[#C8A236]/60'
-                  }`}
-                >
-                  Meu Visto ({activeCaseVisa.codigo})
-                </button>
-              )}
-              {VISA_LIBRARY_GROUPS.map((grp) => {
-                const active = visaGroup === grp.id && (selectedVisaId === 'all' || grp.id === 'all');
-                return (
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por tipo de visto">
+                {activeCaseVisa && (
                   <button
-                    key={grp.id}
                     type="button"
-                    onClick={() => handleSelectVisaGroup(grp.id)}
+                    onClick={() => handleSelectVisaGroup('meu_visto')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors border ${
-                      active
-                        ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
-                        : 'bg-white text-[#4A5A6D] border-[#DDD6C7] hover:bg-[#FAF9F6] hover:text-[#0B1F33]'
+                      visaGroup === 'meu_visto'
+                        ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] border-transparent'
+                        : 'bg-[#F8FAFC] dark:bg-[#131F33] text-[#090F1A] dark:text-slate-200 border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#10B981]/60'
                     }`}
                   >
-                    {grp.label}
+                    Meu Visto ({activeCaseVisa.codigo})
                   </button>
-                );
-              })}
+                )}
+                {VISA_LIBRARY_GROUPS.map((grp) => {
+                  const active = visaGroup === grp.id && (selectedVisaId === 'all' || grp.id === 'all');
+                  return (
+                    <button
+                      key={grp.id}
+                      type="button"
+                      onClick={() => handleSelectVisaGroup(grp.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors border ${
+                        active
+                          ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] border-transparent'
+                          : 'bg-white dark:bg-[#131F33] text-[#475569] dark:text-slate-300 border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#10B981]/60'
+                      }`}
+                    >
+                      {grp.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {libraryView === 'acervo' && (
@@ -288,8 +384,8 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                         onClick={() => setJurisdictionFilter(jur.id)}
                         className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors border ${
                           jurisdictionFilter === jur.id
-                            ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
-                            : 'bg-white text-[#4A5A6D] border-[#DDD6C7] hover:bg-[#FAF9F6]'
+                            ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] border-transparent'
+                            : 'bg-white dark:bg-[#131F33] text-[#475569] dark:text-slate-300 border-[#E2E8F0] dark:border-[#1E293B]'
                         }`}
                       >
                         {jur.label}
@@ -301,7 +397,7 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                     <button
                       type="button"
                       onClick={handleResetFilters}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#CBD5E1] dark:border-[#1E293B] text-xs font-semibold text-[#090F1A] dark:text-slate-200 hover:bg-[#F8FAFC] dark:hover:bg-[#131F33] whitespace-nowrap shrink-0"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       Limpar filtros
@@ -317,8 +413,8 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                       onClick={() => setDocKind(kind.id)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
                         docKind === kind.id
-                          ? 'bg-[#0B1F33] text-[#E5C76B] font-semibold'
-                          : 'bg-[#FAF9F6] text-[#4A5A6D] hover:bg-[#EFECE4] hover:text-[#0B1F33]'
+                          ? 'bg-[#090F1A] dark:bg-[#10B981] text-[#34D399] dark:text-[#041C16] font-semibold'
+                          : 'bg-[#F8FAFC] dark:bg-[#131F33] text-[#475569] dark:text-slate-300 hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B]'
                       }`}
                     >
                       {kind.label}
@@ -333,10 +429,10 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
 
       {/* Ficha resumida do visto selecionado (quando houver filtro específico) */}
       {selectedVisaObject && (
-        <section className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_4px_18px_rgba(11,31,51,0.05)]">
-          <div className="bg-[#0B1F33] text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <section className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-[#090F1A] text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B] font-mono">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#34D399] font-mono">
                 Subcategoria {selectedVisaObject.codigo} · {selectedVisaObject.nomeEspanhol}
               </p>
               <h2 className="font-display text-lg font-bold text-white mt-0.5">{selectedVisaObject.nomePortugues}</h2>
@@ -349,25 +445,30 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/20 bg-white/10 text-xs font-semibold text-white hover:bg-white/20 whitespace-nowrap shrink-0"
               >
                 Página oficial SERMIG
-                <ExternalLink className="w-3.5 h-3.5 text-[#E5C76B]" />
+                <ExternalLink className="w-3.5 h-3.5 text-[#34D399]" />
               </a>
             )}
           </div>
           <div className="p-5 space-y-3">
-            <p className="text-sm text-[#4A5A6D] leading-relaxed">{selectedVisaObject.descricao}</p>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-[#4A5A6D] pt-3 border-t border-[#E5DFD2] font-mono tabular-nums">
+            <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">{selectedVisaObject.descricao}</p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-[#64748B] dark:text-slate-400 pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B] font-mono tabular-nums">
               <span>
-                <span className="font-sans">Pedido dentro do Chile:</span> <strong className="font-sans text-[#0B1F33]">{selectedVisaObject.permiteDentroChile}</strong>
+                <span className="font-sans">Pedido dentro do Chile:</span>{' '}
+                <strong className="font-sans text-[#090F1A] dark:text-white">{selectedVisaObject.permiteDentroChile}</strong>
               </span>
               <span>
-                <span className="font-sans">Vigência padrão:</span> <strong className="text-[#0B1F33]">{selectedVisaObject.vigenciaMeses} meses</strong>
+                <span className="font-sans">Vigência padrão:</span>{' '}
+                <strong className="text-[#090F1A] dark:text-white">{selectedVisaObject.vigenciaMeses} meses</strong>
               </span>
               <span>
-                <span className="font-sans">Permite trabalhar:</span> <strong className="font-sans text-[#0B1F33]">{selectedVisaObject.permiteTrabalhar ? 'Sim' : 'Não'}</strong>
+                <span className="font-sans">Permite trabalhar:</span>{' '}
+                <strong className="font-sans text-[#090F1A] dark:text-white">
+                  {selectedVisaObject.permiteTrabalhar ? 'Sim' : 'Não'}
+                </strong>
               </span>
               <span>
                 <span className="font-sans">Leva à Definitiva:</span>{' '}
-                <strong className="font-sans text-[#0B1F33]">
+                <strong className="font-sans text-[#090F1A] dark:text-white">
                   {selectedVisaObject.levaDefinitiva ? `Sim (${selectedVisaObject.mesesDefinitiva} meses)` : 'Não direto'}
                 </strong>
               </span>
@@ -380,19 +481,20 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
       {libraryView === 'acervo' && (
         <section className="space-y-4">
           {filteredSources.length === 0 ? (
-            <div className="bg-white border border-[#E5DFD2] rounded-2xl p-10 text-center space-y-3">
-              <BookOpen className="w-8 h-8 text-[#8C6D14] mx-auto" />
+            <div className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl p-10 text-center space-y-3">
+              <BookOpen className="w-8 h-8 text-[#10B981] mx-auto" />
               <div className="space-y-1">
-                <p className="text-sm font-bold text-[#0B1F33]">Nenhuma norma ou circular encontrada para esta combinação</p>
-                <p className="text-xs text-[#4A5A6D]">
-                  Tente remover um filtro de tipo de documento ou buscar por termos mais amplos como &quot;SERMIG&quot;, &quot;Mercosul&quot; ou &quot;apostila&quot;.
+                <p className="text-sm font-bold text-[#090F1A] dark:text-white">
+                  Nenhuma norma ou documento encontrado para esta combinação
+                </p>
+                <p className="text-xs text-[#64748B] dark:text-slate-400">
+                  Tente ajustar o tipo de arquivo, a data de expiração ou buscar por termos mais amplos como &quot;SERMIG&quot;, &quot;Mercosul&quot; ou &quot;apostila&quot;.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
-                style={{ backgroundColor: 'var(--color-primary)' }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] whitespace-nowrap shrink-0"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Mostrar todo o acervo
@@ -402,51 +504,65 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredSources.map((src) => {
                 const linkedVisas = getApplicableVisaCategories(src, activeVisas);
+                const fileMeta = resolveLegalSourceFileFormat(src);
+                const expMeta = resolveLegalSourceExpirationMeta(src);
                 return (
                   <article
                     key={src.id}
-                    className="bg-white border border-[#E5DFD2] rounded-2xl p-5 flex flex-col justify-between gap-4 hover:border-[#C8A236]/60 hover:shadow-[0_10px_28px_rgba(11,31,51,0.06)] transition-all"
+                    className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl p-5 flex flex-col justify-between gap-4 hover:border-[#10B981]/60 hover:shadow-md transition-all"
                   >
                     <div className="space-y-2.5">
-                      <p className="text-xs text-[#4A5A6D] font-mono tabular-nums">
-                        <span className={`font-sans ${getJurisdictionTextClass(src.pais)}`}>{getJurisdictionLabel(src.pais)}</span>
-                        <span aria-hidden="true"> · </span>
-                        <span className="font-sans">{src.tipo}</span>
-                        {src.numeroAno ? (
-                          <>
-                            <span aria-hidden="true"> · </span>
-                            {src.numeroAno}
-                          </>
-                        ) : null}
-                        <span aria-hidden="true"> · </span>
-                        <span
-                          className={`font-sans ${
-                            src.statusVigencia === 'Vigente'
-                              ? 'text-[#146B43] font-semibold'
-                              : src.statusVigencia === 'Revogada'
-                                ? 'text-[#A61C2B] font-semibold'
-                                : 'text-[#8C6D14] font-semibold'
-                          }`}
-                        >
-                          {src.statusVigencia}
-                        </span>
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <p className="text-[#64748B] dark:text-slate-400 font-mono tabular-nums">
+                          <span className={`font-sans ${getJurisdictionTextClass(src.pais)}`}>
+                            {getJurisdictionLabel(src.pais)}
+                          </span>
+                          <span aria-hidden="true"> · </span>
+                          <span className="font-sans">{src.tipo}</span>
+                          {src.numeroAno ? (
+                            <>
+                              <span aria-hidden="true"> · </span>
+                              {src.numeroAno}
+                            </>
+                          ) : null}
+                        </p>
 
-                      <h3 className="text-base font-bold text-[#0B1F33] leading-snug">{src.titulo}</h3>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F1F5F9] dark:bg-[#131F33] text-[#334155] dark:text-slate-300 text-[10px] font-mono font-semibold border border-[#E2E8F0] dark:border-[#1E293B]">
+                            <FileText className="w-3 h-3 text-[#10B981]" aria-hidden="true" />
+                            {fileMeta.badgeLabel}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              expMeta.statusBucket === 'expirada_revogada'
+                                ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                : expMeta.statusBucket === 'expirando_90d' || expMeta.statusBucket === 'revisao_pendente'
+                                  ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                            }`}
+                          >
+                            <CalendarClock className="w-3 h-3" aria-hidden="true" />
+                            {expMeta.label}
+                          </span>
+                        </div>
+                      </div>
 
-                      <p className="text-sm text-[#4A5A6D] leading-relaxed">
+                      <h3 className="text-base font-bold text-[#090F1A] dark:text-white leading-snug">{src.titulo}</h3>
+
+                      <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
                         {src.explicacaoCliente || src.resumoPortugues}
                       </p>
 
                       {src.artigos && (
-                        <p className="text-xs text-[#4A5A6D]">
-                          <strong className="font-semibold text-[#0B1F33]">Escopo:</strong> {src.artigos}
+                        <p className="text-xs text-[#64748B] dark:text-slate-400">
+                          <strong className="font-semibold text-[#090F1A] dark:text-slate-200">Escopo:</strong>{' '}
+                          {src.artigos}
                         </p>
                       )}
 
                       {linkedVisas.length > 0 && (
-                        <p className="text-xs text-[#4A5A6D]">
-                          <strong className="font-semibold text-[#0B1F33]">Aplicável a:</strong>{' '}
+                        <p className="text-xs text-[#64748B] dark:text-slate-400">
+                          <strong className="font-semibold text-[#090F1A] dark:text-slate-200">Aplicável a:</strong>{' '}
                           {linkedVisas
                             .slice(0, 4)
                             .map((v) => v.nomePortugues)
@@ -456,17 +572,21 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-[#F1EDE4] flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <span className="text-[#4A5A6D] font-mono tabular-nums text-[11px]">
-                        {src.ultimaVerificacao ? `Revisão: ${formatDateBR(src.ultimaVerificacao)}` : src.orgaoEmissor}
+                    <div className="pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="text-[#64748B] dark:text-slate-400 font-mono tabular-nums text-[11px]">
+                        {expMeta.effectiveExpirationIso
+                          ? `Validade/Revisão: ${formatDateBR(expMeta.effectiveExpirationIso)}`
+                          : src.ultimaVerificacao
+                            ? `Revisão: ${formatDateBR(src.ultimaVerificacao)}`
+                            : src.orgaoEmissor}
                       </span>
                       <div className="flex flex-wrap items-center gap-3">
                         <button
                           type="button"
                           onClick={() => setReadingSource(src)}
-                          className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] hover:text-[#8C6D14] hover:underline whitespace-nowrap shrink-0"
+                          className="inline-flex items-center gap-1 font-semibold text-[#090F1A] dark:text-[#34D399] hover:underline whitespace-nowrap shrink-0"
                         >
-                          <BookOpen className="w-3.5 h-3.5 text-[#8C6D14]" />
+                          <BookOpen className="w-3.5 h-3.5 text-[#10B981]" />
                           Ler guia &amp; artigos
                         </button>
                         {src.linkOficial && (
@@ -474,7 +594,7 @@ export const PortalBibliotecaLegal: React.FC<PortalBibliotecaLegalProps> = ({
                             href={src.linkOficial}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 font-medium text-[#4A5A6D] hover:text-[#0B1F33] hover:underline whitespace-nowrap shrink-0"
+                            className="inline-flex items-center gap-1 font-medium text-[#64748B] dark:text-slate-300 hover:text-[#090F1A] dark:hover:text-white hover:underline whitespace-nowrap shrink-0"
                           >
                             Fonte oficial
                             <ExternalLink className="w-3.5 h-3.5" />

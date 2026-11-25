@@ -168,8 +168,27 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             })}
           </nav>
 
-          {/* Zona 3: 1 CTA primário inconfundível + menu mobile */}
+          {/* Zona 3: Alternador de tema (Claro/Escuro) + CTA primário + menu mobile */}
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="navbar-theme-toggle"
+              onClick={toggleTheme}
+              aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
+              aria-pressed={isDark}
+              title={isDark ? 'Modo Claro' : 'Modo Escuro'}
+              className="inline-flex items-center justify-center gap-1.5 min-h-[40px] min-w-[40px] px-2.5 py-2 btn-radius border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] text-[#0F172A] dark:text-[#E2E8F0] hover:border-[#10B981]/60 hover:text-[#047857] dark:hover:text-[#34D399] transition-colors shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10B981]"
+            >
+              {isDark ? (
+                <Sun className="w-4 h-4 text-[#D4A853]" aria-hidden="true" />
+              ) : (
+                <Moon className="w-4 h-4 text-[#0F172A]" aria-hidden="true" />
+              )}
+              <span className="hidden xl:inline text-xs font-semibold">
+                {isDark ? 'Claro' : 'Escuro'}
+              </span>
+            </button>
+
             <button
               type="button"
               onMouseEnter={() => prefetchRouteChunk(headerCtaDest)}

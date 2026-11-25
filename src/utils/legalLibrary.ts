@@ -16,6 +16,20 @@ export type LegalDocKindFilter =
   | 'leis_decretos'
   | 'acordos';
 
+export type LegalFileFormatFilter =
+  | 'all'
+  | 'pdf'
+  | 'portal_oficial'
+  | 'texto_integral'
+  | 'circular_resolucao';
+
+export type LegalExpirationFilter =
+  | 'all'
+  | 'vigente'
+  | 'expirando_90d'
+  | 'expirada_revogada'
+  | 'revisao_pendente';
+
 export interface VisaLibraryGroup {
   id: VisaLibraryGroupId;
   label: string;
@@ -31,12 +45,42 @@ export const VISA_LIBRARY_GROUPS: VisaLibraryGroup[] = [
 ];
 
 export const LEGAL_DOC_KIND_FILTERS: { id: LegalDocKindFilter; label: string }[] = [
-  { id: 'all', label: 'Todos os Documentos' },
+  { id: 'all', label: 'Todos os Tipos' },
   { id: 'circulares_sermig', label: 'Circulares & Resoluções SERMIG' },
   { id: 'guias_portais', label: 'Guias & Portais Oficiais' },
   { id: 'leis_decretos', label: 'Leis & Decretos' },
   { id: 'acordos', label: 'Acordos & Apostila' },
 ];
+
+export const LEGAL_FILE_FORMAT_FILTERS: { id: LegalFileFormatFilter; label: string }[] = [
+  { id: 'all', label: 'Todos os Formatos' },
+  { id: 'pdf', label: 'PDF / Anexo Normativo' },
+  { id: 'portal_oficial', label: 'Link / Portal Oficial' },
+  { id: 'texto_integral', label: 'Texto Integral / Artigos' },
+  { id: 'circular_resolucao', label: 'Circular / Resolução' },
+];
+
+export const LEGAL_EXPIRATION_FILTERS: { id: LegalExpirationFilter; label: string }[] = [
+  { id: 'all', label: 'Qualquer vigência' },
+  { id: 'vigente', label: 'Vigentes' },
+  { id: 'expirando_90d', label: 'Expirando / Revisão em até 90d' },
+  { id: 'revisao_pendente', label: 'A verificar / Revisão pendente' },
+  { id: 'expirada_revogada', label: 'Expiradas, Alteradas ou Revogadas' },
+];
+
+export interface LegalSourceFileInfo {
+  format: Exclude<LegalFileFormatFilter, 'all'>;
+  badgeLabel: string;
+  hasPdf: boolean;
+}
+
+export interface LegalSourceExpirationInfo {
+  effectiveExpirationIso: string | null;
+  daysUntilExpiration: number | null;
+  statusBucket: Exclude<LegalExpirationFilter, 'all'>;
+  label: string;
+  isUrgent: boolean;
+}
 
 export interface ProceduralGuideStep {
   numero: string;
@@ -53,6 +97,123 @@ export function normalizeTextForSearch(value: string | undefined | null): string
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+function parseIsoDayUtc(iso?: string | null): number | null {
+  if (!iso || typeof iso !== 'string') return null;
+  const trimmed = iso.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const [y, m, d] = trimmed.split('-').map(Number);
+  const utc = Date.UTC(y, m - 1, d);
+  return Number.isFinite(utc) ? utc : null;
+}
+
+function addDaysIso(iso: string, days: number): string | null {
+  const base = parseIsoDayUtc(iso);
+  if (base === null) return null;
+  const dt = new Date(base + days * 86_400_000);
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Classifica o formato/tipo de arquivo predominante de uma norma da Biblioteca Legal.
+ */
+export function resolveLegalSourceFileFormat(source: LegalSource): LegalSourceFileInfo {
+  const hasPdf = Boolean(
+    source.arquivoPdfUrl?.trim() ||
+      (source.linkOficial && /\.pdf(\?|$)/i.test(source.linkOficial.trim())),
+  );
+  if (hasPdf) {
+    return { format: 'pdf', badgeLabel: 'PDF Normativo', hasPdf: true };
+  }
+  if (source.tipo === 'Circular' || source.tipo === 'Resolução') {
+    return { format: 'circular_resolucao', badgeLabel: source.tipo, hasPdf: false };
+  }
+  if (
+    Boolean(source.textoIntegral?.trim()) ||
+    (source.artigosEstruturados && source.artigosEstruturados.length > 0)
+  ) {
+    return { format: 'texto_integral', badgeLabel: 'Texto / Artigos', hasPdf: false };
+  }
+  return { format: 'portal_oficial', badgeLabel: 'Portal Web Oficial', hasPdf: false };
+}
+
+/**
+ * Calcula a data de expiração/revisão normativa efetiva e o status de vigência
+ * para filtragem em tempo real por data de expiração na Biblioteca Legal.
+ */
+export function resolveLegalSourceExpirationMeta(
+  source: LegalSource,
+  referenceDateIso?: string,
+): LegalSourceExpirationInfo {
+  const refIso = referenceDateIso || new Date().toISOString().slice(0, 10);
+  const refUtc = parseIsoDayUtc(refIso) ?? Date.now();
+
+  // Prioriza dataExpiracao explícita; se ausente, usa dataVigencia apenas se for uma data futura/limite ou calcula ciclo de revisão de 180d a partir de ultimaVerificacao
+  const explicitExp = parseIsoDayUtc(source.dataExpiracao) !== null ? source.dataExpiracao!.slice(0, 10) : null;
+  const reviewCycleExp =
+    !explicitExp && source.ultimaVerificacao
+      ? addDaysIso(source.ultimaVerificacao, 180)
+      : null;
+  const effectiveExpirationIso = explicitExp || reviewCycleExp || null;
+
+  let daysUntilExpiration: number | null = null;
+  if (effectiveExpirationIso) {
+    const expUtc = parseIsoDayUtc(effectiveExpirationIso);
+    if (expUtc !== null) {
+      daysUntilExpiration = Math.floor((expUtc - refUtc) / 86_400_000);
+    }
+  }
+
+  if (source.statusVigencia === 'Revogada' || source.statusVigencia === 'Alterada') {
+    return {
+      effectiveExpirationIso,
+      daysUntilExpiration,
+      statusBucket: 'expirada_revogada',
+      label: source.statusVigencia,
+      isUrgent: true,
+    };
+  }
+
+  if (explicitExp && daysUntilExpiration !== null && daysUntilExpiration < 0) {
+    return {
+      effectiveExpirationIso,
+      daysUntilExpiration,
+      statusBucket: 'expirada_revogada',
+      label: `Expirada há ${Math.abs(daysUntilExpiration)}d`,
+      isUrgent: true,
+    };
+  }
+
+  if (source.statusVigencia === 'A verificar' || (reviewCycleExp && daysUntilExpiration !== null && daysUntilExpiration < 0)) {
+    return {
+      effectiveExpirationIso,
+      daysUntilExpiration,
+      statusBucket: 'revisao_pendente',
+      label: 'Revisão pendente',
+      isUrgent: true,
+    };
+  }
+
+  if (daysUntilExpiration !== null && daysUntilExpiration <= 90) {
+    return {
+      effectiveExpirationIso,
+      daysUntilExpiration,
+      statusBucket: 'expirando_90d',
+      label: explicitExp
+        ? `Expira em ${daysUntilExpiration}d`
+        : `Revisão em ${daysUntilExpiration}d`,
+      isUrgent: daysUntilExpiration <= 30,
+    };
+  }
+
+  return {
+    effectiveExpirationIso,
+    daysUntilExpiration,
+    statusBucket: 'vigente',
+    label: explicitExp ? `Vigente até ${explicitExp.split('-').reverse().join('/')}` : 'Vigente',
+    isUrgent: false,
+  };
 }
 
 export function resolveActiveCaseVisaCategory(
@@ -147,6 +308,18 @@ export function matchesDocKindFilter(tipo: LegalSourceType, filter: LegalDocKind
   return true;
 }
 
+export function matchesFileFormatFilter(source: LegalSource, filter: LegalFileFormatFilter): boolean {
+  if (filter === 'all') return true;
+  const info = resolveLegalSourceFileFormat(source);
+  if (filter === 'pdf') return info.hasPdf;
+  if (filter === 'portal_oficial') return Boolean(source.linkOficial?.trim()) && !info.hasPdf;
+  if (filter === 'texto_integral') {
+    return Boolean(source.textoIntegral?.trim()) || (source.artigosEstruturados?.length ?? 0) > 0;
+  }
+  if (filter === 'circular_resolucao') return source.tipo === 'Circular' || source.tipo === 'Resolução';
+  return true;
+}
+
 export function filterLegalLibrarySources(params: {
   sources: LegalSource[];
   visaCategories: VisaCategory[];
@@ -155,9 +328,26 @@ export function filterLegalLibrarySources(params: {
   selectedVisaId: string;
   docKind: LegalDocKindFilter;
   activeCaseVisaId?: string;
+  fileFormat?: LegalFileFormatFilter;
+  expirationFilter?: LegalExpirationFilter;
+  expirationBeforeDate?: string;
+  referenceDateIso?: string;
 }): LegalSource[] {
-  const { sources, visaCategories, query, visaGroup, selectedVisaId, docKind, activeCaseVisaId } = params;
+  const {
+    sources,
+    visaCategories,
+    query,
+    visaGroup,
+    selectedVisaId,
+    docKind,
+    activeCaseVisaId,
+    fileFormat = 'all',
+    expirationFilter = 'all',
+    expirationBeforeDate = '',
+    referenceDateIso,
+  } = params;
   const q = normalizeTextForSearch(query.trim());
+  const limitUtc = parseIsoDayUtc(expirationBeforeDate);
 
   const targetVisaIds = new Set<string>();
   if (selectedVisaId && selectedVisaId !== 'all') {
@@ -172,6 +362,25 @@ export function filterLegalLibrarySources(params: {
 
   const matched = sources.filter((src) => {
     if (!matchesDocKindFilter(src.tipo, docKind)) return false;
+    if (!matchesFileFormatFilter(src, fileFormat)) return false;
+
+    if (expirationFilter !== 'all' || limitUtc !== null) {
+      const expMeta = resolveLegalSourceExpirationMeta(src, referenceDateIso);
+      if (expirationFilter === 'vigente') {
+        if (expMeta.statusBucket !== 'vigente' && expMeta.statusBucket !== 'expirando_90d') {
+          return false;
+        }
+      } else if (expirationFilter !== 'all' && expMeta.statusBucket !== expirationFilter) {
+        return false;
+      }
+
+      if (limitUtc !== null) {
+        const expUtc = parseIsoDayUtc(expMeta.effectiveExpirationIso);
+        if (expUtc === null || expUtc > limitUtc) {
+          return false;
+        }
+      }
+    }
 
     if (targetVisaIds.size > 0) {
       const applicableVisas = getApplicableVisaCategories(src, visaCategories);
@@ -187,8 +396,9 @@ export function filterLegalLibrarySources(params: {
         .map((v) => `${v.codigo} ${v.nomePortugues} ${v.nomeEspanhol}`)
         .join(' ');
       const artigosTxt = (src.artigosEstruturados || []).map((a) => `${a.numero} ${a.titulo} ${a.resumo}`).join(' ');
+      const formatInfo = resolveLegalSourceFileFormat(src);
       const haystack = normalizeTextForSearch(
-        `${src.titulo} ${src.tipo} ${src.pais} ${src.numeroAno} ${src.orgaoEmissor} ${src.artigos} ${src.explicacaoCliente} ${src.resumoPortugues} ${(src.tags || []).join(' ')} ${applicableNames} ${artigosTxt}`,
+        `${src.titulo} ${src.tipo} ${formatInfo.badgeLabel} ${src.pais} ${src.numeroAno} ${src.orgaoEmissor} ${src.artigos} ${src.explicacaoCliente} ${src.resumoPortugues} ${src.dataExpiracao || ''} ${src.dataVigencia || ''} ${(src.tags || []).join(' ')} ${applicableNames} ${artigosTxt}`,
       );
       const tokens = q.split(/\s+/).filter(Boolean);
       if (!tokens.every((tok) => haystack.includes(tok))) {

@@ -10,7 +10,7 @@ import type {
 } from '../types/domain';
 import type { DiagnosticResult } from './diagnosticEngine';
 
-export type PortalTabKey = 'processo' | 'documentos' | 'biblioteca' | 'financeiro' | 'suporte' | 'dados';
+export type PortalTabKey = 'processo' | 'documentos' | 'biblioteca' | 'simulador' | 'financeiro' | 'suporte' | 'dados';
 
 export interface ConsultancyPlanSpec {
   id: ConsultancyModality;
@@ -172,6 +172,7 @@ export interface PortalCapabilities {
   showSermigManagementByTeam: boolean;
   showDocumentChecklist: boolean;
   showLegalLibrary: boolean;
+  showSermigSimulator: boolean;
   showContractsAndFinance: boolean;
   showDirectChat: boolean;
   showRelocationSupport: boolean;
@@ -181,8 +182,10 @@ export interface PortalCapabilities {
 export function getPortalCapabilities(
   modality: ConsultancyModality,
   isPortalUnlocked: boolean,
+  simuladorSermigLiberado = false,
 ): PortalCapabilities {
   if (!isPortalUnlocked || modality === 'diagnostico_gratuito') {
+    const allowSimOnFree = Boolean(simuladorSermigLiberado);
     return {
       modality: 'diagnostico_gratuito',
       isPortalUnlocked: false,
@@ -193,12 +196,17 @@ export function getPortalCapabilities(
       showSermigManagementByTeam: false,
       showDocumentChecklist: false,
       showLegalLibrary: false,
+      showSermigSimulator: allowSimOnFree,
       showContractsAndFinance: false,
       showDirectChat: false,
       showRelocationSupport: false,
-      allowedTabs: ['processo'],
+      allowedTabs: allowSimOnFree ? ['processo', 'simulador'] : ['processo'],
     };
   }
+
+  const baseTabs: PortalTabKey[] = simuladorSermigLiberado
+    ? ['processo', 'documentos', 'biblioteca', 'simulador', 'financeiro', 'suporte', 'dados']
+    : ['processo', 'documentos', 'biblioteca', 'financeiro', 'suporte', 'dados'];
 
   if (modality === 'orientativa') {
     return {
@@ -211,10 +219,11 @@ export function getPortalCapabilities(
       showSermigManagementByTeam: false,
       showDocumentChecklist: true,
       showLegalLibrary: true,
+      showSermigSimulator: Boolean(simuladorSermigLiberado),
       showContractsAndFinance: true,
       showDirectChat: true,
       showRelocationSupport: false,
-      allowedTabs: ['processo', 'documentos', 'biblioteca', 'financeiro', 'suporte', 'dados'],
+      allowedTabs: baseTabs,
     };
   }
 
@@ -228,10 +237,11 @@ export function getPortalCapabilities(
     showSermigManagementByTeam: true,
     showDocumentChecklist: true,
     showLegalLibrary: true,
+    showSermigSimulator: Boolean(simuladorSermigLiberado),
     showContractsAndFinance: true,
     showDirectChat: true,
     showRelocationSupport: true,
-    allowedTabs: ['processo', 'documentos', 'biblioteca', 'financeiro', 'suporte', 'dados'],
+    allowedTabs: baseTabs,
   };
 }
 
@@ -637,12 +647,14 @@ export function resolveClientPortalAccess(params: {
       client.modalidadeConsultoria || activeCase?.modalidadeConsultoria,
     );
 
+    const simUnlocked = client.simuladorSermigLiberado === true;
+
     if (client.portalLiberado === true) {
       return {
         kind: 'active_paid',
         client,
         modality: effectiveModality,
-        capabilities: getPortalCapabilities(effectiveModality, true),
+        capabilities: getPortalCapabilities(effectiveModality, true, simUnlocked),
       };
     }
 
@@ -651,7 +663,7 @@ export function resolveClientPortalAccess(params: {
       client,
       requestedModality: effectiveModality,
       basicDiagnostic: latestLead ? buildBasicLeadSummary(latestLead) : null,
-      capabilities: getPortalCapabilities('diagnostico_gratuito', false),
+      capabilities: getPortalCapabilities('diagnostico_gratuito', false, simUnlocked),
     };
   }
 

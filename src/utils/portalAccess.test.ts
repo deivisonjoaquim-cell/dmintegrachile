@@ -169,6 +169,28 @@ describe('portalAccess — resolveClientPortalAccess', () => {
     });
     assert.equal(inactiveUserRes.kind, 'inactive');
   });
+
+  it('gates SERMIG Simulator strictly behind admin-released simuladorSermigLiberado flag', () => {
+    const lockedSim = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'ativo' }),
+      client: makeClient({ portalLiberado: true, simuladorSermigLiberado: false }),
+    });
+    assert.equal(lockedSim.kind, 'active_paid');
+    if (lockedSim.kind === 'active_paid') {
+      assert.equal(lockedSim.capabilities.showSermigSimulator, false);
+      assert.equal(lockedSim.capabilities.allowedTabs.includes('simulador'), false);
+    }
+
+    const releasedSim = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'ativo' }),
+      client: makeClient({ portalLiberado: true, simuladorSermigLiberado: true }),
+    });
+    assert.equal(releasedSim.kind, 'active_paid');
+    if (releasedSim.kind === 'active_paid') {
+      assert.equal(releasedSim.capabilities.showSermigSimulator, true);
+      assert.equal(releasedSim.capabilities.allowedTabs.includes('simulador'), true);
+    }
+  });
 });
 
 describe('portalAccess — basic diagnostic gating', () => {

@@ -469,6 +469,7 @@ service cloud.firestore {
         && data.portalLiberado is bool
         && data.statusAcessoPortal in ['Não solicitado', 'Pendente liberação', 'Liberado']
         && (!('modalidadeConsultoria' in data) || data.modalidadeConsultoria == null || data.modalidadeConsultoria == '' || data.modalidadeConsultoria in ['orientativa', 'completa'])
+        && isOptBool(data, 'simuladorSermigLiberado')
         && isOptString(data, 'cpf', 20)
         && isOptString(data, 'userId', 128)
         && isOptString(data, 'observacoes', 10000);

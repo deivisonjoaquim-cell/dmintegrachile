@@ -58,4 +58,88 @@ describe('legalLibrary — Portal Biblioteca Legal search & visa filtering', () 
     const linked = getApplicableVisaCategories(mercosulSource, SEED_VISA_CATEGORIES);
     assert.ok(linked.some((v) => v.codigo === '15'));
   });
+
+  it('filters legal library documents by file type (PDF vs Portal) and expiration date in real time', () => {
+    const customSources = [
+      {
+        ...SEED_LEGAL_SOURCES[0],
+        id: 'doc_pdf_expiring',
+        titulo: 'Circular SERMIG PDF Temporária 2026',
+        arquivoPdfUrl: 'https://example.com/circular-2026.pdf',
+        dataExpiracao: '2026-12-15',
+        statusVigencia: 'Vigente' as const,
+      },
+      {
+        ...SEED_LEGAL_SOURCES[1],
+        id: 'doc_portal_expired',
+        titulo: 'Decreto Revogado Exemplo',
+        arquivoPdfUrl: undefined,
+        dataExpiracao: '2025-01-10',
+        statusVigencia: 'Revogada' as const,
+      },
+      {
+        ...SEED_LEGAL_SOURCES[2],
+        id: 'doc_portal_long',
+        titulo: 'Norma Vigente Longo Prazo',
+        arquivoPdfUrl: undefined,
+        dataExpiracao: '2028-06-30',
+        statusVigencia: 'Vigente' as const,
+      },
+    ];
+
+    // 1. Filter by PDF file format
+    const pdfOnly = filterLegalLibrarySources({
+      sources: customSources,
+      visaCategories: SEED_VISA_CATEGORIES,
+      query: '',
+      visaGroup: 'all',
+      selectedVisaId: 'all',
+      docKind: 'all',
+      fileFormat: 'pdf',
+      referenceDateIso: '2026-11-25',
+    });
+    assert.deepEqual(pdfOnly.map((s) => s.id), ['doc_pdf_expiring']);
+
+    // 2. Filter by expiring within 90 days
+    const expiringSoon = filterLegalLibrarySources({
+      sources: customSources,
+      visaCategories: SEED_VISA_CATEGORIES,
+      query: '',
+      visaGroup: 'all',
+      selectedVisaId: 'all',
+      docKind: 'all',
+      expirationFilter: 'expirando_90d',
+      referenceDateIso: '2026-11-25',
+    });
+    assert.deepEqual(expiringSoon.map((s) => s.id), ['doc_pdf_expiring']);
+
+    // 3. Filter by expired/revoked
+    const expiredOnly = filterLegalLibrarySources({
+      sources: customSources,
+      visaCategories: SEED_VISA_CATEGORIES,
+      query: '',
+      visaGroup: 'all',
+      selectedVisaId: 'all',
+      docKind: 'all',
+      expirationFilter: 'expirada_revogada',
+      referenceDateIso: '2026-11-25',
+    });
+    assert.deepEqual(expiredOnly.map((s) => s.id), ['doc_portal_expired']);
+
+    // 4. Filter by explicit expirationBeforeDate limit
+    const expiringBeforeEndOf2026 = filterLegalLibrarySources({
+      sources: customSources,
+      visaCategories: SEED_VISA_CATEGORIES,
+      query: '',
+      visaGroup: 'all',
+      selectedVisaId: 'all',
+      docKind: 'all',
+      expirationBeforeDate: '2026-12-31',
+      referenceDateIso: '2026-11-25',
+    });
+    const ids = new Set(expiringBeforeEndOf2026.map((s) => s.id));
+    assert.equal(ids.has('doc_pdf_expiring'), true);
+    assert.equal(ids.has('doc_portal_expired'), true);
+    assert.equal(ids.has('doc_portal_long'), false);
+  });
 });
