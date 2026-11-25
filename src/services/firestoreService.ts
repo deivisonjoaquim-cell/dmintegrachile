@@ -113,8 +113,11 @@ function isEffectiveAdmin(role?: UserRole): boolean {
 // =============================================================================
 const LEGACY_IMAGE_REPLACEMENTS: Record<string, string> = {
   '/src/assets/images/quem_somos_founder_1794944012517.jpg': '/src/assets/images/quem_somos_founder_1794993847940.jpg',
-  '/src/assets/images/about_consultoria_office_1794944011861.jpg': '/src/assets/images/about_consultoria_office_1794997278170.jpg',
-  '/src/assets/images/service_relocation_chile_1794944013551.jpg': '/src/assets/images/service_relocation_chile_1794997277886.jpg',
+  '/src/assets/images/hero_santiago_andes_1794944011226.jpg': '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
+  '/src/assets/images/about_consultoria_office_1794944011861.jpg': '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
+  '/src/assets/images/about_consultoria_office_1794997278170.jpg': '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
+  '/src/assets/images/service_relocation_chile_1794944013551.jpg': '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
+  '/src/assets/images/service_relocation_chile_1794997277886.jpg': '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
 };
 const LEGACY_FORMACAO_VALUES = new Set([
   'Especialização em Direito Migratório Comparado Brasil–Chile, Gestão de Mobilidade Global e Conformidade LGPD.',

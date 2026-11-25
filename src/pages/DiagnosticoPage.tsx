@@ -1291,16 +1291,16 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     <MotionConfig reducedMotion="user">
       <div className="py-8 lg:py-12 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
-        {/* Cabeçalho Executivo em Azul Marinho & Ouro */}
-        <section className="rounded-2xl overflow-hidden border border-[#1E3349] bg-[#0B1F33] text-white shadow-[0_14px_34px_rgba(11,31,51,0.12)]">
+        {/* Cabeçalho Executivo em Midnight Obsidian & Esmeralda */}
+        <section className="rounded-2xl overflow-hidden border border-white/10 bg-[#090F1A] text-white shadow-[0_16px_38px_rgba(9,15,26,0.16)]">
           <BrandRibbon className="h-[3px] w-full" />
           <div className="px-6 sm:px-8 py-6 sm:py-7 space-y-5">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
               <div className="space-y-2 max-w-2xl">
-                <p className="text-xs font-semibold text-[#E6C55A]">
+                <p className="text-xs font-semibold text-[#34D399]">
                   Diagnóstico completo em 6 etapas · Ley Nº 21.325 &amp; Acordo Mercosul · Proteção LGPD
                 </p>
-                <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.12] text-balance">
+                <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.1] text-balance">
                   Diagnóstico Inteligente de Elegibilidade Migratória
                 </h1>
                 <p className="text-sm text-slate-300 leading-relaxed">
@@ -1312,7 +1312,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 <button
                   type="button"
                   onClick={() => setOnboardingOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border border-[#E6C55A]/35 bg-white/[0.07] hover:bg-white/[0.13] text-xs font-semibold text-[#E6C55A] transition-colors whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border border-[#10B981]/35 bg-white/[0.06] hover:bg-white/[0.12] text-xs font-semibold text-[#34D399] transition-colors whitespace-nowrap shrink-0"
                 >
                   <Compass className="w-3.5 h-3.5 shrink-0" />
                   Guia rápido
@@ -1321,7 +1321,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   <p className="text-xs font-medium text-slate-300">
                     Progresso da análise
                   </p>
-                  <p className="font-mono text-2xl font-bold text-[#E6C55A] tabular-nums">
+                  <p className="font-mono text-2xl font-bold text-[#34D399] tabular-nums">
                     {adaptiveMeta.percentualProgresso}%
                   </p>
                   <p className="text-[11px] text-slate-300 tabular-nums">
@@ -1341,7 +1341,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               aria-valuemax={100}
             >
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-[#C8A236] via-[#E6C55A] to-[#C8A236]"
+                className="h-full rounded-full bg-gradient-to-r from-[#047857] via-[#10B981] to-[#34D399]"
                 initial={false}
                 animate={{ width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%` }}
                 transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
@@ -1370,9 +1370,9 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     }}
                     className={`px-3 py-2.5 rounded-xl border text-left text-xs transition-colors duration-200 ${
                       isCurrent
-                        ? 'bg-white text-[#0B1F33] border-[#C8A236] font-bold shadow-[0_6px_18px_rgba(200,162,54,0.22)]'
+                        ? 'bg-white text-[#090F1A] border-[#10B981] font-bold shadow-[0_6px_18px_rgba(16,185,129,0.24)]'
                         : isDone
-                          ? 'bg-white/10 text-white border-emerald-400/40 hover:bg-white/15 font-medium'
+                          ? 'bg-white/10 text-white border-[#10B981]/45 hover:bg-white/15 font-medium'
                           : isReachable
                             ? 'bg-white/[0.06] text-slate-200 border-white/15 hover:bg-white/10'
                             : 'bg-white/[0.03] text-slate-500 border-white/10 cursor-not-allowed'
@@ -1380,7 +1380,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   >
                     <span className="flex items-center justify-between gap-1 text-[10px] font-mono tabular-nums opacity-80">
                       <span>0{item.num}</span>
-                      {isDone && <Check className="w-3 h-3 text-emerald-400" />}
+                      {isDone && <Check className="w-3 h-3 text-[#34D399]" />}
                     </span>
                     <span className="block truncate mt-0.5">{item.title}</span>
                   </motion.button>
@@ -1393,10 +1393,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         {/* Barra Compacta de Radar ao Vivo em Telas Mobile (< lg) */}
         <div
           data-onboarding-target="live-radar-mobile"
-          className="lg:hidden rounded-xl border border-[#1E3349] bg-[#0B1F33] text-white px-4 py-3 flex items-center justify-between gap-3"
+          className="lg:hidden rounded-xl border border-white/10 bg-[#090F1A] text-white px-4 py-3 flex items-center justify-between gap-3"
         >
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#E6C55A]">
+            <p className="text-xs font-semibold text-[#34D399]">
               Radar ao vivo · Tendência SERMIG
             </p>
             <p className="text-xs font-bold text-white truncate mt-0.5">
@@ -1441,7 +1441,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           <form
             data-onboarding-target="wizard-form"
             onSubmit={handleSubmit}
-            className="lg:col-span-8 bg-white border border-[#E5DFD2] rounded-2xl p-6 sm:p-8 space-y-6 shadow-[0_6px_24px_rgba(11,31,51,0.04)]"
+            className="lg:col-span-8 bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl p-6 sm:p-8 space-y-6 shadow-[0_6px_24px_rgba(9,15,26,0.04)]"
           >
             {/* Anti-spam Honeypot */}
             <div className="hidden" aria-hidden="true">
@@ -1508,21 +1508,21 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
             {/* Faixa contextual da etapa atual (por que o SERMIG avalia estes dados) */}
             {STEP_SERMIG_CONTEXT[step] && (
-              <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[#8C6D14]">
+                  <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
                     Etapa 0{step}/06 · {STEP_SERMIG_CONTEXT[step].foco}
                   </p>
-                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
                     {STEP_SERMIG_CONTEXT[step].justificativa}
                   </p>
                 </div>
                 {livePreview.subcategoriaLider && (
-                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E5DFD2] sm:max-w-[270px]">
-                    <p className="text-[11px] font-medium text-slate-500">
+                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E2E8F0] dark:border-[#1E293B] sm:max-w-[270px]">
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                       Rota líder atual
                     </p>
-                    <p className="text-xs font-bold text-[#0B1F33] leading-snug">
+                    <p className="text-xs font-bold text-[#090F1A] dark:text-white leading-snug">
                       {livePreview.subcategoriaLider.nomePortugues}
                     </p>
                   </div>
@@ -1543,19 +1543,19 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {step === 1 && (
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <h2 className="text-lg font-semibold text-slate-900">1. Identificação e contato</h2>
-                  <p className="text-xs text-slate-500">
+                  <h2 className="text-lg font-semibold text-[#090F1A] dark:text-white">1. Identificação e contato</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Privacidade (Legislação Brasileira — LGPD, Lei nº 13.709/2018): não solicitamos CPF nem número de passaporte nesta triagem inicial.
                   </p>
                 </div>
 
                 {/* Atalho opcional de cenários frequentes (pré-configura etapas seguintes mantendo seus dados de contato) */}
-                <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-3.5 space-y-2.5">
+                <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] p-3.5 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-[#0B1F33]">
+                    <p className="text-xs font-semibold text-[#090F1A] dark:text-white">
                       Cenários frequentes (atalho opcional)
                     </p>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
                       Você poderá ajustar qualquer detalhe nas próximas etapas
                     </span>
                   </div>
@@ -1572,14 +1572,14 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                           onClick={() => updateAnswers(preset.patch)}
                           className={`text-left px-3 py-2.5 rounded-lg border transition-colors ${
                             isMatched
-                              ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
-                              : 'bg-white text-slate-800 border-[#E5DFD2] hover:border-[#C8A236]'
+                              ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] border-[#090F1A] dark:border-[#10B981]'
+                              : 'bg-white dark:bg-[#0D1524] text-slate-800 dark:text-slate-100 border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]'
                           }`}
                         >
                           <span className="block text-xs font-semibold leading-snug">{preset.label}</span>
                           <span
                             className={`block text-[11px] mt-0.5 ${
-                              isMatched ? 'text-[#E6C55A]' : 'text-slate-500'
+                              isMatched ? 'text-[#34D399] dark:text-[#041C16]/80' : 'text-slate-500 dark:text-slate-400'
                             }`}
                           >
                             {preset.detail}

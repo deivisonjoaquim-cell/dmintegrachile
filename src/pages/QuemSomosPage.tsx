@@ -30,11 +30,11 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
   return (
     <div className="py-12 lg:py-16 bg-[var(--color-bg)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
-        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden">
+        <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius overflow-hidden shadow-[0_8px_28px_rgba(9,15,26,0.04)]">
           <BrandRibbon className="h-[2.5px] w-full" />
           <div className="p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             <div className="lg:col-span-5">
-              <div className="aspect-[3/4] max-w-md mx-auto card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#F1EDE4] dark:bg-[#11263D]">
+              <div className="aspect-[3/4] max-w-md mx-auto card-radius overflow-hidden border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F1F5F9] dark:bg-[#131F33]">
                 {quemSomos?.imagemUrl ? (
                   <OptimizedImage
                     src={quemSomos.imagemUrl}
@@ -53,15 +53,15 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
 
             <div className="lg:col-span-7 space-y-5">
               <div className="flex items-center gap-3">
-                <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
+                <span className="h-[2px] w-7 bg-[#10B981]" aria-hidden="true" />
                 <p className="brand-kicker">
                   Institucional · {empresa.nome_empresa}
                 </p>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-[#0B1F33] dark:text-white text-balance">
+              <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#090F1A] dark:text-white text-balance">
                 {quemSomos?.titulo || 'Quem Somos'}
               </h1>
-              <p className="text-base text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+              <p className="text-base text-[#475569] dark:text-slate-300 leading-relaxed">
                 {quemSomos?.subtitulo}
               </p>
               {quemSomos?.conteudoHtml && (
@@ -75,18 +75,17 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => onNavigate('/diagnostico')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white whitespace-nowrap hover:opacity-95 transition-opacity"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white bg-[#090F1A] dark:bg-[#10B981] dark:text-[#041C16] whitespace-nowrap hover:bg-[#132036] dark:hover:bg-[#34D399] transition-colors"
                 >
                   Iniciar Diagnóstico Gratuito
-                  <ArrowRight className="w-4 h-4 text-[#E5C76B]" />
+                  <ArrowRight className="w-4 h-4 text-[#34D399] dark:text-[#041C16]" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setLawModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] text-sm font-semibold text-[#0B1F33] dark:text-slate-100 hover:bg-[#F7F5F0] dark:hover:bg-[#183350] whitespace-nowrap transition-colors"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius border border-[#CBD5E1] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-sm font-semibold text-[#090F1A] dark:text-slate-100 hover:bg-[#F8FAFC] dark:hover:bg-[#1A2942] whitespace-nowrap transition-colors"
                 >
-                  <BookOpen className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
+                  <BookOpen className="w-4 h-4 text-[#047857] dark:text-[#34D399]" />
                   Entenda a legislação
                 </button>
               </div>
@@ -94,11 +93,11 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Faixa Executiva Marinho & Ouro — Pilares Institucionais */}
-        <section className="rounded-2xl bg-[#0B1F33] text-white border border-[#1E3B5A] overflow-hidden">
-          <div className="px-6 sm:px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-white/10">
+        {/* Faixa Executiva Obsidian & Esmeralda — Pilares Institucionais */}
+        <section className="rounded-2xl bg-[#090F1A] text-white border border-white/10 overflow-hidden shadow-[0_18px_40px_rgba(9,15,26,0.16)]">
+          <div className="px-6 sm:px-8 py-7 grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-white/10">
             <div className="pt-1 md:pt-0">
-              <p className="text-xs font-semibold text-[#E5C76B]">
+              <p className="text-xs font-semibold font-mono text-[#34D399]">
                 01. Base Jurídica Sólida
               </p>
               <p className="font-display text-lg font-bold text-white mt-1">
@@ -109,7 +108,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </p>
             </div>
             <div className="pt-4 md:pt-0 md:pl-6">
-              <p className="text-xs font-semibold text-[#E5C76B]">
+              <p className="text-xs font-semibold font-mono text-[#D4A853]">
                 02. Atuação Brasil – Chile
               </p>
               <p className="font-display text-lg font-bold text-white mt-1">
@@ -120,7 +119,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </p>
             </div>
             <div className="pt-4 md:pt-0 md:pl-6">
-              <p className="text-xs font-semibold text-[#E5C76B]">
+              <p className="text-xs font-semibold font-mono text-[#34D399]">
                 03. Privacidade &amp; Ética
               </p>
               <p className="font-display text-lg font-bold text-white mt-1">
@@ -134,14 +133,14 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
         </section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius p-6">
+          <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
-              <GraduationCap className="w-5 h-5 text-[#0B1F33] dark:text-[#E5C76B]" />
-              <h2 className="text-base font-bold text-[#0B1F33] dark:text-white font-brand-sans">
+              <GraduationCap className="w-5 h-5 text-[#090F1A] dark:text-[#34D399]" />
+              <h2 className="text-base font-bold text-[#090F1A] dark:text-white font-brand-sans">
                 {meta.formacaoTitulo || 'Formação Acadêmica e Qualificação Jurídica'}
               </h2>
             </div>
-            <div className="space-y-2 text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+            <div className="space-y-2 text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
               {(
                 meta.formacao ||
                 'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.'
@@ -155,14 +154,14 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius p-6">
+          <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
-              <Briefcase className="w-5 h-5 text-[#146B43] dark:text-emerald-400" />
-              <h2 className="text-base font-bold text-[#0B1F33] dark:text-white font-brand-sans">
+              <Briefcase className="w-5 h-5 text-[#047857] dark:text-[#34D399]" />
+              <h2 className="text-base font-bold text-[#090F1A] dark:text-white font-brand-sans">
                 {meta.experienciaTitulo || 'Especialização e Escopo de Atuação'}
               </h2>
             </div>
-            <div className="space-y-2 text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+            <div className="space-y-2 text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
               {(
                 meta.experiencia ||
                 'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.'
@@ -176,42 +175,42 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius p-6">
+          <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
-              <Shield className="w-5 h-5 text-[#0B1F33] dark:text-[#E5C76B]" />
-              <h2 className="text-base font-bold text-[#0B1F33] dark:text-white font-brand-sans">Missão e Ética</h2>
+              <Shield className="w-5 h-5 text-[#090F1A] dark:text-[#34D399]" />
+              <h2 className="text-base font-bold text-[#090F1A] dark:text-white font-brand-sans">Missão e Ética</h2>
             </div>
-            <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+            <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
               {meta.missao || 'Conduzir cada processo com transparência documental, cumprimento rigoroso de prazos e respeito integral à LGPD (Lei brasileira nº 13.709/2018).'}
             </p>
           </div>
 
-          <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius p-6">
+          <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius p-6">
             <div className="flex items-center gap-2.5 mb-3">
-              <Award className="w-5 h-5 text-[#C8A236] dark:text-[#E5C76B]" />
-              <h2 className="text-base font-bold text-[#0B1F33] dark:text-white font-brand-sans">Credenciais e Conformidade</h2>
+              <Award className="w-5 h-5 text-[#D4A853]" />
+              <h2 className="text-base font-bold text-[#090F1A] dark:text-white font-brand-sans">Credenciais e Conformidade</h2>
             </div>
-            <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+            <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
               {meta.credenciais || 'Atuação alinhada à Ley chilena Nº 21.325, ao Decreto chileno Nº 177/2022, ao Acordo Mercosul e à LGPD (Lei brasileira nº 13.709/2018).'}
             </p>
           </div>
         </div>
 
         {timeline.length > 0 && (
-          <section className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius p-6 sm:p-8 space-y-5">
+          <section className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius p-6 sm:p-8 space-y-5">
             <div>
               <p className="brand-kicker">Trajetória</p>
-              <h2 className="text-2xl font-bold text-[#0B1F33] dark:text-white mt-0.5">Marcos da Nossa História</h2>
-              <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-1">Evolução metodológica e institucional Brasil–Chile</p>
+              <h2 className="font-display text-2xl font-bold text-[#090F1A] dark:text-white mt-0.5">Marcos da Nossa História</h2>
+              <p className="text-xs text-[#475569] dark:text-slate-400 mt-1">Evolução metodológica e institucional Brasil–Chile</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {timeline.map((m, idx) => (
-                <div key={idx} className="p-4 card-radius bg-[#F7F5F0] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] space-y-1.5">
-                  <p className="text-lg font-bold tabular-nums text-[#8C6D14] dark:text-[#E5C76B]">
+                <div key={idx} className="p-4 card-radius bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B] space-y-1.5">
+                  <p className="text-lg font-bold font-mono tabular-nums text-[#047857] dark:text-[#34D399]">
                     {m.ano}
                   </p>
-                  <p className="text-sm font-bold text-[#0B1F33] dark:text-white">{m.titulo}</p>
-                  <p className="text-xs text-[#4A5A6D] dark:text-slate-300 leading-relaxed">{m.descricao}</p>
+                  <p className="text-sm font-bold text-[#090F1A] dark:text-white">{m.titulo}</p>
+                  <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">{m.descricao}</p>
                 </div>
               ))}
             </div>

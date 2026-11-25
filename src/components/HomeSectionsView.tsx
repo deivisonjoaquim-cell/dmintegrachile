@@ -30,8 +30,12 @@ import {
 import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
 import { OptimizedImage } from './OptimizedImage';
+import { HeroShowcase } from './home/HeroShowcase';
+import { InteractiveJourneyShowcase } from './home/InteractiveJourneyShowcase';
 import { RouteComparatorCard } from './home/RouteComparatorCard';
 import { TechArchitectureBento } from './home/TechArchitectureBento';
+
+const ANDES_HORIZON_BANNER = '/src/assets/images/andes_horizon_banner_1795635435326.jpg';
 
 export interface ServiceItemMeta {
   numero: string;
@@ -52,19 +56,19 @@ interface HomeSectionsViewProps {
   previewMode?: boolean;
 }
 
-const EASE_EXECUTIVE = [0.22, 1, 0.36, 1] as const;
+const EASE_EXECUTIVE = [0.16, 1, 0.3, 1] as const;
 
 function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' | 'suave' | 'escuro-primario') {
   const active = tema || defaultTheme;
   if (active === 'escuro-primario') {
     return {
       isDark: true,
-      sectionStyle: { backgroundColor: 'var(--color-primary)' } as React.CSSProperties,
+      sectionStyle: { backgroundColor: '#090F1A' } as React.CSSProperties,
       sectionClass: 'text-white',
       headingClass: 'text-white',
-      subClass: 'text-slate-200',
-      eyebrowClass: 'text-[#E5C76B]',
-      cardClass: 'bg-white/[0.06] border border-white/15 text-white hover:bg-white/[0.09] transition-all duration-200',
+      subClass: 'text-slate-300',
+      eyebrowClass: 'text-[#34D399]',
+      cardClass: 'bg-white/[0.05] border border-white/12 text-white hover:bg-white/[0.08] transition-all duration-200',
     };
   }
   if (active === 'suave') {
@@ -72,22 +76,22 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       isDark: false,
       sectionStyle: { backgroundColor: 'var(--color-bg)' } as React.CSSProperties,
       sectionClass: 'text-[var(--color-text)]',
-      headingClass: 'text-[#0B1F33] dark:text-white',
-      subClass: 'text-[#4A5A6D] dark:text-slate-300',
-      eyebrowClass: 'text-[#8C6D14] dark:text-[#E5C76B]',
+      headingClass: 'text-[#090F1A] dark:text-white',
+      subClass: 'text-[#475569] dark:text-slate-300',
+      eyebrowClass: 'text-[#047857] dark:text-[#34D399]',
       cardClass:
-        'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 transition-colors duration-200',
+        'bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]/45 dark:hover:border-[#34D399]/50 transition-colors duration-200',
     };
   }
   return {
     isDark: false,
     sectionStyle: { backgroundColor: 'var(--color-surface)' } as React.CSSProperties,
-    sectionClass: 'border-y border-[#E5DFD2] dark:border-[#1C324B] text-[var(--color-text)]',
-    headingClass: 'text-[#0B1F33] dark:text-white',
-    subClass: 'text-[#4A5A6D] dark:text-slate-300',
-    eyebrowClass: 'text-[#8C6D14] dark:text-[#E5C76B]',
+    sectionClass: 'border-y border-[#E2E8F0] dark:border-[#1E293B] text-[var(--color-text)]',
+    headingClass: 'text-[#090F1A] dark:text-white',
+    subClass: 'text-[#475569] dark:text-slate-300',
+    eyebrowClass: 'text-[#047857] dark:text-[#34D399]',
     cardClass:
-      'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 transition-colors duration-200',
+      'bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]/45 dark:hover:border-[#34D399]/50 transition-colors duration-200',
   };
 }
 
@@ -190,10 +194,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 ${
                   theme.isDark
                     ? 'border-white/25 text-white hover:bg-white/10'
-                    : 'border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] text-[#0B1F33] dark:text-[#E5C76B] hover:border-[#C8A236]/80'
+                    : 'border-[#CBD5E1] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-[#090F1A] dark:text-[#34D399] hover:border-[#047857]/60'
                 }`}
               >
-                <MapPin className="w-3.5 h-3.5 text-[#146B43] dark:text-emerald-400" />
+                <MapPin className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399]" />
                 {locale === 'es-CL' ? 'Mapa en Chile' : 'Mapa no Chile'}
               </button>
               <button
@@ -202,7 +206,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 onFocus={() => prefetchRouteChunk('/parceiros')}
                 onClick={() => navigateAction(sec.ctaDestino || '/parceiros')}
                 className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                  theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33] dark:text-[#E5C76B]'
+                  theme.isDark ? 'text-[#34D399]' : 'text-[#090F1A] dark:text-[#34D399]'
                 }`}
               >
                 {translateText(sec.ctaTexto) || t.sections.partnersDefaultCta}
@@ -225,13 +229,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     delay: Math.min(idx * 0.06, 0.24),
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-all duration-200 hover:border-[#C8A236]/80 hover:-translate-y-0.5`}
+                  className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-all duration-200 hover:border-[#047857]/60 hover:-translate-y-0.5`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 text-xs mb-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         {safeLogo && (
-                          <div className="h-10 w-16 rounded-md bg-white border border-[#E5DFD2] flex items-center justify-center overflow-hidden shrink-0">
+                          <div className="h-10 w-16 rounded-md bg-white border border-[#E2E8F0] flex items-center justify-center overflow-hidden shrink-0">
                             <OptimizedImage
                               src={safeLogo}
                               alt={p.nome}
@@ -241,16 +245,16 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                             />
                           </div>
                         )}
-                        <span className={`font-semibold truncate ${theme.isDark ? 'text-[#E5C76B]' : 'text-[#8C6D14] dark:text-[#E5C76B]'}`}>
+                        <span className={`font-semibold truncate ${theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'}`}>
                           {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
                         </span>
                       </div>
                       <span
                         className={`inline-flex items-center gap-1 font-mono font-semibold tabular-nums shrink-0 ${
-                          theme.isDark ? 'text-white' : 'text-[#0B1F33] dark:text-slate-100'
+                          theme.isDark ? 'text-white' : 'text-[#090F1A] dark:text-slate-100'
                         }`}
                       >
-                        <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                        <Star className="w-3.5 h-3.5 fill-[#D4A853] text-[#D4A853]" />
                         {Number(p.avaliacao || 5).toFixed(1)}/5
                       </span>
                     </div>
@@ -260,12 +264,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
                   <div
                     className={`pt-3.5 border-t flex items-center justify-between gap-3 ${
-                      theme.isDark ? 'border-white/15' : 'border-[#F1EDE4] dark:border-[#1C324B]'
+                      theme.isDark ? 'border-white/12' : 'border-[#E2E8F0] dark:border-[#1E293B]'
                     }`}
                   >
                     <span
                       className={`inline-flex items-center gap-1 text-xs truncate ${
-                        theme.isDark ? 'text-slate-300' : 'text-[#4A5A6D] dark:text-slate-300'
+                        theme.isDark ? 'text-slate-300' : 'text-[#475569] dark:text-slate-300'
                       }`}
                     >
                       <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
@@ -276,7 +280,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       onMouseEnter={() => prefetchRouteChunk('/parceiros')}
                       onClick={() => navigateAction('/parceiros?secao=mapa')}
                       className={`text-xs font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                        theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33] dark:text-[#E5C76B]'
+                        theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'
                       }`}
                     >
                       {locale === 'es-CL' ? 'Ver en mapa →' : 'Ver no mapa →'}
@@ -466,172 +470,21 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         );
       }
 
-      const imageFirst = variante === 'split-esquerda';
       return (
         <React.Fragment key={sec.id}>
-          <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2] dark:border-[#1C324B] relative overflow-hidden">
-            {/* Grade arquitetônica sutil + luz atmosférica inspirada em precisão cartográfica Brasil–Chile */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-[0.34] dark:opacity-[0.14]"
-              style={{
-                backgroundImage:
-                  'radial-gradient(circle at 1px 1px, rgba(200, 162, 54, 0.24) 1px, transparent 0)',
-                backgroundSize: '28px 28px',
-              }}
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-28 -left-24 w-[420px] h-[420px] rounded-full opacity-[0.12] dark:opacity-[0.16] blur-3xl"
-              style={{ background: 'radial-gradient(circle, #C8A236 0%, transparent 72%)' }}
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -bottom-32 right-12 w-[360px] h-[360px] rounded-full opacity-[0.09] dark:opacity-[0.14] blur-3xl"
-              style={{ background: 'radial-gradient(circle, #146B43 0%, transparent 72%)' }}
-            />
-            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-20">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.45, ease: EASE_EXECUTIVE }}
-                  className={`lg:col-span-7 flex flex-col justify-center ${imageFirst ? 'lg:order-2' : 'lg:order-1'}`}
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="h-[2px] w-7 shrink-0 bg-[#C8A236]" aria-hidden="true" />
-                    <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
-                      {eyebrow}
-                    </p>
-                  </div>
-
-                  <h1 className="font-display text-[clamp(2.15rem,3.8vw,3.4rem)] font-bold tracking-[-0.025em] text-[#0B1F33] dark:text-white leading-[1.08] text-balance mb-5">
-                    {heroTitle}
-                  </h1>
-
-                  <p className="text-base sm:text-[17px] text-[#4A5A6D] dark:text-slate-300 leading-[1.65] max-w-2xl mb-4">
-                    {heroSubtitle}
-                  </p>
-
-                  {heroHtml && (
-                    <div
-                      className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-2xl mb-7"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
-                    />
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-3.5 pt-1">
-                    <button
-                      type="button"
-                      onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
-                      onTouchStart={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
-                      onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                      className="inline-flex items-center gap-2.5 px-6 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_4px_14px_rgba(11,31,51,0.18)] transition-all duration-150 hover:opacity-95 whitespace-nowrap shrink-0"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    >
-                      {ctaPrimario}
-                      <ArrowRight className="w-4 h-4 text-[#E5C76B]" />
-                    </button>
-                    <a
-                      href={whatsappHeroUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] hover:bg-[#FAF9F6] dark:hover:bg-[#183350] hover:border-[#C8A236]/70 transition-colors whitespace-nowrap shrink-0"
-                    >
-                      <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
-                      {ctaSecundario}
-                    </a>
-                  </div>
-
-                  {/* Faixa de métricas arquitetônicas com alinhamento responsivo limpo */}
-                  <div className="mt-8 pt-6 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-3 gap-3 sm:gap-5 max-w-xl">
-                    <div className="min-w-0">
-                      <p className="text-base sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33] dark:text-white whitespace-nowrap">
-                        {t.hero.metric1Value}
-                      </p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5 leading-snug">{t.hero.metric1Label}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-base sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14] dark:text-[#E5C76B] whitespace-nowrap">
-                        {t.hero.metric2Value}
-                      </p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5 leading-snug">{t.hero.metric2Label}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-base sm:text-xl font-bold font-mono tabular-nums text-[#146B43] dark:text-emerald-400 whitespace-nowrap">
-                        {t.hero.metric3Value}
-                      </p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5 leading-snug">{t.hero.metric3Label}</p>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Fotografia editorial flagship de Santiago e Cordilheira sem caixas empilhadas */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.99 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.45, delay: 0.06, ease: EASE_EXECUTIVE }}
-                  className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}
-                >
-                  <div className="group relative h-full min-h-[360px] lg:min-h-[440px] card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#0B1F33] flex flex-col justify-end">
-                    {sec.imagemUrl ? (
-                      <OptimizedImage
-                        src={sec.imagemUrl}
-                        alt={heroTitle}
-                        priority
-                        placeholderTone="dark"
-                        sizes="(max-width: 1024px) 100vw, 42vw"
-                        containerClassName="absolute inset-0 w-full h-full overflow-hidden"
-                        className={`w-full h-full ${imgFitClass} transition-transform duration-700 group-hover:scale-[1.03]`}
-                      />
-                    ) : null}
-
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-0 bg-gradient-to-t from-[#071422]/92 via-[#071422]/25 to-transparent"
-                    />
-
-                    {/* Legenda editorial discreta na base da fotografia */}
-                    <div className="relative z-10 p-6 sm:p-7 space-y-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="h-[2px] w-5 bg-[#C8A236]" aria-hidden="true" />
-                          <p className="text-xs font-semibold text-[#E5C76B]">
-                            {badgeTitulo}
-                          </p>
-                        </div>
-                        <p className="text-sm sm:text-base font-medium text-white leading-snug max-w-md">
-                          {badgeSubtitulo}
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-white/15 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px] font-mono text-[#E5C76B] leading-snug">
-                        {t.hero.intelModules.map((mod) => (
-                          <div key={mod.code} className="min-w-0">
-                            <span className="block">{mod.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-
-              {heroDestaques.length > 0 && (
-                <div className="mt-12 pt-7 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {heroDestaques.map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <ShieldCheck
-                        className="w-5 h-5 shrink-0 mt-0.5"
-                        style={{ color: idx === 0 ? '#146B43' : idx === 1 ? '#C8A236' : '#A61C2B' }}
-                      />
-                      <p className="text-sm font-medium text-[#0B1F33] dark:text-slate-200 leading-snug">{item}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+          <HeroShowcase
+            eyebrow={eyebrow}
+            heroTitle={heroTitle}
+            heroSubtitle={heroSubtitle}
+            heroHtml={heroHtml}
+            ctaPrimario={ctaPrimario}
+            ctaSecundario={ctaSecundario}
+            ctaDestino={sec.ctaDestino || '/diagnostico'}
+            whatsappUrl={whatsappHeroUrl}
+            imagemUrl={sec.imagemUrl}
+            heroDestaques={heroDestaques}
+            onNavigateAction={navigateAction}
+          />
 
           {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
         </React.Fragment>
@@ -684,7 +537,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>
                           <span
                             className={`font-mono text-sm mr-2 tabular-nums ${
-                              theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16] dark:text-[#E5C76B]'
+                              theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'
                             }`}
                           >
                             {localizedItem.numero}.
@@ -693,12 +546,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         </h3>
                         <p className={`text-sm leading-relaxed ${theme.subClass}`}>{localizedItem.descricao}</p>
                       </div>
-                      <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4] dark:border-[#1C324B]'}`}>
+                      <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/12' : 'border-[#E2E8F0] dark:border-[#1E293B]'}`}>
                         <button
                           type="button"
                           onClick={() => !previewMode && setServiceDrawer(localizedItem)}
                           className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
-                            theme.isDark ? 'text-[#E5C76B]' : 'text-[#0B1F33] dark:text-[#E5C76B]'
+                            theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'
                           }`}
                         >
                           {t.services.learnMore}
@@ -731,26 +584,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
                 {/* 1. Diagnóstico Gratuito */}
-                <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white transition-colors duration-200">
+                <div className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]/45 card-radius p-6 sm:p-7 flex flex-col justify-between gap-6 text-[#090F1A] dark:text-white transition-colors duration-200">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
+                      <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
                         {plans.diagnostico_gratuito.kicker}
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33] dark:text-white">
+                      <h4 className="font-display text-xl font-bold tracking-tight text-[#090F1A] dark:text-white">
                         {plans.diagnostico_gratuito.nome}
                       </h4>
-                      <p className="text-xs text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+                      <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
                         {plans.diagnostico_gratuito.subtitulo}
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
+                    <p className="text-xs font-medium text-[#090F1A] dark:text-slate-200 pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B]">
                       {plans.diagnostico_gratuito.escopoPrefix} {plans.diagnostico_gratuito.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                    <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
                       {plans.diagnostico_gratuito.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#146B43] dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -759,7 +612,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => navigateAction('/diagnostico')}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 hover:bg-[#F1EDE4] dark:hover:bg-[#183350] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#CBD5E1] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] text-xs font-semibold text-[#090F1A] dark:text-slate-100 hover:bg-[#F1F5F9] dark:hover:bg-[#1A2942] transition-colors"
                   >
                     {plans.diagnostico_gratuito.cta}
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -767,26 +620,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
 
                 {/* 2. Consultoria Orientativa */}
-                <div className="bg-white dark:bg-[#0D1E31] border border-[#0B1F33]/25 dark:border-[#2E547A] hover:border-[#C8A236]/70 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white transition-colors duration-200">
+                <div className="bg-white dark:bg-[#0D1524] border border-[#090F1A]/20 dark:border-[#334155] hover:border-[#047857]/55 card-radius p-6 sm:p-7 flex flex-col justify-between gap-6 text-[#090F1A] dark:text-white transition-colors duration-200">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[#0B1F33] dark:text-[#E5C76B]">
+                      <p className="text-xs font-semibold text-[#090F1A] dark:text-[#D4A853]">
                         {plans.orientativa.kicker}
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-[#0B1F33] dark:text-white">
+                      <h4 className="font-display text-xl font-bold tracking-tight text-[#090F1A] dark:text-white">
                         {plans.orientativa.nome}
                       </h4>
-                      <p className="text-xs text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+                      <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
                         {plans.orientativa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
+                    <p className="text-xs font-medium text-[#090F1A] dark:text-slate-200 pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B]">
                       {plans.orientativa.escopoPrefix} {plans.orientativa.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                    <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
                       {plans.orientativa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#0B1F33] dark:text-[#E5C76B] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -796,35 +649,34 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.orientativa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-semibold text-white transition-opacity hover:opacity-95"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-white bg-[#090F1A] dark:bg-[#1E293B] hover:bg-[#132036] transition-colors"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
+                    <MessageCircle className="w-3.5 h-3.5 text-[#34D399]" />
                     {plans.orientativa.cta}
                   </a>
                 </div>
 
-                {/* 3. Consultoria Completa */}
-                <div className="card-radius p-6 flex flex-col justify-between gap-6 text-white border border-[#C8A236]/55 bg-[#0B1F33]">
+                {/* 3. Consultoria Completa (Destaque Executivo) */}
+                <div className="card-radius p-6 sm:p-7 flex flex-col justify-between gap-6 text-white border border-[#10B981]/45 bg-[#090F1A] shadow-[0_18px_40px_rgba(9,15,26,0.18)]">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[#E5C76B]">
+                      <p className="text-xs font-semibold text-[#34D399]">
                         {plans.completa.kicker}
                       </p>
-                      <h4 className="text-lg font-bold tracking-tight text-white">
+                      <h4 className="font-display text-xl font-bold tracking-tight text-white">
                         {plans.completa.nome}
                       </h4>
-                      <p className="text-xs text-slate-200 leading-relaxed">
+                      <p className="text-xs text-slate-300 leading-relaxed">
                         {plans.completa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-[#E5C76B] pt-3 border-t border-white/15">
+                    <p className="text-xs font-medium text-[#D4A853] pt-3 border-t border-white/12">
                       {plans.completa.escopoPrefix} {plans.completa.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2 text-xs text-slate-100">
+                    <ul className="space-y-2.5 text-xs text-slate-100">
                       {plans.completa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#E5C76B] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#34D399] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -834,8 +686,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.completa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-opacity hover:opacity-95"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#041C16] bg-[#10B981] hover:bg-[#34D399] transition-colors"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     {plans.completa.cta}
@@ -862,7 +713,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
             {!noImage && (
               <div className={`lg:col-span-5 ${imageRight ? 'lg:order-2' : 'lg:order-1'}`}>
-                <div className="group h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#0D1E31] shadow-[0_14px_36px_rgba(11,31,51,0.1)]">
+                <div className="group h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#0D1524] shadow-[0_14px_36px_rgba(9,15,26,0.08)]">
                   <OptimizedImage
                     src={sec.imagemUrl}
                     alt={translateText(sec.titulo)}
@@ -876,13 +727,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
                 {translateText(meta.eyebrow as string | undefined) || t.sections.diferenciaisEyebrow}
               </p>
-              <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>
+              <h2 className={`font-display text-2xl sm:text-3xl font-bold tracking-tight text-balance mb-3 ${theme.headingClass}`}>
                 {translateText(sec.titulo)}
               </h2>
               <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
               <div className="space-y-6">
                 {difItens.map((d, idx) => (
-                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2] dark:border-[#1C324B]'} last:border-b-0 last:pb-0`}>
+                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/12' : 'border-[#E2E8F0] dark:border-[#1E293B]'} last:border-b-0 last:pb-0`}>
                     <h3 className={`text-base font-bold mb-1 ${theme.headingClass}`}>{translateText(d.titulo)}</h3>
                     <p className={`text-sm leading-relaxed ${theme.subClass}`}>{translateText(d.descricao)}</p>
                   </div>
@@ -893,7 +744,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={onOpenLawModal}
-                    className={`inline-flex items-center gap-2 text-sm font-semibold hover:underline ${theme.isDark ? 'text-white' : 'text-[#0B1F33] dark:text-[#E5C76B]'}`}
+                    className={`inline-flex items-center gap-2 text-sm font-semibold hover:underline ${theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'}`}
                   >
                     <BookOpen className="w-4 h-4" />
                     {t.sections.understandLawCta}
@@ -907,42 +758,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     }
 
     if (key === 'como_funciona') {
-      const passos = (meta.passos as { passo: string; titulo: string; descricao: string }[] | undefined) || [];
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'suave');
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="max-w-2xl mb-12">
-              {Boolean(meta.eyebrow) && (
-                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
-                  {translateText(String(meta.eyebrow))}
-                </p>
-              )}
-              <h2 className={`font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
-                {translateText(sec.titulo)}
-              </h2>
-              <p className={`text-base leading-relaxed ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {passos.map((p) => (
-                <div key={p.passo} className={`${theme.cardClass} card-radius p-6 sm:p-7 flex flex-col justify-between`}>
-                  <div>
-                    <div className={`flex items-center justify-between gap-2 mb-4 pb-3 border-b ${theme.isDark ? 'border-white/15' : 'border-[#F1EDE4] dark:border-[#1C324B]'}`}>
-                      <p className="font-mono text-2xl font-bold tracking-tight tabular-nums" style={{ color: 'var(--color-accent)' }}>
-                        {p.passo}
-                      </p>
-                      <span className={`h-[2px] w-6 ${theme.isDark ? 'bg-white/25' : 'bg-[#DDD6C7] dark:bg-[#243E5C]'}`} aria-hidden="true" />
-                    </div>
-                    <h3 className={`text-base font-bold tracking-tight mb-2 ${theme.headingClass}`}>
-                      {translateText(p.titulo)}
-                    </h3>
-                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{translateText(p.descricao)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <InteractiveJourneyShowcase
+          key={sec.id}
+          sectionPad={sectionPad}
+          eyebrow={meta.eyebrow ? translateText(String(meta.eyebrow)) : undefined}
+          title={translateText(sec.titulo)}
+          subtitle={translateText(sec.subtitulo)}
+          onNavigateAction={navigateAction}
+        />
       );
     }
 
@@ -962,7 +786,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <p className={`text-base mb-4 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
                 {sec.conteudoHtml && (
                   <div
-                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#4A5A6D] dark:text-slate-300'}`}
+                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#475569] dark:text-slate-300'}`}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
                 )}
@@ -974,7 +798,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   className={`inline-flex items-center gap-2 px-5 py-2.5 btn-radius border text-sm font-semibold transition-colors ${
                     theme.isDark
                       ? 'border-white/30 text-white hover:bg-white/10'
-                      : 'border-[#DDD6C7] dark:border-[#243E5C] text-[#0B1F33] dark:text-slate-100 hover:bg-[#FAF9F6] dark:hover:bg-[#11263D] hover:border-[#C8A236]/60'
+                      : 'border-[#CBD5E1] dark:border-[#1E293B] text-[#090F1A] dark:text-slate-100 hover:bg-[#F8FAFC] dark:hover:bg-[#131F33] hover:border-[#047857]/60'
                   }`}
                 >
                   {translateText(sec.ctaTexto) || t.sections.quemSomosCta}
@@ -982,7 +806,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </button>
               </div>
               <div className="lg:col-span-5">
-                <div className="group aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#0D1E31] shadow-[0_14px_36px_rgba(11,31,51,0.1)]">
+                <div className="group aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#0D1524] shadow-[0_14px_36px_rgba(9,15,26,0.08)]">
                   {sec.imagemUrl ? (
                     <OptimizedImage
                       src={sec.imagemUrl}
@@ -1062,7 +886,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               {translateText(sec.titulo)}
             </h2>
             <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
-            <div className="divide-y divide-[#E5DFD2] dark:divide-[#1C324B] border border-[#E5DFD2] dark:border-[#1C324B] card-radius bg-[var(--color-surface)] text-[#0B1F33] dark:text-white overflow-hidden shadow-[0_4px_16px_rgba(11,31,51,0.04)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.28)]">
+            <div className="divide-y divide-[#E2E8F0] dark:divide-[#1E293B] border border-[#E2E8F0] dark:border-[#1E293B] card-radius bg-[var(--color-surface)] text-[#090F1A] dark:text-white overflow-hidden shadow-[0_4px_16px_rgba(9,15,26,0.04)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.28)]">
               {perguntas.map((item, idx) => {
                 const isOpen = openFaq === idx;
                 return (
@@ -1071,14 +895,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       type="button"
                       aria-expanded={isOpen}
                       onClick={() => setOpenFaq(isOpen ? null : idx)}
-                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#FAF9F6] dark:hover:bg-[#11263D] transition-colors"
+                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#F8FAFC] dark:hover:bg-[#131F33] transition-colors"
                     >
-                      <span className="text-sm sm:text-base font-semibold text-[#0B1F33] dark:text-white">
+                      <span className="text-sm sm:text-base font-semibold text-[#090F1A] dark:text-white">
                         {translateText(item.pergunta)}
                       </span>
                       <ChevronDown
                         className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-                          isOpen ? 'rotate-180 text-[#8C6D14] dark:text-[#E5C76B]' : 'text-slate-500 dark:text-slate-400'
+                          isOpen ? 'rotate-180 text-[#047857] dark:text-[#34D399]' : 'text-slate-500 dark:text-slate-400'
                         }`}
                       />
                     </button>
@@ -1091,7 +915,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                           transition={{ duration: 0.22, ease: EASE_EXECUTIVE }}
                           className="overflow-hidden"
                         >
-                          <div className="px-6 pb-5 text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+                          <div className="px-6 pb-5 text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
                             {translateText(item.resposta)}
                           </div>
                         </motion.div>
@@ -1107,10 +931,23 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     }
 
     if (key === 'contato') {
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'escuro-primario');
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} relative overflow-hidden cv-auto`} style={theme.sectionStyle}>
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-7">
+        <section key={sec.id} className={`${sectionPad} relative overflow-hidden bg-[#090F1A] text-white cv-auto`}>
+          <div className="absolute inset-0 pointer-events-none select-none">
+            <OptimizedImage
+              src={ANDES_HORIZON_BANNER}
+              alt={translateText(sec.titulo)}
+              sizes="100vw"
+              placeholderTone="dark"
+              containerClassName="w-full h-full"
+              className="w-full h-full object-cover object-center opacity-40"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-t from-[#060B14]/95 via-[#090F1A]/80 to-[#060B14]/88"
+            />
+          </div>
+          <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-7">
             <div className="flex justify-center">
               <BrandLogo
                 variant="emblem-dark"
@@ -1122,28 +959,27 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             </div>
             <div className="space-y-3">
               <div className="inline-flex items-center gap-3 justify-center">
-                <span className="h-[1px] w-8 bg-[#C9A227]/70" aria-hidden="true" />
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#E5C76B]">
+                <span className="h-[1px] w-8 bg-[#10B981]/80" aria-hidden="true" />
+                <p className="text-xs font-semibold text-[#34D399]">
                   {t.sections.contatoKicker}
                 </p>
-                <span className="h-[1px] w-8 bg-[#C9A227]/70" aria-hidden="true" />
+                <span className="h-[1px] w-8 bg-[#10B981]/80" aria-hidden="true" />
               </div>
-              <h2 className={`font-display text-2xl sm:text-4xl font-bold tracking-tight text-balance ${theme.headingClass}`}>
+              <h2 className="font-display text-2xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-balance text-white leading-[1.08]">
                 {translateText(sec.titulo)}
               </h2>
-              <p className={`text-base sm:text-lg max-w-2xl mx-auto leading-relaxed ${theme.subClass}`}>
+              <p className="text-base sm:text-lg max-w-2xl mx-auto leading-relaxed text-slate-200">
                 {translateText(sec.subtitulo)}
               </p>
               {sec.conteudoHtml && (
-                <p className="text-xs opacity-80 mt-2">{translateText(sec.conteudoHtml)}</p>
+                <p className="text-xs text-slate-300 mt-2">{translateText(sec.conteudoHtml)}</p>
               )}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3.5 pt-1">
               <button
                 type="button"
                 onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                className="inline-flex items-center gap-2 px-6.5 py-3.5 btn-radius text-sm font-bold text-[#0B1523] shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5"
-                style={{ backgroundColor: 'var(--color-accent)' }}
+                className="inline-flex items-center gap-2 px-6.5 py-3.5 btn-radius text-sm font-bold text-[#041C16] bg-[#10B981] hover:bg-[#34D399] shadow-[0_12px_28px_rgba(16,185,129,0.28)] transition-all duration-150 hover:-translate-y-0.5"
               >
                 {translateText(sec.ctaTexto) || t.sections.contatoDefaultCta}
                 <ArrowRight className="w-4 h-4" />
@@ -1152,22 +988,18 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 href={whatsappHeroUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-semibold border transition-all duration-150 ${
-                  theme.isDark ? 'text-white border-white/30 hover:bg-white/10' : 'text-slate-900 border-slate-300 hover:bg-slate-50'
-                }`}
+                className="inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-semibold border border-white/25 bg-white/[0.06] text-white hover:bg-white/[0.12] backdrop-blur-sm transition-all duration-150"
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className="w-4 h-4 text-[#34D399]" />
                 {t.sections.contatoWhatsappCta}
               </a>
               {onOpenCalendly && (
                 <button
                   type="button"
                   onClick={onOpenCalendly}
-                  className={`inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold border transition-all duration-150 ${
-                    theme.isDark ? 'text-white border-white/30 hover:bg-white/10' : 'text-slate-900 border-slate-300 hover:bg-slate-50'
-                  }`}
+                  className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold border border-white/25 bg-white/[0.06] text-white hover:bg-white/[0.12] backdrop-blur-sm transition-all duration-150"
                 >
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="w-4 h-4 text-[#D4A853]" />
                   {t.sections.contatoScheduleCta}
                 </button>
               )}
@@ -1296,18 +1128,18 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
         {serviceDrawer && !previewMode && (
           <div
-            className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end"
+            className="fixed inset-0 z-50 bg-[#060B14]/75 backdrop-blur-[2px] flex justify-end"
             role="dialog"
             aria-modal="true"
             onClick={(e) => {
               if (e.target === e.currentTarget) setServiceDrawer(null);
             }}
           >
-            <div className="bg-white dark:bg-[#0D1E31] w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2] dark:border-[#1C324B]">
-              <BrandRibbon className="h-[3px] w-full shrink-0" />
-              <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
+            <div className="bg-white dark:bg-[#0D1524] w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E2E8F0] dark:border-[#1E293B]">
+              <BrandRibbon className="h-[2px] w-full shrink-0" />
+              <div className="bg-[#090F1A] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B] font-mono tabular-nums">
+                  <p className="text-xs font-semibold text-[#34D399] font-mono tabular-nums">
                     {serviceDrawer.numero} · {t.services.drawer.headerPrefix}
                   </p>
                   <h3 className="font-display text-lg font-bold text-white mt-1 leading-snug">{serviceDrawer.titulo}</h3>
@@ -1323,46 +1155,46 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
 
               <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">{serviceDrawer.descricao}</p>
+                <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">{serviceDrawer.descricao}</p>
                 <div className="space-y-3 text-xs pt-1">
-                  <div className="p-4 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                  <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B]">
+                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
                       {t.services.drawer.whoFor}
                     </p>
-                    <p className="text-[#0B1F33] dark:text-slate-100 mt-1 leading-relaxed">
+                    <p className="text-[#090F1A] dark:text-slate-100 mt-1 leading-relaxed">
                       {serviceDrawer.paraQuem || drawerFallback?.paraQuem || t.services.drawer.defaultWhoFor}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                  <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B]">
+                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
                       {t.services.drawer.framework}
                     </p>
-                    <p className="text-[#0B1F33] dark:text-slate-100 mt-1 leading-relaxed">
+                    <p className="text-[#090F1A] dark:text-slate-100 mt-1 leading-relaxed">
                       {serviceDrawer.subcategoriaTipica || drawerFallback?.subcategoriaTipica || t.services.drawer.defaultFramework}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B]">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                  <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B]">
+                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
                       {t.services.drawer.timeline}
                     </p>
-                    <p className="text-[#0B1F33] dark:text-slate-100 font-mono tabular-nums mt-1 leading-relaxed">
+                    <p className="text-[#090F1A] dark:text-slate-100 font-mono tabular-nums mt-1 leading-relaxed">
                       {serviceDrawer.faixaPrazo || drawerFallback?.faixaPrazo || t.services.drawer.defaultTimeline}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="px-6 py-4 bg-[#FAF9F6] dark:bg-[#081524] border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-2 shrink-0">
+              <div className="px-6 py-4 bg-[#F8FAFC] dark:bg-[#060A12] border-t border-[#E2E8F0] dark:border-[#1E293B] space-y-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setServiceDrawer(null);
                     onNavigate('/diagnostico');
                   }}
-                  className="w-full py-3 px-4 btn-radius text-xs font-bold text-white bg-[#0B1F33] dark:bg-[#C8A236] dark:text-[#0B1523] inline-flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
+                  className="w-full py-3 px-4 btn-radius text-xs font-bold text-[#041C16] bg-[#10B981] hover:bg-[#34D399] inline-flex items-center justify-center gap-2 transition-colors"
                 >
                   {t.services.drawer.ctaDiagnostic}
-                  <ArrowRight className="w-3.5 h-3.5 text-[#E5C76B] dark:text-[#0B1523]" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
                 <a
                   href={buildWhatsAppUrl(
@@ -1371,9 +1203,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] text-xs font-semibold text-[#0B1F33] dark:text-slate-100 hover:bg-[#FAF9F6] dark:hover:bg-[#16304C]"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#CBD5E1] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-xs font-semibold text-[#090F1A] dark:text-slate-100 hover:bg-[#F1F5F9] dark:hover:bg-[#1A2942]"
                 >
-                  <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
+                  <MessageCircle className="w-4 h-4 text-[#047857] dark:text-[#34D399]" />
                   {t.services.drawer.ctaWhatsapp}
                 </a>
               </div>

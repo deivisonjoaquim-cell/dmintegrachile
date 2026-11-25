@@ -1,0 +1,280 @@
+export type HeroQuickProfileId =
+  | 'mercosul'
+  | 'trabalho'
+  | 'renda'
+  | 'familia'
+  | 'ja_no_chile';
+
+export interface HeroQuickProfile {
+  id: HeroQuickProfileId;
+  shortLabel: string;
+  routeTitle: string;
+  legalBasis: string;
+  protocolOrigin: string;
+  workPermission: string;
+  criticalRule: string;
+  summary: string;
+  diagnosticPath: string;
+}
+
+export interface JourneyPhaseItem {
+  code: string;
+  title: string;
+  subtitle: string;
+  timeframe: string;
+  deadlineGuard: string;
+  portalView: string;
+  deliverables: string[];
+}
+
+const PROFILES_PT: HeroQuickProfile[] = [
+  {
+    id: 'mercosul',
+    shortLabel: 'Morar pelo Mercosul',
+    routeTitle: 'Reciprocidade Internacional · Acordo Mercosul',
+    legalBasis: 'Ley Nº 21.325 · Art. 70, nº 13 · Decreto 177/2022',
+    protocolOrigin: 'Portal digital SERMIG a partir do Brasil',
+    workPermission: 'Autoriza trabalhar e empreender no Chile',
+    criticalRule: 'Certidão Polícia Federal válida por 60 dias',
+    summary:
+      'Via mais direta para brasileiros sem contrato prévio: não exige comprovação de oferta de emprego ou renda mínima formal no protocolo inicial.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'trabalho',
+    shortLabel: 'Proposta de Trabalho',
+    routeTitle: 'Atividades Lícitas Remuneradas',
+    legalBasis: 'Decreto Nº 177/2022 · Subcategoria Laboral',
+    protocolOrigin: 'Protocolo online SERMIG antes do embarque',
+    workPermission: 'Vínculo formal com empregador chileno',
+    criticalRule: 'Contrato notariado com cláusulas migratórias obrigatórias',
+    summary:
+      'Indicada para quem já possui oferta formal ou contrato com empresa chilena com início de atividades vigente no SII.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'renda',
+    shortLabel: 'Renda / Aposentadoria',
+    routeTitle: 'Aposentados e Rentistas',
+    legalBasis: 'Decreto Nº 177/2022 · Jubilados y Rentistas',
+    protocolOrigin: 'Protocolo digital SERMIG fora do Chile',
+    workPermission: 'Residência para viver com recursos próprios',
+    criticalRule: 'Comprovação documental estável, apostilada e traduzida',
+    summary:
+      'Estruturada para aposentados, pensionistas e investidores com rendimentos recorrentes lícitos (imóveis, dividendos ou previdência).',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'familia',
+    shortLabel: 'Reunificação Familiar',
+    routeTitle: 'Reunificação Familiar Formalizada',
+    legalBasis: 'Ley Nº 21.325 · Art. 19 e Decreto 177/2022',
+    protocolOrigin: 'Exterior ou exceção legal dentro do Chile',
+    workPermission: 'Permite atividade remunerada após aprovação',
+    criticalRule: 'Certidão civil atualizada com Apostila de Haia',
+    summary:
+      'Para cônjuges, companheiros com união formalizada, filhos ou pais de cidadãos chilenos ou residentes definitivos.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'ja_no_chile',
+    shortLabel: 'Já estou no Chile',
+    routeTitle: 'Prorrogação, Definitiva ou Análise de Exceção',
+    legalBasis: 'Ley Nº 21.325 · Art. 58 & Janela 90–10 dias',
+    protocolOrigin: 'Análise imediata de status migratório atual',
+    workPermission: 'Conforme título vigente ou protocolo regular',
+    criticalRule: 'Janela obrigatória de 90 a 10 dias antes do vencimento',
+    summary:
+      'Verificamos imediatamente se você já pode pedir Residência Definitiva, prorrogar dentro do prazo ou corrigir estratégia caso esteja como turista.',
+    diagnosticPath: '/diagnostico',
+  },
+];
+
+const PROFILES_ES: HeroQuickProfile[] = [
+  {
+    id: 'mercosul',
+    shortLabel: 'Acuerdo Mercosur',
+    routeTitle: 'Reciprocidad Internacional · Acuerdo Mercosur',
+    legalBasis: 'Ley Nº 21.325 · Art. 70, nº 13 · Decreto 177/2022',
+    protocolOrigin: 'Portal digital SERMIG desde el exterior',
+    workPermission: 'Autoriza trabajar y emprender en Chile',
+    criticalRule: 'Antecedentes Policía Federal válidos por 60 días',
+    summary:
+      'Vía directa para ciudadanos brasileños sin contrato previo: no exige oferta laboral ni renta mínima formal en la solicitud inicial.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'trabalho',
+    shortLabel: 'Oferta Laboral',
+    routeTitle: 'Actividades Lícitas Remuneradas',
+    legalBasis: 'Decreto Nº 177/2022 · Subcategoría Laboral',
+    protocolOrigin: 'Solicitud online SERMIG antes de viajar',
+    workPermission: 'Vínculo formal con empleador chileno',
+    criticalRule: 'Contrato notariado con cláusulas migratorias exigidas',
+    summary:
+      'Recomendada para profesionales con oferta formal o contrato con empresa chilena activa ante el SII.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'renda',
+    shortLabel: 'Jubilados / Rentistas',
+    routeTitle: 'Jubilados y Rentistas',
+    legalBasis: 'Decreto Nº 177/2022 · Subcategoría Rentista',
+    protocolOrigin: 'Portal digital SERMIG desde el exterior',
+    workPermission: 'Residencia respaldada por ingresos propios',
+    criticalRule: 'Respaldo financiero estable, apostillado y traducido',
+    summary:
+      'Diseñada para jubilados, pensionados e inversionistas con ingresos periódicos lícitos demostrables.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'familia',
+    shortLabel: 'Reunificación Familiar',
+    routeTitle: 'Reunificación Familiar Formalizada',
+    legalBasis: 'Ley Nº 21.325 · Art. 19 y Decreto 177/2022',
+    protocolOrigin: 'Exterior o hipótesis legal en Chile',
+    workPermission: 'Habilita actividades remuneradas al aprobarse',
+    criticalRule: 'Certificados civiles vigentes con Apostilla de La Haya',
+    summary:
+      'Para cónyuges, convivientes civiles, hijos o padres de ciudadanos chilenos o residentes definitivos.',
+    diagnosticPath: '/diagnostico',
+  },
+  {
+    id: 'ja_no_chile',
+    shortLabel: 'Ya estoy en Chile',
+    routeTitle: 'Prórroga, Definitiva o Revisión de Estatus',
+    legalBasis: 'Ley Nº 21.325 · Art. 58 · Ventana 90–10 días',
+    protocolOrigin: 'Evaluación inmediata del estatus migratorio',
+    workPermission: 'Según residencia vigente o comprobante válido',
+    criticalRule: 'Ventana legal de 90 a 10 días antes del vencimiento',
+    summary:
+      'Validamos si corresponde solicitar Residencia Definitiva, prórroga en plazo o estrategia segura si ingresaste como turista.',
+    diagnosticPath: '/diagnostico',
+  },
+];
+
+const JOURNEY_PT: JourneyPhaseItem[] = [
+  {
+    code: '01',
+    title: 'Diagnóstico & Estratégia Legal',
+    subtitle: 'Definição exata da subcategoria antes de gastar com cartórios ou passagens.',
+    timeframe: 'Dia 1 ao Dia 3',
+    deadlineGuard: 'Análise das 16 subcategorias do Decreto Nº 177/2022 e bloqueio de riscos de indeferimento.',
+    portalView: 'Dossiê Técnico PDF + Mapa de 7 Pilares de Viabilidade',
+    deliverables: [
+      'Enquadramento jurídico principal e rota alternativa (Plano B)',
+      'Detecção preventiva de restrições de protocolo como turista',
+      'Estimativa clara de taxas oficiais SERMIG e cronograma realista',
+    ],
+  },
+  {
+    code: '02',
+    title: 'Preparação Documental & Apostila',
+    subtitle: 'Cronograma reverso que protege certidões de prazo curto contra vencimento.',
+    timeframe: 'Semanas 1 a 3',
+    deadlineGuard: 'Antecedentes da Polícia Federal (validade 60 dias) emitidos no momento exato da fila.',
+    portalView: 'Checklist interativo com conferência arquivo por arquivo e alertas de validade',
+    deliverables: [
+      'Validação de passaporte, certidões civis e vínculos familiares',
+      'Coordenação com cartórios para Apostila de Haia (CNJ) e traduções juramentadas',
+      'Auditoria de resolução, legibilidade e enquadramento exigido pelo portal SERMIG',
+    ],
+  },
+  {
+    code: '03',
+    title: 'Protocolo SERMIG & Estampado',
+    subtitle: 'Submissão técnica estruturada e acompanhamento ativo até a aprovação.',
+    timeframe: 'Acompanhamento contínuo',
+    deadlineGuard: 'Monitoramento contínuo de notificações e janela de 10 dias úteis para eventual subsanación.',
+    portalView: 'Linha do tempo transparente em 15 etapas + comprovante oficial de protocolo',
+    deliverables: [
+      'Preenchimento e revisão integral do formulário digital SERMIG',
+      'Monitoramento de exigências, despacho de aprovação e taxas consulares/SERMIG',
+      'Emissão orientada do Estampado Electrónico (EE) dentro do prazo legal',
+    ],
+  },
+  {
+    code: '04',
+    title: 'Chegada ao Chile, PDI & Cédula (RUT)',
+    subtitle: 'Integração segura nos primeiros 30 dias para viver, trabalhar e morar sem fricção.',
+    timeframe: 'Primeiros 30 dias no Chile',
+    deadlineGuard: 'Prazo fatal de 30 dias corridos após entrada/estampado para registro PDI e Registro Civil.',
+    portalView: 'Roteiro pós-chegada + acesso à rede de parceiros verificados no Chile',
+    deliverables: [
+      'Registro obrigatório na Policía de Investigaciones (PDI) e pedido de Cédula de Identidad',
+      'Ativação da ClaveÚnica, emissão de RUT, orientação bancária e saúde (Fonasa / Isapre)',
+      'Conexão com parceiros verificados de moradia, contabilidade (SII) e escolas em Santiago',
+    ],
+  },
+];
+
+const JOURNEY_ES: JourneyPhaseItem[] = [
+  {
+    code: '01',
+    title: 'Diagnóstico y Estrategia Legal',
+    subtitle: 'Definición exacta de la subcategoría antes de invertir en notarías o pasajes.',
+    timeframe: 'Día 1 al Día 3',
+    deadlineGuard: 'Evaluación de las 16 subcategorías del Decreto Nº 177/2022 y prevención de rechazos.',
+    portalView: 'Informe Técnico PDF + Radar de 7 Pilares de Viabilidad',
+    deliverables: [
+      'Encuadre jurídico principal y ruta alternativa de respaldo',
+      'Control preventivo de restricciones de solicitud como turista',
+      'Estimación transparente de aranceles SERMIG y plazos reales',
+    ],
+  },
+  {
+    code: '02',
+    title: 'Preparación Documental y Apostilla',
+    subtitle: 'Cronograma inverso que protege certificados de vigencia corta.',
+    timeframe: 'Semanas 1 a 3',
+    deadlineGuard: 'Antecedentes penales (vigencia de 60 días) gestionados en el orden exacto.',
+    portalView: 'Checklist interactivo con validación archivo por archivo y alertas de vigencia',
+    deliverables: [
+      'Revisión de pasaporte, partidas civiles y respaldos de vínculo o ingresos',
+      'Coordinación de Apostilla de La Haya y traducciones oficiales',
+      'Auditoría técnica de formato y nitidez exigida por el portal SERMIG',
+    ],
+  },
+  {
+    code: '03',
+    title: 'Solicitud SERMIG y Estampado',
+    subtitle: 'Presentación rigurosa y seguimiento constante hasta la aprobación.',
+    timeframe: 'Seguimiento continuo',
+    deadlineGuard: 'Monitoreo activo de notificaciones y respuesta oportuna ante subsanaciones.',
+    portalView: 'Línea de tiempo transparente en 15 etapas + comprobante oficial',
+    deliverables: [
+      'Carga y revisión íntegra de la solicitud digital en SERMIG',
+      'Control de observaciones, resolución de aprobación y pago de derechos',
+      'Descarga guiada del Estampado Electrónico (EE) en plazo',
+    ],
+  },
+  {
+    code: '04',
+    title: 'Llegada a Chile, PDI y Cédula (RUT)',
+    subtitle: 'Integración ordenada en los primeros 30 días para instalarte sin fricción.',
+    timeframe: 'Primeros 30 días en Chile',
+    deadlineGuard: 'Plazo legal de 30 días corridos para registro en PDI y solicitud de Cédula.',
+    portalView: 'Guía post-llegada + acceso directo a red de aliados verificados en Chile',
+    deliverables: [
+      'Registro obligatorio en PDI y solicitud de Cédula de Identidad en Registro Civil',
+      'ClaveÚnica, RUT, orientación bancaria y sistema de salud (Fonasa / Isapre)',
+      'Conexión con aliados verificados en vivienda, contabilidad (SII) y educación',
+    ],
+  },
+];
+
+export function getHeroQuickProfiles(locale: 'pt-BR' | 'es-CL'): HeroQuickProfile[] {
+  return locale === 'es-CL' ? PROFILES_ES : PROFILES_PT;
+}
+
+export function getHeroQuickProfileById(
+  id: HeroQuickProfileId,
+  locale: 'pt-BR' | 'es-CL',
+): HeroQuickProfile {
+  const list = getHeroQuickProfiles(locale);
+  return list.find((item) => item.id === id) || list[0];
+}
+
+export function getJourneyPhases(locale: 'pt-BR' | 'es-CL'): JourneyPhaseItem[] {
+  return locale === 'es-CL' ? JOURNEY_ES : JOURNEY_PT;
+}

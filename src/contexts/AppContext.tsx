@@ -191,32 +191,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       root.style.removeProperty('--color-text');
       root.style.removeProperty('--color-footer-bg');
     } else {
-      root.style.setProperty('--color-primary', empresa.corPrimaria || '#0B1F33');
-      root.style.setProperty('--color-accent', empresa.corDestaque || '#C8A236');
-      root.style.setProperty('--color-bg', empresa.corFundo || '#F7F5F0');
+      const legacyPrimary = new Set(['#0B1F33', '#0b1f33', '#0F172A', '#0f172a']);
+      const legacyBg = new Set(['#F7F5F0', '#f7f5f0', '#FAF9F6', '#faf9f6']);
+      const legacyAccent = new Set(['#C8A236', '#c8a236', '#C9A227', '#c9a227']);
+      const legacyFooter = new Set(['#081726', '#081726']);
+
+      const resolvedPrimary =
+        !empresa.corPrimaria || legacyPrimary.has(empresa.corPrimaria) ? '#090F1A' : empresa.corPrimaria;
+      const resolvedAccent =
+        !empresa.corDestaque || legacyAccent.has(empresa.corDestaque) ? '#10B981' : empresa.corDestaque;
+      const resolvedBg =
+        !empresa.corFundo || legacyBg.has(empresa.corFundo) ? '#F8FAFC' : empresa.corFundo;
+      const resolvedFooter =
+        !empresa.corRodapeBg || legacyFooter.has(empresa.corRodapeBg) ? '#060B14' : empresa.corRodapeBg;
+
+      root.style.setProperty('--color-primary', resolvedPrimary);
+      root.style.setProperty('--color-accent', resolvedAccent);
+      root.style.setProperty('--color-bg', resolvedBg);
       root.style.setProperty('--color-surface', empresa.corSuperficie || '#FFFFFF');
-      root.style.setProperty('--color-text', empresa.corTexto || '#0B1523');
-      root.style.setProperty('--color-footer-bg', empresa.corRodapeBg || '#081726');
+      root.style.setProperty('--color-text', empresa.corTexto || '#090F1A');
+      root.style.setProperty('--color-footer-bg', resolvedFooter);
     }
 
     const fontMap: Record<string, string> = {
-      'Plus Jakarta Sans': "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
-      'DM Sans': "'DM Sans', 'Plus Jakarta Sans', system-ui, sans-serif",
-      Manrope: "'Manrope', 'Plus Jakarta Sans', system-ui, sans-serif",
+      'DM Sans': "'DM Sans', system-ui, -apple-system, sans-serif",
+      'Plus Jakarta Sans': "'DM Sans', system-ui, -apple-system, sans-serif",
+      Manrope: "'Manrope', 'DM Sans', system-ui, sans-serif",
       'Public Sans': "'Public Sans', 'DM Sans', system-ui, sans-serif",
-      Montserrat: "'Montserrat', system-ui, sans-serif",
+      Montserrat: "'Montserrat', 'DM Sans', system-ui, sans-serif",
       Merriweather: "'Merriweather', Georgia, serif",
-      Inter: "'Inter', system-ui, sans-serif",
+      Inter: "'DM Sans', system-ui, sans-serif",
     };
     const displayMap: Record<string, string> = {
-      'Playfair Display': "'Playfair Display', Georgia, serif",
-      'Plus Jakarta Sans': "'Plus Jakarta Sans', system-ui, sans-serif",
-      Outfit: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
-      Manrope: "'Manrope', system-ui, sans-serif",
-      Montserrat: "'Montserrat', system-ui, sans-serif",
+      'Bricolage Grotesque': "'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif",
+      'Playfair Display': "'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif",
+      'Plus Jakarta Sans': "'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif",
+      Outfit: "'Outfit', 'Bricolage Grotesque', system-ui, sans-serif",
+      Manrope: "'Manrope', 'Bricolage Grotesque', system-ui, sans-serif",
+      Montserrat: "'Montserrat', 'Bricolage Grotesque', system-ui, sans-serif",
     };
-    root.style.setProperty('--font-main', fontMap[empresa.fontePrincipal] || fontMap['Plus Jakarta Sans']);
-    root.style.setProperty('--font-display', displayMap[empresa.fonteDisplay || 'Playfair Display'] || displayMap['Playfair Display']);
+    root.style.setProperty('--font-main', fontMap[empresa.fontePrincipal] || fontMap['DM Sans']);
+    root.style.setProperty(
+      '--font-display',
+      displayMap[empresa.fonteDisplay || 'Bricolage Grotesque'] || displayMap['Bricolage Grotesque'],
+    );
 
     const raio = empresa.layoutConfig?.raioBordas || 'editorial';
     if (raio === 'sharp') {

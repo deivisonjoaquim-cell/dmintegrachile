@@ -45,15 +45,15 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
 
   return (
     <aside data-onboarding-target="live-radar" className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
-      {/* Painel Principal: Radar de Viabilidade ao Vivo (Azul Marinho + Ouro) */}
-      <div className="rounded-2xl overflow-hidden border border-[#1E3349] bg-[#0B1F33] text-white shadow-[0_14px_34px_rgba(11,31,51,0.16)]">
+      {/* Painel Principal: Radar de Viabilidade ao Vivo (Obsidian + Esmeralda) */}
+      <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#090F1A] text-white shadow-[0_16px_38px_rgba(9,15,26,0.18)]">
         <BrandRibbon className="h-[3px] w-full" />
 
         <div className="p-5 space-y-5">
           {/* Título do Radar */}
           <div className="flex items-start justify-between gap-2 pb-3.5 border-b border-white/10">
             <div>
-              <p className="text-xs font-semibold text-[#E6C55A] flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-[#34D399] flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5 shrink-0" />
                 Radar de Viabilidade ao vivo
               </p>
@@ -89,7 +89,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                 </p>
               )}
               {livePreview.situacaoResidenciaAtual && (
-                <p className="text-[11px] font-semibold text-[#E6C55A] pt-0.5">
+                <p className="text-[11px] font-semibold text-[#D4A853] pt-0.5">
                   {livePreview.situacaoResidenciaAtual}
                 </p>
               )}
@@ -103,7 +103,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                 <p className="text-[11px] font-medium text-slate-300">
                   7 pilares do Radar em tempo real
                 </p>
-                <span className="font-mono text-[10px] text-[#E6C55A] tabular-nums">
+                <span className="font-mono text-[10px] text-[#34D399] tabular-nums">
                   {liveResult.viabilidade?.veredito || 'Em cálculo'}
                 </span>
               </div>
@@ -111,7 +111,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                 {allDimensions.map((dim) => {
                   const pct =
                     dim.maximo > 0 ? Math.min(100, Math.max(0, Math.round((dim.pontos / dim.maximo) * 100))) : 0;
-                  const fill = pct >= 75 ? '#22C55E' : pct >= 50 ? '#C8A236' : '#F59E0B';
+                  const fill = pct >= 75 ? '#10B981' : pct >= 50 ? '#D4A853' : '#F59E0B';
                   return (
                     <div key={dim.nome} className="space-y-1">
                       <div className="flex items-baseline justify-between gap-2 text-[11px]">
@@ -140,7 +140,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
           {/* Alerta ativo ou verificação limpa */}
           {contradictionsCount > 0 ? (
             <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-400/35 text-xs text-amber-100 flex items-start gap-2 leading-relaxed">
-              <AlertTriangle className="w-4 h-4 text-[#E6C55A] shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-[#D4A853] shrink-0 mt-0.5" />
               <span>
                 {contradictionsCount === 1
                   ? '1 inconsistência detectada — use a correção em 1 clique no formulário.'
@@ -149,12 +149,12 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
             </div>
           ) : livePreview.alertaPrincipal ? (
             <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-400/35 text-xs text-amber-100 flex items-start gap-2 leading-relaxed">
-              <AlertTriangle className="w-4 h-4 text-[#E6C55A] shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-[#D4A853] shrink-0 mt-0.5" />
               <span>{livePreview.alertaPrincipal}</span>
             </div>
           ) : (
             <div className="p-3 rounded-xl bg-emerald-500/12 border border-emerald-400/25 text-xs text-emerald-100 flex items-start gap-2 leading-relaxed">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <ShieldCheck className="w-4 h-4 text-[#34D399] shrink-0 mt-0.5" />
               <span>Sem contradições normativas detectadas até o momento.</span>
             </div>
           )}
@@ -165,7 +165,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="rounded-lg bg-white/[0.05] border border-white/10 p-2.5">
                   <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <FileCheck2 className="w-3 h-3 text-emerald-400" />
+                    <FileCheck2 className="w-3 h-3 text-[#34D399]" />
                     Obrigatórios
                   </p>
                   <p className="font-mono text-sm font-bold text-white tabular-nums mt-0.5">
@@ -188,7 +188,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                   <ul className="space-y-1">
                     {livePreview.fontesLegais.map((src) => (
                       <li key={src.id} className="text-[11px] text-slate-300 leading-snug">
-                        <span className="text-[#E6C55A] font-semibold">{src.jurisdicao}</span>
+                        <span className="text-[#D4A853] font-semibold">{src.jurisdicao}</span>
                         {' · '}
                         {src.titulo.split('–')[0].trim()}
                       </li>
@@ -202,36 +202,36 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
       </div>
 
       {/* Cartão Claro: Recomendação Dinâmica da Etapa + Jurisdição + Mapa das 6 Etapas */}
-      <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 space-y-4">
+      <div className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl p-5 space-y-4">
         <div
           className={`rounded-xl border p-3.5 space-y-1.5 ${
             stepRecommendation.tom === 'atencao'
-              ? 'bg-amber-50/70 border-amber-200'
+              ? 'bg-amber-50/70 dark:bg-amber-950/25 border-amber-200 dark:border-amber-800/50'
               : stepRecommendation.tom === 'positivo'
-                ? 'bg-emerald-50/60 border-emerald-200'
-                : 'bg-[#FAF9F6] border-[#E5DFD2]'
+                ? 'bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/50'
+                : 'bg-[#F8FAFC] dark:bg-[#131F33] border-[#E2E8F0] dark:border-[#1E293B]'
           }`}
         >
-          <p className="text-xs font-semibold text-[#8C6D14]">
+          <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
             Recomendação da etapa 0{stepRecommendation.etapa}
           </p>
-          <p className="text-xs font-bold text-[#0B1F33] leading-snug">{stepRecommendation.titulo}</p>
-          <p className="text-[11px] text-slate-700 leading-relaxed">{stepRecommendation.orientacao}</p>
-          <p className="text-[11px] font-medium text-[#0B1F33] pt-1 border-t border-black/5">
+          <p className="text-xs font-bold text-[#090F1A] dark:text-white leading-snug">{stepRecommendation.titulo}</p>
+          <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">{stepRecommendation.orientacao}</p>
+          <p className="text-[11px] font-medium text-[#090F1A] dark:text-slate-100 pt-1 border-t border-black/5 dark:border-white/10">
             <strong>Ação prática:</strong> {stepRecommendation.acaoPratica}
           </p>
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-[#8C6D14] flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399] flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5 shrink-0" />
             Jurisdição SERMIG · {answers.localizacao}
           </p>
-          <p className="text-xs text-slate-600 leading-relaxed">{protocolRuleText}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{protocolRuleText}</p>
         </div>
 
-        <div className="pt-3.5 border-t border-[#E5DFD2] space-y-1.5">
-          <p className="text-xs font-semibold text-[#0B1F33] mb-2">
+        <div className="pt-3.5 border-t border-[#E2E8F0] dark:border-[#1E293B] space-y-1.5">
+          <p className="text-xs font-semibold text-[#090F1A] dark:text-white mb-2">
             Progresso das 6 etapas
           </p>
           {steps.map((item) => {
@@ -245,27 +245,27 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border transition-colors ${
                   active
-                    ? 'border-[#0B1F33] bg-[#F7F5F0] font-semibold text-[#0B1F33] shadow-[0_3px_10px_rgba(11,31,51,0.06)]'
+                    ? 'border-[#090F1A] dark:border-[#10B981] bg-[#F8FAFC] dark:bg-[#131F33] font-semibold text-[#090F1A] dark:text-white shadow-[0_3px_10px_rgba(9,15,26,0.06)]'
                     : done
-                      ? 'border-emerald-200/90 bg-emerald-50/40 text-[#146B43]'
-                      : 'border-[#EDE8DC] bg-white text-slate-500'
+                      ? 'border-emerald-200/90 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20 text-[#047857] dark:text-[#34D399]'
+                      : 'border-[#E2E8F0] dark:border-[#1E293B] bg-white dark:bg-[#0D1524] text-slate-500 dark:text-slate-400'
                 }`}
               >
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="font-mono text-[11px] font-bold tabular-nums">0{item.num}</span>
                   <span className="truncate">{item.title}</span>
                 </span>
-                {done && <Check className="w-3.5 h-3.5 text-[#146B43] shrink-0" />}
-                {active && <span className="text-[11px] font-semibold text-[#8C6D14]">Atual</span>}
+                {done && <Check className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399] shrink-0" />}
+                {active && <span className="text-[11px] font-semibold text-[#047857] dark:text-[#34D399]">Atual</span>}
               </motion.div>
             );
           })}
         </div>
 
-        <div className="pt-3 border-t border-[#E5DFD2] text-[11px] text-slate-500 leading-relaxed">
-          Ao concluir a etapa 6, você libera imediatamente o <strong className="text-[#0B1F33]">Gráfico Radar</strong>, o{' '}
-          <strong className="text-[#0B1F33]">Simulador &ldquo;E se...&rdquo;</strong> e o{' '}
-          <strong className="text-[#0B1F33]">Dossiê PDF de 2 páginas</strong>.
+        <div className="pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B] text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+          Ao concluir a etapa 6, você libera imediatamente o <strong className="text-[#090F1A] dark:text-white">Gráfico Radar</strong>, o{' '}
+          <strong className="text-[#090F1A] dark:text-white">Simulador &ldquo;E se...&rdquo;</strong> e o{' '}
+          <strong className="text-[#090F1A] dark:text-white">Dossiê PDF de 2 páginas</strong>.
           {isAdmin && (
             <span className={`block mt-1 ${getJurisdictionTextClass('Brasil')}`}>
               Proteção de dados conforme LGPD (Lei nº 13.709/2018).

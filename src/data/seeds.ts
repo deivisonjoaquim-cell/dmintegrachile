@@ -165,7 +165,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       'Da análise de elegibilidade pelo Acordo Mercosul e pela legislação chilena (Ley Nº 21.325) até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.',
     conteudoHtml:
       'Conduzimos cada fase com conferência documental criteriosa, controle rigoroso de prazos e acompanhamento transparente pelo Portal do Cliente.',
-    imagemUrl: '/src/assets/images/hero_santiago_andes_1794944011226.jpg',
+    imagemUrl: '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
     ordem: 1,
     ativo: true,
     metadados: {
@@ -184,7 +184,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     titulo: 'Soluções completas para imigração e estabelecimento no Chile',
     subtitulo: 'Assessoria estruturada para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.',
     conteudoHtml: '',
-    imagemUrl: '/src/assets/images/service_relocation_chile_1794997277886.jpg',
+    imagemUrl: '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
     ordem: 2,
     ativo: true,
     metadados: {
@@ -223,7 +223,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     subtitulo:
       'Rigor técnico e planejamento preventivo para evitar exigências do SERMIG, perda de validade de certidões e indeferimentos.',
     conteudoHtml: '',
-    imagemUrl: '/src/assets/images/about_consultoria_office_1794997278170.jpg',
+    imagemUrl: '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
     ordem: 3,
     ativo: true,
     metadados: {

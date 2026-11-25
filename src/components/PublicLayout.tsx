@@ -101,10 +101,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white dark:bg-[#0B1F33] border-b border-[#E5DFD2] dark:border-[#1C324B] no-print'
+      ? 'bg-white dark:bg-[#090F1A] border-b border-[#E2E8F0] dark:border-[#1E293B] no-print'
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E5DFD2] dark:border-[#1C324B] no-print'
-        : 'sticky top-0 z-40 bg-white/95 dark:bg-[#0B1F33]/95 backdrop-blur-md border-b border-[#E5DFD2] dark:border-[#1C324B] no-print';
+        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E2E8F0] dark:border-[#1E293B] no-print'
+        : 'sticky top-0 z-40 bg-white/92 dark:bg-[#090F1A]/92 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#1E293B] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const headerLogoSrc = isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl;
@@ -112,10 +112,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-200">
       {/* Filete arquitetônico bilateral de identidade institucional */}
-      <BrandRibbon className="h-[2.5px] w-full no-print" />
+      <BrandRibbon className="h-[2px] w-full no-print" />
 
       <header className={headerClass}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[58px] lg:h-[72px] flex items-center justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[58px] lg:h-[72px] flex items-center justify-between gap-8">
           {/* Zona 1: Marca Oficial */}
           <a
             href="#/"
@@ -123,7 +123,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               e.preventDefault();
               onNavigate('/');
             }}
-            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] rounded group"
+            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] rounded group"
           >
             <BrandLogo
               src={headerLogoSrc}
@@ -132,10 +132,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               variant={isDark ? 'dark' : 'light'}
               priority
               imgStyle={{ height: `${logoHeight}px` }}
-              imgClassName="w-auto max-h-[38px] lg:max-h-[46px] max-w-[190px] sm:max-w-[220px] object-contain shrink-0"
+              imgClassName="w-auto max-h-[38px] lg:max-h-[44px] max-w-[190px] sm:max-w-[220px] object-contain shrink-0"
             />
             {showBrandText && (
-              <span className="text-base sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap truncate">
+              <span className="font-display text-base sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap truncate">
                 {brandShortName}
               </span>
             )}
@@ -158,8 +158,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   }}
                   className={`text-sm font-medium whitespace-nowrap shrink-0 py-1.5 border-b-2 transition-colors ${
                     active
-                      ? 'text-[var(--color-text)] font-semibold border-[var(--color-accent)]'
-                      : 'text-slate-600 dark:text-slate-300 border-transparent hover:text-[var(--color-text)] hover:border-slate-300 dark:hover:border-slate-600'
+                      ? 'text-[#090F1A] dark:text-white font-semibold border-[#10B981]'
+                      : 'text-[#475569] dark:text-slate-300 border-transparent hover:text-[#090F1A] dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
                   {item.localizedLabel}
@@ -174,15 +174,16 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               onMouseEnter={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
-              className={`hidden lg:inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-semibold btn-radius whitespace-nowrap shrink-0 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] ${
+              className={`hidden lg:inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold btn-radius whitespace-nowrap shrink-0 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10B981] ${
                 currentPath === headerCtaDest
-                  ? 'bg-[#F1EDE4] dark:bg-[#142942] text-[#0B1F33] dark:text-[#E5C76B] border border-[#DDD6C7] dark:border-[#244365]'
-                  : 'text-white shadow-[0_1px_3px_rgba(11,31,51,0.16)] hover:opacity-95'
+                  ? 'bg-[#F1F5F9] dark:bg-[#131F33] text-[#090F1A] dark:text-[#34D399] border border-[#CBD5E1] dark:border-[#1E293B]'
+                  : 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] hover:bg-[#132036] dark:hover:bg-[#34D399] shadow-[0_2px_8px_rgba(9,15,26,0.16)]'
               }`}
-              style={currentPath === headerCtaDest ? undefined : { backgroundColor: 'var(--color-primary)' }}
             >
               {headerCtaLabel}
-              {currentPath !== headerCtaDest && <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />}
+              {currentPath !== headerCtaDest && (
+                <ArrowRight className="w-3.5 h-3.5 text-[#34D399] dark:text-[#041C16]" aria-hidden="true" />
+              )}
             </button>
 
             <button
@@ -190,7 +191,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="lg:hidden p-2 btn-radius text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#11263D] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+              className="lg:hidden p-2 btn-radius text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#131F33] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -198,7 +199,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white dark:bg-[#0D1E31] border-t border-[#E5DFD2] dark:border-[#1C324B] px-4 py-4 space-y-1.5 shadow-lg">
+          <div className="lg:hidden bg-white dark:bg-[#0D1524] border-t border-[#E2E8F0] dark:border-[#1E293B] px-4 py-4 space-y-1.5 shadow-lg">
             {allNavItems.map((item) => (
               <a
                 key={item.path}
@@ -211,8 +212,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 }}
                 className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
                   currentPath === item.path
-                    ? 'bg-[#F7F5F0] dark:bg-[#11263D] text-[#0B1F33] dark:text-white font-semibold'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#11263D]'
+                    ? 'bg-[#F1F5F9] dark:bg-[#131F33] text-[#090F1A] dark:text-white font-semibold'
+                    : 'text-[#475569] dark:text-slate-300 hover:bg-[#F8FAFC] dark:hover:bg-[#131F33]'
                 }`}
               >
                 {item.localizedLabel}
@@ -223,34 +224,27 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               onTouchStart={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
-              className="w-full mt-2 px-4 py-2.5 text-sm font-semibold text-white btn-radius text-center inline-flex items-center justify-center gap-1.5"
-              style={{ backgroundColor: 'var(--color-primary)' }}
+              className="w-full mt-2 px-4 py-2.5 text-sm font-bold text-white dark:text-[#041C16] bg-[#090F1A] dark:bg-[#10B981] btn-radius text-center inline-flex items-center justify-center gap-1.5"
             >
               {headerCtaLabel}
               <ArrowRight className="w-4 h-4" />
             </button>
 
-            <div className="pt-3 mt-3 border-t border-[#E5DFD2] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-2">
+            <div className="pt-3 mt-3 border-t border-[#E2E8F0] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleTheme}
                   aria-pressed={isDark}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-xs font-medium text-[#0B1F33] dark:text-slate-200"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#CBD5E1] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] text-xs font-medium text-[#090F1A] dark:text-slate-200"
                 >
-                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#E5C76B]" /> : <Moon className="w-3.5 h-3.5" />}
-                  {isDark
-                    ? locale === 'es-CL'
-                      ? 'Modo claro'
-                      : 'Modo claro'
-                    : locale === 'es-CL'
-                      ? 'Modo oscuro'
-                      : 'Modo escuro'}
+                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5" />}
+                  {isDark ? 'Modo claro' : locale === 'es-CL' ? 'Modo oscuro' : 'Modo escuro'}
                 </button>
                 <div
                   role="group"
                   aria-label="Selecionar idioma do site"
-                  className="inline-flex items-center rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] p-0.5"
+                  className="inline-flex items-center rounded-lg border border-[#CBD5E1] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] p-0.5"
                 >
                   <button
                     type="button"
@@ -258,8 +252,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     aria-pressed={locale === 'pt-BR'}
                     className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors ${
                       locale === 'pt-BR'
-                        ? 'bg-[#0B1F33] dark:bg-[#C8A236] text-white dark:text-[#0B1F33]'
-                        : 'text-[#4A5A6D] dark:text-slate-300'
+                        ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16]'
+                        : 'text-[#475569] dark:text-slate-300'
                     }`}
                   >
                     PT
@@ -270,8 +264,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     aria-pressed={locale === 'es-CL'}
                     className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors ${
                       locale === 'es-CL'
-                        ? 'bg-[#A61C2B] text-white'
-                        : 'text-[#4A5A6D] dark:text-slate-300'
+                        ? 'bg-[#B91C1C] text-white'
+                        : 'text-[#475569] dark:text-slate-300'
                     }`}
                   >
                     ES-CL
@@ -301,7 +295,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         className="text-slate-300 border-t border-white/10 no-print relative cv-auto"
         style={{ backgroundColor: 'var(--color-footer-bg)' }}
       >
-        <BrandRibbon className="h-[2.5px] w-full" />
+        <BrandRibbon className="h-[2px] w-full" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-16">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-white/10">
             <div className="md:col-span-5 space-y-3">
@@ -314,7 +308,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 imgClassName="h-12 w-auto max-w-[260px] object-contain"
               />
               {!isCompleteHorizontalBrandLogo(footerLogoSrc) && (
-                <p className="text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
+                <p className="font-display text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
               )}
               <p className="text-sm text-slate-300 leading-relaxed max-w-md">
                 {translateText(lc.rodapeSubtitulo) || t.footer.defaultSubtitle}
@@ -323,7 +317,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               <p className="text-xs text-slate-500">{translateText(empresa.razao_social_cnpj_rut)}</p>
             </div>
             <div className="md:col-span-3">
-              <p className="text-xs font-semibold text-[#E5C76B] mb-4">
+              <p className="text-xs font-semibold text-[#34D399] mb-4">
                 {t.footer.quickAccess}
               </p>
               <ul className="space-y-2.5 text-sm">
@@ -348,7 +342,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                       e.preventDefault();
                       onNavigate(isStaff ? '/painel' : '/entrar-equipe');
                     }}
-                    className="text-slate-400 hover:text-[#E5C76B] transition-colors text-xs"
+                    className="text-slate-400 hover:text-[#34D399] transition-colors text-xs"
                   >
                     {t.footer.teamArea}
                   </a>
@@ -356,7 +350,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               </ul>
             </div>
             <div className="md:col-span-4">
-              <p className="text-xs font-semibold text-[#E5C76B] mb-4">
+              <p className="text-xs font-semibold text-[#34D399] mb-4">
                 {t.footer.supportCompliance}
               </p>
               <p className="text-sm text-slate-200 font-medium">{empresa.email}</p>
@@ -384,21 +378,21 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 )}
               </div>
 
-              {/* Preferências globais: Idioma e Tema (mantém o cabeçalho limpo) */}
+              {/* Preferências globais: Idioma e Tema */}
               <div className="mt-5 pt-4 border-t border-white/10 flex flex-wrap items-center gap-2.5">
                 <div
                   role="group"
                   aria-label="Selecionar idioma do site"
                   className="inline-flex items-center rounded-lg border border-white/15 bg-white/5 p-0.5"
                 >
-                  <Globe className="w-3.5 h-3.5 text-[#E5C76B] ml-2 mr-1 shrink-0" aria-hidden="true" />
+                  <Globe className="w-3.5 h-3.5 text-[#34D399] ml-2 mr-1 shrink-0" aria-hidden="true" />
                   <button
                     type="button"
                     onClick={() => setLocale('pt-BR')}
                     aria-pressed={locale === 'pt-BR'}
                     className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       locale === 'pt-BR'
-                        ? 'bg-[#E5C76B] text-[#081726]'
+                        ? 'bg-[#10B981] text-[#041C16]'
                         : 'text-slate-300 hover:text-white'
                     }`}
                   >
@@ -410,7 +404,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     aria-pressed={locale === 'es-CL'}
                     className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       locale === 'es-CL'
-                        ? 'bg-[#A61C2B] text-white'
+                        ? 'bg-[#B91C1C] text-white'
                         : 'text-slate-300 hover:text-white'
                     }`}
                   >
@@ -424,14 +418,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   aria-pressed={isDark}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-xs font-medium text-slate-200 transition-colors"
                 >
-                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#E5C76B]" /> : <Moon className="w-3.5 h-3.5 text-[#E5C76B]" />}
-                  {isDark
-                    ? locale === 'es-CL'
-                      ? 'Modo claro'
-                      : 'Modo claro'
-                    : locale === 'es-CL'
-                      ? 'Modo oscuro'
-                      : 'Modo escuro'}
+                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5 text-[#34D399]" />}
+                  {isDark ? 'Modo claro' : locale === 'es-CL' ? 'Modo oscuro' : 'Modo escuro'}
                 </button>
               </div>
 
@@ -461,7 +449,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Falar com ${brandShortName} no WhatsApp`}
-          className="hidden md:inline-flex fixed bottom-5 right-5 z-40 items-center gap-2 px-4 py-2.5 rounded-full bg-[#146B43] hover:bg-[#0F5434] text-white text-xs font-semibold border border-white/15 shadow-[0_6px_18px_rgba(11,31,51,0.2)] hover:-translate-y-0.5 transition-all duration-150 no-print"
+          className="hidden md:inline-flex fixed bottom-5 right-5 z-40 items-center gap-2 px-4 py-2.5 rounded-full bg-[#047857] hover:bg-[#065F46] text-white text-xs font-semibold border border-white/15 shadow-[0_8px_24px_rgba(4,120,87,0.32)] hover:-translate-y-0.5 transition-all duration-150 no-print"
         >
           <MessageCircle className="w-4 h-4" />
           {t.mobileBar.whatsappCta}
@@ -470,13 +458,12 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
       {/* Barra inferior fixa CTA compacta no mobile (mantém chrome fixo total < 15% da altura) */}
       {showMobileCtaBar && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1E31]/95 backdrop-blur border-t border-[#E5DFD2] dark:border-[#1C324B] px-3 py-1.5 flex items-center gap-2 no-print">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1524]/95 backdrop-blur border-t border-[#E2E8F0] dark:border-[#1E293B] px-3 py-1.5 flex items-center gap-2 no-print">
           <button
             type="button"
             onTouchStart={() => prefetchRouteChunk('/diagnostico')}
             onClick={() => onNavigate('/diagnostico')}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 btn-radius text-xs font-semibold text-white min-h-[38px]"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 btn-radius text-xs font-bold text-white dark:text-[#041C16] bg-[#090F1A] dark:bg-[#10B981] min-h-[38px]"
           >
             {t.mobileBar.diagnosticCta}
             <ArrowRight className="w-3.5 h-3.5" />
@@ -485,7 +472,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             href={waFloatingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 py-2 px-3.5 btn-radius bg-[#146B43] text-white text-xs font-semibold min-h-[38px]"
+            className="inline-flex items-center justify-center gap-1.5 py-2 px-3.5 btn-radius bg-[#047857] text-white text-xs font-semibold min-h-[38px]"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             {t.mobileBar.whatsappCta}

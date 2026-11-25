@@ -2,35 +2,38 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================================
- * D&M Integra Chile — Sistema Visual Oficial (derivado do Emblema Institucional)
- * 60% Pergaminho / Marfim Arquitetônico (#F7F5F0 · #FFFFFF)
- * 30% Marinho Andino Profundo (#0B1F33 · #081726)
- * 10% Assinatura Bilateral: Dourado Estrela-Guia (#C8A236),
- *     Esmeralda Brasil (#146B43) e Carmim Andino Chile (#A61C2B)
- * Tipografia: Playfair Display (Display Editorial / D&M) + Plus Jakarta Sans (UI)
+ * D&M Integra Chile — Andean Architectural Atelier Design System
+ * 60% Mineral Alabaster & Pure White Canvas (#F8FAFC · #FFFFFF)
+ * 30% Midnight Obsidian & Deep Cordillera Slate (#090F1A · #0F172A)
+ * 10% Focused Conversion Accents: Andean Emerald (#047857 / #10B981)
+ *     & Champagne Brass (#D4A853)
+ * Typography: Bricolage Grotesque (Architectural Display) + DM Sans (Body)
+ *             + JetBrains Mono (Tabular Metrics & Legal References)
  * ============================================================================ */
 
 :root {
-  --color-primary: #0B1F33;
-  --color-primary-soft: #153553;
-  --color-accent: #C8A236;
-  --color-accent-ink: #8C6D14;
-  --color-accent-light: #E5C76B;
-  --color-brand-emerald: #146B43;
-  --color-brand-emerald-dark: #0F5434;
-  --color-brand-crimson: #A61C2B;
-  --color-bg: #F7F5F0;
+  --color-primary: #090F1A;
+  --color-primary-soft: #132036;
+  --color-accent: #10B981;
+  --color-accent-strong: #047857;
+  --color-brass: #D4A853;
+  --color-accent-ink: #047857;
+  --color-accent-light: #34D399;
+  --color-brand-emerald: #047857;
+  --color-brand-emerald-dark: #065F46;
+  --color-brand-crimson: #B91C1C;
+  --color-bg: #F8FAFC;
   --color-surface: #FFFFFF;
-  --color-surface-subtle: #F1EDE4;
-  --color-border-subtle: #E5DFD2;
-  --color-text: #0B1523;
-  --color-text-muted: #4A5A6D;
-  --color-footer-bg: #081726;
-  --color-success: #146B43;
+  --color-surface-subtle: #F1F5F9;
+  --color-border-subtle: #E2E8F0;
+  --color-text: #090F1A;
+  --color-text-muted: #475569;
+  --color-footer-bg: #060B14;
+  --color-success: #047857;
   --color-warning: #B45309;
-  --color-critical: #A61C2B;
-  --font-main: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
-  --font-display: 'Playfair Display', Georgia, serif;
+  --color-critical: #B91C1C;
+  --font-main: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --radius-card: 1rem;
   --radius-button: 0.625rem;
@@ -38,17 +41,19 @@
 
 .dark,
 .panel-dark {
-  --color-primary: #1B4D7A;
-  --color-primary-soft: #245D91;
-  --color-accent: #E5C76B;
-  --color-accent-ink: #E5C76B;
-  --color-bg: #071320;
-  --color-surface: #0D1E31;
-  --color-surface-subtle: #11263D;
-  --color-border-subtle: #1C324B;
-  --color-text: #F1F5F9;
-  --color-text-muted: #9AB0C7;
-  --color-footer-bg: #040B14;
+  --color-primary: #10B981;
+  --color-primary-soft: #059669;
+  --color-accent: #10B981;
+  --color-accent-strong: #34D399;
+  --color-brass: #E5C16C;
+  --color-accent-ink: #34D399;
+  --color-bg: #060A12;
+  --color-surface: #0D1524;
+  --color-surface-subtle: #131F33;
+  --color-border-subtle: #1E293B;
+  --color-text: #F8FAFC;
+  --color-text-muted: #94A3B8;
+  --color-footer-bg: #04070D;
   color-scheme: dark;
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -64,7 +69,7 @@
 .panel-dark input:focus-visible,
 .panel-dark select:focus-visible,
 .panel-dark textarea:focus-visible {
-  outline: 2px solid #E5C76B;
+  outline: 2px solid #34D399;
   outline-offset: 2px;
 }
 
@@ -76,18 +81,18 @@
 
 .dark ::-webkit-scrollbar-track,
 .panel-dark ::-webkit-scrollbar-track {
-  background: #071320;
+  background: #060A12;
 }
 
 .dark ::-webkit-scrollbar-thumb,
 .panel-dark ::-webkit-scrollbar-thumb {
-  background: #1E3754;
+  background: #1E293B;
   border-radius: 9999px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover,
 .panel-dark ::-webkit-scrollbar-thumb:hover {
-  background: #2C4D72;
+  background: #334155;
 }
 
 html {
@@ -108,26 +113,24 @@ body {
 }
 
 ::selection {
-  background-color: rgba(200, 162, 54, 0.25);
-  color: #0B1523;
+  background-color: rgba(16, 185, 129, 0.22);
+  color: #090F1A;
 }
 
 .dark ::selection,
 .panel-dark ::selection {
-  background-color: rgba(229, 199, 107, 0.28);
+  background-color: rgba(52, 211, 153, 0.28);
   color: #F8FAFC;
 }
 
-/* Tipografia Editorial derivada do Emblema:
- * h1/h2 carregam a autoridade serifada de "D&M" (Playfair Display),
- * enquanto h3/h4 e áreas operacionais densas mantêm Plus Jakarta Sans. */
+/* Architectural Display Typography: Bricolage Grotesque with tight precision tracking */
 h1, h2 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.028em;
 }
 
 h3, h4 {
-  font-family: var(--font-main);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
@@ -152,19 +155,15 @@ h3, h4 {
   font-family: var(--font-mono);
 }
 
-/* Filete Arquitetônico Bilateral derivado das cores oficiais da logo:
- * Esmeralda Brasil -> Dourado Estrela-Guia -> Marinho Andino -> Carmim Chile */
+/* Signature Bilateral Architectural Hairline: Emerald -> Brass -> Obsidian -> Crimson */
 .brand-ribbon {
   background: linear-gradient(
     90deg,
-    #146B43 0%,
-    #146B43 24%,
-    #C8A236 24%,
-    #C8A236 42%,
-    #0B1F33 42%,
-    #0B1F33 78%,
-    #A61C2B 78%,
-    #A61C2B 100%
+    #047857 0%,
+    #10B981 26%,
+    #D4A853 48%,
+    #0F172A 78%,
+    #B91C1C 100%
   );
 }
 
@@ -172,21 +171,21 @@ h3, h4 {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-card);
-  box-shadow: 0 1px 3px rgba(11, 31, 51, 0.04);
+  box-shadow: 0 1px 2px rgba(9, 15, 26, 0.04);
   transition: border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark .brand-card {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
 }
 
 .brand-kicker {
   font-family: var(--font-main);
   font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.015em;
+  letter-spacing: 0.01em;
   color: var(--color-accent-ink);
 }
 

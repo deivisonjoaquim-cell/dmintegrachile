@@ -553,16 +553,16 @@ export const ParceirosPage: React.FC = () => {
     <MotionConfig reducedMotion="user">
       <div className="bg-[var(--color-bg)]">
         {/* Executive Split Hero Band */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-[#071422] via-[#0B1F33] to-[#0E2842] text-white border-b border-white/10">
+        <section className="relative overflow-hidden bg-[#090F1A] text-white border-b border-white/10">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full opacity-20 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #C8A236 0%, transparent 70%)' }}
+            style={{ background: 'radial-gradient(circle, #10B981 0%, transparent 70%)' }}
           />
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -bottom-28 -left-16 w-80 h-80 rounded-full opacity-15 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #146B43 0%, transparent 70%)' }}
+            style={{ background: 'radial-gradient(circle, #D4A853 0%, transparent 70%)' }}
           />
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-10 lg:pt-14 lg:pb-12 space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
@@ -575,14 +575,14 @@ export const ParceirosPage: React.FC = () => {
               >
                 <div className="space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
-                    <p className="text-xs font-semibold text-[#E5C76B]">
+                    <span className="h-[2px] w-7 bg-[#10B981]" aria-hidden="true" />
+                    <p className="text-xs font-semibold text-[#34D399]">
                       {isEs
                         ? 'Programa de Alianzas B2B · Brasil y Chile'
                         : 'Programa de Parcerias B2B · Brasil & Chile'}
                     </p>
                   </div>
-                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] font-bold leading-[1.1] text-white text-balance">
+                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight leading-[1.08] text-white text-balance">
                     {isEs
                       ? 'Conecta tu empresa con clientes calificados que migran e invierten en Chile'
                       : 'Conecte sua empresa a clientes qualificados em mudança e negócios no Chile'}
@@ -599,7 +599,7 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => scrollToSection('seja-parceiro')}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#C8A236] hover:bg-[#b5912c] text-[#0B1F33] text-sm font-semibold shadow-[0_8px_22px_rgba(200,162,54,0.28)] transition-all duration-150 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#10B981] hover:bg-[#34D399] text-[#041C16] text-sm font-bold shadow-[0_10px_26px_rgba(16,185,129,0.28)] transition-all duration-150 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
                     >
                       <Handshake className="w-4 h-4" />
                       {isEs ? 'Quiero ser aliado homologado' : 'Quero ser parceiro homologado'}
@@ -608,15 +608,15 @@ export const ParceirosPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => scrollToSection('mapa-parceiros')}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-white/25 bg-white/[0.06] hover:bg-white/12 text-white text-sm font-semibold transition-all duration-150 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/25 bg-white/[0.06] hover:bg-white/12 text-white text-sm font-semibold transition-all duration-150 whitespace-nowrap shrink-0"
                     >
-                      <MapPin className="w-4 h-4 text-[#E5C76B]" />
+                      <MapPin className="w-4 h-4 text-[#34D399]" />
                       {isEs ? 'Ver mapa en Chile' : 'Explorar mapa no Chile'}
                     </button>
                   </div>
 
                   <p className="text-xs text-slate-300 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <span className="text-[#E5C76B] font-semibold">
+                    <span className="text-[#34D399] font-semibold">
                       {isEs ? 'Sin cuota mensual' : 'Zero mensalidade'}
                     </span>
                     <span aria-hidden="true">·</span>
@@ -634,7 +634,7 @@ export const ParceirosPage: React.FC = () => {
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:col-span-5 group relative rounded-2xl overflow-hidden border border-white/15 min-h-[260px] sm:min-h-[300px] bg-[#081726] shadow-[0_20px_48px_rgba(0,0,0,0.35)]"
+                className="lg:col-span-5 group relative rounded-2xl overflow-hidden border border-white/12 min-h-[260px] sm:min-h-[300px] bg-[#060B14] shadow-[0_20px_48px_rgba(0,0,0,0.35)]"
               >
                 <OptimizedImage
                   src={HERO_PARTNERS_IMAGE}
@@ -651,10 +651,10 @@ export const ParceirosPage: React.FC = () => {
                 />
                 <div
                   aria-hidden="true"
-                  className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/94 via-[#0B1F33]/35 to-transparent"
+                  className="absolute inset-0 bg-gradient-to-t from-[#090F1A]/95 via-[#090F1A]/35 to-transparent"
                 />
                 <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-                  <p className="text-xs font-semibold text-[#E5C76B]">
+                  <p className="text-xs font-semibold text-[#34D399]">
                     {isEs ? 'Ecosistema Corporativo · Santiago & Brasil' : 'Ecossistema Corporativo · Santiago & Brasil'}
                   </p>
                   <p className="text-sm font-medium text-white mt-1 leading-snug">
@@ -667,7 +667,7 @@ export const ParceirosPage: React.FC = () => {
             </div>
 
             {/* Full-Width 4-Column Quantified Network Strip */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-8 border-t border-white/15">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-8 border-t border-white/12">
               <div>
                 <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
                   {metrics.totalPartners}
@@ -677,7 +677,7 @@ export const ParceirosPage: React.FC = () => {
                 </p>
               </div>
               <div>
-                <p className="text-2xl sm:text-3xl font-bold text-[#E5C76B] font-mono tabular-nums">
+                <p className="text-2xl sm:text-3xl font-bold text-[#34D399] font-mono tabular-nums">
                   {metrics.uniqueCategories}/8
                 </p>
                 <p className="text-xs text-slate-300 mt-1">
@@ -693,7 +693,7 @@ export const ParceirosPage: React.FC = () => {
                 </p>
               </div>
               <div>
-                <p className="text-2xl sm:text-3xl font-bold text-white font-mono tabular-nums">
+                <p className="text-2xl sm:text-3xl font-bold text-[#D4A853] font-mono tabular-nums">
                   48h
                 </p>
                 <p className="text-xs text-slate-300 mt-1">
@@ -707,7 +707,7 @@ export const ParceirosPage: React.FC = () => {
         {/* Top Category Filter System + Quick Section Navigation (sem corte horizontal) */}
         <section
           aria-label={isEs ? 'Filtrar aliados por categoría principal' : 'Filtrar parceiros por categoria principal'}
-          className="bg-white dark:bg-[#0D1E31] border-b border-[#E5DFD2] dark:border-[#1C324B]"
+          className="bg-white dark:bg-[#0D1524] border-b border-[#E2E8F0] dark:border-[#1E293B]"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
             <div className="flex flex-wrap items-center gap-2">

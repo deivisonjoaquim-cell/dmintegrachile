@@ -309,11 +309,11 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     return (
       <div className="py-10 lg:py-16 bg-[var(--color-bg)]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden">
+          <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius overflow-hidden shadow-[0_14px_36px_rgba(9,15,26,0.06)]">
             <BrandRibbon className="h-[2.5px] w-full" />
             <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
               {/* Coluna Esquerda: Contexto institucional e capacidades do ambiente */}
-              <div className="lg:col-span-5 bg-[#0B1F33] text-white p-7 sm:p-9 flex flex-col justify-between gap-8">
+              <div className="lg:col-span-5 bg-[#090F1A] text-white p-7 sm:p-9 flex flex-col justify-between gap-8">
                 <div className="space-y-4">
                   <BrandLogo
                     src={empresa.logoDarkUrl || empresa.logoUrl}
@@ -322,16 +322,16 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                     variant="dark"
                     imgClassName="h-11 w-auto max-w-[210px] object-contain"
                     fallbackNode={
-                      <div className="w-11 h-11 btn-radius flex items-center justify-center bg-white/10 text-[#E5C76B]">
+                      <div className="w-11 h-11 btn-radius flex items-center justify-center bg-white/10 text-[#34D399]">
                         <ShieldCheck className="w-6 h-6" />
                       </div>
                     }
                   />
                   <div className="space-y-2 pt-2">
-                    <p className="text-xs font-semibold text-[#E5C76B]">
+                    <p className="text-xs font-semibold text-[#34D399]">
                       {mode === 'equipe' ? 'Ambiente Interno Corporativo' : 'Ambiente Seguro · LGPD'}
                     </p>
-                    <h1 className="font-display text-2xl sm:text-[28px] font-bold text-white leading-tight text-balance">
+                    <h1 className="font-display text-2xl sm:text-[28px] font-bold tracking-tight text-white leading-tight text-balance">
                       {mode === 'equipe' ? 'Painel da Equipe de Consultoria' : 'Portal do Cliente'}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
@@ -345,7 +345,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                 <div className="divide-y divide-white/10 border-t border-white/10">
                   {capabilities.map((cap) => (
                     <div key={cap.num} className="py-3.5 first:pt-4 last:pb-0 flex items-start gap-3">
-                      <span className="font-mono text-xs font-bold text-[#E5C76B] tabular-nums mt-0.5 shrink-0">
+                      <span className="font-mono text-xs font-bold text-[#34D399] tabular-nums mt-0.5 shrink-0">
                         {cap.num}
                       </span>
                       <div className="min-w-0">
@@ -361,13 +361,13 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               <div className="lg:col-span-7 p-7 sm:p-10 flex flex-col justify-center">
                 <div className="max-w-md mx-auto w-full space-y-6">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
+                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
                       {mode === 'equipe' ? 'Acesso Restrito' : 'Autenticação do Titular'}
                     </p>
-                    <h2 className="font-display text-2xl font-bold text-[#0B1F33] dark:text-white">
+                    <h2 className="font-display text-2xl font-bold tracking-tight text-[#090F1A] dark:text-white">
                       {mode === 'equipe' ? 'Entrar com conta corporativa' : 'Acesse seu processo'}
                     </h2>
-                    <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+                    <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
                       {mode === 'equipe'
                         ? 'Utilize o e-mail Google previamente habilitado pela administração para abrir o workspace interno.'
                         : 'Entre com a mesma conta Google utilizada no seu diagnóstico gratuito ou informada na contratação da consultoria.'}
@@ -385,27 +385,26 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                       type="button"
                       disabled={signingIn}
                       onClick={handleLogin}
-                      className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 btn-radius text-sm font-semibold text-white dark:text-[#0B1523] disabled:opacity-50 transition-opacity hover:opacity-95"
-                      style={{ backgroundColor: isDark ? 'var(--color-accent)' : 'var(--color-primary)' }}
+                      className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 btn-radius text-sm font-bold text-white bg-[#090F1A] hover:bg-[#132036] dark:bg-[#10B981] dark:text-[#041C16] dark:hover:bg-[#34D399] disabled:opacity-50 transition-colors"
                     >
                       <LogIn className="w-4 h-4" />
                       {signingIn ? 'Conectando ao Google...' : 'Continuar com Google'}
                     </button>
 
-                    <p className="text-xs text-[#4A5A6D] dark:text-slate-400 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#146B43] dark:text-emerald-400 shrink-0" />
+                    <p className="text-xs text-[#475569] dark:text-slate-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399] shrink-0" />
                       Sessão protegida via Firebase Authentication — sem senhas adicionais.
                     </p>
                   </div>
 
-                  <div className="pt-5 border-t border-[#E5DFD2] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="pt-5 border-t border-[#E2E8F0] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-3 text-xs">
                     {mode === 'cliente' ? (
                       <>
-                        <span className="text-[#4A5A6D] dark:text-slate-400">Ainda não fez sua avaliação inicial?</span>
+                        <span className="text-[#475569] dark:text-slate-400">Ainda não fez sua avaliação inicial?</span>
                         <button
                           type="button"
                           onClick={() => onNavigate('/diagnostico')}
-                          className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:underline underline-offset-4"
+                          className="inline-flex items-center gap-1 font-semibold text-[#047857] dark:text-[#34D399] hover:underline underline-offset-4"
                         >
                           Fazer Diagnóstico Gratuito
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -413,11 +412,11 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                       </>
                     ) : (
                       <>
-                        <span className="text-[#4A5A6D] dark:text-slate-400">É cliente da consultoria?</span>
+                        <span className="text-[#475569] dark:text-slate-400">É cliente da consultoria?</span>
                         <button
                           type="button"
                           onClick={() => onNavigate('/acompanhar')}
-                          className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:underline underline-offset-4"
+                          className="inline-flex items-center gap-1 font-semibold text-[#047857] dark:text-[#34D399] hover:underline underline-offset-4"
                         >
                           Ir para Portal do Cliente
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -437,7 +436,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
   return (
     <div className="py-12 lg:py-16 bg-[var(--color-bg)]">
       <div className={`${isWideView ? 'max-w-3xl' : 'max-w-xl'} mx-auto px-4 sm:px-6`}>
-        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden">
+        <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius overflow-hidden">
           <BrandRibbon className="h-[2.5px] w-full" />
           <div className="p-6 sm:p-8 text-center space-y-5">
           <BrandLogo
@@ -447,16 +446,13 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
             variant={isDark ? 'dark' : 'light'}
             imgClassName="h-12 w-auto max-w-[240px] object-contain mx-auto"
             fallbackNode={
-              <div
-                className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                <ShieldCheck className="w-6 h-6" />
+              <div className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white bg-[#090F1A]">
+                <ShieldCheck className="w-6 h-6 text-[#34D399]" />
               </div>
             }
           />
 
-          <h1 className="text-2xl font-bold text-[#0B1F33] dark:text-white">
+          <h1 className="font-display text-2xl font-bold text-[#090F1A] dark:text-white">
             {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Portal do Cliente'}
           </h1>
 
