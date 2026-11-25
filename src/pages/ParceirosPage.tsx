@@ -576,7 +576,7 @@ export const ParceirosPage: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2.5">
                     <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
-                    <p className="text-xs font-semibold tracking-[0.14em] uppercase text-[#E5C76B]">
+                    <p className="text-xs font-semibold text-[#E5C76B]">
                       {isEs
                         ? 'Programa de Alianzas B2B · Brasil y Chile'
                         : 'Programa de Parcerias B2B · Brasil & Chile'}
@@ -654,7 +654,7 @@ export const ParceirosPage: React.FC = () => {
                   className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/94 via-[#0B1F33]/35 to-transparent"
                 />
                 <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E5C76B]">
+                  <p className="text-xs font-semibold text-[#E5C76B]">
                     {isEs ? 'Ecosistema Corporativo · Santiago & Brasil' : 'Ecossistema Corporativo · Santiago & Brasil'}
                   </p>
                   <p className="text-sm font-medium text-white mt-1 leading-snug">
@@ -704,14 +704,14 @@ export const ParceirosPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Top Category Filter System + Quick Section Navigation */}
+        {/* Top Category Filter System + Quick Section Navigation (sem corte horizontal) */}
         <section
           aria-label={isEs ? 'Filtrar aliados por categoría principal' : 'Filtrar parceiros por categoria principal'}
           className="bg-white dark:bg-[#0D1E31] border-b border-[#E5DFD2] dark:border-[#1C324B]"
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 overflow-x-auto pb-0.5 lg:pb-0">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8C6D14] dark:text-[#E5C76B] whitespace-nowrap shrink-0 pr-1">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B] whitespace-nowrap shrink-0 pr-1">
                 {isEs ? 'Categorías:' : 'Categorias:'}
               </span>
               {PARTNER_MACRO_GROUPS.map((group) => {
@@ -736,7 +736,10 @@ export const ParceirosPage: React.FC = () => {
               })}
             </div>
 
-            <div className="flex items-center gap-3 overflow-x-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-[#F1EDE4] dark:border-[#1C324B] shrink-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-2.5 border-t border-[#F1EDE4] dark:border-[#1C324B]">
+              <span className="text-xs font-medium text-[#4A5A6D] dark:text-slate-400">
+                {isEs ? 'Ir a:' : 'Atalhos:'}
+              </span>
               <button
                 type="button"
                 onClick={() => scrollToSection('mapa-parceiros')}

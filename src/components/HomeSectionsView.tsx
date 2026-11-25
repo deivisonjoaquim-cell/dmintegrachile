@@ -1,17 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  BellRing,
   BookOpen,
   Calendar,
   Check,
   ChevronDown,
-  Compass,
-  FileCheck2,
   MapPin,
   MessageCircle,
   Quote,
-  Radar,
   ShieldCheck,
   Star,
   X,
@@ -34,6 +30,8 @@ import {
 import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { BrandLogo, BrandRibbon } from './BrandLogo';
 import { OptimizedImage } from './OptimizedImage';
+import { RouteComparatorCard } from './home/RouteComparatorCard';
+import { TechArchitectureBento } from './home/TechArchitectureBento';
 
 export interface ServiceItemMeta {
   numero: string;
@@ -78,7 +76,7 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
       subClass: 'text-[#4A5A6D] dark:text-slate-300',
       eyebrowClass: 'text-[#8C6D14] dark:text-[#E5C76B]',
       cardClass:
-        'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
+        'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 transition-colors duration-200',
     };
   }
   return {
@@ -89,109 +87,9 @@ function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' 
     subClass: 'text-[#4A5A6D] dark:text-slate-300',
     eyebrowClass: 'text-[#8C6D14] dark:text-[#E5C76B]',
     cardClass:
-      'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] shadow-[0_2px_10px_rgba(11,31,51,0.03)] hover:border-[#C8A236]/60 hover:shadow-[0_12px_30px_rgba(11,31,51,0.07)] transition-all duration-200',
+      'bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 transition-colors duration-200',
   };
 }
-
-/**
- * Geometric 7-pillar SVG radar diagram aligned to D&M Integra Chile logo palette
- * (Deep Navy #0B1F33, Gold Star #C8A236, Brazil Emerald #146B43, Chile Crimson #A61C2B).
- */
-const ArchitecturalRadarVisual: React.FC = () => {
-  const cx = 110;
-  const cy = 110;
-  const maxR = 82;
-  const sides = 7;
-  const scores = [0.96, 0.92, 0.98, 0.88, 0.94, 0.9, 0.95];
-
-  const getPoint = (idx: number, radius: number) => {
-    const angle = (Math.PI * 2 * idx) / sides - Math.PI / 2;
-    return {
-      x: cx + Math.cos(angle) * radius,
-      y: cy + Math.sin(angle) * radius,
-    };
-  };
-
-  const rings = [0.33, 0.66, 1].map((scale) =>
-    Array.from({ length: sides }, (_, idx) => {
-      const p = getPoint(idx, maxR * scale);
-      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-    }).join(' '),
-  );
-
-  const dataPolygon = scores
-    .map((score, idx) => {
-      const p = getPoint(idx, maxR * score);
-      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-    })
-    .join(' ');
-
-  return (
-    <svg
-      viewBox="0 0 220 220"
-      className="w-44 h-44 sm:w-52 sm:h-52 shrink-0 select-none"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="dmRadarFill" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#146B43" stopOpacity="0.48" />
-          <stop offset="55%" stopColor="#C8A236" stopOpacity="0.34" />
-          <stop offset="100%" stopColor="#A61C2B" stopOpacity="0.30" />
-        </linearGradient>
-      </defs>
-
-      {rings.map((points, i) => (
-        <polygon
-          key={i}
-          points={points}
-          fill="none"
-          stroke="rgba(229, 199, 107, 0.22)"
-          strokeWidth={i === 2 ? '1.1' : '0.8'}
-        />
-      ))}
-
-      {Array.from({ length: sides }, (_, idx) => {
-        const outer = getPoint(idx, maxR);
-        return (
-          <line
-            key={idx}
-            x1={cx}
-            y1={cy}
-            x2={outer.x}
-            y2={outer.y}
-            stroke="rgba(255, 255, 255, 0.14)"
-            strokeWidth="0.8"
-          />
-        );
-      })}
-
-      <polygon
-        points={dataPolygon}
-        fill="url(#dmRadarFill)"
-        stroke="#E5C76B"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-
-      {scores.map((score, idx) => {
-        const p = getPoint(idx, maxR * score);
-        return (
-          <circle
-            key={idx}
-            cx={p.x}
-            cy={p.y}
-            r="3.2"
-            fill={idx % 3 === 0 ? '#E5C76B' : idx % 3 === 1 ? '#34D399' : '#F87171'}
-            stroke="#0B1F33"
-            strokeWidth="1.2"
-          />
-        );
-      })}
-
-      <circle cx={cx} cy={cy} r="3" fill="#E5C76B" />
-    </svg>
-  );
-};
 
 export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   empresa,
@@ -205,9 +103,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   const { locale, t, translateText } = useLanguage();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [serviceDrawer, setServiceDrawer] = useState<ServiceItemMeta | null>(null);
-  const [compLocal, setCompLocal] = useState<'brasil' | 'turista_chile' | 'residente_chile'>('brasil');
-  const [compObj, setCompObj] = useState<'morar_trabalhar' | 'trabalho_oferta' | 'estudar' | 'renda' | 'familia'>('morar_trabalhar');
-  const [compVinculo, setCompVinculo] = useState<'nao' | 'sim'>('nao');
+
+  useEffect(() => {
+    if (!serviceDrawer) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setServiceDrawer(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [serviceDrawer]);
 
   const density = empresa.layoutConfig?.densidadeSecoes || 'equilibrada';
   const sectionPad =
@@ -230,47 +134,6 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     [empresa.depoimentosAutorizados],
   );
 
-  const comparatorRecommendation = useMemo(() => {
-    const routes = t.comparator.routes;
-    if (compLocal === 'residente_chile') {
-      return routes.residente;
-    }
-    if (compVinculo === 'sim' || compObj === 'familia') {
-      return {
-        titulo: routes.familia.titulo,
-        baseLegal: routes.familia.baseLegal,
-        protocoloRegra:
-          compLocal === 'turista_chile' ? routes.familia.protocoloTurista : routes.familia.protocoloExterior,
-        trabalho: routes.familia.trabalho,
-        prazoEstimado: routes.familia.prazoEstimado,
-        resumo: routes.familia.resumo,
-        alerta: compLocal === 'turista_chile' ? routes.familia.alertaTurista : undefined,
-      };
-    }
-    if (compObj === 'trabalho_oferta') {
-      return {
-        ...routes.trabalho,
-        alerta: compLocal === 'turista_chile' ? routes.trabalho.alertaTurista : undefined,
-      };
-    }
-    if (compObj === 'estudar') {
-      return {
-        ...routes.estudar,
-        alerta: compLocal === 'turista_chile' ? routes.estudar.alertaTurista : undefined,
-      };
-    }
-    if (compObj === 'renda') {
-      return {
-        ...routes.renda,
-        alerta: compLocal === 'turista_chile' ? routes.renda.alertaTurista : undefined,
-      };
-    }
-    return {
-      ...routes.mercosul,
-      alerta: compLocal === 'turista_chile' ? routes.mercosul.alertaTurista : undefined,
-    };
-  }, [compLocal, compObj, compVinculo, t]);
-
   const whatsappHeroUrl = buildWhatsAppUrl(empresa.whatsapp, t.hero.waGreeting);
 
   const navigateAction = (dest: string) => {
@@ -283,203 +146,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   };
 
   const renderTechArchitectureBento = (keyId: string) => (
-    <section
+    <TechArchitectureBento
       key={keyId}
-      className={`${sectionPad} bg-[#FAF9F6] dark:bg-[#091625] border-b border-[#E5DFD2] dark:border-[#1C324B]`}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
-        <div className="max-w-3xl space-y-2.5">
-          <div className="flex items-center gap-3">
-            <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
-              {t.techBento.eyebrow}
-            </p>
-          </div>
-          <h2 className="font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-[1.15] text-[#0B1F33] dark:text-white text-balance">
-            {t.techBento.heading}
-          </h2>
-          <p className="text-sm sm:text-base text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
-            {t.techBento.subheading}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-          {/* Card 1: Motor de Diagnóstico Inteligente + Radar de 7 Pilares */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.45, ease: EASE_EXECUTIVE }}
-            className="lg:col-span-7 relative rounded-2xl bg-gradient-to-br from-[#0B1F33] via-[#0D243C] to-[#081726] text-white border border-[#1E3A5F] hover:border-[#C8A236]/55 overflow-hidden shadow-[0_20px_46px_rgba(11,31,51,0.22)] transition-colors duration-200 flex flex-col justify-between"
-          >
-            <BrandRibbon className="h-[3px] w-full" />
-            <div className="p-6 sm:p-8 flex flex-col justify-between gap-6 flex-1">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-3 flex-1">
-                  <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                    <Radar className="w-4 h-4 shrink-0" />
-                    <span>{t.techBento.radarCard.kicker}</span>
-                  </div>
-                  <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug text-white">
-                    {t.techBento.radarCard.title}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    {t.techBento.radarCard.description}
-                  </p>
-                </div>
-                <div className="flex items-center justify-center md:justify-end">
-                  <ArchitecturalRadarVisual />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10">
-                {t.techBento.radarCard.pillars.map((pillar) => (
-                  <div
-                    key={pillar.label}
-                    className="rounded-xl bg-white/[0.05] border border-white/10 px-3 py-2.5 backdrop-blur-xs"
-                  >
-                    <p className="font-mono text-base font-bold text-[#E5C76B] tabular-nums">
-                      {pillar.score}
-                    </p>
-                    <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">{pillar.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => navigateAction('/diagnostico')}
-                  className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-xs font-bold text-[#0B1523] shadow-[0_8px_20px_rgba(200,162,54,0.28)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap"
-                  style={{ backgroundColor: 'var(--color-accent)' }}
-                >
-                  {t.techBento.radarCard.cta}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Card 2: Monitoramento & Alertas Automáticos 30 Dias */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.45, delay: 0.06, ease: EASE_EXECUTIVE }}
-            className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/55 p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-[0_10px_30px_rgba(11,31,51,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-colors duration-200"
-          >
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#A61C2B] dark:text-rose-400">
-                <BellRing className="w-4 h-4 shrink-0" />
-                <span>{t.techBento.alertsCard.kicker}</span>
-              </div>
-              <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug text-[#0B1F33] dark:text-white">
-                {t.techBento.alertsCard.title}
-              </h3>
-              <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
-                {t.techBento.alertsCard.description}
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {t.techBento.alertsCard.rules.map((rule, idx) => (
-                <div
-                  key={rule.code}
-                  className="flex items-start gap-3.5 p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1F3752]"
-                >
-                  <span
-                    className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-lg tabular-nums shrink-0 ${
-                      idx === 0
-                        ? 'bg-[#A61C2B] text-white'
-                        : idx === 1
-                          ? 'bg-[#0B1F33] dark:bg-[#C8A236] text-[#E5C76B] dark:text-[#0B1523]'
-                          : 'bg-[#146B43] text-white'
-                    }`}
-                  >
-                    {rule.code}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#0B1F33] dark:text-white">{rule.title}</p>
-                    <p className="text-[11.5px] text-[#4A5A6D] dark:text-slate-300 leading-relaxed mt-0.5">{rule.detail}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Card 3: Portal do Cliente & Identidade Oficial */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.45, delay: 0.12, ease: EASE_EXECUTIVE }}
-            className="lg:col-span-12 rounded-2xl bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/55 p-6 sm:p-8 shadow-[0_10px_30px_rgba(11,31,51,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-colors duration-200"
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              <div className="lg:col-span-8 space-y-3">
-                <div className="flex items-center gap-3">
-                  <BrandLogo
-                    variant="emblem"
-                    lazy
-                    alt={empresa.nome_empresa}
-                    brandShortName={brandShortName}
-                    imgClassName="w-11 h-11 object-contain shrink-0"
-                  />
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#146B43] dark:text-emerald-400">
-                      {t.techBento.portalCard.kicker}
-                    </p>
-                    <h3 className="font-display text-lg sm:text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-white leading-snug">
-                      {t.techBento.portalCard.title}
-                    </h3>
-                  </div>
-                </div>
-                <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-3xl">
-                  {t.techBento.portalCard.description}
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                  {t.techBento.portalCard.milestones.map((m, idx) => (
-                    <div
-                      key={m}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FAF9F6] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1F3752] text-[11.5px] font-semibold text-[#0B1F33] dark:text-slate-100"
-                    >
-                      <span className="font-mono text-[10px] font-bold text-[#8C6D14] dark:text-[#E5C76B] tabular-nums">
-                        0{idx + 1}
-                      </span>
-                      <span className="truncate">{m}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-2.5 lg:items-end justify-end">
-                <button
-                  type="button"
-                  onMouseEnter={() => prefetchRouteChunk('/acompanhar')}
-                  onTouchStart={() => prefetchRouteChunk('/acompanhar')}
-                  onClick={() => navigateAction('/acompanhar')}
-                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  <FileCheck2 className="w-4 h-4 text-[#E5C76B]" />
-                  {t.techBento.portalCard.primaryCta}
-                </button>
-                <button
-                  type="button"
-                  onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
-                  onTouchStart={() => prefetchRouteChunk('/diagnostico')}
-                  onClick={() => navigateAction('/diagnostico')}
-                  className="w-full lg:w-64 inline-flex items-center justify-center gap-2 px-5 py-3 btn-radius text-xs font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] hover:bg-[#F1EDE4] dark:hover:bg-[#183350] transition-colors whitespace-nowrap"
-                >
-                  {t.techBento.portalCard.secondaryCta}
-                  <ArrowRight className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    </section>
+      empresa={empresa}
+      brandShortName={brandShortName}
+      sectionPad={sectionPad}
+      onNavigateAction={navigateAction}
+    />
   );
 
   const renderPartnersGrid = (
@@ -827,12 +500,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <span className="h-[2px] w-7 shrink-0 bg-[#C8A236]" aria-hidden="true" />
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
+                    <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
                       {eyebrow}
                     </p>
                   </div>
 
-                  <h1 className="font-display text-[clamp(2.2rem,3.8vw,3.45rem)] font-bold tracking-[-0.025em] text-[#0B1F33] dark:text-white leading-[1.08] text-balance mb-5">
+                  <h1 className="font-display text-[clamp(2.15rem,3.8vw,3.4rem)] font-bold tracking-[-0.025em] text-[#0B1F33] dark:text-white leading-[1.08] text-balance mb-5">
                     {heroTitle}
                   </h1>
 
@@ -853,7 +526,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
                       onTouchStart={() => prefetchRouteChunk(sec.ctaDestino || '/diagnostico')}
                       onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                      className="inline-flex items-center gap-2.5 px-6.5 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_10px_26px_rgba(11,31,51,0.24)] transition-all duration-150 hover:opacity-95 hover:-translate-y-0.5 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2.5 px-6 py-3.5 btn-radius text-sm font-semibold text-white shadow-[0_4px_14px_rgba(11,31,51,0.18)] transition-all duration-150 hover:opacity-95 whitespace-nowrap shrink-0"
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     >
                       {ctaPrimario}
@@ -863,44 +536,44 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       href={whatsappHeroUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] hover:bg-[#FAF9F6] dark:hover:bg-[#183350] hover:border-[#C8A236]/70 transition-all duration-150 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] hover:bg-[#FAF9F6] dark:hover:bg-[#183350] hover:border-[#C8A236]/70 transition-colors whitespace-nowrap shrink-0"
                     >
                       <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
                       {ctaSecundario}
                     </a>
                   </div>
 
-                  {/* Faixa de métricas arquitetônicas com paleta da marca */}
-                  <div className="mt-8 pt-6 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-3 gap-4 max-w-xl">
-                    <div>
-                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33] dark:text-white">
+                  {/* Faixa de métricas arquitetônicas com alinhamento responsivo limpo */}
+                  <div className="mt-8 pt-6 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-3 gap-3 sm:gap-5 max-w-xl">
+                    <div className="min-w-0">
+                      <p className="text-base sm:text-xl font-bold font-mono tabular-nums text-[#0B1F33] dark:text-white whitespace-nowrap">
                         {t.hero.metric1Value}
                       </p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">{t.hero.metric1Label}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5 leading-snug">{t.hero.metric1Label}</p>
                     </div>
-                    <div>
-                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14] dark:text-[#E5C76B]">
+                    <div className="min-w-0">
+                      <p className="text-base sm:text-xl font-bold font-mono tabular-nums text-[#8C6D14] dark:text-[#E5C76B] whitespace-nowrap">
                         {t.hero.metric2Value}
                       </p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">{t.hero.metric2Label}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5 leading-snug">{t.hero.metric2Label}</p>
                     </div>
-                    <div>
-                      <p className="text-lg sm:text-xl font-bold font-mono tabular-nums text-[#146B43] dark:text-emerald-400">
+                    <div className="min-w-0">
+                      <p className="text-base sm:text-xl font-bold font-mono tabular-nums text-[#146B43] dark:text-emerald-400 whitespace-nowrap">
                         {t.hero.metric3Value}
                       </p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">{t.hero.metric3Label}</p>
+                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5 leading-snug">{t.hero.metric3Label}</p>
                     </div>
                   </div>
                 </motion.div>
 
-                {/* Quadro visual flagship guiado pela logo oficial D&M Integra Chile */}
+                {/* Fotografia editorial flagship de Santiago e Cordilheira sem caixas empilhadas */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.985 }}
+                  initial={{ opacity: 0, scale: 0.99 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: 0.08, ease: EASE_EXECUTIVE }}
+                  transition={{ duration: 0.45, delay: 0.06, ease: EASE_EXECUTIVE }}
                   className={`lg:col-span-5 ${imageFirst ? 'lg:order-1' : 'lg:order-2'}`}
                 >
-                  <div className="group relative h-full min-h-[430px] card-radius overflow-hidden border border-[#1E3A5F]/25 dark:border-[#C8A236]/25 bg-[#0B1F33] shadow-[0_24px_60px_rgba(11,31,51,0.24)] flex flex-col justify-between">
+                  <div className="group relative h-full min-h-[360px] lg:min-h-[440px] card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#0B1F33] flex flex-col justify-end">
                     {sec.imagemUrl ? (
                       <OptimizedImage
                         src={sec.imagemUrl}
@@ -913,55 +586,29 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       />
                     ) : null}
 
-                    <div className="absolute inset-0 bg-gradient-to-b from-[#071422]/75 via-[#071422]/35 to-[#071422]/94" />
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 bg-gradient-to-t from-[#071422]/92 via-[#071422]/25 to-transparent"
+                    />
 
-                    {/* Cabeçalho com Emblema Oficial D&M Integra Chile */}
-                    <div className="relative z-10 p-5 sm:p-6">
-                      <div className="inline-flex items-center gap-3 rounded-xl bg-[#071422]/82 backdrop-blur-md border border-white/15 px-3.5 py-2.5 max-w-full">
-                        <BrandLogo
-                          variant="emblem-dark"
-                          alt={empresa.nome_empresa}
-                          brandShortName={brandShortName}
-                          imgClassName="w-10 h-10 object-contain shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B] truncate">
-                            {t.hero.crestLabel}
-                          </p>
-                          <p className="text-xs text-slate-200 truncate">{t.hero.crestTagline}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Painel inferior executivo com módulos da plataforma */}
-                    <div className="relative z-10 p-5 sm:p-6 space-y-4">
+                    {/* Legenda editorial discreta na base da fotografia */}
+                    <div className="relative z-10 p-6 sm:p-7 space-y-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="h-[2px] w-5 bg-[#C8A236]" aria-hidden="true" />
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">
+                          <p className="text-xs font-semibold text-[#E5C76B]">
                             {badgeTitulo}
                           </p>
                         </div>
-                        <p className="text-sm sm:text-base font-semibold text-white leading-snug">
+                        <p className="text-sm sm:text-base font-medium text-white leading-snug max-w-md">
                           {badgeSubtitulo}
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 rounded-xl bg-[#071422]/82 backdrop-blur-md border border-white/12 p-3">
+                      <div className="pt-3 border-t border-white/15 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px] font-mono text-[#E5C76B] leading-snug">
                         {t.hero.intelModules.map((mod) => (
-                          <div
-                            key={mod.code}
-                            className="flex items-center justify-between gap-3 py-1 border-b border-white/10 last:border-b-0 text-xs"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-mono text-[10px] font-bold text-[#E5C76B] tabular-nums">
-                                {mod.code}
-                              </span>
-                              <span className="text-slate-300 truncate">{mod.label}</span>
-                            </div>
-                            <span className="font-mono text-[11px] font-semibold text-white whitespace-nowrap shrink-0">
-                              {mod.value}
-                            </span>
+                          <div key={mod.code} className="min-w-0">
+                            <span className="block">{mod.value}</span>
                           </div>
                         ))}
                       </div>
@@ -1010,7 +657,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-12">
             <div>
               <div className="max-w-3xl mb-10">
-                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5 ${theme.eyebrowClass}`}>
+                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
                   {translateText(meta.eyebrow as string | undefined) || t.services.defaultEyebrow}
                 </p>
                 <h2 className={`font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
@@ -1034,14 +681,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       } justify-between gap-5`}
                     >
                       <div className="flex-1">
-                        <p
-                          className={`text-[11px] font-bold uppercase tracking-[0.12em] mb-2.5 tabular-nums ${
-                            theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16] dark:text-[#E5C76B]'
-                          }`}
-                        >
-                          {localizedItem.numero} · {t.services.solutionPrefix}
-                        </p>
                         <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>
+                          <span
+                            className={`font-mono text-sm mr-2 tabular-nums ${
+                              theme.isDark ? 'text-[#E5C76B]' : 'text-[#8F6F16] dark:text-[#E5C76B]'
+                            }`}
+                          >
+                            {localizedItem.numero}.
+                          </span>
                           {localizedItem.titulo}
                         </h3>
                         <p className={`text-sm leading-relaxed ${theme.subClass}`}>{localizedItem.descricao}</p>
@@ -1067,7 +714,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             {/* Modalidades de Consultoria: Diagnóstico Gratuito, Orientativa e Completa */}
             <div className="pt-4 space-y-6">
               <div className="max-w-3xl">
-                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
+                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
                   {t.services.plansKicker}
                 </p>
                 <h3 className={`font-display text-xl sm:text-3xl font-bold tracking-tight text-balance mb-2 ${theme.headingClass}`}>
@@ -1084,10 +731,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
                 {/* 1. Diagnóstico Gratuito */}
-                <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white shadow-[0_4px_18px_rgba(11,31,51,0.04)] dark:shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition-all duration-200 hover:-translate-y-0.5">
+                <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] hover:border-[#C8A236]/60 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white transition-colors duration-200">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                      <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
                         {plans.diagnostico_gratuito.kicker}
                       </p>
                       <h4 className="text-lg font-bold tracking-tight text-[#0B1F33] dark:text-white">
@@ -1097,7 +744,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         {plans.diagnostico_gratuito.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
+                    <p className="text-xs font-medium text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
                       {plans.diagnostico_gratuito.escopoPrefix} {plans.diagnostico_gratuito.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
@@ -1120,10 +767,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
 
                 {/* 2. Consultoria Orientativa */}
-                <div className="bg-white dark:bg-[#0D1E31] border border-[#0B1F33]/30 dark:border-[#2E547A] hover:border-[#C8A236]/70 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white shadow-[0_8px_26px_rgba(11,31,51,0.06)] dark:shadow-[0_14px_32px_rgba(0,0,0,0.32)] transition-all duration-200 hover:-translate-y-0.5">
+                <div className="bg-white dark:bg-[#0D1E31] border border-[#0B1F33]/25 dark:border-[#2E547A] hover:border-[#C8A236]/70 card-radius p-6 flex flex-col justify-between gap-6 text-[#0B1F33] dark:text-white transition-colors duration-200">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0B1F33] dark:text-[#E5C76B]">
+                      <p className="text-xs font-semibold text-[#0B1F33] dark:text-[#E5C76B]">
                         {plans.orientativa.kicker}
                       </p>
                       <h4 className="text-lg font-bold tracking-tight text-[#0B1F33] dark:text-white">
@@ -1133,7 +780,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         {plans.orientativa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
+                    <p className="text-xs font-medium text-[#0B1F33] dark:text-slate-200 pt-3 border-t border-[#F1EDE4] dark:border-[#1C324B]">
                       {plans.orientativa.escopoPrefix} {plans.orientativa.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
@@ -1158,12 +805,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
 
                 {/* 3. Consultoria Completa */}
-                <div
-                  className="card-radius p-6 flex flex-col justify-between gap-6 text-white shadow-[0_18px_40px_rgba(11,31,51,0.26)] border border-[#C8A236]/60 bg-gradient-to-br from-[#0B1F33] via-[#0F2A46] to-[#081726] transition-transform duration-200 hover:-translate-y-0.5"
-                >
+                <div className="card-radius p-6 flex flex-col justify-between gap-6 text-white border border-[#C8A236]/55 bg-[#0B1F33]">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">
+                      <p className="text-xs font-semibold text-[#E5C76B]">
                         {plans.completa.kicker}
                       </p>
                       <h4 className="text-lg font-bold tracking-tight text-white">
@@ -1173,7 +818,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                         {plans.completa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-[11px] font-semibold text-[#E5C76B] pt-3 border-t border-white/15">
+                    <p className="text-xs font-medium text-[#E5C76B] pt-3 border-t border-white/15">
                       {plans.completa.escopoPrefix} {plans.completa.responsavelProtocolo}
                     </p>
                     <ul className="space-y-2 text-xs text-slate-100">
@@ -1189,7 +834,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.completa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] shadow-[0_6px_18px_rgba(200,162,54,0.28)] transition-opacity hover:opacity-95"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-opacity hover:opacity-95"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
@@ -1199,116 +844,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
             </div>
 
-            {showComparator && (
-              <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden shadow-[0_12px_34px_rgba(11,31,51,0.07)] dark:shadow-[0_16px_38px_rgba(0,0,0,0.34)] text-[#0B1F33] dark:text-white">
-                <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
-                  <div className="lg:col-span-7 p-6 sm:p-8 space-y-5 flex flex-col justify-center">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <Compass className="w-4 h-4 text-[#8C6D14] dark:text-[#E5C76B]" />
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">
-                          {t.comparator.kicker}
-                        </p>
-                      </div>
-                      <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-white">
-                        {t.comparator.title}
-                      </h3>
-                      <p className="text-xs sm:text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
-                        {t.comparator.subtitle}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-                      <div>
-                        <label className="block font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">{t.comparator.labelWhere}</label>
-                        <select
-                          value={compLocal}
-                          onChange={(e) => setCompLocal(e.target.value as typeof compLocal)}
-                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-100 focus:bg-white dark:focus:bg-[#16304D] focus:border-[#0B1F33] dark:focus:border-[#E5C76B] focus:outline-none transition-colors"
-                        >
-                          <option value="brasil">{t.comparator.whereOptions.brasil}</option>
-                          <option value="turista_chile">{t.comparator.whereOptions.turista_chile}</option>
-                          <option value="residente_chile">{t.comparator.whereOptions.residente_chile}</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">{t.comparator.labelGoal}</label>
-                        <select
-                          value={compObj}
-                          onChange={(e) => setCompObj(e.target.value as typeof compObj)}
-                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-100 focus:bg-white dark:focus:bg-[#16304D] focus:border-[#0B1F33] dark:focus:border-[#E5C76B] focus:outline-none transition-colors"
-                        >
-                          <option value="morar_trabalhar">{t.comparator.goalOptions.morar_trabalhar}</option>
-                          <option value="trabalho_oferta">{t.comparator.goalOptions.trabalho_oferta}</option>
-                          <option value="estudar">{t.comparator.goalOptions.estudar}</option>
-                          <option value="renda">{t.comparator.goalOptions.renda}</option>
-                          <option value="familia">{t.comparator.goalOptions.familia}</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block font-semibold text-[#0B1F33] dark:text-slate-200 mb-1.5">{t.comparator.labelTie}</label>
-                        <select
-                          value={compVinculo}
-                          onChange={(e) => setCompVinculo(e.target.value as typeof compVinculo)}
-                          className="w-full px-3 py-2.5 btn-radius border border-[#DDD6C7] dark:border-[#243E5C] bg-[#FAF9F6] dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-100 focus:bg-white dark:focus:bg-[#16304D] focus:border-[#0B1F33] dark:focus:border-[#E5C76B] focus:outline-none transition-colors"
-                        >
-                          <option value="nao">{t.comparator.tieOptions.nao}</option>
-                          <option value="sim">{t.comparator.tieOptions.sim}</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    className="lg:col-span-5 p-6 sm:p-8 text-white flex flex-col justify-between space-y-5 border-t lg:border-t-0 lg:border-l border-white/10 bg-gradient-to-br from-[#0B1F33] to-[#081726]"
-                  >
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                          {t.comparator.resultKicker}
-                        </p>
-                        <p className="font-display text-lg sm:text-xl font-bold tracking-tight text-white leading-snug">
-                          {comparatorRecommendation.titulo}
-                        </p>
-                        <p className="text-[11px] font-mono text-slate-300">
-                          {comparatorRecommendation.baseLegal}
-                        </p>
-                      </div>
-                      <p className="text-xs sm:text-[13px] text-slate-200 leading-relaxed">
-                        {comparatorRecommendation.resumo}
-                      </p>
-                      <dl className="grid grid-cols-1 gap-2 pt-2.5 border-t border-white/15 text-[11px]">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <dt className="text-slate-400">{t.comparator.dtProtocol}</dt>
-                          <dd className="text-right font-semibold text-white">{comparatorRecommendation.protocoloRegra}</dd>
-                        </div>
-                        <div className="flex items-baseline justify-between gap-2">
-                          <dt className="text-slate-400">{t.comparator.dtWork}</dt>
-                          <dd className="text-right font-semibold text-emerald-300">{comparatorRecommendation.trabalho}</dd>
-                        </div>
-                        <div className="flex items-baseline justify-between gap-2">
-                          <dt className="text-slate-400">{t.comparator.dtReference}</dt>
-                          <dd className="text-right font-mono tabular-nums text-[#E5C76B]">{comparatorRecommendation.prazoEstimado}</dd>
-                        </div>
-                      </dl>
-                      {comparatorRecommendation.alerta && (
-                        <p className="text-[11px] font-medium text-amber-100 bg-amber-500/15 border border-amber-400/35 rounded-lg p-2.5 leading-relaxed">
-                          {comparatorRecommendation.alerta}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => navigateAction('/diagnostico')}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#0B1523] transition-all duration-150 hover:opacity-95"
-                      style={{ backgroundColor: 'var(--color-accent)' }}
-                    >
-                      {t.comparator.ctaValidate}
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {showComparator && <RouteComparatorCard onNavigateAction={navigateAction} />}
           </div>
         </section>
       );
@@ -1337,7 +873,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
             )}
             <div className={`${noImage ? 'lg:col-span-12 max-w-4xl mx-auto' : 'lg:col-span-7'} flex flex-col justify-center ${imageRight ? 'lg:order-1' : 'lg:order-2'}`}>
-              <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
+              <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
                 {translateText(meta.eyebrow as string | undefined) || t.sections.diferenciaisEyebrow}
               </p>
               <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>
@@ -1378,7 +914,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-2xl mb-12">
               {Boolean(meta.eyebrow) && (
-                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5 ${theme.eyebrowClass}`}>
+                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
                   {translateText(String(meta.eyebrow))}
                 </p>
               )}
@@ -1417,7 +953,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           <section className={`${sectionPad} ${theme.sectionClass} cv-auto`} style={theme.sectionStyle}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               <div className="lg:col-span-7">
-                <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${theme.eyebrowClass}`}>
+                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
                   {translateText(meta.eyebrow as string | undefined) || t.sections.quemSomosEyebrow}
                 </p>
                 <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>
@@ -1759,7 +1295,14 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         {orderedSections.map((sec) => renderSection(sec))}
 
         {serviceDrawer && !previewMode && (
-          <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end" role="dialog" aria-modal="true">
+          <div
+            className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex justify-end"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setServiceDrawer(null);
+            }}
+          >
             <div className="bg-white dark:bg-[#0D1E31] w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5DFD2] dark:border-[#1C324B]">
               <BrandRibbon className="h-[3px] w-full shrink-0" />
               <div className="bg-[#0B1F33] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">

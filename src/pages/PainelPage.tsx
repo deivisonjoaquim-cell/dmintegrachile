@@ -797,7 +797,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           {/* Bloco 1: Visão Geral */}
           <div className="space-y-1">
             {!sidebarCollapsed && (
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]/85">
+              <p className="px-3 pb-1 text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B]/90">
                 Visão Geral
               </p>
             )}
@@ -842,7 +842,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           {/* Bloco 2: Fluxo Operacional em Ordem de Etapas (1 a 6) */}
           <div className="pt-3 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-1">
             {!sidebarCollapsed && (
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]/85">
+              <p className="px-3 pb-1 text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B]/90">
                 Fluxo por Etapas
               </p>
             )}
@@ -893,7 +893,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           {/* Bloco 3: Base & Sistema */}
           <div className="pt-3 border-t border-[#E5DFD2] dark:border-[#1C324B] space-y-1">
             {!sidebarCollapsed && (
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]/85">
+              <p className="px-3 pb-1 text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B]/90">
                 Base &amp; Sistema
               </p>
             )}

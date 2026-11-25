@@ -265,18 +265,187 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     (accessResolution?.kind === 'free_diagnostic_only' ||
       (accessResolution?.kind === 'pending_release' && Boolean(accessResolution.basicDiagnostic)));
 
+  const brandShortName = empresa.nome_empresa.split('–')[0].trim();
+
+  // Tela de entrada não autenticada: composição executiva em 2 colunas sem "ilha vazia"
+  if (!userProfile) {
+    const capabilities =
+      mode === 'equipe'
+        ? [
+            {
+              num: '01',
+              title: 'Fluxo operacional em 6 etapas',
+              desc: 'Da triagem inicial de leads à revisão documental, protocolos SERMIG e entregas pós-chegada.',
+            },
+            {
+              num: '02',
+              title: 'Parecer assistido & base normativa',
+              desc: 'Controle centralizado da Ley Nº 21.325, Decreto Nº 177/2022 e alertas de vencimento.',
+            },
+            {
+              num: '03',
+              title: 'Gestão do Portal do Cliente',
+              desc: 'Liberação auditada de acesso completo, contratos, faturas e comunicação direta.',
+            },
+          ]
+        : [
+            {
+              num: '01',
+              title: 'Linha do tempo em 15 etapas',
+              desc: 'Acompanhe cada marco da sua residência — da preparação no Brasil à Cédula chilena.',
+            },
+            {
+              num: '02',
+              title: 'Cofre documental & câmera segura',
+              desc: 'Envie documentos de identificação e certidões direto pelo celular com validação da equipe.',
+            },
+            {
+              num: '03',
+              title: 'Dossiê Executivo PDF & parecer técnico',
+              desc: 'Consulte seu diagnóstico de 7 pilares, alertas de prazos e orientações do consultor.',
+            },
+          ];
+
+    return (
+      <div className="py-10 lg:py-16 bg-[var(--color-bg)]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden">
+            <BrandRibbon className="h-[2.5px] w-full" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
+              {/* Coluna Esquerda: Contexto institucional e capacidades do ambiente */}
+              <div className="lg:col-span-5 bg-[#0B1F33] text-white p-7 sm:p-9 flex flex-col justify-between gap-8">
+                <div className="space-y-4">
+                  <BrandLogo
+                    src={empresa.logoDarkUrl || empresa.logoUrl}
+                    alt={empresa.nome_empresa}
+                    brandShortName={brandShortName}
+                    variant="dark"
+                    imgClassName="h-11 w-auto max-w-[210px] object-contain"
+                    fallbackNode={
+                      <div className="w-11 h-11 btn-radius flex items-center justify-center bg-white/10 text-[#E5C76B]">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                    }
+                  />
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs font-semibold text-[#E5C76B]">
+                      {mode === 'equipe' ? 'Ambiente Interno Corporativo' : 'Ambiente Seguro · LGPD'}
+                    </p>
+                    <h1 className="font-display text-2xl sm:text-[28px] font-bold text-white leading-tight text-balance">
+                      {mode === 'equipe' ? 'Painel da Equipe de Consultoria' : 'Portal do Cliente'}
+                    </h1>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                      {mode === 'equipe'
+                        ? 'Acesso exclusivo para consultores e administradores autorizados da D&M Integra Chile.'
+                        : 'Acompanhe seu diagnóstico gratuito, envie documentos e acesse todas as etapas da consultoria contratada.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-white/10 border-t border-white/10">
+                  {capabilities.map((cap) => (
+                    <div key={cap.num} className="py-3.5 first:pt-4 last:pb-0 flex items-start gap-3">
+                      <span className="font-mono text-xs font-bold text-[#E5C76B] tabular-nums mt-0.5 shrink-0">
+                        {cap.num}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white">{cap.title}</p>
+                        <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">{cap.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Coluna Direita: Autenticação Google e próximos passos */}
+              <div className="lg:col-span-7 p-7 sm:p-10 flex flex-col justify-center">
+                <div className="max-w-md mx-auto w-full space-y-6">
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
+                      {mode === 'equipe' ? 'Acesso Restrito' : 'Autenticação do Titular'}
+                    </p>
+                    <h2 className="font-display text-2xl font-bold text-[#0B1F33] dark:text-white">
+                      {mode === 'equipe' ? 'Entrar com conta corporativa' : 'Acesse seu processo'}
+                    </h2>
+                    <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
+                      {mode === 'equipe'
+                        ? 'Utilize o e-mail Google previamente habilitado pela administração para abrir o workspace interno.'
+                        : 'Entre com a mesma conta Google utilizada no seu diagnóstico gratuito ou informada na contratação da consultoria.'}
+                    </p>
+                  </div>
+
+                  {authError && (
+                    <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/35 border border-red-200 dark:border-red-800/60 text-xs text-[#C82333] dark:text-red-300">
+                      {authError}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      disabled={signingIn}
+                      onClick={handleLogin}
+                      className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 btn-radius text-sm font-semibold text-white dark:text-[#0B1523] disabled:opacity-50 transition-opacity hover:opacity-95"
+                      style={{ backgroundColor: isDark ? 'var(--color-accent)' : 'var(--color-primary)' }}
+                    >
+                      <LogIn className="w-4 h-4" />
+                      {signingIn ? 'Conectando ao Google...' : 'Continuar com Google'}
+                    </button>
+
+                    <p className="text-xs text-[#4A5A6D] dark:text-slate-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#146B43] dark:text-emerald-400 shrink-0" />
+                      Sessão protegida via Firebase Authentication — sem senhas adicionais.
+                    </p>
+                  </div>
+
+                  <div className="pt-5 border-t border-[#E5DFD2] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-3 text-xs">
+                    {mode === 'cliente' ? (
+                      <>
+                        <span className="text-[#4A5A6D] dark:text-slate-400">Ainda não fez sua avaliação inicial?</span>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('/diagnostico')}
+                          className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:underline underline-offset-4"
+                        >
+                          Fazer Diagnóstico Gratuito
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[#4A5A6D] dark:text-slate-400">É cliente da consultoria?</span>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('/acompanhar')}
+                          className="inline-flex items-center gap-1 font-semibold text-[#0B1F33] dark:text-[#E5C76B] hover:underline underline-offset-4"
+                        >
+                          Ir para Portal do Cliente
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="py-12 lg:py-20 bg-[var(--color-bg)]">
-      <div className={`${isWideView ? 'max-w-3xl' : 'max-w-lg'} mx-auto px-4 sm:px-6`}>
-        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden shadow-[0_8px_28px_rgba(11,31,51,0.06)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.35)]">
-          <BrandRibbon className="h-[3px] w-full" />
+    <div className="py-12 lg:py-16 bg-[var(--color-bg)]">
+      <div className={`${isWideView ? 'max-w-3xl' : 'max-w-xl'} mx-auto px-4 sm:px-6`}>
+        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden">
+          <BrandRibbon className="h-[2.5px] w-full" />
           <div className="p-6 sm:p-8 text-center space-y-5">
           <BrandLogo
             src={empresa.logoUrl}
             alt={empresa.nome_empresa}
-            brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+            brandShortName={brandShortName}
             variant={isDark ? 'dark' : 'light'}
-            imgClassName="h-14 w-auto max-w-[260px] object-contain mx-auto"
+            imgClassName="h-12 w-auto max-w-[240px] object-contain mx-auto"
             fallbackNode={
               <div
                 className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white"
@@ -291,36 +460,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
             {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Portal do Cliente'}
           </h1>
 
-          {!userProfile ? (
-            <>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                {mode === 'equipe'
-                  ? 'Entre com sua conta Google corporativa autorizada para acessar o painel de gestão migratória.'
-                  : 'Entre com a mesma conta Google utilizada no diagnóstico gratuito ou no cadastro da sua consultoria.'}
-              </p>
-
-              {authError && (
-                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/35 border border-red-200 dark:border-red-800/60 text-xs text-[#C82333] dark:text-red-300 text-left">
-                  {authError}
-                </div>
-              )}
-
-              <button
-                type="button"
-                disabled={signingIn}
-                onClick={handleLogin}
-                className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg text-sm font-semibold text-white dark:text-[#0B1523] disabled:opacity-50 transition-opacity"
-                style={{ backgroundColor: isDark ? 'var(--color-accent)' : 'var(--color-primary)' }}
-              >
-                <LogIn className="w-4 h-4" />
-                {signingIn ? 'Conectando ao Google...' : 'Entrar com Google'}
-              </button>
-
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Autenticação segura via Firebase Authentication (Google).
-              </p>
-            </>
-          ) : accessResolution?.kind === 'inactive' || userProfile.status === 'inativo' ? (
+          {accessResolution?.kind === 'inactive' || userProfile.status === 'inativo' ? (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/35 border border-red-200 dark:border-red-800/60 text-[#C82333] dark:text-red-200 text-sm flex items-start gap-2.5 text-left">
                 <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />

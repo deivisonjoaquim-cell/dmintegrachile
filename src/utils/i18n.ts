@@ -24,6 +24,7 @@ export interface SiteTranslations {
   switchAriaLabel: string;
   nav: Record<string, string>;
   headerCtaTeam: string;
+  headerCtaDiagnostic: string;
   footer: {
     quickAccess: string;
     teamArea: string;
@@ -234,6 +235,7 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       '/acompanhar': 'Portal do Cliente',
     },
     headerCtaTeam: 'Área da Equipe',
+    headerCtaDiagnostic: 'Diagnóstico Gratuito',
     footer: {
       quickAccess: 'Acesso rápido',
       teamArea: 'Área da Equipe',
@@ -289,10 +291,10 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
         description:
           'Responda às 6 etapas estruturadas e visualize sua prontidão migratória em tempo real, com simulação de cenários, subcategorias elegíveis e relatório em PDF de 2 páginas com a identidade oficial da consultoria.',
         pillars: [
-          { label: 'Elegibilidade SERMIG', score: '96%' },
-          { label: 'Prontidão Documental', score: '92%' },
-          { label: 'Janela de Prazos', score: '98%' },
-          { label: 'Viabilidade Familiar', score: '94%' },
+          { label: 'Subcategorias Decreto 177/2022', score: '16' },
+          { label: 'Ponderação técnica 0–100', score: '7 Pilares' },
+          { label: 'Controle PF & Apostila CNJ', score: '60 dias' },
+          { label: 'Dossiê PDF Executivo', score: '2 Págs' },
         ],
         cta: 'Iniciar Diagnóstico Completo',
       },
@@ -554,6 +556,7 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       '/acompanhar': 'Portal del Cliente',
     },
     headerCtaTeam: 'Área del Equipo',
+    headerCtaDiagnostic: 'Diagnóstico Gratuito',
     footer: {
       quickAccess: 'Acceso rápido',
       teamArea: 'Área del Equipo',
@@ -609,10 +612,10 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
         description:
           'Completa 6 etapas guiadas y revisa tu nivel de preparación migratoria en tiempo real, con simulador de escenarios, subcategorías aplicables e informe PDF de 2 páginas con respaldo institucional.',
         pillars: [
-          { label: 'Elegibilidad SERMIG', score: '96%' },
-          { label: 'Preparación Documental', score: '92%' },
-          { label: 'Ventana de Plazos', score: '98%' },
-          { label: 'Viabilidad Familiar', score: '94%' },
+          { label: 'Subcategorías Decreto 177/2022', score: '16' },
+          { label: 'Ponderación técnica 0–100', score: '7 Pilares' },
+          { label: 'Vigencia Antecedentes y Apostilla', score: '60 días' },
+          { label: 'Dossier PDF Ejecutivo', score: '2 Págs' },
         ],
         cta: 'Iniciar Diagnóstico Completo',
       },

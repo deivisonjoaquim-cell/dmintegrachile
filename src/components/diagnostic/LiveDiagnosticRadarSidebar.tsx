@@ -53,9 +53,9 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
           {/* Título do Radar */}
           <div className="flex items-start justify-between gap-2 pb-3.5 border-b border-white/10">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E6C55A] flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-[#E6C55A] flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5 shrink-0" />
-                Radar de Viabilidade ao Vivo
+                Radar de Viabilidade ao vivo
               </p>
               <p className="text-xs text-slate-300 mt-1">
                 Leitura normativa atualizada a cada resposta
@@ -71,7 +71,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
             <LiveViabilityGauge score={score} confidence={liveResult.confianca} size={122} />
 
             <div className="min-w-0 flex-1 space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              <p className="text-[11px] font-medium text-slate-400">
                 Tendência atual SERMIG
               </p>
               {livePreview.subcategoriaLider ? (
@@ -100,8 +100,8 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
           {allDimensions.length > 0 && (
             <div className="pt-3.5 border-t border-white/10 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  7 Pilares do Radar em tempo real
+                <p className="text-[11px] font-medium text-slate-300">
+                  7 pilares do Radar em tempo real
                 </p>
                 <span className="font-mono text-[10px] text-[#E6C55A] tabular-nums">
                   {liveResult.viabilidade?.veredito || 'Em cálculo'}
@@ -182,7 +182,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
               </div>
               {livePreview.fontesLegais.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                  <p className="text-[11px] font-medium text-slate-400">
                     Normas consultadas (Admin)
                   </p>
                   <ul className="space-y-1">
@@ -212,8 +212,8 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                 : 'bg-[#FAF9F6] border-[#E5DFD2]'
           }`}
         >
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
-            Recomendação da Etapa 0{stepRecommendation.etapa}
+          <p className="text-xs font-semibold text-[#8C6D14]">
+            Recomendação da etapa 0{stepRecommendation.etapa}
           </p>
           <p className="text-xs font-bold text-[#0B1F33] leading-snug">{stepRecommendation.titulo}</p>
           <p className="text-[11px] text-slate-700 leading-relaxed">{stepRecommendation.orientacao}</p>
@@ -223,7 +223,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#8C6D14] flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-[#8C6D14] flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5 shrink-0" />
             Jurisdição SERMIG · {answers.localizacao}
           </p>
@@ -231,8 +231,8 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
         </div>
 
         <div className="pt-3.5 border-t border-[#E5DFD2] space-y-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#0B1F33] mb-2">
-            Progresso das 6 Etapas
+          <p className="text-xs font-semibold text-[#0B1F33] mb-2">
+            Progresso das 6 etapas
           </p>
           {steps.map((item) => {
             const done = item.num < step;
@@ -256,7 +256,7 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
                   <span className="truncate">{item.title}</span>
                 </span>
                 {done && <Check className="w-3.5 h-3.5 text-[#146B43] shrink-0" />}
-                {active && <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D14]">Atual</span>}
+                {active && <span className="text-[11px] font-semibold text-[#8C6D14]">Atual</span>}
               </motion.div>
             );
           })}

@@ -20,7 +20,6 @@ import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticReportView, type AiDiagnosticDraft } from '../components/DiagnosticReportView';
 import {
   DiagnosticOnboardingGuide,
-  hasSeenDiagnosticOnboarding,
   markDiagnosticOnboardingSeen,
 } from '../components/diagnostic/DiagnosticOnboardingGuide';
 import { LiveDiagnosticRadarSidebar } from '../components/diagnostic/LiveDiagnosticRadarSidebar';
@@ -430,20 +429,16 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   const [lgpdOpen, setLgpdOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
 
-  // Abre o guia interativo de 3 passos automaticamente na primeira visita ao Diagnóstico
+  // Mantém a entrada do Diagnóstico limpa (sem modal bloqueando a primeira dobra);
+  // abre o guia interativo apenas quando solicitado pelo botão "Guia rápido" ou via ?guia=1.
   useEffect(() => {
     if (result) return;
-    if (hasSeenDiagnosticOnboarding()) return;
     const queryStr =
       window.location.search || (window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '');
     const params = new URLSearchParams(queryStr);
-    if (params.get('retomar')) return;
-    if (answers.nome.trim().length > 0 || step > 1) return;
-
-    const timer = window.setTimeout(() => {
+    if (params.get('guia') === '1') {
       setOnboardingOpen(true);
-    }, 360);
-    return () => window.clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1302,8 +1297,8 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           <div className="px-6 sm:px-8 py-6 sm:py-7 space-y-5">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
               <div className="space-y-2 max-w-2xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E6C55A]">
-                  Diagnóstico Completo em 6 Etapas · Ley Nº 21.325 &amp; Acordo Mercosul · Proteção LGPD
+                <p className="text-xs font-semibold text-[#E6C55A]">
+                  Diagnóstico completo em 6 etapas · Ley Nº 21.325 &amp; Acordo Mercosul · Proteção LGPD
                 </p>
                 <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.12] text-balance">
                   Diagnóstico Inteligente de Elegibilidade Migratória
@@ -1323,7 +1318,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   Guia rápido
                 </button>
                 <div className="text-left lg:text-right">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  <p className="text-xs font-medium text-slate-300">
                     Progresso da análise
                   </p>
                   <p className="font-mono text-2xl font-bold text-[#E6C55A] tabular-nums">
@@ -1401,8 +1396,8 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           className="lg:hidden rounded-xl border border-[#1E3349] bg-[#0B1F33] text-white px-4 py-3 flex items-center justify-between gap-3"
         >
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#E6C55A]">
-              Radar ao Vivo · Tendência SERMIG
+            <p className="text-xs font-semibold text-[#E6C55A]">
+              Radar ao vivo · Tendência SERMIG
             </p>
             <p className="text-xs font-bold text-white truncate mt-0.5">
               {livePreview.subcategoriaLider?.nomePortugues || 'Calculando enquadramento...'}
@@ -1515,7 +1510,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {STEP_SERMIG_CONTEXT[step] && (
               <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8C6D14]">
+                  <p className="text-xs font-semibold text-[#8C6D14]">
                     Etapa 0{step}/06 · {STEP_SERMIG_CONTEXT[step].foco}
                   </p>
                   <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
@@ -1523,11 +1518,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   </p>
                 </div>
                 {livePreview.subcategoriaLider && (
-                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E5DFD2]">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E5DFD2] sm:max-w-[270px]">
+                    <p className="text-[11px] font-medium text-slate-500">
                       Rota líder atual
                     </p>
-                    <p className="text-xs font-bold text-[#0B1F33] truncate max-w-[220px]">
+                    <p className="text-xs font-bold text-[#0B1F33] leading-snug">
                       {livePreview.subcategoriaLider.nomePortugues}
                     </p>
                   </div>
@@ -1557,7 +1552,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 {/* Atalho opcional de cenários frequentes (pré-configura etapas seguintes mantendo seus dados de contato) */}
                 <div className="rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] p-3.5 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0B1F33]">
+                    <p className="text-xs font-semibold text-[#0B1F33]">
                       Cenários frequentes (atalho opcional)
                     </p>
                     <span className="text-[11px] text-slate-500">

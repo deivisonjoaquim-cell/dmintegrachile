@@ -29,12 +29,12 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="py-12 lg:py-16 bg-[var(--color-bg)]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
-        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden shadow-[0_6px_24px_rgba(11,31,51,0.04)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.32)]">
-          <BrandRibbon className="h-[3px] w-full" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
+        <div className="bg-[var(--color-surface)] border border-[#E5DFD2] dark:border-[#1C324B] card-radius overflow-hidden">
+          <BrandRibbon className="h-[2.5px] w-full" />
           <div className="p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             <div className="lg:col-span-5">
-              <div className="aspect-[3/4] card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#F1EDE4] dark:bg-[#11263D]">
+              <div className="aspect-[3/4] max-w-md mx-auto card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#F1EDE4] dark:bg-[#11263D]">
                 {quemSomos?.imagemUrl ? (
                   <OptimizedImage
                     src={quemSomos.imagemUrl}
@@ -52,9 +52,12 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
             </div>
 
             <div className="lg:col-span-7 space-y-5">
-              <p className="brand-kicker">
-                Institucional · {empresa.nome_empresa}
-              </p>
+              <div className="flex items-center gap-3">
+                <span className="h-[2px] w-7 bg-[#C8A236]" aria-hidden="true" />
+                <p className="brand-kicker">
+                  Institucional · {empresa.nome_empresa}
+                </p>
+              </div>
               <h1 className="text-3xl sm:text-4xl font-bold text-[#0B1F33] dark:text-white text-balance">
                 {quemSomos?.titulo || 'Quem Somos'}
               </h1>
@@ -72,11 +75,11 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => onNavigate('/diagnostico')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(11,31,51,0.18)] hover:opacity-95 transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white whitespace-nowrap hover:opacity-95 transition-opacity"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   Iniciar Diagnóstico Gratuito
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 text-[#E5C76B]" />
                 </button>
                 <button
                   type="button"
@@ -92,11 +95,11 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Faixa Executiva Marinho & Ouro — Pilares Institucionais */}
-        <section className="rounded-2xl bg-[#0B1F33] text-white border border-[#1E3B5A] shadow-[0_14px_34px_rgba(11,31,51,0.16)] overflow-hidden">
+        <section className="rounded-2xl bg-[#0B1F33] text-white border border-[#1E3B5A] overflow-hidden">
           <div className="px-6 sm:px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-white/10">
             <div className="pt-1 md:pt-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                01 · Base Jurídica Sólida
+              <p className="text-xs font-semibold text-[#E5C76B]">
+                01. Base Jurídica Sólida
               </p>
               <p className="font-display text-lg font-bold text-white mt-1">
                 Ley Nº 21.325 &amp; Decreto Nº 177
@@ -106,8 +109,8 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </p>
             </div>
             <div className="pt-4 md:pt-0 md:pl-6">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                02 · Atuação Brasil – Chile
+              <p className="text-xs font-semibold text-[#E5C76B]">
+                02. Atuação Brasil – Chile
               </p>
               <p className="font-display text-lg font-bold text-white mt-1">
                 Planejamento Antes do Embarque
@@ -117,8 +120,8 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </p>
             </div>
             <div className="pt-4 md:pt-0 md:pl-6">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
-                03 · Privacidade &amp; Ética
+              <p className="text-xs font-semibold text-[#E5C76B]">
+                03. Privacidade &amp; Ética
               </p>
               <p className="font-display text-lg font-bold text-white mt-1">
                 Conformidade Integral LGPD

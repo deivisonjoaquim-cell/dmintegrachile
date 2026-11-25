@@ -82,8 +82,8 @@ const ONBOARDING_STEPS: readonly OnboardingStepConfig[] = [
         detail: 'Identifica na hora se sua melhor rota é o Acordo Mercosul (Subcategoria 15) ou outra categoria.',
       },
       {
-        label: 'Cinco pilares transparentes',
-        detail: 'Acompanhe elegibilidade, documentação, prazos e fatores de risco atualizados a cada escolha.',
+        label: 'Sete pilares transparentes',
+        detail: 'Acompanhe elegibilidade, documentação, prazos, perfil financeiro e fatores de risco atualizados a cada escolha.',
       },
       {
         label: 'Alertas normativos preventivos',
@@ -488,18 +488,18 @@ export const DiagnosticOnboardingGuide: React.FC<DiagnosticOnboardingGuideProps>
                             6 etapas
                           </span>
                         </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[11px]">
-                          {['Contato', 'Perfil', 'Vínculos', 'Objetivo', 'Histórico', 'Docs'].map((label, i) => (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                          {['Contato', 'Perfil', 'Vínculos', 'Objetivo', 'Histórico', 'Documentos'].map((label, i) => (
                             <div
                               key={label}
-                              className={`px-2 py-1.5 rounded-lg border text-center ${
+                              className={`px-2.5 py-2 rounded-lg border flex items-center gap-2 ${
                                 i === 0
                                   ? 'bg-[#0B1F33] text-white border-[#0B1F33] dark:bg-[#1B4D7A] font-semibold'
                                   : 'bg-white dark:bg-[#0D1E31] text-[#4A5A6D] dark:text-slate-300 border-[#E5DFD2] dark:border-[#1C324B]'
                               }`}
                             >
-                              <span className="block font-mono text-[10px] opacity-75 tabular-nums">0{i + 1}</span>
-                              <span className="block truncate">{label}</span>
+                              <span className="font-mono text-[10px] opacity-75 tabular-nums shrink-0">0{i + 1}</span>
+                              <span className="whitespace-nowrap">{label}</span>
                             </div>
                           ))}
                         </div>

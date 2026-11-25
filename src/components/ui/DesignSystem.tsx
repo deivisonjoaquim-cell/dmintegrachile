@@ -86,13 +86,34 @@ export const UiModal: React.FC<{
   maxWidth?: string;
   children: React.ReactNode;
 }> = ({ open, onClose, title, maxWidth = 'max-w-2xl', children }) => {
+  const titleId = useRef(`ui-modal-title-${Math.random().toString(36).slice(2, 9)}`).current;
+
+  useEffect(() => {
+    if (!open) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 bg-[#071320]/65 dark:bg-[#040B14]/80 backdrop-blur-[2px] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className={`bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-2xl text-[#0B1523] dark:text-slate-100 overflow-hidden`}>
         <BrandRibbon className="h-[2.5px] w-full" />
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[#E5DFD2] dark:border-[#1C324B]">
-          <h3 className="text-base font-bold tracking-tight text-[#0B1523] dark:text-slate-100">{title}</h3>
+          <h3 id={titleId} className="text-base font-bold tracking-tight text-[#0B1523] dark:text-slate-100">
+            {title}
+          </h3>
           <button
             type="button"
             onClick={onClose}
