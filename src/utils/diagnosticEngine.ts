@@ -1532,10 +1532,17 @@ export function runDiagnosticEngine(
 
   // 14. Cálculo das 7 dimensões de viabilidade (100 pontos)
   const isMercosulTop = recomendada.visa.codigo === '15';
+  const hasNonMercosulQualifyingProof =
+    isYes(answers.possuiOfertaTrabalhoFormal) ||
+    isYes(answers.possuiMatriculaReconhecida) ||
+    isYes(answers.possuiRendaPassiva) ||
+    isYes(answers.possuiCapitalComprovadoOrigem) ||
+    isResidenteChile ||
+    isHumanitario;
 
   let ptsElegibilidade = 25;
   if (exigeSaidaTurista && !vinculoFormalizado && !isHumanitario) ptsElegibilidade -= 5;
-  if (!isBrasileiro && !vinculoFormalizado && !isYes(answers.possuiOfertaTrabalhoFormal)) ptsElegibilidade -= 10;
+  if (!isBrasileiro && !vinculoFormalizado && !hasNonMercosulQualifyingProof) ptsElegibilidade -= 10;
 
   let ptsDocumental = passaporteVencido && !isResidenteChile ? 6 : passaporteCurto ? 10 : 18;
   const docsCount = (answers.documentosJaPossui || []).length;
@@ -1558,8 +1565,20 @@ export function runDiagnosticEngine(
     }
   }
 
-  const ptsHistorico = flagsRisco.length === 0 ? 15 : Math.max(0, 15 - flagsRisco.length * 7);
-  const ptsPrazo = answers.prazoPretendido === 'Imediato (até 30 dias)' ? 8 : 10;
+  // Penaliza fatores de risco confirmados (-7 cada) e aplica cautela proporcional para itens reservados ao consultor (-2 cada, teto -6)
+  const reservedRiskPenalty = flagsRisco.length === 0 ? Math.min(6, flagsRevisaoConsultor.length * 2) : 0;
+  const ptsHistorico =
+    flagsRisco.length === 0
+      ? Math.max(9, 15 - reservedRiskPenalty)
+      : Math.max(0, 15 - flagsRisco.length * 7);
+
+  let ptsPrazo = 10;
+  if (answers.prazoPretendido === 'Imediato (até 30 dias)') {
+    if (passaporteVencido && !isResidenteChile) ptsPrazo = 5;
+    else if (exigeSaidaTurista && !vinculoFormalizado) ptsPrazo = 6;
+    else ptsPrazo = 8;
+  }
+
   const ptsEstabilidade = recomendada.visa.levaDefinitiva ? 10 : 5;
   const ptsFamiliar = !isYes(answers.familiaAcompanhante) || vinculoFormalizado || isBrasileiro ? 5 : 4;
 
@@ -1570,17 +1589,24 @@ export function runDiagnosticEngine(
       maximo: VIABILITY_WEIGHTS.ELEGIBILIDADE_LEGAL,
       observacao: exigeSaidaTurista
         ? 'Elegível, porém requer saída do Chile para protocolar do exterior.'
-        : 'Enquadramento claro nas normas vigentes.',
+        : !isBrasileiro && !vinculoFormalizado && !hasNonMercosulQualifyingProof
+          ? 'Sem elegibilidade Mercosul ou vínculo/comprovação específica ainda confirmada.'
+          : 'Enquadramento claro nas normas vigentes.',
     },
     {
       nome: 'Prontidão Documental',
       pontos: ptsDocumental,
       maximo: VIABILITY_WEIGHTS.PRONTIDAO_DOCUMENTAL,
-      observacao: passaporteVencido
-        ? 'Passaporte vencido ou ausente requer emissão prioritária.'
-        : passaporteCurto
-          ? 'Passaporte com menos de 12 meses de validade.'
-          : 'Passaporte com vigência adequada.',
+      observacao:
+        answers.passaporteStatus === 'nao_possui'
+          ? 'Emissão de passaporte é pré-requisito prioritário antes do protocolo.'
+          : passaporteVencido
+            ? 'Passaporte vencido requer renovação prioritária na Polícia Federal.'
+            : passaporteCurto
+              ? 'Passaporte com menos de 12 meses de validade — avaliar renovação prévia.'
+              : docsCount >= 2
+                ? `Passaporte com vigência adequada e ${docsCount} documento(s) já sinalizado(s).`
+                : 'Passaporte com vigência adequada.',
     },
     {
       nome: 'Capacidade Financeira',
@@ -1607,7 +1633,11 @@ export function runDiagnosticEngine(
       maximo: VIABILITY_WEIGHTS.PRAZO,
       observacao:
         answers.prazoPretendido === 'Imediato (até 30 dias)'
-          ? 'Prazo imediato requer agilidade nas apostilas e antecedentes PF (60d).'
+          ? passaporteVencido && !isResidenteChile
+            ? 'Prazo de 30 dias é apertado considerando a emissão/renovação prévia de passaporte.'
+            : exigeSaidaTurista && !vinculoFormalizado
+              ? 'Prazo imediato exige coordenar saída do Chile e protocolo do exterior.'
+              : 'Prazo imediato requer agilidade nas apostilas e antecedentes PF (60d).'
           : 'Prazo compatível com emissão documental e protocolo.',
     },
     {

@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { computeDiagnosticIntelligence } from './diagnosticAnalytics';
 import { getAdaptiveWizardMeta, isYes, runDiagnosticEngine, compareWhatIfScenarios } from './diagnosticEngine';
 import { DIAGNOSTIC_TEST_PROFILES } from './diagnosticProfiles';
-import type { Lead } from '../types/domain';
+import {
+  getLiveSermigPreview,
+  getSermigObjectiveMeta,
+  getStepLiveRecommendation,
+  sanitizeDiagnosticAnswers,
+} from './sermigDiagnosticQuestions';
+import { SEED_LEGAL_SOURCES, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS } from '../data/seeds';
+import type { DiagnosticAnswers, Lead } from '../types/domain';
 
 test('isYes normalizes booleans strictly (null/undefined/false => false)', () => {
   assert.equal(isYes(true), true);
@@ -155,3 +162,81 @@ test('Comparativo Lado a Lado always compares 3 strictly distinct visa subcatego
   assert.equal(codesCase2[0], '01');
   assert.equal(codesCase2[1], '15');
 });
+
+test('SERMIG objective metadata maps every objective to its exact Decree 177/2022 code', () => {
+  const aposentado = getSermigObjectiveMeta('aposentado_renda', SEED_VISA_CATEGORIES, SEED_LEGAL_SOURCES);
+  const humanitario = getSermigObjectiveMeta('humanitario', SEED_VISA_CATEGORIES, SEED_LEGAL_SOURCES);
+  const nomade = getSermigObjectiveMeta('nomade_digital', SEED_VISA_CATEGORIES, SEED_LEGAL_SOURCES);
+  const explorar = getSermigObjectiveMeta('explorar', SEED_VISA_CATEGORIES, SEED_LEGAL_SOURCES);
+
+  assert.equal(aposentado?.visaCode, '11');
+  assert.equal(humanitario?.visaCode, '07');
+  assert.equal(nomade?.visaCode, '15');
+  assert.equal(explorar?.visaCode, '15');
+});
+
+test('sanitizeDiagnosticAnswers clears stale dependent fields and getStepLiveRecommendation stays grounded', () => {
+  const cleaned = sanitizeDiagnosticAnswers(
+    {
+      ...DIAGNOSTIC_TEST_PROFILES[0].answers,
+      vinculoFamiliarChile: true,
+      vinculoFormalizado: true,
+      possuiSegundaNacionalidade: true,
+      segundaNacionalidadeQual: 'Italiana',
+      passaporteStatus: 'valido',
+      passaporteValidadeMeses: 36,
+      familiaAcompanhante: true,
+      quantidadeDependentes: 2,
+    },
+    {
+      vinculoFamiliarChile: false,
+      possuiSegundaNacionalidade: false,
+      passaporteStatus: 'vencido',
+      familiaAcompanhante: false,
+    },
+  );
+
+  assert.equal(cleaned.vinculoFormalizado, false);
+  assert.equal(cleaned.segundaNacionalidadeQual, '');
+  assert.equal(cleaned.passaporteValidadeMeses, 0);
+  assert.equal(cleaned.quantidadeDependentes, 0);
+
+  const expiredPassportResult = runDiagnosticEngine(cleaned, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, SEED_LEGAL_SOURCES);
+  const expiredPreview = getLiveSermigPreview(cleaned, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, SEED_LEGAL_SOURCES);
+  const step2Expired = getStepLiveRecommendation(2, cleaned, expiredPassportResult, expiredPreview);
+  assert.equal(step2Expired.tom, 'atencao');
+  assert.ok(step2Expired.titulo.toLowerCase().includes('passaporte'));
+
+  const touristAnswers = {
+    ...DIAGNOSTIC_TEST_PROFILES[0].answers,
+    localizacao: 'No Chile como turista' as const,
+  };
+  const touristRes = runDiagnosticEngine(touristAnswers, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, SEED_LEGAL_SOURCES);
+  const touristPreview = getLiveSermigPreview(touristAnswers, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, SEED_LEGAL_SOURCES);
+  const step2Tourist = getStepLiveRecommendation(2, touristAnswers, touristRes, touristPreview);
+  assert.equal(step2Tourist.tom, 'atencao');
+  assert.ok(step2Tourist.orientacao.includes('turista'));
+});
+
+test('Viability Radar calibrates Histórico / Riscos for reserved consultant review and Prazo for immediate + expired passport', () => {
+  const reservedAnswers: DiagnosticAnswers = {
+    ...DIAGNOSTIC_TEST_PROFILES[0].answers,
+    passaporteStatus: 'vencido',
+    passaporteValidadeMeses: 0,
+    prazoPretendido: 'Imediato (até 30 dias)',
+    riscoConsultaConsultor: ['overstay', 'antecedentesCriminais'],
+  };
+  const result = runDiagnosticEngine(reservedAnswers, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, SEED_LEGAL_SOURCES);
+  const histDim = result.viabilidade.dimensoes.find((d) => d.nome === 'Histórico / Riscos');
+  const prazoDim = result.viabilidade.dimensoes.find((d) => d.nome === 'Prazo');
+
+  assert.equal(result.viabilidade.dimensoes.length, 7);
+  assert.ok(histDim && histDim.pontos < 15 && histDim.pontos >= 9, `Expected calibrated Histórico score, got ${histDim?.pontos}`);
+  assert.ok(prazoDim && prazoDim.pontos <= 6, `Expected calibrated Prazo score for immediate+expired passport, got ${prazoDim?.pontos}`);
+
+  const preview = getLiveSermigPreview(reservedAnswers, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, SEED_LEGAL_SOURCES);
+  const step5Rec = getStepLiveRecommendation(5, reservedAnswers, result, preview);
+  assert.equal(step5Rec.tom, 'atencao');
+  assert.ok(step5Rec.titulo.toLowerCase().includes('sigilosa'));
+});
+

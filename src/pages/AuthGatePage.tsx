@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,17 +14,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
-import {
-  fetchSignedInClientRecord,
-  fetchSignedInUserDiagnosticLeads,
-} from '../services/firestoreService';
-import type { Client, Lead } from '../types/domain';
 import { runDiagnosticEngine } from '../utils/diagnosticEngine';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
 import {
   buildBasicDiagnosticSummary,
   CONSULTANCY_PLANS,
-  resolveClientPortalAccess,
   type BasicDiagnosticSummary,
 } from '../utils/portalAccess';
 import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
@@ -40,44 +34,29 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
     userProfile,
     authLoading,
     authError,
+    portalLeads,
+    portalAccess,
+    portalStage,
+    portalAccessLoading,
     empresa,
     visaCategories,
     visaRequirements,
     legalSources,
     loginWithGoogle,
     logout,
-    refreshUserProfile,
+    refreshClientPortalAccess,
   } = useApp();
   const { isDark } = useTheme();
   const [signingIn, setSigningIn] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(false);
-  const [clientRecord, setClientRecord] = useState<Client | null>(null);
-  const [userLeads, setUserLeads] = useState<Lead[]>([]);
+  const [manualChecking, setManualChecking] = useState(false);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
-  const inspectClientAccess = useCallback(async () => {
-    if (!userProfile || userProfile.role !== 'cliente') return;
-    setCheckingAccess(true);
-    try {
-      const [cl, leads] = await Promise.all([
-        fetchSignedInClientRecord(userProfile.uid, userProfile.email, userProfile.clientId),
-        fetchSignedInUserDiagnosticLeads(userProfile.email),
-      ]);
-      setClientRecord(cl);
-      setUserLeads(leads);
+  const checkingAccess = portalAccessLoading || manualChecking;
+  const userLeads = portalLeads;
+  const accessResolution = portalAccess;
 
-      if (cl && cl.portalLiberado === true && !cl.arquivado) {
-        if (userProfile.status !== 'ativo' || userProfile.clientId !== cl.id) {
-          await refreshUserProfile();
-        }
-        onNavigate('/portal');
-      }
-    } finally {
-      setCheckingAccess(false);
-    }
-  }, [userProfile, refreshUserProfile, onNavigate]);
-
+  // Transição centralizada pelo AppContext: equipe ativa -> /painel; cliente contratado -> /portal
   useEffect(() => {
     if (authLoading || !userProfile) return;
     if (userProfile.role === 'admin' || userProfile.role === 'consultor' || userProfile.role === 'assistente') {
@@ -86,10 +65,10 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
       }
       return;
     }
-    if (userProfile.role === 'cliente') {
-      void inspectClientAccess();
+    if (userProfile.role === 'cliente' && portalStage === 'contratado') {
+      onNavigate('/portal');
     }
-  }, [authLoading, userProfile, onNavigate, inspectClientAccess]);
+  }, [authLoading, userProfile, portalStage, onNavigate]);
 
   const handleLogin = async () => {
     setSigningIn(true);
@@ -99,8 +78,11 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
       if (profile) {
         if ((profile.role === 'admin' || profile.role === 'consultor' || profile.role === 'assistente') && profile.status === 'ativo') {
           onNavigate('/painel');
-        } else if (profile.role === 'cliente' && profile.status === 'ativo' && profile.clientId) {
-          onNavigate('/portal');
+        } else if (profile.role === 'cliente') {
+          const resolved = await refreshClientPortalAccess();
+          if (resolved?.kind === 'active_paid') {
+            onNavigate('/portal');
+          }
         }
       }
     } finally {
@@ -110,31 +92,20 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
 
   const handleManualVerify = async () => {
     setCheckMsg(null);
-    setCheckingAccess(true);
+    setManualChecking(true);
     try {
-      await refreshUserProfile();
-      if (userProfile) {
-        const [cl, leads] = await Promise.all([
-          fetchSignedInClientRecord(userProfile.uid, userProfile.email, userProfile.clientId),
-          fetchSignedInUserDiagnosticLeads(userProfile.email),
-        ]);
-        setClientRecord(cl);
-        setUserLeads(leads);
-        if (cl && cl.portalLiberado === true && !cl.arquivado) {
-          if (userProfile.status !== 'ativo' || userProfile.clientId !== cl.id) {
-            await refreshUserProfile();
-          }
-          onNavigate('/portal');
-          return;
-        }
-        if (cl && !cl.portalLiberado) {
-          setCheckMsg('Seu cadastro foi localizado, mas o portal ainda consta como pendente de liberação na Área da Equipe.');
-        } else {
-          setCheckMsg('Nenhuma liberação ativa encontrada para este e-mail ainda. Confirme com o consultor o e-mail cadastrado.');
-        }
+      const resolved = await refreshClientPortalAccess();
+      if (resolved?.kind === 'active_paid') {
+        onNavigate('/portal');
+        return;
+      }
+      if (resolved?.kind === 'pending_release') {
+        setCheckMsg('Seu cadastro foi localizado, mas o portal ainda consta como pendente de liberação na Área da Equipe.');
+      } else {
+        setCheckMsg('Nenhuma liberação ativa encontrada para este e-mail ainda. Confirme com o consultor o e-mail cadastrado.');
       }
     } finally {
-      setCheckingAccess(false);
+      setManualChecking(false);
     }
   };
 
@@ -145,15 +116,6 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
       </div>
     );
   }
-
-  const accessResolution =
-    userProfile && userProfile.role === 'cliente'
-      ? resolveClientPortalAccess({
-          userProfile,
-          client: clientRecord,
-          leads: userLeads,
-        })
-      : null;
 
   const handleDownloadBasicDiagnosticPdf = async (basic: BasicDiagnosticSummary) => {
     if (pdfBusy) return;

@@ -1,6 +1,6 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 import { useTheme } from './ThemeContext';
 import {
@@ -22,11 +22,19 @@ import {
 } from '../data/seeds';
 import {
   fetchRuleEngineBundleWithSync,
+  fetchSignedInClientRecord,
+  fetchSignedInUserDiagnosticLeads,
   linkGoogleUserToClientOrLead,
   runIdempotentSeedsIfAdmin,
   syncPendingOfflineDiagnosticToFirestore,
   syncRuleEngineDecisionLogToFirestore,
 } from '../services/firestoreService';
+import {
+  mapPortalResolutionToStage,
+  resolveClientPortalAccess,
+  type PortalAccessResolution,
+  type PortalLifecycleStage,
+} from '../utils/portalAccess';
 import {
   countPendingOfflineItems,
   getLocalAiRuntimeNotice,
@@ -41,8 +49,10 @@ import {
   type CatalogSyncSource,
 } from '../utils/offlineRuleEngineStore';
 import type {
+  Client,
   DiagnosticRuleVersion,
   EmpresaConfig,
+  Lead,
   LegalSource,
   PartnerPublic,
   SiteContent,
@@ -66,6 +76,11 @@ interface AppContextValue {
   userProfile: UserProfile | null;
   authLoading: boolean;
   authError: string | null;
+  portalClient: Client | null;
+  portalLeads: Lead[];
+  portalAccess: PortalAccessResolution | null;
+  portalStage: PortalLifecycleStage;
+  portalAccessLoading: boolean;
   empresa: EmpresaConfig;
   siteContent: SiteContent[];
   partnersPublic: PartnerPublic[];
@@ -86,6 +101,7 @@ interface AppContextValue {
   clearAuthError: () => void;
   refreshPublicData: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
+  refreshClientPortalAccess: () => Promise<PortalAccessResolution | null>;
   forceSyncOfflineData: () => Promise<OfflineSyncResultSummary>;
 }
 
@@ -127,6 +143,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Estado centralizado do Portal do Cliente (transição Gratuito ↔ Pendente ↔ Contratado)
+  const [portalClient, setPortalClient] = useState<Client | null>(null);
+  const [portalLeads, setPortalLeads] = useState<Lead[]>([]);
+  const [portalAccessLoading, setPortalAccessLoading] = useState(false);
+  const portalSyncSeqRef = useRef(0);
+  const userProfileRef = useRef<UserProfile | null>(null);
+  userProfileRef.current = userProfile;
 
   const initialSnapshot = React.useMemo(() => loadRuleEngineSnapshotSync(), []);
 
@@ -466,18 +490,216 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuthError(null);
   }, []);
 
+  const syncClientPortalState = useCallback(
+    async (profileInput: UserProfile | null): Promise<PortalAccessResolution | null> => {
+      const seq = ++portalSyncSeqRef.current;
+      if (!profileInput || profileInput.role !== 'cliente') {
+        setPortalClient(null);
+        setPortalLeads([]);
+        setPortalAccessLoading(false);
+        return null;
+      }
+
+      setPortalAccessLoading(true);
+      try {
+        let effectiveProfile = profileInput;
+        const [matchedClient, leads] = await Promise.all([
+          fetchSignedInClientRecord(effectiveProfile.uid, effectiveProfile.email, effectiveProfile.clientId),
+          fetchSignedInUserDiagnosticLeads(effectiveProfile.email),
+        ]);
+
+        // Garante que users/{uid}.clientId e status='ativo' estejam gravados no Firestore
+        // ANTES de expor portalStage='contratado', evitando qualquer PERMISSION_DENIED no Portal.
+        if (
+          matchedClient &&
+          matchedClient.portalLiberado === true &&
+          !matchedClient.arquivado &&
+          effectiveProfile.status !== 'inativo' &&
+          (effectiveProfile.clientId !== matchedClient.id ||
+            effectiveProfile.status !== 'ativo' ||
+            !matchedClient.userId)
+        ) {
+          const linked = await linkGoogleUserToClientOrLead({
+            ...effectiveProfile,
+            clientId: matchedClient.id,
+          });
+          effectiveProfile = linked;
+          if (seq === portalSyncSeqRef.current) {
+            setUserProfile(linked);
+          }
+        }
+
+        if (seq !== portalSyncSeqRef.current) {
+          return null;
+        }
+
+        setPortalClient(matchedClient);
+        setPortalLeads(leads);
+        return resolveClientPortalAccess({
+          userProfile: effectiveProfile,
+          client: matchedClient,
+          leads,
+        });
+      } catch (err) {
+        reportAppError(err, {
+          source: 'portal-access-central-sync',
+          path: `users/${profileInput.uid}`,
+        });
+        return null;
+      } finally {
+        if (seq === portalSyncSeqRef.current) {
+          setPortalAccessLoading(false);
+        }
+      }
+    },
+    [],
+  );
+
   const refreshUserProfile = useCallback(async () => {
     if (!auth.currentUser) {
       setUserProfile(null);
+      setPortalClient(null);
+      setPortalLeads([]);
+      setPortalAccessLoading(false);
       return;
     }
     try {
       const p = await syncUserDocument(auth.currentUser);
       setUserProfile(p);
+      if (p.role === 'cliente') {
+        await syncClientPortalState(p);
+      }
     } catch (err) {
       reportAppError(err, { source: 'auth-profile-refresh', path: `users/${auth.currentUser.uid}` });
     }
-  }, [syncUserDocument]);
+  }, [syncUserDocument, syncClientPortalState]);
+
+  const refreshClientPortalAccess = useCallback(async (): Promise<PortalAccessResolution | null> => {
+    if (auth.currentUser) {
+      try {
+        const freshProfile = await syncUserDocument(auth.currentUser);
+        setUserProfile(freshProfile);
+        return await syncClientPortalState(freshProfile);
+      } catch (err) {
+        reportAppError(err, { source: 'portal-access-manual-refresh', path: `users/${auth.currentUser.uid}` });
+      }
+    }
+    return syncClientPortalState(userProfileRef.current);
+  }, [syncUserDocument, syncClientPortalState]);
+
+  // Sincronização inicial + listeners em tempo real (users/{uid} e clients/{clientId})
+  // para transição instantânea Gratuito/Pendente ↔ Contratado sem recarregar a página.
+  const activeClientUid = userProfile?.role === 'cliente' ? userProfile.uid : null;
+  const activeClientId = userProfile?.role === 'cliente' ? portalClient?.id || userProfile.clientId || null : null;
+
+  useEffect(() => {
+    if (!activeClientUid || !userProfileRef.current) {
+      setPortalClient(null);
+      setPortalLeads([]);
+      setPortalAccessLoading(false);
+      return;
+    }
+
+    void syncClientPortalState(userProfileRef.current);
+
+    if (import.meta.env.DEV && isDevE2eActive()) {
+      return;
+    }
+
+    const unsubUser = onSnapshot(
+      doc(db, 'users', activeClientUid),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as Partial<UserProfile>;
+        const current = userProfileRef.current;
+        if (!current || current.uid !== activeClientUid) return;
+        const nextClientId = typeof data.clientId === 'string' ? data.clientId : current.clientId;
+        const nextStatus =
+          data.status === 'ativo' || data.status === 'pendente' || data.status === 'inativo'
+            ? data.status
+            : current.status;
+        if (nextClientId !== current.clientId || nextStatus !== current.status) {
+          const updated: UserProfile = {
+            ...current,
+            ...data,
+            uid: activeClientUid,
+            clientId: nextClientId,
+            status: nextStatus,
+          };
+          setUserProfile(updated);
+          void syncClientPortalState(updated);
+        }
+      },
+      (err) => {
+        reportAppError(err, { source: 'portal-user-snapshot', path: `users/${activeClientUid}` });
+      },
+    );
+
+    return () => unsubUser();
+  }, [activeClientUid, syncClientPortalState]);
+
+  useEffect(() => {
+    if (!activeClientUid || !activeClientId) return;
+    if (import.meta.env.DEV && isDevE2eActive()) return;
+
+    const unsubClient = onSnapshot(
+      doc(db, 'clients', activeClientId),
+      (snap) => {
+        if (!snap.exists()) return;
+        const nextClient: Client = { id: snap.id, ...(snap.data() as Omit<Client, 'id'>) };
+        const current = userProfileRef.current;
+        const needsUserLinkCommit =
+          Boolean(current) &&
+          current!.role === 'cliente' &&
+          nextClient.portalLiberado === true &&
+          !nextClient.arquivado &&
+          current!.status !== 'inativo' &&
+          (current!.clientId !== nextClient.id || current!.status !== 'ativo' || !nextClient.userId);
+
+        if (needsUserLinkCommit && current) {
+          setPortalAccessLoading(true);
+          void linkGoogleUserToClientOrLead({ ...current, clientId: nextClient.id })
+            .then((linked) => {
+              setUserProfile(linked);
+              setPortalClient(nextClient);
+            })
+            .finally(() => {
+              setPortalAccessLoading(false);
+            });
+          return;
+        }
+
+        setPortalClient(nextClient);
+      },
+      () => {
+        // Fallback silencioso caso o cliente ainda não tenha permissão de escuta direta no documento
+      },
+    );
+
+    return () => unsubClient();
+  }, [activeClientUid, activeClientId]);
+
+  const portalAccess = useMemo<PortalAccessResolution | null>(() => {
+    if (!userProfile || userProfile.role !== 'cliente') return null;
+    return resolveClientPortalAccess({
+      userProfile,
+      client: portalClient,
+      leads: portalLeads,
+    });
+  }, [userProfile, portalClient, portalLeads]);
+
+  const portalStage = useMemo<PortalLifecycleStage>(() => {
+    if (authLoading) return 'loading';
+    if (!userProfile || userProfile.role !== 'cliente') return 'unauthenticated';
+    // Evita disparar consultas de coleções restritas antes de users/{uid}.clientId sincronizar no Firestore
+    if (
+      portalAccess?.kind === 'active_paid' &&
+      userProfile.clientId !== portalAccess.client.id
+    ) {
+      return 'loading';
+    }
+    return mapPortalResolutionToStage(portalAccess, portalAccessLoading);
+  }, [authLoading, userProfile, portalAccess, portalAccessLoading]);
 
   useEffect(() => {
     if (import.meta.env.DEV && isDevE2eActive()) {
@@ -549,6 +771,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reportAppError(err, { source: 'auth-logout' });
     } finally {
       clearAdminVerificationCache();
+      portalSyncSeqRef.current += 1;
+      setPortalClient(null);
+      setPortalLeads([]);
+      setPortalAccessLoading(false);
       setUserProfile(null);
       setFirebaseUser(null);
     }
@@ -561,6 +787,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userProfile,
         authLoading,
         authError,
+        portalClient,
+        portalLeads,
+        portalAccess,
+        portalStage,
+        portalAccessLoading,
         empresa,
         siteContent,
         partnersPublic,
@@ -581,6 +812,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearAuthError,
         refreshPublicData,
         refreshUserProfile,
+        refreshClientPortalAccess,
         forceSyncOfflineData,
       }}
     >

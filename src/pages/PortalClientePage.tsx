@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Clock,
   Compass,
   Copy,
   CreditCard,
@@ -21,9 +22,11 @@ import {
   FolderOpen,
   Handshake,
   HelpCircle,
+  Lock,
   LogOut,
   MessageCircle,
   Printer,
+  RefreshCw,
   Scale,
   Shield,
   ShieldCheck,
@@ -126,10 +129,24 @@ function readInitialPortalTab(): PortalTab {
 }
 
 export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate }) => {
-  const { userProfile, empresa, partnersPublic, legalSources, visaCategories, visaRequirements, logout, refreshUserProfile } = useApp();
+  const {
+    userProfile,
+    portalClient,
+    portalLeads,
+    portalAccess,
+    portalStage,
+    portalAccessLoading,
+    empresa,
+    partnersPublic,
+    legalSources,
+    visaCategories,
+    visaRequirements,
+    logout,
+    refreshClientPortalAccess,
+  } = useApp();
   const [tab, setTab] = useState<PortalTab>(readInitialPortalTab);
   const [loading, setLoading] = useState(true);
-  const [client, setClient] = useState<Client | null>(null);
+  const [client, setClient] = useState<Client | null>(portalClient);
   const [dependents, setDependents] = useState<Dependent[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
   const [docs, setDocs] = useState<CaseDocument[]>([]);
@@ -201,27 +218,43 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     }
   }, [clientLeads, visaCategories, visaRequirements, legalSources, empresa]);
 
-  const [recoveringLink, setRecoveringLink] = useState(false);
-  const recoveryAttemptedRef = useRef(false);
+  const [syncCheckBusy, setSyncCheckBusy] = useState(false);
+  const [syncCheckMsg, setSyncCheckMsg] = useState<string | null>(null);
+
+  const effectiveClientId =
+    portalStage === 'contratado'
+      ? portalClient?.id || userProfile?.clientId || null
+      : null;
+
+  // Mantém o registro local de cliente e leads sincronizado com as atualizações em tempo real do AppContext
+  useEffect(() => {
+    if (portalClient) {
+      setClient(portalClient);
+      setEditNome((prev) => prev || portalClient.nomeCompleto || '');
+      setEditWhats((prev) => prev || portalClient.whatsapp || '');
+      setEditEndereco((prev) => prev || portalClient.enderecoCompleto || '');
+      setEditProfissao((prev) => prev || portalClient.profissao || '');
+    }
+  }, [portalClient]);
 
   useEffect(() => {
-    if (!userProfile || userProfile.role !== 'cliente' || userProfile.clientId || recoveryAttemptedRef.current) {
-      return;
+    if (portalLeads.length > 0) {
+      setClientLeads(portalLeads);
     }
-    recoveryAttemptedRef.current = true;
-    setRecoveringLink(true);
-    void refreshUserProfile().finally(() => setRecoveringLink(false));
-  }, [userProfile, refreshUserProfile]);
+  }, [portalLeads]);
 
   const loadPortal = useCallback(async () => {
-    if (!userProfile?.clientId) {
+    // Aguarda portalStage === 'contratado' (com users/{uid}.clientId já gravado no Firestore pelo AppContext)
+    // antes de consultar coleções protegidas por isCliente().
+    if (portalStage !== 'contratado' || !effectiveClientId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchClientPortalData(userProfile.clientId);
-      setClient(data.client);
+      const data = await fetchClientPortalData(effectiveClientId);
+      const resolvedClient = data.client || portalClient;
+      setClient(resolvedClient);
       setDependents(data.dependents);
       setCases(data.cases);
       setDocs(data.caseDocuments);
@@ -231,24 +264,24 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setBudgets(data.budgets);
       setFinancials(data.financialRecords);
       setGenDocs(data.generatedDocuments);
-      setClientLeads(data.leads);
-      if (data.client) {
-        setEditNome(data.client.nomeCompleto || '');
-        setEditWhats(data.client.whatsapp || '');
-        setEditEndereco(data.client.enderecoCompleto || '');
-        setEditProfissao(data.client.profissao || '');
+      setClientLeads(data.leads.length > 0 ? data.leads : portalLeads);
+      if (resolvedClient) {
+        setEditNome(resolvedClient.nomeCompleto || '');
+        setEditWhats(resolvedClient.whatsapp || '');
+        setEditEndereco(resolvedClient.enderecoCompleto || '');
+        setEditProfissao(resolvedClient.profissao || '');
       }
     } finally {
       setLoading(false);
     }
-  }, [userProfile?.clientId]);
+  }, [portalStage, effectiveClientId, portalClient, portalLeads]);
 
   useEffect(() => {
     void loadPortal();
   }, [loadPortal]);
 
   useEffect(() => {
-    if (!userProfile?.clientId || !userProfile?.uid) return;
+    if (portalStage !== 'contratado' || !effectiveClientId || !userProfile?.uid) return;
     let active = true;
     initialNotifLoadedRef.current = false;
     seenNotifIdsRef.current = new Set();
@@ -266,7 +299,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       .catch(() => undefined);
 
     const unsubNotifs = subscribeClientNotifications(
-      userProfile.clientId,
+      effectiveClientId,
       (list) => {
         if (!active) return;
         setNotifications(list);
@@ -330,74 +363,256 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       unsubNotifs();
       unsubFcm();
     };
-  }, [userProfile?.clientId, userProfile?.uid, loadPortal]);
+  }, [portalStage, effectiveClientId, userProfile?.uid, loadPortal]);
 
-  if (recoveringLink) {
+  const handleManualPortalRefresh = async () => {
+    if (syncCheckBusy) return;
+    setSyncCheckBusy(true);
+    setSyncCheckMsg(null);
+    try {
+      const resolved = await refreshClientPortalAccess();
+      if (resolved?.kind === 'active_paid') {
+        setSyncCheckMsg(null);
+      } else if (resolved?.kind === 'pending_release') {
+        setSyncCheckMsg('Cadastro localizado, mas o acesso completo ainda aguarda liberação pela equipe no painel.');
+      } else {
+        setSyncCheckMsg('Acesso mantido no modo Diagnóstico Gratuito. Confirme com o consultor o e-mail vinculado à contratação.');
+      }
+    } finally {
+      setSyncCheckBusy(false);
+    }
+  };
+
+  if (portalStage === 'loading' || portalAccessLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-3">
-          <h1 className="text-lg font-bold text-slate-900">Sincronizando Portal do Cliente...</h1>
-          <p className="text-sm text-slate-600">Validando sua liberação e carregando seus documentos.</p>
+        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
+          <BrandRibbon className="h-[3px] w-full" />
+          <div className="p-8 space-y-3">
+            <RefreshCw className="w-6 h-6 text-[#0B1F33] animate-spin mx-auto" />
+            <h1 className="text-lg font-bold text-[#0B1F33]">Sincronizando Portal do Cliente...</h1>
+            <p className="text-sm text-[#4A5A6D]">
+              Validando sua permissão no Firestore e preparando seus documentos.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!userProfile || userProfile.role !== 'cliente' || !userProfile.clientId) {
+  if (!userProfile || userProfile.role !== 'cliente' || portalStage === 'unauthenticated') {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
-          <h1 className="text-xl font-bold text-slate-900">Portal do Cliente</h1>
-          <p className="text-sm text-slate-600">
-            Seu acesso ainda não está vinculado a um processo ativo ou aguarda liberação pelo consultor.
-          </p>
-          <button
-            type="button"
-            onClick={() => onNavigate('/acompanhar')}
-            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            Voltar para autenticação
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const activeCase = cases[0] || null;
-  const accessResolution = resolveClientPortalAccess({
-    userProfile,
-    client,
-    activeCase,
-    leads: clientLeads,
-  });
-
-  if (!loading && client && accessResolution.kind !== 'active_paid') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.08)]">
+        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
           <BrandRibbon className="h-[3px] w-full" />
           <div className="p-8 space-y-4">
-            <p className="brand-kicker">Portal do Cliente · Liberação</p>
-            <h1 className="font-display text-2xl font-bold text-[#0B1F33]">Acesso ao Portal Pendente</h1>
-            <p className="text-sm text-[#4A5A6D] leading-relaxed">
-              {accessResolution.kind === 'inactive'
-                ? accessResolution.reason
-                : 'O acesso completo ao seu Portal do Cliente está pendente de liberação pela consultoria.'}
+            <h1 className="font-display text-2xl font-bold text-[#0B1F33]">Portal do Cliente</h1>
+            <p className="text-sm text-[#4A5A6D]">
+              Faça login com sua conta Google para acompanhar seu diagnóstico ou processo contratado.
             </p>
             <button
               type="button"
               onClick={() => onNavigate('/acompanhar')}
-              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white hover:opacity-95 transition-opacity"
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              Ver resumo do acesso
+              Entrar no Portal do Cliente
             </button>
           </div>
         </div>
       </div>
     );
   }
+
+  if (portalStage === 'inativo') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
+        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.08)]">
+          <BrandRibbon className="h-[3px] w-full" />
+          <div className="p-8 space-y-4">
+            <p className="brand-kicker">Portal do Cliente · Conta Desativada</p>
+            <h1 className="font-display text-2xl font-bold text-[#0B1F33]">Acesso Temporariamente Inativo</h1>
+            <p className="text-sm text-[#4A5A6D] leading-relaxed">
+              {portalAccess?.kind === 'inactive'
+                ? portalAccess.reason
+                : 'Seu acesso ao portal está inativo no momento. Fale com a consultoria para reativar.'}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={logout}
+                className="px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+              >
+                Trocar conta Google
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Transição unificada: Modo Diagnóstico Gratuito ou Liberação Pendente gerenciado centralmente pelo AppContext.
+  // Assim que a equipe liberar portalLiberado=true no Firestore, o AppContext transiciona automaticamente para 'contratado'.
+  if (portalStage === 'gratuito' || portalStage === 'pendente') {
+    const basicSummary =
+      portalAccess?.kind === 'free_diagnostic_only'
+        ? portalAccess.basicDiagnostic
+        : portalAccess?.kind === 'pending_release'
+          ? portalAccess.basicDiagnostic
+          : null;
+    const isPending = portalStage === 'pendente';
+
+    return (
+      <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
+        <header className="bg-white/95 backdrop-blur-xl border-b border-[#E5DFD2] sticky top-0 z-30">
+          <BrandRibbon className="h-[3px] w-full no-print" />
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <BrandLogo
+                src={empresa.logoUrl}
+                alt={empresa.nome_empresa}
+                brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+                variant="light"
+                imgClassName="h-9 w-auto max-w-[160px] object-contain shrink-0"
+              />
+              <div className="min-w-0 border-l border-[#E5DFD2] pl-3">
+                <p className="text-xs sm:text-sm font-bold text-[#0B1F33] truncate">
+                  Portal do Cliente ·{' '}
+                  <span className="text-[#8C6D14]">
+                    {isPending ? 'Liberação em Andamento' : 'Diagnóstico Gratuito'}
+                  </span>
+                </p>
+                <p className="text-xs text-[#4A5A6D] truncate">{userProfile.email}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={syncCheckBusy}
+                onClick={() => void handleManualPortalRefresh()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncCheckBusy ? 'animate-spin' : ''}`} />
+                {syncCheckBusy ? 'Verificando...' : 'Verificar liberação'}
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] whitespace-nowrap"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sair
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+          <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center shrink-0">
+                {isPending ? <Clock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+              </div>
+              <div className="min-w-0 space-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                  {isPending ? 'Cadastro localizado · Aguardando ativação' : 'Modo Diagnóstico Gratuito'}
+                </p>
+                <h1 className="font-display text-xl font-bold text-[#0B1F33]">
+                  {isPending
+                    ? 'Seu portal completo será liberado automaticamente aqui'
+                    : 'Resumo inicial disponível — liberação automática ao contratar'}
+                </h1>
+                <p className="text-xs text-[#4A5A6D] leading-relaxed">
+                  {isPending
+                    ? `Identificamos seu cadastro (${portalClient?.nomeCompleto || userProfile.nome}). Assim que o consultor ativar seu acesso no painel, esta tela muda automaticamente para o Portal Contratado.`
+                    : 'Você pode consultar seu diagnóstico básico e já adiantar a digitalização segura dos seus documentos de identidade abaixo.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <a
+                href={buildWhatsAppUrl(
+                  empresa.whatsapp,
+                  `Olá! Estou conectado no Portal do Cliente com ${userProfile.email} e gostaria de confirmar a liberação da minha consultoria.`,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#146B43] text-white text-xs font-semibold whitespace-nowrap hover:opacity-95"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Falar com a equipe
+              </a>
+            </div>
+          </div>
+
+          {syncCheckMsg && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950">
+              {syncCheckMsg}
+            </div>
+          )}
+
+          {basicSummary && (
+            <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden">
+              <div className="bg-[#0B1F33] text-white p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                    Resumo do Diagnóstico Preliminar
+                  </p>
+                  <h2 className="font-display text-xl font-bold text-white mt-1">{basicSummary.subcategoriaNome}</h2>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-300">Viabilidade</p>
+                  <p className="font-mono text-3xl font-bold tabular-nums text-[#E5C76B]">
+                    {basicSummary.notaViabilidade}
+                    <span className="text-sm font-normal text-slate-300">/100</span>
+                  </p>
+                </div>
+              </div>
+              <div className="p-5 sm:p-6 space-y-4">
+                <p className="text-sm text-[#0B1523] leading-relaxed">{basicSummary.resumoBasico}</p>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/diagnostico')}
+                    className="px-4 py-2 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-white"
+                  >
+                    Atualizar / Refazer Diagnóstico
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/acompanhar')}
+                    className="px-4 py-2 rounded-lg bg-[#0B1F33] text-xs font-semibold text-white hover:opacity-95"
+                  >
+                    Ver planos de consultoria
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Documentos de identidade escaneados via câmera sempre acessíveis ao titular */}
+          <ProfileIdentityDocumentsCard
+            userProfile={userProfile}
+            title="Seus Documentos Escaneados via Câmera"
+            subtitle="Os documentos salvos no seu perfil ficam imediatamente disponíveis no seu dossiê assim que o portal completo for liberado."
+          />
+        </main>
+      </div>
+    );
+  }
+
+  const activeCase = cases[0] || null;
+  const resolvedClient = client || portalClient;
+  const accessResolution =
+    portalAccess?.kind === 'active_paid'
+      ? portalAccess
+      : resolveClientPortalAccess({
+          userProfile,
+          client: resolvedClient,
+          activeCase,
+          leads: clientLeads,
+        });
 
   const paidModality = accessResolution.kind === 'active_paid' ? accessResolution.modality : 'completa';
   const planSpec = CONSULTANCY_PLANS[paidModality];

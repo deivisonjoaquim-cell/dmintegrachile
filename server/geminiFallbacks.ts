@@ -210,6 +210,19 @@ export function buildDiagnosticoFallback(body: Record<string, unknown>) {
   const sources = normalizeLegalSources(body.legalSources);
   const fontesCitadas = formatLegalCitations(sources);
 
+  const radar =
+    body.radarViabilidade && typeof body.radarViabilidade === 'object'
+      ? (body.radarViabilidade as {
+          total?: number;
+          veredito?: string;
+          confianca?: string;
+          dimensoes?: Array<{ nome?: string; pontos?: number; maximo?: number; percentual?: number; observacao?: string }>;
+        })
+      : null;
+  const contradicoes = Array.isArray(body.contradicoes)
+    ? body.contradicoes.filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+    : [];
+
   const localizacao = typeof answers.localizacao === 'string' ? answers.localizacao : 'não informada';
   const passaporteMeses = typeof answers.passaporteValidadeMeses === 'number' ? answers.passaporteValidadeMeses : 24;
   const passaporteStatus = typeof answers.passaporteStatus === 'string' ? answers.passaporteStatus : 'valido';
@@ -225,6 +238,9 @@ export function buildDiagnosticoFallback(body: Record<string, unknown>) {
   if (localizacao === 'No Chile como turista' && !answers.vinculoFormalizado) {
     riscos.push('Solicitante no Chile como turista sem vínculo familiar formalizado — protocolo comum deve ocorrer do exterior.');
   }
+  for (const cont of contradicoes.slice(0, 2)) {
+    riscos.push(`Contradição nas respostas: ${cont}`);
+  }
   if (riscos.length === 0) {
     riscos.push('Nenhum impeditivo crítico marcado na triagem; confirmar aderência documental na reunião técnica.');
   }
@@ -237,21 +253,35 @@ export function buildDiagnosticoFallback(body: Record<string, unknown>) {
   perguntasConsultor.push('Confirmar origem, validade e apostilamento das certidões civis e de antecedentes criminais.');
   perguntasConsultor.push('Validar cronograma de ingresso e vínculo/documentação específica da subcategoria indicada.');
 
+  const weakPillars = (radar?.dimensoes || [])
+    .filter((d) => typeof d.percentual === 'number' && d.percentual < 75 && typeof d.nome === 'string')
+    .sort((a, b) => (a.percentual ?? 100) - (b.percentual ?? 100))
+    .slice(0, 3)
+    .map((d) => `${d.nome} (${d.pontos ?? 0}/${d.maximo ?? 0}): ${d.observacao || 'requer atenção técnica'}`);
+
   const pontosAtencao =
-    regrasAcionadas.length > 0
-      ? regrasAcionadas.slice(0, 6)
-      : ['Pré-enquadramento apurado pelas regras determinísticas da consultoria.'];
+    weakPillars.length > 0
+      ? [...weakPillars, ...regrasAcionadas.slice(0, 3)]
+      : regrasAcionadas.length > 0
+        ? regrasAcionadas.slice(0, 6)
+        : ['Pré-enquadramento apurado pelas regras determinísticas da consultoria.'];
+
+  const radarResumo =
+    radar && typeof radar.total === 'number'
+      ? ` Índice do Radar de Viabilidade: ${Math.round(radar.total)}/100 (${radar.veredito || 'Em análise'}, confiança ${radar.confianca || 'Média'}).`
+      : '';
 
   return {
     rascunho: true,
-    resumoExecutivo: `[${AI_FALLBACK_LABEL}] Pré-análise baseada estritamente nas regras cadastradas para a indicação "${subcategoria}" (localização atual: ${localizacao}). Revise os pontos de atenção e confirme a base documental antes de orientar o cliente.`,
+    resumoExecutivo: `[${AI_FALLBACK_LABEL}] Pré-análise baseada estritamente nas regras cadastradas para a indicação "${subcategoria}" (localização atual: ${localizacao}).${radarResumo} Revise os pontos de atenção e confirme a base documental antes de orientar o cliente.`,
     riscos,
     perguntasConsultor,
     pontosAtencao,
     fontesCitadas,
     proximosPassos: [
-      'Validar passaporte e certidões sem validade curta antes de emitir Antecedentes da Polícia Federal (60 dias).',
-      'Conferir exigência de Apostila da Haia e tradução juramentada para cada item do checklist.',
+      'Validar passaporte e certidões civis sem validade curta como primeira prioridade.',
+      'Conferir exigência de Apostila da Haia (CNJ) e tradução juramentada para cada item do checklist.',
+      'Emitir Antecedentes da Polícia Federal (validade de 60 dias) estritamente por último, antes do protocolo SERMIG.',
       'Realizar revisão humana final pelo consultor responsável.',
     ],
   };

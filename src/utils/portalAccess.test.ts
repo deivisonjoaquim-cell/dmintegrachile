@@ -6,6 +6,7 @@ import {
   CONSULTANCY_PLANS,
   getPortalCapabilities,
   mapPipelineStepToOrientativaStep,
+  mapPortalResolutionToStage,
   normalizePaidModality,
   ORIENTATIVA_STAGES,
   resolveClientPortalAccess,
@@ -218,3 +219,51 @@ describe('portalAccess — basic diagnostic gating', () => {
     assert.equal(leadSummary.confianca, 'Alta');
   });
 });
+
+describe('portalAccess — centralized lifecycle stage transitions', () => {
+  it('maps PortalAccessResolution cleanly into loading, unauthenticated, gratuito, pendente, contratado, and inativo', () => {
+    const activeRes = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'ativo', clientId: 'cli_1' }),
+      client: makeClient({ portalLiberado: true, modalidadeConsultoria: 'completa' }),
+    });
+    assert.equal(mapPortalResolutionToStage(activeRes, true), 'loading');
+    assert.equal(mapPortalResolutionToStage(activeRes, false), 'contratado');
+
+    assert.equal(mapPortalResolutionToStage(null, false), 'unauthenticated');
+    assert.equal(
+      mapPortalResolutionToStage(
+        resolveClientPortalAccess({ userProfile: null, client: null }),
+        false,
+      ),
+      'unauthenticated',
+    );
+
+    const freeRes = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'pendente', clientId: undefined }),
+      client: null,
+      leads: [makeLead()],
+    });
+    assert.equal(mapPortalResolutionToStage(freeRes, false), 'gratuito');
+
+    const noRecordRes = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'pendente', clientId: undefined }),
+      client: null,
+      leads: [],
+    });
+    assert.equal(mapPortalResolutionToStage(noRecordRes, false), 'gratuito');
+
+    const pendingRes = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'pendente', clientId: 'cli_1' }),
+      client: makeClient({ portalLiberado: false }),
+      leads: [makeLead()],
+    });
+    assert.equal(mapPortalResolutionToStage(pendingRes, false), 'pendente');
+
+    const inactiveRes = resolveClientPortalAccess({
+      userProfile: makeUser({ status: 'inativo' }),
+      client: makeClient({ portalLiberado: true }),
+    });
+    assert.equal(mapPortalResolutionToStage(inactiveRes, false), 'inativo');
+  });
+});
+

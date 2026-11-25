@@ -14,6 +14,7 @@ import {
   buildParecerSpec,
   buildPropostaSpec,
   getAiEngineHealthStatus,
+  groundDiagnosticCitations,
   runAiRouteExecution,
   type AuditWriterOptions,
 } from './geminiRoutes';
@@ -1057,7 +1058,71 @@ describe('chamarGemini() — Unified Retry, Backup Model, Timeout & Fallbacks', 
     assert.equal(validatedCustos.taxaSermigMercosulUsd, 90);
     assert.equal(validatedCustos.taxaSermigTemporalUsd, 90.5);
   });
+
+  it('strips PII from buildDiagnosticoSpec prompt and removes hallucinated citations via groundDiagnosticCitations', () => {
+    const legalSources = [
+      {
+        titulo: 'Ley de Migración y Extranjería',
+        numeroAno: 'Ley Nº 21.325',
+        artigos: 'Art. 69 e Art. 70',
+      },
+      {
+        titulo: 'Decreto Supremo Nº 177/2022',
+        numeroAno: 'Decreto 177/2022',
+        artigos: 'Subcategoría 15 (Mercosur)',
+      },
+    ];
+
+    const spec = buildDiagnosticoSpec({
+      answers: {
+        nome: 'Nome Privado Teste',
+        email: 'privado@exemplo.com',
+        whatsapp: '+55 11 99999-8888',
+        cidadeUf: 'São Paulo/SP',
+        localizacao: 'No Brasil',
+        passaporteValidadeMeses: 24,
+      },
+      subcategoriaRecomendada: '15 - Reciprocidade Internacional (Mercosul)',
+      radarViabilidade: {
+        total: 88,
+        veredito: 'Alta viabilidade',
+        confianca: 'Alta',
+        dimensoes: [
+          { nome: 'Elegibilidade Legal', pontos: 25, maximo: 25, observacao: 'Nacionalidade brasileira.' },
+        ],
+      },
+      regrasAcionadas: ['Acordo Mercosul aplicável.'],
+      legalSources,
+    });
+
+    const promptText = String(spec.contents);
+    assert.equal(promptText.includes('Nome Privado Teste'), false);
+    assert.equal(promptText.includes('privado@exemplo.com'), false);
+    assert.equal(promptText.includes('+55 11 99999-8888'), false);
+    assert.equal(promptText.includes('radarViabilidade'), true);
+
+    const validated = spec.validateJson({
+      resumoExecutivo: 'Perfil com 88/100 no Radar para Mercosul.',
+      pontosAtencao: ['Emitir antecedentes PF por último.', 'Emitir antecedentes PF por último.'],
+      proximosPassos: ['Apostilar certidão de nascimento.'],
+      fontesCitadas: ['Ley Nº 21.325 — Art. 69', 'Lei Inventada 99.999/2099 (alucinação)'],
+    });
+
+    assert.ok(validated);
+    assert.deepEqual(validated.pontosAtencao, ['Emitir antecedentes PF por último.']);
+    assert.deepEqual(validated.fontesCitadas, ['Ley Nº 21.325 — Art. 69']);
+
+    // When all citations are hallucinated, falls back strictly to verified catalog sources
+    const groundedFallback = groundDiagnosticCitations(
+      ['Resolução Fictícia 888/2099'],
+      legalSources,
+    );
+    assert.equal(groundedFallback.length, 2);
+    assert.ok(groundedFallback[0].includes('Ley de Migración'));
+    assert.deepEqual(groundDiagnosticCitations(['Qualquer norma'], []), ['fonte a cadastrar']);
+  });
 });
+
 
 
 

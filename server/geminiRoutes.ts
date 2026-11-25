@@ -438,22 +438,120 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
   }
 }
 
+function stripDiagnosticPiiForAi(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object') return {};
+  const src = raw as Record<string, unknown>;
+  const { nome: _n, email: _e, whatsapp: _w, cidadeUf: _c, pessoasFamilia: _pf, ...safe } = src;
+  return safe;
+}
+
+function normalizeCitationMatch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function dedupeCleanStrings(items: string[] | null, maxItems = 8): string[] {
+  if (!items || items.length === 0) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    const clean = item.trim();
+    if (!clean) continue;
+    const key = normalizeCitationMatch(clean);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+export function groundDiagnosticCitations(
+  rawCitations: string[] | null,
+  sourcesBrief: Array<{ titulo: string; numeroAno: string; artigos: string }>,
+): string[] {
+  const catalogCitations = sourcesBrief.map((s) => {
+    const num = s.numeroAno ? ` (${s.numeroAno})` : '';
+    const art = s.artigos ? ` — ${s.artigos}` : '';
+    return `${s.titulo}${num}${art}`;
+  });
+
+  if (sourcesBrief.length === 0) {
+    return ['fonte a cadastrar'];
+  }
+
+  const candidateList = dedupeCleanStrings(rawCitations, 10);
+  if (candidateList.length === 0) {
+    return catalogCitations.slice(0, 6);
+  }
+
+  const grounded = candidateList.filter((cite) => {
+    const normCite = normalizeCitationMatch(cite);
+    if (normCite === 'fonte a cadastrar') return true;
+    return sourcesBrief.some((src) => {
+      const normTitle = normalizeCitationMatch(src.titulo);
+      const normNum = normalizeCitationMatch(src.numeroAno);
+      const shortTitle = normTitle.split('–')[0].split('-')[0].trim();
+      return (
+        (normNum.length >= 3 && normCite.includes(normNum)) ||
+        (shortTitle.length >= 6 && normCite.includes(shortTitle)) ||
+        (normTitle.length >= 6 && normTitle.includes(normCite))
+      );
+    });
+  });
+
+  return grounded.length > 0 ? grounded : catalogCitations.slice(0, 6);
+}
+
 export function buildDiagnosticoSpec(body: Record<string, unknown>) {
-  const { answers, regrasAcionadas, visaCategories, legalSources, subcategoriaRecomendada } = body;
+  const {
+    answers,
+    regrasAcionadas,
+    visaCategories,
+    legalSources,
+    subcategoriaRecomendada,
+    subcategoriaDetalhes,
+    radarViabilidade,
+    alternativas,
+    flagsRisco,
+    flagsRevisaoConsultor,
+    contradicoes,
+    alertas,
+    prontidaoDocumental,
+  } = body;
   const sourcesBrief = compactServerLegalSources(legalSources, 20);
   const categoriesBrief = Array.isArray(visaCategories) ? visaCategories.slice(0, 20) : [];
+  const safeAnswers = stripDiagnosticPiiForAi(answers);
 
   return {
     route: '/api/ai/diagnostico',
     contents: JSON.stringify({
-      answers,
-      subcategoriaRecomendada: subcategoriaRecomendada || null,
-      regrasAcionadas: Array.isArray(regrasAcionadas) ? regrasAcionadas.slice(0, 30) : [],
+      fatosVerificados: {
+        perfil: safeAnswers,
+        subcategoriaRecomendada: subcategoriaRecomendada || null,
+        subcategoriaDetalhes: subcategoriaDetalhes || null,
+        radarViabilidade: radarViabilidade || null,
+        alternativas: Array.isArray(alternativas) ? alternativas.slice(0, 3) : [],
+        flagsRisco: Array.isArray(flagsRisco) ? flagsRisco.slice(0, 8) : [],
+        flagsRevisaoConsultor: Array.isArray(flagsRevisaoConsultor) ? flagsRevisaoConsultor.slice(0, 6) : [],
+        contradicoes: Array.isArray(contradicoes) ? contradicoes.slice(0, 6) : [],
+        alertas: Array.isArray(alertas) ? alertas.slice(0, 8) : [],
+        prontidaoDocumental: prontidaoDocumental || null,
+        regrasAcionadas: Array.isArray(regrasAcionadas) ? regrasAcionadas.slice(0, 30) : [],
+      },
       visaCategories: categoriesBrief,
       legalSources: sourcesBrief,
     }),
     systemInstruction:
-      'Você é um assistente técnico de imigração Brasil-Chile da consultoria D&M Integra Chile. Responda EXCLUSIVAMENTE em português do Brasil. REGRA ABSOLUTA 1: Nunca altere a subcategoria recomendada pelas regras — apenas explique e contextualize. REGRA ABSOLUTA 2: Nunca invente normas, leis, decretos ou artigos; cite APENAS os registros presentes em legalSources enviados na entrada. Se não houver norma aplicável na lista para alguma afirmação, escreva literalmente "fonte a cadastrar". Este texto é um rascunho orientativo editável e exige revisão humana.',
+      'Você é um especialista técnico em imigração Brasil-Chile da consultoria D&M Integra Chile. Responda EXCLUSIVAMENTE em português do Brasil e em JSON válido. ' +
+      'REGRA ABSOLUTA 1 (IMUTABILIDADE DO MOTOR): Nunca altere nem contradiga a subcategoriaRecomendada, a pontuação total ou qualquer um dos 7 pilares em fatosVerificados.radarViabilidade; apenas explique com precisão técnica por que essa rota lidera e qual pilar merece ação prioritária. ' +
+      'REGRA ABSOLUTA 2 (ZERO ALUCINAÇÃO NORMATIVA): Nunca invente leis, decretos, resoluções, números de artigos, taxas ou prazos que não constem explicitamente em legalSources ou fatosVerificados. Em fontesCitadas, cite APENAS registros presentes em legalSources; se não houver fonte cadastrada para alguma afirmação, escreva literalmente "fonte a cadastrar". ' +
+      'REGRA ABSOLUTA 3 (PRECISÃO FACTUAL): Não presuma fatos não informados pelo usuário. Separe claramente riscos confirmados (flagsRisco) de pontos reservados para entrevista sigilosa (flagsRevisaoConsultor) e contradições detectadas (contradicoes). ' +
+      'FORMATO: resumoExecutivo objetivo (2 a 4 frases citando a rota líder e a nota/veredito do Radar); riscos (até 5 itens concretos); perguntasConsultor (3 a 5 perguntas diretas para a reunião); pontosAtencao (3 a 5 pontos alinhados aos pilares mais baixos do Radar); proximosPassos (3 a 5 passos na ordem cronológica segura — mantendo emissão de Antecedentes PF de 60 dias por último). Este texto é um rascunho orientativo editável e exige revisão humana.',
     responseSchema: {
       type: Type.OBJECT,
       properties: {
@@ -468,14 +566,21 @@ export function buildDiagnosticoSpec(body: Record<string, unknown>) {
     },
     validateJson: (parsed: Record<string, unknown>) => {
       if (typeof parsed.resumoExecutivo !== 'string' || !parsed.resumoExecutivo.trim()) return null;
+      const fb = buildDiagnosticoFallback(body);
+      const riscos = dedupeCleanStrings(asStringArray(parsed.riscos), 6);
+      const perguntasConsultor = dedupeCleanStrings(asStringArray(parsed.perguntasConsultor), 6);
+      const pontosAtencao = dedupeCleanStrings(asStringArray(parsed.pontosAtencao), 6);
+      const proximosPassos = dedupeCleanStrings(asStringArray(parsed.proximosPassos), 6);
+      const fontesCitadas = groundDiagnosticCitations(asStringArray(parsed.fontesCitadas), sourcesBrief);
+
       return {
         rascunho: true,
         resumoExecutivo: parsed.resumoExecutivo.trim(),
-        riscos: asStringArray(parsed.riscos) || [],
-        perguntasConsultor: asStringArray(parsed.perguntasConsultor) || [],
-        pontosAtencao: asStringArray(parsed.pontosAtencao) || [],
-        fontesCitadas: asStringArray(parsed.fontesCitadas) || ['fonte a cadastrar'],
-        proximosPassos: asStringArray(parsed.proximosPassos) || [],
+        riscos: riscos.length > 0 ? riscos : fb.riscos,
+        perguntasConsultor: perguntasConsultor.length > 0 ? perguntasConsultor : fb.perguntasConsultor,
+        pontosAtencao: pontosAtencao.length > 0 ? pontosAtencao : fb.pontosAtencao,
+        fontesCitadas,
+        proximosPassos: proximosPassos.length > 0 ? proximosPassos : fb.proximosPassos,
       };
     },
     buildFallback: () => buildDiagnosticoFallback(body),

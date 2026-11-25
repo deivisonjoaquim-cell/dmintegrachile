@@ -1018,13 +1018,95 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     setAiLoading(true);
     setAiProgress('Iniciando análise...');
     try {
+      const sanitizedAnswersForAi = {
+        localizacao: answers.localizacao,
+        faixaEtaria: answers.faixaEtaria,
+        mesesResidenciaChile: answers.mesesResidenciaChile,
+        residenteSubcategoriaAtual: answers.residenteSubcategoriaAtual,
+        residenteVenceEmDias: answers.residenteVenceEmDias,
+        residenteMesesForaUltimoAno: answers.residenteMesesForaUltimoAno,
+        entradaRecenteChileTurista: answers.entradaRecenteChileTurista,
+        nacionalidadeBrasileira: answers.nacionalidadeBrasileira,
+        possuiSegundaNacionalidade: answers.possuiSegundaNacionalidade,
+        segundaNacionalidadeQual: answers.segundaNacionalidadeQual,
+        passaporteStatus: answers.passaporteStatus,
+        passaporteValidadeMeses: answers.passaporteValidadeMeses,
+        vinculoFamiliarChile: answers.vinculoFamiliarChile,
+        vinculoTipo: answers.vinculoTipo,
+        familiarStatusChile: answers.familiarStatusChile,
+        vinculoFormalizado: answers.vinculoFormalizado,
+        composicaoFamiliar: answers.composicaoFamiliar,
+        objetivo: answers.objetivo,
+        possuiOfertaTrabalhoFormal: answers.possuiOfertaTrabalhoFormal,
+        contratoNotariadoEmpresaChilena: answers.contratoNotariadoEmpresaChilena,
+        possuiMatriculaReconhecida: answers.possuiMatriculaReconhecida,
+        possuiRendaPassiva: answers.possuiRendaPassiva,
+        faixaRendaMensalUsd: answers.faixaRendaMensalUsd,
+        possuiCapitalComprovadoOrigem: answers.possuiCapitalComprovadoOrigem,
+        investimentoAcima500kUsd: answers.investimentoAcima500kUsd,
+        overstay: answers.overstay,
+        ordenAbandono: answers.ordenAbandono,
+        rejeicaoAnterior: answers.rejeicaoAnterior,
+        antecedentesCriminais: answers.antecedentesCriminais,
+        riscoConsultaConsultor: answers.riscoConsultaConsultor,
+        familiaAcompanhante: answers.familiaAcompanhante,
+        quantidadeDependentes: answers.quantidadeDependentes,
+        prazoPretendido: answers.prazoPretendido,
+        documentosJaPossui: answers.documentosJaPossui,
+      };
+
       const data = await callAiEndpoint<AiDiagnosticDraft>(
         '/api/ai/diagnostico',
         {
-          answers,
+          answers: sanitizedAnswersForAi,
           subcategoriaRecomendada: result.recomendada
             ? `${result.recomendada.visa.codigo} - ${result.recomendada.visa.nomePortugues}`
             : '',
+          subcategoriaDetalhes: result.recomendada
+            ? {
+                codigo: result.recomendada.visa.codigo,
+                nomePortugues: result.recomendada.visa.nomePortugues,
+                nomeEspanhol: result.recomendada.visa.nomeEspanhol,
+                permiteDentroChile: result.recomendada.visa.permiteDentroChile,
+                permiteTrabalhar: result.recomendada.visa.permiteTrabalhar,
+                levaDefinitiva: result.recomendada.visa.levaDefinitiva,
+                mesesDefinitiva: result.recomendada.visa.mesesDefinitiva,
+                motivo: result.recomendada.motivo,
+              }
+            : null,
+          radarViabilidade: {
+            total: result.viabilidade.total,
+            veredito: result.viabilidade.veredito,
+            confianca: result.confianca,
+            dimensoes: result.viabilidade.dimensoes.map((d) => ({
+              nome: d.nome,
+              pontos: d.pontos,
+              maximo: d.maximo,
+              percentual: d.maximo > 0 ? Math.round((d.pontos / d.maximo) * 100) : 0,
+              observacao: d.observacao,
+            })),
+          },
+          alternativas: result.top3.slice(1, 3).map((alt) => ({
+            codigo: alt.visa.codigo,
+            nomePortugues: alt.visa.nomePortugues,
+            nota: alt.nota,
+            permiteDentroChile: alt.visa.permiteDentroChile,
+          })),
+          flagsRisco: result.flagsRisco.map((f) => ({
+            campo: f.campo,
+            severidade: f.severidade,
+            orientacao: f.orientacao,
+          })),
+          flagsRevisaoConsultor: result.flagsRevisaoConsultor.map((f) => f.label),
+          contradicoes: result.contradicoes.map((c) => c.titulo),
+          alertas: result.alertas.slice(0, 8),
+          prontidaoDocumental: {
+            percentualInicial: result.checklistProntidao.percentualInicial,
+            semaforo: result.checklistProntidao.semaforo,
+            itensValidadeCurtaPendentes: result.checklistProntidao.itens
+              .filter((i) => i.statusInicial === 'Crítico / Validade curta')
+              .map((i) => i.nomeDocumento),
+          },
           regrasAcionadas: result.regrasAcionadas,
           visaCategories: visaCategories.slice(0, 16).map((v) => ({
             codigo: v.codigo,

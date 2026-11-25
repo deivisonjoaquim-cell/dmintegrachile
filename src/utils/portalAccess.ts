@@ -583,6 +583,26 @@ export type PortalAccessResolution =
       capabilities: PortalCapabilities;
     };
 
+export type PortalLifecycleStage =
+  | 'loading'
+  | 'unauthenticated'
+  | 'gratuito'
+  | 'pendente'
+  | 'contratado'
+  | 'inativo';
+
+export function mapPortalResolutionToStage(
+  resolution: PortalAccessResolution | null,
+  loading: boolean,
+): PortalLifecycleStage {
+  if (loading) return 'loading';
+  if (!resolution || resolution.kind === 'unauthenticated') return 'unauthenticated';
+  if (resolution.kind === 'inactive') return 'inativo';
+  if (resolution.kind === 'active_paid') return 'contratado';
+  if (resolution.kind === 'pending_release') return 'pendente';
+  return 'gratuito';
+}
+
 export function resolveClientPortalAccess(params: {
   userProfile: UserProfile | null;
   client: Client | null;

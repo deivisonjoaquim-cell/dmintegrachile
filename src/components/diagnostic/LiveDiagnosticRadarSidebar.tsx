@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { BrandRibbon } from '../BrandLogo';
 import type { DiagnosticAnswers } from '../../types/domain';
 import type { DiagnosticResult } from '../../utils/diagnosticEngine';
-import type { LiveSermigPreview } from '../../utils/sermigDiagnosticQuestions';
+import { getStepLiveRecommendation, type LiveSermigPreview } from '../../utils/sermigDiagnosticQuestions';
 import { getJurisdictionTextClass } from '../../utils/legalJurisdiction';
 import { LiveViabilityGauge } from './DiagnosticRadarChart';
 
@@ -33,7 +33,8 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
   isAdmin,
 }) => {
   const score = Math.round(liveResult.viabilidade?.total || 0);
-  const topDimensions = (liveResult.viabilidade?.dimensoes || []).slice(0, 5);
+  const allDimensions = liveResult.viabilidade?.dimensoes || [];
+  const stepRecommendation = getStepLiveRecommendation(step, answers, liveResult, livePreview);
 
   const protocolRuleText =
     answers.localizacao === 'No Chile como turista'
@@ -95,22 +96,31 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
             </div>
           </div>
 
-          {/* Barras ao vivo dos pilares de viabilidade */}
-          {topDimensions.length > 0 && (
+          {/* Barras ao vivo dos 7 pilares de viabilidade */}
+          {allDimensions.length > 0 && (
             <div className="pt-3.5 border-t border-white/10 space-y-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Pilares calculados em tempo real
-              </p>
-              <div className="space-y-2.5">
-                {topDimensions.map((dim) => {
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  7 Pilares do Radar em tempo real
+                </p>
+                <span className="font-mono text-[10px] text-[#E6C55A] tabular-nums">
+                  {liveResult.viabilidade?.veredito || 'Em cálculo'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {allDimensions.map((dim) => {
                   const pct =
                     dim.maximo > 0 ? Math.min(100, Math.max(0, Math.round((dim.pontos / dim.maximo) * 100))) : 0;
                   const fill = pct >= 75 ? '#22C55E' : pct >= 50 ? '#C8A236' : '#F59E0B';
                   return (
                     <div key={dim.nome} className="space-y-1">
                       <div className="flex items-baseline justify-between gap-2 text-[11px]">
-                        <span className="text-slate-200 truncate">{dim.nome}</span>
-                        <span className="font-mono font-semibold text-white tabular-nums shrink-0">{pct}%</span>
+                        <span className="text-slate-200 truncate" title={dim.observacao}>
+                          {dim.nome}
+                        </span>
+                        <span className="font-mono font-semibold text-white tabular-nums shrink-0">
+                          {dim.pontos}/{dim.maximo}
+                        </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                         <motion.div
@@ -191,8 +201,27 @@ export const LiveDiagnosticRadarSidebar: React.FC<LiveDiagnosticRadarSidebarProp
         </div>
       </div>
 
-      {/* Cartão Claro: Regra de Jurisdição & Mapa das 6 Etapas */}
+      {/* Cartão Claro: Recomendação Dinâmica da Etapa + Jurisdição + Mapa das 6 Etapas */}
       <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 space-y-4">
+        <div
+          className={`rounded-xl border p-3.5 space-y-1.5 ${
+            stepRecommendation.tom === 'atencao'
+              ? 'bg-amber-50/70 border-amber-200'
+              : stepRecommendation.tom === 'positivo'
+                ? 'bg-emerald-50/60 border-emerald-200'
+                : 'bg-[#FAF9F6] border-[#E5DFD2]'
+          }`}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+            Recomendação da Etapa 0{stepRecommendation.etapa}
+          </p>
+          <p className="text-xs font-bold text-[#0B1F33] leading-snug">{stepRecommendation.titulo}</p>
+          <p className="text-[11px] text-slate-700 leading-relaxed">{stepRecommendation.orientacao}</p>
+          <p className="text-[11px] font-medium text-[#0B1F33] pt-1 border-t border-black/5">
+            <strong>Ação prática:</strong> {stepRecommendation.acaoPratica}
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#8C6D14] flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5 shrink-0" />
