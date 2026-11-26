@@ -15,6 +15,9 @@ export interface ResolvedImageSources {
 }
 
 const KNOWN_RESPONSIVE_PHOTO_BASES = new Set([
+  '/src/assets/images/hero_santiago_twilight_1795635432589',
+  '/src/assets/images/consultancy_atelier_desk_1795635434902',
+  '/src/assets/images/relocation_lifestyle_chile_1795635433413',
   '/src/assets/images/hero_corporate_santiago_skyline_1795699452140',
   '/src/assets/images/advisory_boardroom_minimal_1795699453098',
   '/src/assets/images/andes_horizon_banner_1795635435326',

@@ -166,9 +166,11 @@ function getCategoryIcon(category: string) {
 }
 
 export const ParceirosPage: React.FC = () => {
-  const { partnersPublic, empresa } = useApp();
+  const { partnersPublic, empresa, siteContent } = useApp();
   const { locale } = useLanguage();
   const isEs = locale === 'es-CL';
+  const parceirosSection = siteContent.find((s) => s.secao === 'parceiros');
+  const heroPartnersImg = parceirosSection?.imagemUrl?.trim() || HERO_PARTNERS_IMAGE;
 
   const [activeTab, setActiveTab] = useState<PartnersWorkspaceTab>('diretorio');
   const [search, setSearch] = useState('');
@@ -454,13 +456,13 @@ export const ParceirosPage: React.FC = () => {
         <section className="relative overflow-hidden bg-[#070E1C] text-white">
           <div className="absolute inset-0 pointer-events-none select-none">
             <OptimizedImage
-              src={HERO_PARTNERS_IMAGE}
+              src={heroPartnersImg}
               alt={isEs ? 'Ecosistema corporativo en Santiago' : 'Ecossistema corporativo em Santiago'}
               priority
               placeholderTone="dark"
               sizes="100vw"
               containerClassName="w-full h-full"
-              className="w-full h-full object-cover opacity-30"
+              className="w-full h-full object-cover opacity-35"
             />
             <div
               aria-hidden="true"

@@ -263,20 +263,33 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           className={`${sectionPad} bg-[#F7F8FA] dark:bg-[#070B12] text-[#0B1628] dark:text-white`}
         >
           <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-20 lg:space-y-24">
-            {/* 1. Áreas de Prática — Hairline-separated editorial grid (zero heavy cards) */}
+            {/* 1. Áreas de Prática — Editorial header with CMS photo + Hairline-separated grid */}
             <div className="space-y-12">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
-                <div className="lg:col-span-7 space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                <div className={`${sec.imagemUrl && meta.varianteLayout !== 'sem-imagem' ? 'lg:col-span-7' : 'lg:col-span-8'} space-y-3`}>
                   <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                     {translateText(meta.eyebrow as string | undefined) || t.services.defaultEyebrow}
                   </p>
                   <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.12] text-[#0B1628] dark:text-white text-balance">
                     {translateText(sec.titulo)}
                   </h2>
+                  <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-2xl pt-1">
+                    {translateText(sec.subtitulo)}
+                  </p>
                 </div>
-                <p className="lg:col-span-5 text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                  {translateText(sec.subtitulo)}
-                </p>
+
+                {sec.imagemUrl && meta.varianteLayout !== 'sem-imagem' && (
+                  <div className="lg:col-span-5">
+                    <div className="aspect-[16/10] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#0D1422]">
+                      <OptimizedImage
+                        src={sec.imagemUrl}
+                        alt={translateText(sec.titulo)}
+                        sizes="(max-width: 1024px) 100vw, 40vw"
+                        className={`w-full h-full ${imgFitClass}`}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 border-t border-[#E5E7EB] dark:border-[#1E293B]">
@@ -466,6 +479,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           eyebrow={meta.eyebrow ? translateText(String(meta.eyebrow)) : undefined}
           title={translateText(sec.titulo)}
           subtitle={translateText(sec.subtitulo)}
+          imagemUrl={sec.imagemUrl}
           onNavigateAction={navigateAction}
         />
       );
@@ -729,7 +743,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         >
           <div className="absolute inset-0 pointer-events-none select-none">
             <OptimizedImage
-              src={ANDES_HORIZON_BANNER}
+              src={sec.imagemUrl?.trim() || ANDES_HORIZON_BANNER}
               alt={translateText(sec.titulo)}
               sizes="100vw"
               placeholderTone="dark"

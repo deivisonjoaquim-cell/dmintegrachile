@@ -14,6 +14,7 @@ interface InteractiveJourneyShowcaseProps {
   eyebrow?: string;
   title?: string;
   subtitle?: string;
+  imagemUrl?: string;
   onNavigateAction: (dest: string) => void;
 }
 
@@ -22,12 +23,14 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
   eyebrow,
   title,
   subtitle,
+  imagemUrl,
   onNavigateAction,
 }) => {
   const { locale } = useLanguage();
   const isEs = locale === 'es-CL';
   const phases = getJourneyPhases(locale);
   const [activeIndex, setActiveIndex] = useState(0);
+  const resolvedPhoto = imagemUrl?.trim() || BOARDROOM_PHOTO;
 
   const currentPhase = phases[activeIndex] || phases[0];
 
@@ -186,7 +189,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
           <div className="lg:col-span-5">
             <div className="h-72 lg:h-full min-h-[320px] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32]">
               <OptimizedImage
-                src={BOARDROOM_PHOTO}
+                src={resolvedPhoto}
                 alt={isEs ? 'Sala ejecutiva de asesoría migratoria en Santiago' : 'Sala executiva de assessoria migratória em Santiago'}
                 sizes="(max-width: 1024px) 100vw, 40vw"
                 containerClassName="w-full h-full"

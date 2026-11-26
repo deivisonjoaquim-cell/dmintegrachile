@@ -8,7 +8,7 @@ import { OptimizedImage } from '../OptimizedImage';
 
 const EASE_EXECUTIVE = [0.16, 1, 0.3, 1] as const;
 
-const CORPORATE_HERO_PHOTO = '/src/assets/images/hero_corporate_santiago_skyline_1795699452140.jpg';
+const DEFAULT_HERO_PHOTO = '/src/assets/images/hero_santiago_twilight_1795635432589.jpg';
 
 interface HeroShowcaseProps {
   eyebrow: string;
@@ -33,11 +33,13 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
   ctaSecundario,
   ctaDestino,
   whatsappUrl,
+  imagemUrl,
   heroDestaques,
   onNavigateAction,
 }) => {
   const { locale } = useLanguage();
   const isEs = locale === 'es-CL';
+  const resolvedHeroImg = imagemUrl?.trim() || DEFAULT_HERO_PHOTO;
 
   const credentials = isEs
     ? [
@@ -55,24 +57,24 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
 
   return (
     <section className="relative bg-[#070E1C] text-white overflow-hidden">
-      {/* Full-bleed corporate Santiago skyline with snow-capped Andes */}
+      {/* Full-bleed CMS Hero image (respecting user's uploaded/configured image) */}
       <div className="absolute inset-0 pointer-events-none select-none">
         <OptimizedImage
-          src={CORPORATE_HERO_PHOTO}
+          src={resolvedHeroImg}
           alt={heroTitle}
           priority
           placeholderTone="dark"
           sizes="100vw"
           containerClassName="w-full h-full"
-          className="w-full h-full object-cover object-right lg:object-center"
+          className="w-full h-full object-cover object-center"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-r from-[#060C18]/94 via-[#060C18]/78 to-[#060C18]/28"
+          className="absolute inset-0 bg-gradient-to-r from-[#060C18]/92 via-[#060C18]/72 to-[#060C18]/24"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-t from-[#060C18] via-transparent to-[#060C18]/40"
+          className="absolute inset-0 bg-gradient-to-t from-[#060C18] via-[#060C18]/20 to-[#060C18]/35"
         />
       </div>
 
