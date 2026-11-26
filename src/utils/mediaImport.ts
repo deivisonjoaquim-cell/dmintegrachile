@@ -68,6 +68,24 @@ export const BUILT_IN_MEDIA_GALLERY: { id: string; nome: string; categoria: Medi
     categoria: 'equipe',
     url: '/src/assets/images/quem_somos_founder_1794993847940.jpg',
   },
+  {
+    id: 'builtin_founder_office_desk',
+    nome: 'Escritório — Gestão de Processos no Notebook',
+    categoria: 'equipe',
+    url: '/src/assets/images/founder_office_desk_work_1795706900230.jpg',
+  },
+  {
+    id: 'builtin_founder_office_review',
+    nome: 'Escritório — Revisão Documental e Dossiês',
+    categoria: 'equipe',
+    url: '/src/assets/images/founder_office_document_review_1795706904668.jpg',
+  },
+  {
+    id: 'builtin_founder_office_call',
+    nome: 'Escritório — Reunião de Consultoria Online',
+    categoria: 'equipe',
+    url: '/src/assets/images/founder_office_client_call_1795706903356.jpg',
+  },
 ];
 
 export function sanitizeSvgText(raw: string): string {

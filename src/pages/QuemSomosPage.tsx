@@ -136,6 +136,75 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
         </div>
       </section>
 
+      {/* 2B. Rotina no Escritório — Editorial Photo Showcase */}
+      <section
+        data-testid="quem-somos-office-gallery"
+        className="bg-white dark:bg-[#0D1422] border-b border-[#E5E7EB] dark:border-[#1E293B] py-16 lg:py-20"
+      >
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-10">
+          <div className="max-w-2xl space-y-2.5">
+            <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
+              Bastidores da Assessoria · Atuação Técnica
+            </p>
+            <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
+              Dedicação direta em cada etapa do seu processo migratório
+            </h2>
+            <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
+              Da conferência manual de cada certidão apostilada às reuniões de alinhamento e acompanhamento digital no portal do SERMIG.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            <figure className="lg:col-span-7 flex flex-col gap-3">
+              <div className="aspect-[16/10] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                <OptimizedImage
+                  src="/src/assets/images/founder_office_client_call_1795706903356.jpg"
+                  alt="Reunião de consultoria migratória online no escritório da D&M Integra Chile"
+                  sizes="(max-width: 1024px) 100vw, 58vw"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <figcaption className="flex items-baseline justify-between gap-4 text-xs">
+                <span className="font-semibold text-[#0B1628] dark:text-white">
+                  01. Atendimento consultivo e reuniões de enquadramento
+                </span>
+                <span className="text-[#6B7280] dark:text-slate-400 shrink-0">Brasil · Chile</span>
+              </figcaption>
+            </figure>
+
+            <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6">
+              <figure className="flex flex-col gap-2.5">
+                <div className="aspect-[16/10] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                  <OptimizedImage
+                    src="/src/assets/images/founder_office_document_review_1795706904668.jpg"
+                    alt="Análise criteriosa de dossiês e documentos migratórios no escritório"
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <figcaption className="text-xs font-semibold text-[#0B1628] dark:text-white">
+                  02. Conferência minuciosa de certidões, apostilas e dossiês
+                </figcaption>
+              </figure>
+
+              <figure className="flex flex-col gap-2.5">
+                <div className="aspect-[16/10] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                  <OptimizedImage
+                    src="/src/assets/images/founder_office_desk_work_1795706900230.jpg"
+                    alt="Gestão digital de processos SERMIG no escritório da consultoria"
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <figcaption className="text-xs font-semibold text-[#0B1628] dark:text-white">
+                  03. Monitoramento contínuo de prazos e protocolos no SERMIG
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 3. Academic & Legal Credentials (Hairline Grid — Zero Visual Clutter) */}
       <section className="py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-5 sm:px-8">

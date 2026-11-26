@@ -30,6 +30,7 @@ import { OptimizedImage } from './OptimizedImage';
 import { HeroShowcase } from './home/HeroShowcase';
 import { InteractiveJourneyShowcase } from './home/InteractiveJourneyShowcase';
 import { RouteComparatorCard } from './home/RouteComparatorCard';
+import { SermigSimulatorShowcase } from './home/SermigSimulatorShowcase';
 
 const ANDES_HORIZON_BANNER = '/src/assets/images/andes_horizon_banner_1795635435326.jpg';
 
@@ -473,15 +474,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
     if (key === 'como_funciona') {
       return (
-        <InteractiveJourneyShowcase
-          key={sec.id}
-          sectionPad={sectionPad}
-          eyebrow={meta.eyebrow ? translateText(String(meta.eyebrow)) : undefined}
-          title={translateText(sec.titulo)}
-          subtitle={translateText(sec.subtitulo)}
-          imagemUrl={sec.imagemUrl}
-          onNavigateAction={navigateAction}
-        />
+        <React.Fragment key={sec.id}>
+          <InteractiveJourneyShowcase
+            sectionPad={sectionPad}
+            eyebrow={meta.eyebrow ? translateText(String(meta.eyebrow)) : undefined}
+            title={translateText(sec.titulo)}
+            subtitle={translateText(sec.subtitulo)}
+            imagemUrl={sec.imagemUrl}
+            onNavigateAction={navigateAction}
+          />
+          <SermigSimulatorShowcase
+            whatsapp={empresa.whatsapp}
+            onNavigateAction={navigateAction}
+          />
+        </React.Fragment>
       );
     }
 
@@ -602,6 +608,69 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     />
                   ) : null}
                 </div>
+              </div>
+            </div>
+
+            {/* Galeria de Trabalho no Escritório */}
+            <div className="max-w-7xl mx-auto px-5 sm:px-8 mt-14 pt-12 border-t border-[#E5E7EB] dark:border-[#1E293B]">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-6">
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
+                  {locale === 'es-CL'
+                    ? 'En la Oficina · Trabajo Técnico Directo'
+                    : 'No Escritório · Rotina Técnica da Assessoria'}
+                </p>
+                <span className="text-xs text-[#6B7280] dark:text-slate-400">
+                  {locale === 'es-CL'
+                    ? 'Análisis documental, reuniones online y gestión SERMIG'
+                    : 'Análise documental, atendimento consultivo e gestão SERMIG'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <figure className="space-y-2.5">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                    <OptimizedImage
+                      src="/src/assets/images/founder_office_desk_work_1795706900230.jpg"
+                      alt="Gestão digital de processos SERMIG no escritório"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
+                    {locale === 'es-CL'
+                      ? '01. Seguimiento digital de trámites y plazos SERMIG'
+                      : '01. Acompanhamento digital de processos e prazos SERMIG'}
+                  </figcaption>
+                </figure>
+                <figure className="space-y-2.5">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                    <OptimizedImage
+                      src="/src/assets/images/founder_office_document_review_1795706904668.jpg"
+                      alt="Auditoria documental e revisão de dossiês no escritório"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
+                    {locale === 'es-CL'
+                      ? '02. Revisión técnica de certificados y apostillas'
+                      : '02. Revisão técnica de certidões, apostilas e dossiês'}
+                  </figcaption>
+                </figure>
+                <figure className="space-y-2.5">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                    <OptimizedImage
+                      src="/src/assets/images/founder_office_client_call_1795706903356.jpg"
+                      alt="Reunião de consultoria migratória online com clientes"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
+                    {locale === 'es-CL'
+                      ? '03. Sesiones personalizadas de orientación Brasil–Chile'
+                      : '03. Reuniões personalizadas de orientação Brasil–Chile'}
+                  </figcaption>
+                </figure>
               </div>
             </div>
           </section>
