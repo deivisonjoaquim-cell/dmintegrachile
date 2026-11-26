@@ -6,7 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { buildWhatsAppUrl, formatDateBR, openExternalSafe } from '../utils/formatters';
 import { prefetchRouteChunk } from '../utils/routePrefetch';
-import { BrandLogo, BrandRibbon } from './BrandLogo';
+import { BrandLogo } from './BrandLogo';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -41,8 +41,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       localizedLabel: t.nav[item.path] || translateText(item.label),
     }));
 
-  // Header Zona 2: keep navigation crisp and uncluttered (4 links for visitors, +Painel for authenticated staff).
-  // Diagnostic is highlighted as the single primary CTA in Zone 3, so avoid duplicating it in desktop Zone 2.
+  // Strict 3-Zone Enterprise Top Bar: Brand | 4–5 clean links | 1 primary CTA
   const desktopNavItems = [
     ...allNavItems.filter((item) => item.path !== '/diagnostico'),
     ...(isStaff
@@ -57,12 +56,11 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       : []),
   ];
 
-  const logoHeight = Math.min(54, Math.max(36, Number(lc.logoAlturaPx || 44)));
+  const logoHeight = Math.min(48, Math.max(34, Number(lc.logoAlturaPx || 40)));
   const isCompleteLogo = isCompleteHorizontalBrandLogo(empresa.logoUrl);
   const showBrandText = !isCompleteLogo && (lc.mostrarNomeComLogo !== false || !empresa.logoUrl);
   const headerStyle = lc.estiloCabecalho || 'sticky_vidro';
 
-  // Use public visitor primary CTA (Diagnóstico Gratuito) unless CMS explicitly configured a non-staff destination.
   const hasCustomPublicCta =
     Boolean(lc.destinoCtaCabecalho) &&
     lc.destinoCtaCabecalho !== '/entrar-equipe' &&
@@ -86,13 +84,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
     empresa.whatsapp,
     t.mobileBar.waGreeting(empresa.nome_empresa),
   );
-  // Hide floating WhatsApp pill on dense directory & focus pages so it never overlaps interactive cards or controls
-  const showFloatingWa =
-    lc.mostrarBotaoWhatsappFlutuante !== false &&
-    currentPath !== '/parceiros' &&
-    currentPath !== '/diagnostico' &&
-    currentPath !== '/acompanhar' &&
-    currentPath !== '/entrar-equipe';
+
   const showMobileCtaBar =
     lc.mostrarBarraCtaMobile !== false &&
     currentPath !== '/diagnostico' &&
@@ -101,21 +93,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
 
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white dark:bg-[#090F1A] border-b border-[#E2E8F0] dark:border-[#1E293B] no-print'
+      ? 'bg-white dark:bg-[#070B12] border-b border-[#E5E7EB] dark:border-[#1E293B] no-print'
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-[var(--color-surface)] border-b border-[#E2E8F0] dark:border-[#1E293B] no-print'
-        : 'sticky top-0 z-40 bg-white/92 dark:bg-[#090F1A]/92 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#1E293B] no-print';
+        ? 'sticky top-0 z-40 bg-white dark:bg-[#070B12] border-b border-[#E5E7EB] dark:border-[#1E293B] no-print'
+        : 'sticky top-0 z-40 bg-white/95 dark:bg-[#070B12]/95 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#1E293B] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const headerLogoSrc = isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl;
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-200">
-      {/* Filete arquitetônico bilateral de identidade institucional */}
-      <BrandRibbon className="h-[2px] w-full no-print" />
-
       <header className={headerClass}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[58px] lg:h-[72px] flex items-center justify-between gap-8">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-[64px] lg:h-[76px] flex items-center justify-between gap-8">
           {/* Zona 1: Marca Oficial */}
           <a
             href="#/"
@@ -123,7 +112,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               e.preventDefault();
               onNavigate('/');
             }}
-            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-[#10B981] rounded group"
+            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 rounded focus-visible:outline-2 focus-visible:outline-[#0F3D91] dark:focus-visible:outline-[#60A5FA]"
           >
             <BrandLogo
               src={headerLogoSrc}
@@ -132,17 +121,17 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               variant={isDark ? 'dark' : 'light'}
               priority
               imgStyle={{ height: `${logoHeight}px` }}
-              imgClassName="w-auto max-h-[38px] lg:max-h-[44px] max-w-[190px] sm:max-w-[220px] object-contain shrink-0"
+              imgClassName="w-auto max-h-[36px] lg:max-h-[42px] max-w-[180px] sm:max-w-[210px] object-contain shrink-0"
             />
             {showBrandText && (
-              <span className="font-display text-base sm:text-[17px] font-bold tracking-tight text-[var(--color-text)] whitespace-nowrap truncate">
+              <span className="font-display text-base font-bold tracking-tight text-[#0B1628] dark:text-white whitespace-nowrap truncate">
                 {brandShortName}
               </span>
             )}
           </a>
 
-          {/* Zona 2: Navegação principal enxuta (4–5 links limpos em linha única) */}
-          <nav className="hidden lg:flex items-center gap-8" aria-label="Navegação principal">
+          {/* Zona 2: Navegação Institucional (linha única, zero poluição) */}
+          <nav className="hidden lg:flex items-center gap-9" aria-label="Navegação principal">
             {desktopNavItems.map((item) => {
               const active = currentPath === item.path;
               return (
@@ -156,10 +145,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     e.preventDefault();
                     onNavigate(item.path);
                   }}
-                  className={`text-sm font-medium whitespace-nowrap shrink-0 py-1.5 border-b-2 transition-colors ${
+                  className={`text-sm whitespace-nowrap shrink-0 py-1.5 border-b transition-colors ${
                     active
-                      ? 'text-[#090F1A] dark:text-white font-semibold border-[#10B981]'
-                      : 'text-[#475569] dark:text-slate-300 border-transparent hover:text-[#090F1A] dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600'
+                      ? 'text-[#0B1628] dark:text-white font-semibold border-[#0F3D91] dark:border-[#60A5FA]'
+                      : 'text-[#4B5563] dark:text-slate-300 font-medium border-transparent hover:text-[#0B1628] dark:hover:text-white'
                   }`}
                 >
                   {item.localizedLabel}
@@ -168,8 +157,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             })}
           </nav>
 
-          {/* Zona 3: Alternador de tema (Claro/Escuro) + CTA primário + menu mobile */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Zona 3: Alternador discreto de tema + 1 CTA Primário + Menu Mobile */}
+          <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
               data-testid="navbar-theme-toggle"
@@ -177,31 +166,28 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
               aria-pressed={isDark}
               title={isDark ? 'Modo Claro' : 'Modo Escuro'}
-              className="inline-flex items-center justify-center gap-1.5 min-h-[40px] min-w-[40px] px-2.5 py-2 btn-radius border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] text-[#0F172A] dark:text-[#E2E8F0] hover:border-[#10B981]/60 hover:text-[#047857] dark:hover:text-[#34D399] transition-colors shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10B981]"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors shrink-0"
             >
               {isDark ? (
-                <Sun className="w-4 h-4 text-[#D4A853]" aria-hidden="true" />
+                <Sun className="w-4 h-4 text-[#C9A86A]" aria-hidden="true" />
               ) : (
-                <Moon className="w-4 h-4 text-[#0F172A]" aria-hidden="true" />
+                <Moon className="w-4 h-4" aria-hidden="true" />
               )}
-              <span className="hidden xl:inline text-xs font-semibold">
-                {isDark ? 'Claro' : 'Escuro'}
-              </span>
             </button>
 
             <button
               type="button"
               onMouseEnter={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
-              className={`hidden lg:inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold btn-radius whitespace-nowrap shrink-0 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10B981] ${
+              className={`hidden lg:inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-colors ${
                 currentPath === headerCtaDest
-                  ? 'bg-[#F1F5F9] dark:bg-[#131F33] text-[#090F1A] dark:text-[#34D399] border border-[#CBD5E1] dark:border-[#1E293B]'
-                  : 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] hover:bg-[#132036] dark:hover:bg-[#34D399] shadow-[0_2px_8px_rgba(9,15,26,0.16)]'
+                  ? 'bg-[#F1F4F8] dark:bg-[#151F32] text-[#0B1628] dark:text-white border border-[#D1D5DB] dark:border-[#334155]'
+                  : 'bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628] hover:bg-[#16233B] dark:hover:bg-slate-200'
               }`}
             >
               {headerCtaLabel}
               {currentPath !== headerCtaDest && (
-                <ArrowRight className="w-3.5 h-3.5 text-[#34D399] dark:text-[#041C16]" aria-hidden="true" />
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               )}
             </button>
 
@@ -210,7 +196,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="lg:hidden p-2 btn-radius text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#131F33] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+              className="lg:hidden p-2 rounded-lg text-[#0B1628] dark:text-slate-200 hover:bg-[#F1F4F8] dark:hover:bg-[#151F32] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -218,7 +204,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white dark:bg-[#0D1524] border-t border-[#E2E8F0] dark:border-[#1E293B] px-4 py-4 space-y-1.5 shadow-lg">
+          <div className="lg:hidden bg-white dark:bg-[#0D1422] border-t border-[#E5E7EB] dark:border-[#1E293B] px-5 py-5 space-y-1.5">
             {allNavItems.map((item) => (
               <a
                 key={item.path}
@@ -229,10 +215,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   setMobileMenuOpen(false);
                   onNavigate(item.path);
                 }}
-                className={`block px-3 py-2.5 btn-radius text-sm font-medium ${
+                className={`block px-3 py-2.5 rounded-lg text-sm font-medium ${
                   currentPath === item.path
-                    ? 'bg-[#F1F5F9] dark:bg-[#131F33] text-[#090F1A] dark:text-white font-semibold'
-                    : 'text-[#475569] dark:text-slate-300 hover:bg-[#F8FAFC] dark:hover:bg-[#131F33]'
+                    ? 'bg-[#F1F4F8] dark:bg-[#151F32] text-[#0B1628] dark:text-white font-semibold'
+                    : 'text-[#4B5563] dark:text-slate-300 hover:bg-[#F7F8FA] dark:hover:bg-[#151F32]'
                 }`}
               >
                 {item.localizedLabel}
@@ -243,36 +229,27 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               onTouchStart={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
-              className="w-full mt-2 px-4 py-2.5 text-sm font-bold text-white dark:text-[#041C16] bg-[#090F1A] dark:bg-[#10B981] btn-radius text-center inline-flex items-center justify-center gap-1.5"
+              className="w-full mt-3 px-4 py-3 text-sm font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white rounded-lg text-center inline-flex items-center justify-center gap-2"
             >
               {headerCtaLabel}
               <ArrowRight className="w-4 h-4" />
             </button>
 
-            <div className="pt-3 mt-3 border-t border-[#E2E8F0] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-2">
+            <div className="pt-4 mt-4 border-t border-[#E5E7EB] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  aria-pressed={isDark}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#CBD5E1] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] text-xs font-medium text-[#090F1A] dark:text-slate-200"
-                >
-                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5" />}
-                  {isDark ? 'Modo claro' : locale === 'es-CL' ? 'Modo oscuro' : 'Modo escuro'}
-                </button>
                 <div
                   role="group"
                   aria-label="Selecionar idioma do site"
-                  className="inline-flex items-center rounded-lg border border-[#CBD5E1] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] p-0.5"
+                  className="inline-flex items-center rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32] p-0.5"
                 >
                   <button
                     type="button"
                     onClick={() => setLocale('pt-BR')}
                     aria-pressed={locale === 'pt-BR'}
-                    className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       locale === 'pt-BR'
-                        ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16]'
-                        : 'text-[#475569] dark:text-slate-300'
+                        ? 'bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628]'
+                        : 'text-[#4B5563] dark:text-slate-300'
                     }`}
                   >
                     PT
@@ -281,10 +258,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     type="button"
                     onClick={() => setLocale('es-CL')}
                     aria-pressed={locale === 'es-CL'}
-                    className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       locale === 'es-CL'
-                        ? 'bg-[#B91C1C] text-white'
-                        : 'text-[#475569] dark:text-slate-300'
+                        ? 'bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628]'
+                        : 'text-[#4B5563] dark:text-slate-300'
                     }`}
                   >
                     ES-CL
@@ -299,7 +276,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   setMobileMenuOpen(false);
                   onNavigate(isStaff ? '/painel' : '/entrar-equipe');
                 }}
-                className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-[var(--color-text)] underline underline-offset-4"
+                className="text-xs font-medium text-[#4B5563] dark:text-slate-400 hover:text-[#0B1628] dark:hover:text-white underline underline-offset-4"
               >
                 {isStaff ? (locale === 'es-CL' ? 'Panel interno' : 'Abrir painel') : t.footer.teamArea}
               </a>
@@ -311,35 +288,37 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       <main className={`flex-1 ${showMobileCtaBar ? 'pb-14 md:pb-0' : ''}`}>{children}</main>
 
       <footer
-        className="text-slate-300 border-t border-white/10 no-print relative cv-auto"
+        className="text-slate-300 border-t border-[#1E293B] no-print cv-auto"
         style={{ backgroundColor: 'var(--color-footer-bg)' }}
       >
-        <BrandRibbon className="h-[2px] w-full" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 lg:py-16">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-white/10">
-            <div className="md:col-span-5 space-y-3">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-16 lg:py-20">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-12 border-b border-white/10">
+            <div className="md:col-span-5 space-y-4">
               <BrandLogo
                 src={footerLogoSrc}
                 alt={empresa.nome_empresa}
                 brandShortName={brandShortName}
                 variant="dark"
                 lazy
-                imgClassName="h-12 w-auto max-w-[260px] object-contain"
+                imgClassName="h-11 w-auto max-w-[240px] object-contain"
               />
               {!isCompleteHorizontalBrandLogo(footerLogoSrc) && (
                 <p className="font-display text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
               )}
-              <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+              <p className="text-sm text-slate-400 leading-relaxed max-w-md">
                 {translateText(lc.rodapeSubtitulo) || t.footer.defaultSubtitle}
               </p>
-              <p className="text-sm text-slate-400 leading-relaxed">{translateText(empresa.endereco_cidade)}</p>
-              <p className="text-xs text-slate-500">{translateText(empresa.razao_social_cnpj_rut)}</p>
+              <div className="pt-1 space-y-1 text-xs text-slate-500">
+                <p>{translateText(empresa.endereco_cidade)}</p>
+                <p>{translateText(empresa.razao_social_cnpj_rut)}</p>
+              </div>
             </div>
+
             <div className="md:col-span-3">
-              <p className="text-xs font-semibold text-[#34D399] mb-4">
+              <p className="text-xs font-semibold text-white mb-5">
                 {t.footer.quickAccess}
               </p>
-              <ul className="space-y-2.5 text-sm">
+              <ul className="space-y-3 text-sm">
                 {allNavItems.map((item) => (
                   <li key={item.path}>
                     <a
@@ -348,39 +327,50 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                         e.preventDefault();
                         onNavigate(item.path);
                       }}
-                      className="text-slate-300 hover:text-white transition-colors"
+                      className="text-slate-400 hover:text-white transition-colors"
                     >
                       {item.localizedLabel}
                     </a>
                   </li>
                 ))}
-                <li>
+                <li className="pt-1">
                   <a
                     href={isStaff ? '#/painel' : '#/entrar-equipe'}
                     onClick={(e) => {
                       e.preventDefault();
                       onNavigate(isStaff ? '/painel' : '/entrar-equipe');
                     }}
-                    className="text-slate-400 hover:text-[#34D399] transition-colors text-xs"
+                    className="text-slate-500 hover:text-slate-200 transition-colors text-xs"
                   >
                     {t.footer.teamArea}
                   </a>
                 </li>
               </ul>
             </div>
-            <div className="md:col-span-4">
-              <p className="text-xs font-semibold text-[#34D399] mb-4">
+
+            <div className="md:col-span-4 space-y-4">
+              <p className="text-xs font-semibold text-white">
                 {t.footer.supportCompliance}
               </p>
-              <p className="text-sm text-slate-200 font-medium">{empresa.email}</p>
-              <p className="text-sm text-slate-300 mt-1 tabular-nums">{empresa.whatsapp}</p>
-              <div className="flex flex-wrap items-center gap-4 mt-3">
+              <div className="space-y-1.5 text-sm">
+                <p className="text-slate-200 font-medium">{empresa.email}</p>
+                <p className="text-slate-400 tabular-nums">{empresa.whatsapp}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-5 text-xs">
+                <a
+                  href={waFloatingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-300 hover:text-white underline underline-offset-4 transition-colors"
+                >
+                  WhatsApp
+                </a>
                 {empresa.siteInstagram && (
                   <a
                     href={empresa.siteInstagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block text-xs text-slate-300 hover:text-white underline underline-offset-4"
+                    className="text-slate-300 hover:text-white underline underline-offset-4 transition-colors"
                   >
                     {t.footer.instagramLabel}
                   </a>
@@ -390,29 +380,28 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     href={empresa.siteLinkedIn}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block text-xs text-slate-300 hover:text-white underline underline-offset-4"
+                    className="text-slate-300 hover:text-white underline underline-offset-4 transition-colors"
                   >
                     {t.footer.linkedinLabel}
                   </a>
                 )}
               </div>
 
-              {/* Preferências globais: Idioma e Tema */}
-              <div className="mt-5 pt-4 border-t border-white/10 flex flex-wrap items-center gap-2.5">
+              <div className="pt-4 border-t border-white/10 flex flex-wrap items-center gap-3">
                 <div
                   role="group"
                   aria-label="Selecionar idioma do site"
-                  className="inline-flex items-center rounded-lg border border-white/15 bg-white/5 p-0.5"
+                  className="inline-flex items-center rounded-lg border border-white/12 bg-white/[0.04] p-0.5"
                 >
-                  <Globe className="w-3.5 h-3.5 text-[#34D399] ml-2 mr-1 shrink-0" aria-hidden="true" />
+                  <Globe className="w-3.5 h-3.5 text-slate-400 ml-2 mr-1 shrink-0" aria-hidden="true" />
                   <button
                     type="button"
                     onClick={() => setLocale('pt-BR')}
                     aria-pressed={locale === 'pt-BR'}
                     className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       locale === 'pt-BR'
-                        ? 'bg-[#10B981] text-[#041C16]'
-                        : 'text-slate-300 hover:text-white'
+                        ? 'bg-white text-[#0B1628]'
+                        : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     PT-BR
@@ -423,8 +412,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     aria-pressed={locale === 'es-CL'}
                     className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       locale === 'es-CL'
-                        ? 'bg-[#B91C1C] text-white'
-                        : 'text-slate-300 hover:text-white'
+                        ? 'bg-white text-[#0B1628]'
+                        : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     ES-CL
@@ -435,22 +424,22 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   type="button"
                   onClick={toggleTheme}
                   aria-pressed={isDark}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-xs font-medium text-slate-200 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/12 bg-white/[0.04] hover:bg-white/10 text-xs font-medium text-slate-300 transition-colors"
                 >
-                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5 text-[#34D399]" />}
+                  {isDark ? <Sun className="w-3.5 h-3.5 text-[#C9A86A]" /> : <Moon className="w-3.5 h-3.5 text-slate-400" />}
                   {isDark ? 'Modo claro' : locale === 'es-CL' ? 'Modo oscuro' : 'Modo escuro'}
                 </button>
               </div>
 
               {empresa.ultimaRevisaoNormativa && (
-                <p className="text-xs text-slate-400 mt-4 tabular-nums">
+                <p className="text-xs text-slate-500 tabular-nums">
                   {t.footer.lastLegalReview} {formatDateBR(empresa.ultimaRevisaoNormativa)}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs text-slate-400">
+          <div className="pt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs text-slate-500">
             <p className="leading-relaxed max-w-4xl">
               {translateText(empresa.avisoLegal) || t.footer.defaultLegalNotice}
             </p>
@@ -461,28 +450,14 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         </div>
       </footer>
 
-      {/* Botão flutuante discreto do WhatsApp no desktop (oculto em páginas de foco/diretório) */}
-      {showFloatingWa && (
-        <a
-          href={waFloatingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Falar com ${brandShortName} no WhatsApp`}
-          className="hidden md:inline-flex fixed bottom-5 right-5 z-40 items-center gap-2 px-4 py-2.5 rounded-full bg-[#047857] hover:bg-[#065F46] text-white text-xs font-semibold border border-white/15 shadow-[0_8px_24px_rgba(4,120,87,0.32)] hover:-translate-y-0.5 transition-all duration-150 no-print"
-        >
-          <MessageCircle className="w-4 h-4" />
-          {t.mobileBar.whatsappCta}
-        </a>
-      )}
-
       {/* Barra inferior fixa CTA compacta no mobile (mantém chrome fixo total < 15% da altura) */}
       {showMobileCtaBar && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1524]/95 backdrop-blur border-t border-[#E2E8F0] dark:border-[#1E293B] px-3 py-1.5 flex items-center gap-2 no-print">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1422]/95 backdrop-blur border-t border-[#E5E7EB] dark:border-[#1E293B] px-4 py-2 flex items-center gap-2.5 no-print">
           <button
             type="button"
             onTouchStart={() => prefetchRouteChunk('/diagnostico')}
             onClick={() => onNavigate('/diagnostico')}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 btn-radius text-xs font-bold text-white dark:text-[#041C16] bg-[#090F1A] dark:bg-[#10B981] min-h-[38px]"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white min-h-[40px]"
           >
             {t.mobileBar.diagnosticCta}
             <ArrowRight className="w-3.5 h-3.5" />
@@ -491,7 +466,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
             href={waFloatingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 py-2 px-3.5 btn-radius bg-[#047857] text-white text-xs font-semibold min-h-[38px]"
+            className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-lg border border-[#D1D5DB] dark:border-[#334155] text-[#0B1628] dark:text-white text-xs font-semibold min-h-[40px]"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             {t.mobileBar.whatsappCta}

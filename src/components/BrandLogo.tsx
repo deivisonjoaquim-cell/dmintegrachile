@@ -20,14 +20,10 @@ export interface BrandLogoProps {
   lazy?: boolean;
 }
 
-export const BrandRibbon: React.FC<{ className?: string }> = ({ className = 'h-[3px] w-full' }) => (
+export const BrandRibbon: React.FC<{ className?: string }> = ({ className = 'h-px w-full' }) => (
   <div
     aria-hidden="true"
-    className={className}
-    style={{
-      background:
-        'linear-gradient(90deg, var(--color-primary, #0B1F33) 0%, var(--color-accent, #C8A236) 55%, #0B1F33 100%)',
-    }}
+    className={`bg-[#E5E7EB] dark:bg-[#1E293B] ${className}`}
   />
 );
 
@@ -110,7 +106,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
 
   if (activeSrc && stage < 3) {
     const webpSrc = getBrandWebpUrl(activeSrc);
-    const loadingAttr: 'eager' | 'lazy' = priority ? 'eager' : lazy ? 'lazy' : 'eager';
+    const loadingAttr: 'eager' | 'lazy' = 'eager';
     const fetchPriorityAttr: 'high' | 'low' | 'auto' = priority ? 'high' : lazy ? 'low' : 'auto';
 
     const imgEl = (

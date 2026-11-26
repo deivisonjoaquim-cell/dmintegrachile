@@ -307,34 +307,33 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
           ];
 
     return (
-      <div className="py-10 lg:py-16 bg-[var(--color-bg)]">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius overflow-hidden shadow-[0_14px_36px_rgba(9,15,26,0.06)]">
-            <BrandRibbon className="h-[2.5px] w-full" />
+      <div className="py-12 lg:py-20 bg-[#F7F8FA] dark:bg-[#070B12]">
+        <div className="max-w-5xl mx-auto px-5 sm:px-8">
+          <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
-              {/* Coluna Esquerda: Contexto institucional e capacidades do ambiente */}
-              <div className="lg:col-span-5 bg-[#090F1A] text-white p-7 sm:p-9 flex flex-col justify-between gap-8">
-                <div className="space-y-4">
+              {/* Coluna Esquerda: Contexto institucional */}
+              <div className="lg:col-span-5 bg-[#070E1C] text-white p-8 sm:p-10 flex flex-col justify-between gap-10">
+                <div className="space-y-5">
                   <BrandLogo
                     src={empresa.logoDarkUrl || empresa.logoUrl}
                     alt={empresa.nome_empresa}
                     brandShortName={brandShortName}
                     variant="dark"
-                    imgClassName="h-11 w-auto max-w-[210px] object-contain"
+                    imgClassName="h-10 w-auto max-w-[200px] object-contain"
                     fallbackNode={
-                      <div className="w-11 h-11 btn-radius flex items-center justify-center bg-white/10 text-[#34D399]">
-                        <ShieldCheck className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/10 text-[#C9A86A]">
+                        <ShieldCheck className="w-5 h-5" />
                       </div>
                     }
                   />
-                  <div className="space-y-2 pt-2">
-                    <p className="text-xs font-semibold text-[#34D399]">
+                  <div className="space-y-2.5 pt-2">
+                    <p className="text-xs font-semibold tracking-[0.06em] text-[#C9A86A]">
                       {mode === 'equipe' ? 'Ambiente Interno Corporativo' : 'Ambiente Seguro · LGPD'}
                     </p>
-                    <h1 className="font-display text-2xl sm:text-[28px] font-bold tracking-tight text-white leading-tight text-balance">
+                    <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight text-balance">
                       {mode === 'equipe' ? 'Painel da Equipe de Consultoria' : 'Portal do Cliente'}
                     </h1>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    <p className="text-sm text-slate-300 leading-relaxed">
                       {mode === 'equipe'
                         ? 'Acesso exclusivo para consultores e administradores autorizados da D&M Integra Chile.'
                         : 'Acompanhe seu diagnóstico gratuito, envie documentos e acesse todas as etapas da consultoria contratada.'}
@@ -344,30 +343,30 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
 
                 <div className="divide-y divide-white/10 border-t border-white/10">
                   {capabilities.map((cap) => (
-                    <div key={cap.num} className="py-3.5 first:pt-4 last:pb-0 flex items-start gap-3">
-                      <span className="font-mono text-xs font-bold text-[#34D399] tabular-nums mt-0.5 shrink-0">
-                        {cap.num}
+                    <div key={cap.num} className="py-4 first:pt-5 last:pb-0 flex items-start gap-3">
+                      <span className="font-mono text-xs font-semibold text-[#C9A86A] tabular-nums mt-0.5 shrink-0">
+                        {cap.num}.
                       </span>
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-white">{cap.title}</p>
-                        <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">{cap.desc}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{cap.desc}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Coluna Direita: Autenticação Google e próximos passos */}
-              <div className="lg:col-span-7 p-7 sm:p-10 flex flex-col justify-center">
+              {/* Coluna Direita: Autenticação Google */}
+              <div className="lg:col-span-7 p-8 sm:p-12 flex flex-col justify-center">
                 <div className="max-w-md mx-auto w-full space-y-6">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
+                    <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                       {mode === 'equipe' ? 'Acesso Restrito' : 'Autenticação do Titular'}
                     </p>
-                    <h2 className="font-display text-2xl font-bold tracking-tight text-[#090F1A] dark:text-white">
+                    <h2 className="font-display text-2xl font-bold tracking-tight text-[#0B1628] dark:text-white">
                       {mode === 'equipe' ? 'Entrar com conta corporativa' : 'Acesse seu processo'}
                     </h2>
-                    <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
+                    <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
                       {mode === 'equipe'
                         ? 'Utilize o e-mail Google previamente habilitado pela administração para abrir o workspace interno.'
                         : 'Entre com a mesma conta Google utilizada no seu diagnóstico gratuito ou informada na contratação da consultoria.'}
@@ -375,7 +374,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                   </div>
 
                   {authError && (
-                    <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/35 border border-red-200 dark:border-red-800/60 text-xs text-[#C82333] dark:text-red-300">
+                    <div className="p-3.5 rounded-lg bg-red-50 dark:bg-red-950/35 border border-red-200 dark:border-red-800/60 text-xs text-[#B91C1C] dark:text-red-300">
                       {authError}
                     </div>
                   )}
@@ -385,26 +384,26 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                       type="button"
                       disabled={signingIn}
                       onClick={handleLogin}
-                      className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 btn-radius text-sm font-bold text-white bg-[#090F1A] hover:bg-[#132036] dark:bg-[#10B981] dark:text-[#041C16] dark:hover:bg-[#34D399] disabled:opacity-50 transition-colors"
+                      className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-lg text-sm font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] hover:bg-[#16233B] dark:bg-white dark:hover:bg-slate-200 disabled:opacity-50 transition-colors"
                     >
                       <LogIn className="w-4 h-4" />
                       {signingIn ? 'Conectando ao Google...' : 'Continuar com Google'}
                     </button>
 
-                    <p className="text-xs text-[#475569] dark:text-slate-400 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399] shrink-0" />
+                    <p className="text-xs text-[#6B7280] dark:text-slate-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA] shrink-0" />
                       Sessão protegida via Firebase Authentication — sem senhas adicionais.
                     </p>
                   </div>
 
-                  <div className="pt-5 border-t border-[#E2E8F0] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="pt-5 border-t border-[#E5E7EB] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-3 text-xs">
                     {mode === 'cliente' ? (
                       <>
-                        <span className="text-[#475569] dark:text-slate-400">Ainda não fez sua avaliação inicial?</span>
+                        <span className="text-[#4B5563] dark:text-slate-400">Ainda não fez sua avaliação inicial?</span>
                         <button
                           type="button"
                           onClick={() => onNavigate('/diagnostico')}
-                          className="inline-flex items-center gap-1 font-semibold text-[#047857] dark:text-[#34D399] hover:underline underline-offset-4"
+                          className="inline-flex items-center gap-1 font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4"
                         >
                           Fazer Diagnóstico Gratuito
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -412,11 +411,11 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                       </>
                     ) : (
                       <>
-                        <span className="text-[#475569] dark:text-slate-400">É cliente da consultoria?</span>
+                        <span className="text-[#4B5563] dark:text-slate-400">É cliente da consultoria?</span>
                         <button
                           type="button"
                           onClick={() => onNavigate('/acompanhar')}
-                          className="inline-flex items-center gap-1 font-semibold text-[#047857] dark:text-[#34D399] hover:underline underline-offset-4"
+                          className="inline-flex items-center gap-1 font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4"
                         >
                           Ir para Portal do Cliente
                           <ArrowRight className="w-3.5 h-3.5" />

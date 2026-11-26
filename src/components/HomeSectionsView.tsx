@@ -7,8 +7,6 @@ import {
   ChevronDown,
   MapPin,
   MessageCircle,
-  Quote,
-  ShieldCheck,
   Star,
   X,
 } from 'lucide-react';
@@ -28,12 +26,10 @@ import {
   translatePartnerCountry,
 } from '../utils/partnerHelpers';
 import { prefetchRouteChunk } from '../utils/routePrefetch';
-import { BrandLogo, BrandRibbon } from './BrandLogo';
 import { OptimizedImage } from './OptimizedImage';
 import { HeroShowcase } from './home/HeroShowcase';
 import { InteractiveJourneyShowcase } from './home/InteractiveJourneyShowcase';
 import { RouteComparatorCard } from './home/RouteComparatorCard';
-import { TechArchitectureBento } from './home/TechArchitectureBento';
 
 const ANDES_HORIZON_BANNER = '/src/assets/images/andes_horizon_banner_1795635435326.jpg';
 
@@ -57,43 +53,6 @@ interface HomeSectionsViewProps {
 }
 
 const EASE_EXECUTIVE = [0.16, 1, 0.3, 1] as const;
-
-function getSectionThemeClasses(tema: string | undefined, defaultTheme: 'claro' | 'suave' | 'escuro-primario') {
-  const active = tema || defaultTheme;
-  if (active === 'escuro-primario') {
-    return {
-      isDark: true,
-      sectionStyle: { backgroundColor: '#090F1A' } as React.CSSProperties,
-      sectionClass: 'text-white',
-      headingClass: 'text-white',
-      subClass: 'text-slate-300',
-      eyebrowClass: 'text-[#34D399]',
-      cardClass: 'bg-white/[0.05] border border-white/12 text-white hover:bg-white/[0.08] transition-all duration-200',
-    };
-  }
-  if (active === 'suave') {
-    return {
-      isDark: false,
-      sectionStyle: { backgroundColor: 'var(--color-bg)' } as React.CSSProperties,
-      sectionClass: 'text-[var(--color-text)]',
-      headingClass: 'text-[#090F1A] dark:text-white',
-      subClass: 'text-[#475569] dark:text-slate-300',
-      eyebrowClass: 'text-[#047857] dark:text-[#34D399]',
-      cardClass:
-        'bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]/45 dark:hover:border-[#34D399]/50 transition-colors duration-200',
-    };
-  }
-  return {
-    isDark: false,
-    sectionStyle: { backgroundColor: 'var(--color-surface)' } as React.CSSProperties,
-    sectionClass: 'border-y border-[#E2E8F0] dark:border-[#1E293B] text-[var(--color-text)]',
-    headingClass: 'text-[#090F1A] dark:text-white',
-    subClass: 'text-[#475569] dark:text-slate-300',
-    eyebrowClass: 'text-[#047857] dark:text-[#34D399]',
-    cardClass:
-      'bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]/45 dark:hover:border-[#34D399]/50 transition-colors duration-200',
-  };
-}
 
 export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   empresa,
@@ -119,9 +78,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
   const density = empresa.layoutConfig?.densidadeSecoes || 'equilibrada';
   const sectionPad =
-    density === 'compacta' ? 'py-10 lg:py-12' : density === 'ampla' ? 'py-20 lg:py-28' : 'py-14 lg:py-20';
-
-  const brandShortName = empresa.nome_empresa.split('–')[0].trim();
+    density === 'compacta' ? 'py-16 lg:py-20' : density === 'ampla' ? 'py-24 lg:py-32' : 'py-20 lg:py-28';
 
   const hasExplicitPartnersSection = useMemo(
     () => siteContent.some((s) => s.secao === 'parceiros'),
@@ -149,65 +106,48 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     }
   };
 
-  const renderTechArchitectureBento = (keyId: string) => (
-    <TechArchitectureBento
-      key={keyId}
-      empresa={empresa}
-      brandShortName={brandShortName}
-      sectionPad={sectionPad}
-      onNavigateAction={navigateAction}
-    />
-  );
-
   const renderPartnersGrid = (
     sec: { titulo: string; subtitulo: string; conteudoHtml?: string; ctaTexto?: string; ctaDestino?: string; metadados?: Record<string, unknown> },
     keyId: string,
   ) => {
     if (partnersPublic.length === 0) return null;
     const meta = (sec.metadados || {}) as Record<string, unknown>;
-    const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'suave');
     const maxItens = Math.max(1, Number(meta.maxItens || 3));
     return (
-      <section key={keyId} className={`cv-auto ${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-            <div className="max-w-2xl">
+      <section
+        key={keyId}
+        className={`cv-auto ${sectionPad} bg-[#F7F8FA] dark:bg-[#070B12] border-t border-[#E5E7EB] dark:border-[#1E293B]`}
+      >
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-12">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="max-w-2xl space-y-2.5">
               {Boolean(meta.eyebrow) && (
-                <p className={`text-xs font-semibold mb-1.5 ${theme.eyebrowClass}`}>
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                   {translateText(String(meta.eyebrow))}
                 </p>
               )}
-              <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
                 {translateText(sec.titulo)}
               </h2>
-              <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
-              {sec.conteudoHtml && (
-                <p className={`text-xs mt-2 ${theme.subClass}`}>{translateText(sec.conteudoHtml)}</p>
-              )}
+              <p className="text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                {translateText(sec.subtitulo)}
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex flex-wrap items-center gap-5 shrink-0">
               <button
                 type="button"
                 onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-                onFocus={() => prefetchRouteChunk('/parceiros')}
                 onClick={() => navigateAction('/parceiros?secao=mapa')}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 ${
-                  theme.isDark
-                    ? 'border-white/25 text-white hover:bg-white/10'
-                    : 'border-[#CBD5E1] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-[#090F1A] dark:text-[#34D399] hover:border-[#047857]/60'
-                }`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white transition-colors whitespace-nowrap"
               >
-                <MapPin className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399]" />
+                <MapPin className="w-4 h-4" />
                 {locale === 'es-CL' ? 'Mapa en Chile' : 'Mapa no Chile'}
               </button>
               <button
                 type="button"
                 onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-                onFocus={() => prefetchRouteChunk('/parceiros')}
                 onClick={() => navigateAction(sec.ctaDestino || '/parceiros')}
-                className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                  theme.isDark ? 'text-[#34D399]' : 'text-[#090F1A] dark:text-[#34D399]'
-                }`}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap"
               >
                 {translateText(sec.ctaTexto) || t.sections.partnersDefaultCta}
                 <ArrowRight className="w-4 h-4" />
@@ -216,77 +156,58 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {partnersPublic.slice(0, maxItens).map((p, idx) => {
+            {partnersPublic.slice(0, maxItens).map((p) => {
               const safeLogo = sanitizePartnerImageUrl(p.logoUrl);
               return (
-                <motion.article
+                <article
                   key={p.id}
-                  initial={{ opacity: 0, y: 18 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{
-                    duration: 0.36,
-                    delay: Math.min(idx * 0.06, 0.24),
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  className={`${theme.cardClass} card-radius p-6 flex flex-col justify-between transition-all duration-200 hover:border-[#047857]/60 hover:-translate-y-0.5`}
+                  className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#0B1628]/35 dark:hover:border-[#334155] rounded-xl p-7 flex flex-col justify-between gap-6 transition-colors"
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 text-xs mb-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {safeLogo && (
-                          <div className="h-10 w-16 rounded-md bg-white border border-[#E2E8F0] flex items-center justify-center overflow-hidden shrink-0">
-                            <OptimizedImage
-                              src={safeLogo}
-                              alt={p.nome}
-                              sizes="64px"
-                              containerClassName="relative w-full h-full flex items-center justify-center bg-white"
-                              className="max-w-full max-h-full object-contain p-1"
-                            />
-                          </div>
-                        )}
-                        <span className={`font-semibold truncate ${theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'}`}>
-                          {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
-                        </span>
-                      </div>
-                      <span
-                        className={`inline-flex items-center gap-1 font-mono font-semibold tabular-nums shrink-0 ${
-                          theme.isDark ? 'text-white' : 'text-[#090F1A] dark:text-slate-100'
-                        }`}
-                      >
-                        <Star className="w-3.5 h-3.5 fill-[#D4A853] text-[#D4A853]" />
-                        {Number(p.avaliacao || 5).toFixed(1)}/5
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3 text-xs text-[#6B7280] dark:text-slate-400">
+                      <span className="truncate font-medium">
+                        {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono font-medium text-[#0B1628] dark:text-slate-200 tabular-nums shrink-0">
+                        <Star className="w-3.5 h-3.5 fill-[#B08D57] text-[#B08D57]" />
+                        {Number(p.avaliacao || 5).toFixed(1)}
                       </span>
                     </div>
-                    <h3 className={`text-base font-bold mb-2 ${theme.headingClass}`}>{p.nome}</h3>
-                    <p className={`text-sm leading-relaxed mb-4 ${theme.subClass}`}>{p.descricaoPublica}</p>
+
+                    <div className="flex items-center gap-3">
+                      {safeLogo && (
+                        <div className="h-10 w-14 rounded-lg bg-white border border-[#E5E7EB] flex items-center justify-center overflow-hidden shrink-0">
+                          <OptimizedImage
+                            src={safeLogo}
+                            alt={p.nome}
+                            sizes="56px"
+                            containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                            className="max-w-full max-h-full object-contain p-1"
+                          />
+                        </div>
+                      )}
+                      <h3 className="font-display text-base font-bold text-[#0B1628] dark:text-white leading-snug">
+                        {p.nome}
+                      </h3>
+                    </div>
+
+                    <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                      {p.descricaoPublica}
+                    </p>
                   </div>
 
-                  <div
-                    className={`pt-3.5 border-t flex items-center justify-between gap-3 ${
-                      theme.isDark ? 'border-white/12' : 'border-[#E2E8F0] dark:border-[#1E293B]'
-                    }`}
-                  >
-                    <span
-                      className={`inline-flex items-center gap-1 text-xs truncate ${
-                        theme.isDark ? 'text-slate-300' : 'text-[#475569] dark:text-slate-300'
-                      }`}
-                    >
-                      <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                      <span className="truncate">{p.cidadeRegiao}</span>
-                    </span>
+                  <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B] flex items-center justify-between gap-3 text-xs">
+                    <span className="text-[#6B7280] dark:text-slate-400 truncate">{p.cidadeRegiao}</span>
                     <button
                       type="button"
                       onMouseEnter={() => prefetchRouteChunk('/parceiros')}
                       onClick={() => navigateAction('/parceiros?secao=mapa')}
-                      className={`text-xs font-semibold whitespace-nowrap shrink-0 hover:underline ${
-                        theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'
-                      }`}
+                      className="font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline whitespace-nowrap shrink-0"
                     >
                       {locale === 'es-CL' ? 'Ver en mapa →' : 'Ver no mapa →'}
                     </button>
                   </div>
-                </motion.article>
+                </article>
               );
             })}
           </div>
@@ -301,7 +222,6 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     const imgFitClass = meta.imagemObjectFit === 'contain' ? 'object-contain bg-slate-50 p-3' : 'object-cover';
 
     if (key === 'hero') {
-      const variante = (meta.varianteLayout as string) || 'split-direita';
       const rawDestaques = (meta.destaques as string[] | undefined) || [
         'Atendimento 100% em português do Brasil',
         'Base normativa alinhada à Ley 21.325 e SERMIG',
@@ -309,218 +229,58 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       ];
       const heroDestaques = rawDestaques.map((d) => translateText(d));
       const eyebrow = translateText(meta.eyebrow as string | undefined) || t.hero.defaultEyebrow;
-      const ctaPrimario = translateText(sec.ctaTexto || (meta.ctaPrimario as string | undefined)) || t.hero.defaultPrimaryCta;
-      const ctaSecundario = translateText(meta.ctaSecundario as string | undefined) || t.hero.defaultSecondaryCta;
-      const badgeTitulo = translateText(meta.badgeTitulo as string | undefined) || t.hero.defaultBadgeTitle;
-      const badgeSubtitulo = translateText(meta.badgeSubtitulo as string | undefined) || t.hero.defaultBadgeSubtitle;
-      const heroTitle = translateText(sec.titulo);
-      const heroSubtitle = translateText(sec.subtitulo);
-      const heroHtml = translateText(sec.conteudoHtml);
-
-      if (variante === 'banner-cheio') {
-        return (
-          <React.Fragment key={sec.id}>
-            <section className="relative overflow-hidden bg-[#0B1F33] text-white border-b border-slate-800">
-              {sec.imagemUrl && (
-                <OptimizedImage
-                  src={sec.imagemUrl}
-                  alt={heroTitle}
-                  priority
-                  placeholderTone="dark"
-                  sizes="100vw"
-                  containerClassName="absolute inset-0 w-full h-full overflow-hidden"
-                  className="w-full h-full object-cover opacity-35"
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-r from-[#071422]/95 via-[#0B1F33]/80 to-[#0B1F33]/55" />
-              <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 lg:py-24">
-                <div className="max-w-3xl space-y-5">
-                  <div className="flex items-center gap-3">
-                    <BrandLogo
-                      variant="emblem-dark"
-                      alt={empresa.nome_empresa}
-                      brandShortName={brandShortName}
-                      imgClassName="w-10 h-10 object-contain shrink-0"
-                    />
-                    <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[#E5C76B]">{eyebrow}</p>
-                  </div>
-                  <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] text-balance">
-                    {heroTitle}
-                  </h1>
-                  <p className="text-base sm:text-lg text-slate-200 leading-relaxed">{heroSubtitle}</p>
-                  {heroHtml && (
-                    <div
-                      className="text-sm text-slate-300 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
-                    />
-                  )}
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                      className="inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-bold text-[#0B1523] transition-opacity hover:opacity-95 whitespace-nowrap"
-                      style={{ backgroundColor: 'var(--color-accent)' }}
-                    >
-                      {ctaPrimario}
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                    <a
-                      href={whatsappHeroUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-white border border-white/30 hover:bg-white/10 transition-colors whitespace-nowrap"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      {ctaSecundario}
-                    </a>
-                  </div>
-                </div>
-                {heroDestaques.length > 0 && (
-                  <div className="mt-12 pt-8 border-t border-white/15 grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {heroDestaques.map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                        <p className="text-sm font-medium text-slate-100">{item}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-            {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
-          </React.Fragment>
-        );
-      }
-
-      if (variante === 'centralizado') {
-        return (
-          <React.Fragment key={sec.id}>
-            <section className="bg-[var(--color-surface)] border-b border-[#E5DFD2] dark:border-[#1C324B]">
-              <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 lg:py-20 text-center space-y-6">
-                <div className="flex flex-col items-center gap-3">
-                  <BrandLogo
-                    variant="emblem"
-                    alt={empresa.nome_empresa}
-                    brandShortName={brandShortName}
-                    imgClassName="w-14 h-14 object-contain"
-                  />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8C6D14] dark:text-[#E5C76B]">{eyebrow}</p>
-                </div>
-                <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#0B1F33] dark:text-white leading-[1.1] text-balance">
-                  {heroTitle}
-                </h1>
-                <p className="text-base sm:text-lg text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-3xl mx-auto">{heroSubtitle}</p>
-                {heroHtml && (
-                  <div
-                    className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed max-w-2xl mx-auto"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(heroHtml) }}
-                  />
-                )}
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                    className="inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    {ctaPrimario}
-                    <ArrowRight className="w-4 h-4 text-[#E5C76B]" />
-                  </button>
-                  <a
-                    href={whatsappHeroUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-3.5 btn-radius text-sm font-semibold text-[#0B1F33] dark:text-slate-100 border border-[#DDD6C7] dark:border-[#243E5C] bg-white dark:bg-[#11263D] hover:bg-[#FAF9F6] dark:hover:bg-[#183350] whitespace-nowrap"
-                  >
-                    <MessageCircle className="w-4 h-4 text-[#146B43] dark:text-emerald-400" />
-                    {ctaSecundario}
-                  </a>
-                </div>
-                {sec.imagemUrl && (
-                  <div className="relative h-64 sm:h-96 card-radius overflow-hidden border border-[#E5DFD2] dark:border-[#1C324B] bg-[#0B1F33] text-left mt-8">
-                    <OptimizedImage
-                      src={sec.imagemUrl}
-                      alt={heroTitle}
-                      priority
-                      placeholderTone="dark"
-                      sizes="(max-width: 1024px) 100vw, 960px"
-                      className={`w-full h-full ${imgFitClass}`}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/85 via-transparent to-transparent" />
-                    <div className="absolute bottom-5 left-5 right-5 text-white">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#E5C76B]">{badgeTitulo}</p>
-                      <p className="text-base font-semibold mt-0.5">{badgeSubtitulo}</p>
-                    </div>
-                  </div>
-                )}
-                {heroDestaques.length > 0 && (
-                  <div className="mt-10 pt-8 border-t border-[#E5DFD2] dark:border-[#1C324B] grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                    {heroDestaques.map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                        <p className="text-sm font-medium text-[#0B1F33] dark:text-slate-200">{item}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-            {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
-          </React.Fragment>
-        );
-      }
+      const ctaPrimario =
+        translateText(sec.ctaTexto || (meta.ctaPrimario as string | undefined)) || t.hero.defaultPrimaryCta;
+      const ctaSecundario =
+        translateText(meta.ctaSecundario as string | undefined) || t.hero.defaultSecondaryCta;
 
       return (
-        <React.Fragment key={sec.id}>
-          <HeroShowcase
-            eyebrow={eyebrow}
-            heroTitle={heroTitle}
-            heroSubtitle={heroSubtitle}
-            heroHtml={heroHtml}
-            ctaPrimario={ctaPrimario}
-            ctaSecundario={ctaSecundario}
-            ctaDestino={sec.ctaDestino || '/diagnostico'}
-            whatsappUrl={whatsappHeroUrl}
-            imagemUrl={sec.imagemUrl}
-            heroDestaques={heroDestaques}
-            onNavigateAction={navigateAction}
-          />
-
-          {renderTechArchitectureBento(`${sec.id}_tech_bento`)}
-        </React.Fragment>
+        <HeroShowcase
+          key={sec.id}
+          eyebrow={eyebrow}
+          heroTitle={translateText(sec.titulo)}
+          heroSubtitle={translateText(sec.subtitulo)}
+          heroHtml={translateText(sec.conteudoHtml)}
+          ctaPrimario={ctaPrimario}
+          ctaSecundario={ctaSecundario}
+          ctaDestino={sec.ctaDestino || '/diagnostico'}
+          whatsappUrl={whatsappHeroUrl}
+          imagemUrl={sec.imagemUrl}
+          heroDestaques={heroDestaques}
+          onNavigateAction={navigateAction}
+        />
       );
     }
 
     if (key === 'servicos') {
       const servicosItens = (meta.itens as ServiceItemMeta[] | undefined) || [];
-      const variante = (meta.varianteLayout as string) || 'grade-2';
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'suave');
       const showComparator = meta.mostrarComparador !== false;
-      const gridClass =
-        variante === 'grade-4'
-          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5'
-          : variante === 'lista-editorial'
-            ? 'space-y-4'
-            : 'grid grid-cols-1 md:grid-cols-2 gap-6';
-
       const plans = t.services.plans;
 
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-12">
-            <div>
-              <div className="max-w-3xl mb-10">
-                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
-                  {translateText(meta.eyebrow as string | undefined) || t.services.defaultEyebrow}
+        <section
+          key={sec.id}
+          className={`${sectionPad} bg-[#F7F8FA] dark:bg-[#070B12] text-[#0B1628] dark:text-white`}
+        >
+          <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-20 lg:space-y-24">
+            {/* 1. Áreas de Prática — Hairline-separated editorial grid (zero heavy cards) */}
+            <div className="space-y-12">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+                <div className="lg:col-span-7 space-y-3">
+                  <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
+                    {translateText(meta.eyebrow as string | undefined) || t.services.defaultEyebrow}
+                  </p>
+                  <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.12] text-[#0B1628] dark:text-white text-balance">
+                    {translateText(sec.titulo)}
+                  </h2>
+                </div>
+                <p className="lg:col-span-5 text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                  {translateText(sec.subtitulo)}
                 </p>
-                <h2 className={`font-display text-2xl sm:text-[34px] font-bold tracking-tight leading-tight text-balance mb-3 ${theme.headingClass}`}>
-                  {translateText(sec.titulo)}
-                </h2>
-                <p className={`text-base leading-relaxed ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
               </div>
 
-              <div className={gridClass}>
-                {servicosItens.map((item) => {
+              <div className="grid grid-cols-1 md:grid-cols-2 border-t border-[#E5E7EB] dark:border-[#1E293B]">
+                {servicosItens.map((item, idx) => {
                   const localizedItem: ServiceItemMeta = {
                     ...item,
                     titulo: translateText(item.titulo),
@@ -529,30 +289,26 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   return (
                     <div
                       key={item.numero}
-                      className={`${theme.cardClass} card-radius p-6 sm:p-7 flex ${
-                        variante === 'lista-editorial' ? 'flex-col md:flex-row md:items-center' : 'flex-col'
-                      } justify-between gap-5`}
+                      className={`py-8 sm:py-10 border-b border-[#E5E7EB] dark:border-[#1E293B] flex flex-col justify-between gap-6 ${
+                        idx % 2 === 0 ? 'md:pr-10 md:border-r' : 'md:pl-10'
+                      }`}
                     >
-                      <div className="flex-1">
-                        <h3 className={`text-lg font-bold tracking-tight mb-2 ${theme.headingClass}`}>
-                          <span
-                            className={`font-mono text-sm mr-2 tabular-nums ${
-                              theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'
-                            }`}
-                          >
-                            {localizedItem.numero}.
-                          </span>
+                      <div className="space-y-3">
+                        <span className="font-mono text-xs font-semibold text-[#6B7280] dark:text-slate-400 tabular-nums">
+                          {localizedItem.numero}.
+                        </span>
+                        <h3 className="font-display text-xl font-bold tracking-tight text-[#0B1628] dark:text-white">
                           {localizedItem.titulo}
                         </h3>
-                        <p className={`text-sm leading-relaxed ${theme.subClass}`}>{localizedItem.descricao}</p>
+                        <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-lg">
+                          {localizedItem.descricao}
+                        </p>
                       </div>
-                      <div className={`shrink-0 pt-3 border-t ${theme.isDark ? 'border-white/12' : 'border-[#E2E8F0] dark:border-[#1E293B]'}`}>
+                      <div>
                         <button
                           type="button"
                           onClick={() => !previewMode && setServiceDrawer(localizedItem)}
-                          className={`inline-flex items-center gap-1.5 text-xs font-semibold hover:underline underline-offset-4 ${
-                            theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'
-                          }`}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4"
                         >
                           {t.services.learnMore}
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -564,46 +320,49 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
             </div>
 
-            {/* Modalidades de Consultoria: Diagnóstico Gratuito, Orientativa e Completa */}
-            <div className="pt-4 space-y-6">
-              <div className="max-w-3xl">
-                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+            {/* 2. Consulta Rápida de Rota Legal (único simulador rápido da Home — sem duplicidade) */}
+            {showComparator && <RouteComparatorCard onNavigateAction={navigateAction} />}
+
+            {/* 3. Modalidades de Assessoria — Clean 3-column Corporate Tier Comparison */}
+            <div className="space-y-10">
+              <div className="max-w-3xl space-y-3">
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                   {t.services.plansKicker}
                 </p>
-                <h3 className={`font-display text-xl sm:text-3xl font-bold tracking-tight text-balance mb-2 ${theme.headingClass}`}>
+                <h3 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
                   {t.services.plansTitle}
                 </h3>
-                <p className={`text-sm sm:text-base leading-relaxed ${theme.subClass}`}>
+                <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
                   {t.services.plansSubtitlePrefix}
-                  <strong>{t.services.plansOrientativaBold}</strong>
+                  <strong className="text-[#0B1628] dark:text-white">{t.services.plansOrientativaBold}</strong>
                   {t.services.plansOrientativaDesc}
-                  <strong>{t.services.plansCompletaBold}</strong>
+                  <strong className="text-[#0B1628] dark:text-white">{t.services.plansCompletaBold}</strong>
                   {t.services.plansCompletaDesc}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
-                {/* 1. Diagnóstico Gratuito */}
-                <div className="bg-white dark:bg-[#0D1524] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]/45 card-radius p-6 sm:p-7 flex flex-col justify-between gap-6 text-[#090F1A] dark:text-white transition-colors duration-200">
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                {/* Tier 1: Diagnóstico Gratuito */}
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-8 flex flex-col justify-between gap-8">
+                  <div className="space-y-5">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-[#6B7280] dark:text-slate-400">
                         {plans.diagnostico_gratuito.kicker}
                       </p>
-                      <h4 className="font-display text-xl font-bold tracking-tight text-[#090F1A] dark:text-white">
+                      <h4 className="font-display text-xl font-bold text-[#0B1628] dark:text-white">
                         {plans.diagnostico_gratuito.nome}
                       </h4>
-                      <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                      <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
                         {plans.diagnostico_gratuito.subtitulo}
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-[#090F1A] dark:text-slate-200 pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B]">
+                    <p className="text-xs font-medium text-[#0B1628] dark:text-slate-200 pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B]">
                       {plans.diagnostico_gratuito.escopoPrefix} {plans.diagnostico_gratuito.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                    <ul className="space-y-3 text-xs sm:text-[13px] text-[#4B5563] dark:text-slate-300">
                       {plans.diagnostico_gratuito.inclui.map((item) => (
-                        <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0 mt-0.5" />
+                        <li key={item} className="flex items-start gap-2.5">
+                          <Check className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -612,34 +371,34 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => navigateAction('/diagnostico')}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius border border-[#CBD5E1] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] text-xs font-semibold text-[#090F1A] dark:text-slate-100 hover:bg-[#F1F5F9] dark:hover:bg-[#1A2942] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-[#D1D5DB] dark:border-[#334155] text-xs font-semibold text-[#0B1628] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors"
                   >
                     {plans.diagnostico_gratuito.cta}
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                {/* 2. Consultoria Orientativa */}
-                <div className="bg-white dark:bg-[#0D1524] border border-[#090F1A]/20 dark:border-[#334155] hover:border-[#047857]/55 card-radius p-6 sm:p-7 flex flex-col justify-between gap-6 text-[#090F1A] dark:text-white transition-colors duration-200">
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[#090F1A] dark:text-[#D4A853]">
+                {/* Tier 2: Consultoria Orientativa */}
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-8 flex flex-col justify-between gap-8">
+                  <div className="space-y-5">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-[#0F3D91] dark:text-[#60A5FA]">
                         {plans.orientativa.kicker}
                       </p>
-                      <h4 className="font-display text-xl font-bold tracking-tight text-[#090F1A] dark:text-white">
+                      <h4 className="font-display text-xl font-bold text-[#0B1628] dark:text-white">
                         {plans.orientativa.nome}
                       </h4>
-                      <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                      <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
                         {plans.orientativa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-[#090F1A] dark:text-slate-200 pt-3 border-t border-[#E2E8F0] dark:border-[#1E293B]">
+                    <p className="text-xs font-medium text-[#0B1628] dark:text-slate-200 pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B]">
                       {plans.orientativa.escopoPrefix} {plans.orientativa.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                    <ul className="space-y-3 text-xs sm:text-[13px] text-[#4B5563] dark:text-slate-300">
                       {plans.orientativa.inclui.map((item) => (
-                        <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0 mt-0.5" />
+                        <li key={item} className="flex items-start gap-2.5">
+                          <Check className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -649,34 +408,34 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.orientativa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-white bg-[#090F1A] dark:bg-[#1E293B] hover:bg-[#132036] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:bg-[#16233B] dark:hover:bg-slate-200 transition-colors"
                   >
-                    <MessageCircle className="w-3.5 h-3.5 text-[#34D399]" />
                     {plans.orientativa.cta}
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </a>
                 </div>
 
-                {/* 3. Consultoria Completa (Destaque Executivo) */}
-                <div className="card-radius p-6 sm:p-7 flex flex-col justify-between gap-6 text-white border border-[#10B981]/45 bg-[#090F1A] shadow-[0_18px_40px_rgba(9,15,26,0.18)]">
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[#34D399]">
+                {/* Tier 3: Consultoria Completa (Destaque Executivo) */}
+                <div className="bg-[#0B1628] dark:bg-[#111E33] border border-[#0B1628] dark:border-[#2A3B58] text-white rounded-xl p-8 flex flex-col justify-between gap-8">
+                  <div className="space-y-5">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-[#C9A86A]">
                         {plans.completa.kicker}
                       </p>
-                      <h4 className="font-display text-xl font-bold tracking-tight text-white">
+                      <h4 className="font-display text-xl font-bold text-white">
                         {plans.completa.nome}
                       </h4>
-                      <p className="text-xs text-slate-300 leading-relaxed">
+                      <p className="text-sm text-slate-300 leading-relaxed">
                         {plans.completa.subtitulo}
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-[#D4A853] pt-3 border-t border-white/12">
+                    <p className="text-xs font-medium text-slate-200 pt-4 border-t border-white/15">
                       {plans.completa.escopoPrefix} {plans.completa.responsavelProtocolo}
                     </p>
-                    <ul className="space-y-2.5 text-xs text-slate-100">
+                    <ul className="space-y-3 text-xs sm:text-[13px] text-slate-200">
                       {plans.completa.inclui.map((item) => (
-                        <li key={item} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-[#34D399] shrink-0 mt-0.5" />
+                        <li key={item} className="flex items-start gap-2.5">
+                          <Check className="w-4 h-4 text-[#C9A86A] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -686,71 +445,13 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.completa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 btn-radius text-xs font-bold text-[#041C16] bg-[#10B981] hover:bg-[#34D399] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-xs font-semibold text-[#0B1628] bg-white hover:bg-slate-100 transition-colors"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
                     {plans.completa.cta}
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </a>
                 </div>
               </div>
-            </div>
-
-            {showComparator && <RouteComparatorCard onNavigateAction={navigateAction} />}
-          </div>
-        </section>
-      );
-    }
-
-    if (key === 'diferenciais') {
-      const difItens = (meta.itens as { titulo: string; descricao: string }[] | undefined) || [];
-      const variante = (meta.varianteLayout as string) || 'imagem-esquerda';
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'claro');
-      const noImage = variante === 'sem-imagem' || !sec.imagemUrl;
-      const imageRight = variante === 'imagem-direita';
-
-      return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass} cv-auto`} style={theme.sectionStyle}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
-            {!noImage && (
-              <div className={`lg:col-span-5 ${imageRight ? 'lg:order-2' : 'lg:order-1'}`}>
-                <div className="group h-72 lg:h-full min-h-[300px] card-radius overflow-hidden border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#0D1524] shadow-[0_14px_36px_rgba(9,15,26,0.08)]">
-                  <OptimizedImage
-                    src={sec.imagemUrl}
-                    alt={translateText(sec.titulo)}
-                    sizes="(max-width: 1024px) 100vw, 40vw"
-                    className={`w-full h-full ${imgFitClass} transition-transform duration-700 group-hover:scale-[1.03]`}
-                  />
-                </div>
-              </div>
-            )}
-            <div className={`${noImage ? 'lg:col-span-12 max-w-4xl mx-auto' : 'lg:col-span-7'} flex flex-col justify-center ${imageRight ? 'lg:order-1' : 'lg:order-2'}`}>
-              <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
-                {translateText(meta.eyebrow as string | undefined) || t.sections.diferenciaisEyebrow}
-              </p>
-              <h2 className={`font-display text-2xl sm:text-3xl font-bold tracking-tight text-balance mb-3 ${theme.headingClass}`}>
-                {translateText(sec.titulo)}
-              </h2>
-              <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
-              <div className="space-y-6">
-                {difItens.map((d, idx) => (
-                  <div key={idx} className={`pb-6 border-b ${theme.isDark ? 'border-white/12' : 'border-[#E2E8F0] dark:border-[#1E293B]'} last:border-b-0 last:pb-0`}>
-                    <h3 className={`text-base font-bold mb-1 ${theme.headingClass}`}>{translateText(d.titulo)}</h3>
-                    <p className={`text-sm leading-relaxed ${theme.subClass}`}>{translateText(d.descricao)}</p>
-                  </div>
-                ))}
-              </div>
-              {onOpenLawModal && (
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    onClick={onOpenLawModal}
-                    className={`inline-flex items-center gap-2 text-sm font-semibold hover:underline ${theme.isDark ? 'text-[#34D399]' : 'text-[#047857] dark:text-[#34D399]'}`}
-                  >
-                    <BookOpen className="w-4 h-4" />
-                    {t.sections.understandLawCta}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </section>
@@ -770,49 +471,120 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       );
     }
 
+    if (key === 'diferenciais') {
+      const difItens = (meta.itens as { titulo: string; descricao: string }[] | undefined) || [];
+      const noImage = meta.varianteLayout === 'sem-imagem' || !sec.imagemUrl;
+      const imageRight = meta.varianteLayout === 'imagem-direita';
+
+      return (
+        <section
+          key={sec.id}
+          className={`${sectionPad} bg-[#F7F8FA] dark:bg-[#070B12] text-[#0B1628] dark:text-white cv-auto`}
+        >
+          <div className="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-stretch">
+            {!noImage && (
+              <div className={`lg:col-span-5 ${imageRight ? 'lg:order-2' : 'lg:order-1'}`}>
+                <div className="h-80 lg:h-full min-h-[360px] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#0D1422]">
+                  <OptimizedImage
+                    src={sec.imagemUrl}
+                    alt={translateText(sec.titulo)}
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                    className={`w-full h-full ${imgFitClass}`}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div
+              className={`${noImage ? 'lg:col-span-12 max-w-4xl mx-auto' : 'lg:col-span-7'} flex flex-col justify-center ${
+                imageRight ? 'lg:order-1' : 'lg:order-2'
+              }`}
+            >
+              <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA] mb-3">
+                {translateText(meta.eyebrow as string | undefined) || t.sections.diferenciaisEyebrow}
+              </p>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance mb-3">
+                {translateText(sec.titulo)}
+              </h2>
+              <p className="text-base text-[#4B5563] dark:text-slate-300 leading-relaxed mb-10">
+                {translateText(sec.subtitulo)}
+              </p>
+
+              <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B] border-t border-[#E5E7EB] dark:border-[#1E293B]">
+                {difItens.map((d, idx) => (
+                  <div key={idx} className="py-5 grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-6">
+                    <h3 className="sm:col-span-5 text-sm font-bold text-[#0B1628] dark:text-white">
+                      {translateText(d.titulo)}
+                    </h3>
+                    <p className="sm:col-span-7 text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                      {translateText(d.descricao)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {onOpenLawModal && (
+                <div className="mt-8">
+                  <button
+                    type="button"
+                    onClick={onOpenLawModal}
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    {t.sections.understandLawCta}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
     if (key === 'quem_somos') {
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'claro');
       return (
         <React.Fragment key={sec.id}>
-          <section className={`${sectionPad} ${theme.sectionClass} cv-auto`} style={theme.sectionStyle}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-              <div className="lg:col-span-7">
-                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+          <section
+            className={`${sectionPad} bg-white dark:bg-[#0D1422] border-y border-[#E5E7EB] dark:border-[#1E293B] text-[#0B1628] dark:text-white cv-auto`}
+          >
+            <div className="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+              <div className="lg:col-span-7 space-y-5">
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                   {translateText(meta.eyebrow as string | undefined) || t.sections.quemSomosEyebrow}
                 </p>
-                <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-3 ${theme.headingClass}`}>
+                <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
                   {translateText(sec.titulo)}
                 </h2>
-                <p className={`text-base mb-4 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
+                <p className="text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                  {translateText(sec.subtitulo)}
+                </p>
                 {sec.conteudoHtml && (
                   <div
-                    className={`text-sm leading-relaxed mb-6 ${theme.isDark ? 'text-slate-200' : 'text-[#475569] dark:text-slate-300'}`}
+                    className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-2xl"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
                 )}
-                <button
-                  type="button"
-                  onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/quem-somos')}
-                  onTouchStart={() => prefetchRouteChunk(sec.ctaDestino || '/quem-somos')}
-                  onClick={() => navigateAction(sec.ctaDestino || '/quem-somos')}
-                  className={`inline-flex items-center gap-2 px-5 py-2.5 btn-radius border text-sm font-semibold transition-colors ${
-                    theme.isDark
-                      ? 'border-white/30 text-white hover:bg-white/10'
-                      : 'border-[#CBD5E1] dark:border-[#1E293B] text-[#090F1A] dark:text-slate-100 hover:bg-[#F8FAFC] dark:hover:bg-[#131F33] hover:border-[#047857]/60'
-                  }`}
-                >
-                  {translateText(sec.ctaTexto) || t.sections.quemSomosCta}
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/quem-somos')}
+                    onClick={() => navigateAction(sec.ctaDestino || '/quem-somos')}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-[#D1D5DB] dark:border-[#334155] text-sm font-semibold text-[#0B1628] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors"
+                  >
+                    {translateText(sec.ctaTexto) || t.sections.quemSomosCta}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+
               <div className="lg:col-span-5">
-                <div className="group aspect-[3/4] max-w-sm mx-auto card-radius overflow-hidden border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#0D1524] shadow-[0_14px_36px_rgba(9,15,26,0.08)]">
+                <div className="aspect-[3/4] max-w-sm mx-auto rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32]">
                   {sec.imagemUrl ? (
                     <OptimizedImage
                       src={sec.imagemUrl}
                       alt={translateText(sec.titulo)}
                       sizes="(max-width: 1024px) 92vw, 384px"
-                      className={`w-full h-full ${imgFitClass} transition-transform duration-700 group-hover:scale-[1.03]`}
+                      className={`w-full h-full ${imgFitClass}`}
                     />
                   ) : null}
                 </div>
@@ -838,29 +610,39 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
     if (key === 'depoimentos') {
       if (authorizedTestimonials.length === 0) return null;
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'claro');
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="max-w-3xl mb-10">
+        <section
+          key={sec.id}
+          className={`${sectionPad} bg-white dark:bg-[#0D1422] border-t border-[#E5E7EB] dark:border-[#1E293B]`}
+        >
+          <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-12">
+            <div className="max-w-2xl space-y-2.5">
               {Boolean(meta.eyebrow) && (
-                <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                   {translateText(String(meta.eyebrow))}
                 </p>
               )}
-              <h2 className={`font-display text-2xl sm:text-3xl font-bold mb-2 ${theme.headingClass}`}>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white">
                 {translateText(sec.titulo)}
               </h2>
-              <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
+              <p className="text-base text-[#4B5563] dark:text-slate-300">
+                {translateText(sec.subtitulo)}
+              </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {authorizedTestimonials.map((dep) => (
-                <article key={dep.id} className={`${theme.cardClass} card-radius p-6 space-y-3`}>
-                  <Quote className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <p className={`text-sm leading-relaxed ${theme.subClass}`}>&ldquo;{dep.depoimento}&rdquo;</p>
-                  <div className={`pt-3 border-t ${theme.isDark ? 'border-white/15' : 'border-[#E5DFD2] dark:border-[#1C324B]'} text-xs`}>
-                    <p className={`font-bold ${theme.headingClass}`}>{dep.nome}</p>
-                    <p className={theme.eyebrowClass}>{[dep.cidadeOrigem, dep.subcategoria].filter(Boolean).join(' · ')}</p>
+                <article
+                  key={dep.id}
+                  className="pt-6 border-t border-[#E5E7EB] dark:border-[#1E293B] flex flex-col justify-between gap-6"
+                >
+                  <p className="text-sm sm:text-[15px] text-[#0B1628] dark:text-slate-200 leading-relaxed">
+                    &ldquo;{dep.depoimento}&rdquo;
+                  </p>
+                  <div className="text-xs space-y-0.5">
+                    <p className="font-semibold text-[#0B1628] dark:text-white">{dep.nome}</p>
+                    <p className="text-[#6B7280] dark:text-slate-400">
+                      {[dep.cidadeOrigem, dep.subcategoria].filter(Boolean).join(' · ')}
+                    </p>
                   </div>
                 </article>
               ))}
@@ -873,20 +655,27 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     if (key === 'faq') {
       const perguntas = (meta.perguntas as { pergunta: string; resposta: string }[] | undefined) || [];
       if (perguntas.length === 0) return null;
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'claro');
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-          <div className="max-w-4xl mx-auto px-4 sm:px-6">
-            {Boolean(meta.eyebrow) && (
-              <p className={`text-xs font-semibold mb-2 ${theme.eyebrowClass}`}>
-                {translateText(String(meta.eyebrow))}
+        <section
+          key={sec.id}
+          className={`${sectionPad} bg-white dark:bg-[#0D1422] border-t border-[#E5E7EB] dark:border-[#1E293B]`}
+        >
+          <div className="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12">
+            <div className="lg:col-span-4 space-y-3">
+              {Boolean(meta.eyebrow) && (
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
+                  {translateText(String(meta.eyebrow))}
+                </p>
+              )}
+              <h2 className="font-display text-3xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
+                {translateText(sec.titulo)}
+              </h2>
+              <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                {translateText(sec.subtitulo)}
               </p>
-            )}
-            <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance mb-2 ${theme.headingClass}`}>
-              {translateText(sec.titulo)}
-            </h2>
-            <p className={`text-base mb-8 ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>
-            <div className="divide-y divide-[#E2E8F0] dark:divide-[#1E293B] border border-[#E2E8F0] dark:border-[#1E293B] card-radius bg-[var(--color-surface)] text-[#090F1A] dark:text-white overflow-hidden shadow-[0_4px_16px_rgba(9,15,26,0.04)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.28)]">
+            </div>
+
+            <div className="lg:col-span-8 divide-y divide-[#E5E7EB] dark:divide-[#1E293B] border-y border-[#E5E7EB] dark:border-[#1E293B]">
               {perguntas.map((item, idx) => {
                 const isOpen = openFaq === idx;
                 return (
@@ -895,14 +684,16 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       type="button"
                       aria-expanded={isOpen}
                       onClick={() => setOpenFaq(isOpen ? null : idx)}
-                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-[#F8FAFC] dark:hover:bg-[#131F33] transition-colors"
+                      className="w-full flex items-center justify-between gap-6 py-5 text-left group"
                     >
-                      <span className="text-sm sm:text-base font-semibold text-[#090F1A] dark:text-white">
+                      <span className="text-sm sm:text-base font-semibold text-[#0B1628] dark:text-white group-hover:text-[#0F3D91] dark:group-hover:text-[#60A5FA] transition-colors">
                         {translateText(item.pergunta)}
                       </span>
                       <ChevronDown
                         className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-                          isOpen ? 'rotate-180 text-[#047857] dark:text-[#34D399]' : 'text-slate-500 dark:text-slate-400'
+                          isOpen
+                            ? 'rotate-180 text-[#0F3D91] dark:text-[#60A5FA]'
+                            : 'text-[#6B7280] dark:text-slate-400'
                         }`}
                       />
                     </button>
@@ -912,10 +703,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.22, ease: EASE_EXECUTIVE }}
+                          transition={{ duration: 0.2, ease: EASE_EXECUTIVE }}
                           className="overflow-hidden"
                         >
-                          <div className="px-6 pb-5 text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
+                          <div className="pb-6 text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-2xl">
                             {translateText(item.resposta)}
                           </div>
                         </motion.div>
@@ -932,7 +723,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
     if (key === 'contato') {
       return (
-        <section key={sec.id} className={`${sectionPad} relative overflow-hidden bg-[#090F1A] text-white cv-auto`}>
+        <section
+          key={sec.id}
+          className="relative overflow-hidden bg-[#070E1C] text-white py-20 lg:py-28 cv-auto"
+        >
           <div className="absolute inset-0 pointer-events-none select-none">
             <OptimizedImage
               src={ANDES_HORIZON_BANNER}
@@ -940,68 +734,55 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               sizes="100vw"
               placeholderTone="dark"
               containerClassName="w-full h-full"
-              className="w-full h-full object-cover object-center opacity-40"
+              className="w-full h-full object-cover object-center opacity-25"
             />
             <div
               aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-t from-[#060B14]/95 via-[#090F1A]/80 to-[#060B14]/88"
+              className="absolute inset-0 bg-gradient-to-r from-[#060C18]/95 via-[#060C18]/85 to-[#060C18]/75"
             />
           </div>
-          <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-7">
-            <div className="flex justify-center">
-              <BrandLogo
-                variant="emblem-dark"
-                lazy
-                alt={empresa.nome_empresa}
-                brandShortName={brandShortName}
-                imgClassName="w-14 h-14 object-contain"
-              />
-            </div>
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-3 justify-center">
-                <span className="h-[1px] w-8 bg-[#10B981]/80" aria-hidden="true" />
-                <p className="text-xs font-semibold text-[#34D399]">
-                  {t.sections.contatoKicker}
-                </p>
-                <span className="h-[1px] w-8 bg-[#10B981]/80" aria-hidden="true" />
-              </div>
-              <h2 className="font-display text-2xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-balance text-white leading-[1.08]">
+
+          <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 flex flex-col lg:flex-row lg:items-center justify-between gap-10">
+            <div className="max-w-2xl space-y-4">
+              <p className="text-xs font-semibold tracking-[0.06em] text-[#C9A86A]">
+                {t.sections.contatoKicker}
+              </p>
+              <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white text-balance leading-[1.08]">
                 {translateText(sec.titulo)}
               </h2>
-              <p className="text-base sm:text-lg max-w-2xl mx-auto leading-relaxed text-slate-200">
+              <p className="text-base text-slate-300 leading-relaxed">
                 {translateText(sec.subtitulo)}
               </p>
-              {sec.conteudoHtml && (
-                <p className="text-xs text-slate-300 mt-2">{translateText(sec.conteudoHtml)}</p>
-              )}
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-3.5 pt-1">
+
+            <div className="flex flex-wrap items-center gap-3.5 shrink-0">
               <button
                 type="button"
                 onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                className="inline-flex items-center gap-2 px-6.5 py-3.5 btn-radius text-sm font-bold text-[#041C16] bg-[#10B981] hover:bg-[#34D399] shadow-[0_12px_28px_rgba(16,185,129,0.28)] transition-all duration-150 hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold text-[#0B1628] bg-white hover:bg-slate-100 transition-colors whitespace-nowrap"
               >
                 {translateText(sec.ctaTexto) || t.sections.contatoDefaultCta}
                 <ArrowRight className="w-4 h-4" />
               </button>
-              <a
-                href={whatsappHeroUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3.5 btn-radius text-sm font-semibold border border-white/25 bg-white/[0.06] text-white hover:bg-white/[0.12] backdrop-blur-sm transition-all duration-150"
-              >
-                <MessageCircle className="w-4 h-4 text-[#34D399]" />
-                {t.sections.contatoWhatsappCta}
-              </a>
-              {onOpenCalendly && (
+              {onOpenCalendly ? (
                 <button
                   type="button"
                   onClick={onOpenCalendly}
-                  className="inline-flex items-center gap-2 px-5.5 py-3.5 btn-radius text-sm font-semibold border border-white/25 bg-white/[0.06] text-white hover:bg-white/[0.12] backdrop-blur-sm transition-all duration-150"
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-medium border border-white/25 text-white hover:bg-white/10 transition-colors whitespace-nowrap"
                 >
-                  <Calendar className="w-4 h-4 text-[#D4A853]" />
+                  <Calendar className="w-4 h-4 text-slate-300" />
                   {t.sections.contatoScheduleCta}
                 </button>
+              ) : (
+                <a
+                  href={whatsappHeroUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-medium border border-white/25 text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+                >
+                  <MessageCircle className="w-4 h-4 text-slate-300" />
+                  {t.sections.contatoWhatsappCta}
+                </a>
               )}
             </div>
           </div>
@@ -1011,28 +792,32 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
     if (key === 'bloco_livre') {
       const variante = (meta.varianteLayout as string) || (sec.imagemUrl ? 'texto-imagem-direita' : 'centralizado');
-      const theme = getSectionThemeClasses(meta.temaSecao as string | undefined, 'claro');
       const imgLeft = variante === 'texto-imagem-esquerda';
       const hasImage = Boolean(sec.imagemUrl) && variante !== 'centralizado' && variante !== 'cta-destaque';
 
       return (
-        <section key={sec.id} className={`${sectionPad} ${theme.sectionClass}`} style={theme.sectionStyle}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <section
+          key={sec.id}
+          className={`${sectionPad} bg-white dark:bg-[#0D1422] border-t border-[#E5E7EB] dark:border-[#1E293B]`}
+        >
+          <div className="max-w-7xl mx-auto px-5 sm:px-8">
             {hasImage ? (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
                 <div className={`lg:col-span-7 space-y-4 ${imgLeft ? 'lg:order-2' : 'lg:order-1'}`}>
                   {Boolean(meta.eyebrow) && (
-                    <p className={`text-xs font-semibold ${theme.eyebrowClass}`}>
+                    <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                       {translateText(String(meta.eyebrow))}
                     </p>
                   )}
-                  <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance ${theme.headingClass}`}>
+                  <h2 className="font-display text-3xl font-bold text-[#0B1628] dark:text-white text-balance">
                     {translateText(sec.titulo)}
                   </h2>
-                  {sec.subtitulo && <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>}
+                  {sec.subtitulo && (
+                    <p className="text-base text-[#4B5563] dark:text-slate-300">{translateText(sec.subtitulo)}</p>
+                  )}
                   {sec.conteudoHtml && (
                     <div
-                      className={`text-sm leading-relaxed ${theme.subClass}`}
+                      className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed"
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                     />
                   )}
@@ -1041,11 +826,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 btn-radius text-sm font-semibold text-white"
-                        style={{
-                          backgroundColor: theme.isDark ? 'var(--color-accent)' : 'var(--color-primary)',
-                          color: theme.isDark ? '#0F172A' : '#FFFFFF',
-                        }}
+                        className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:opacity-90 transition-opacity"
                       >
                         {translateText(sec.ctaTexto)}
                         <ArrowRight className="w-4 h-4" />
@@ -1054,7 +835,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   )}
                 </div>
                 <div className={`lg:col-span-5 ${imgLeft ? 'lg:order-1' : 'lg:order-2'}`}>
-                  <div className="h-72 sm:h-80 card-radius overflow-hidden border border-slate-200/80 dark:border-[#1C324B] bg-slate-100 dark:bg-[#0D1E31]">
+                  <div className="h-72 sm:h-80 rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B]">
                     <OptimizedImage
                       src={sec.imagemUrl}
                       alt={translateText(sec.titulo)}
@@ -1067,42 +848,28 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
             ) : (
               <div className="max-w-3xl mx-auto text-center space-y-4">
                 {Boolean(meta.eyebrow) && (
-                  <p className={`text-xs font-semibold ${theme.eyebrowClass}`}>
+                  <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                     {translateText(String(meta.eyebrow))}
                   </p>
                 )}
-                <h2 className={`font-display text-2xl sm:text-3xl font-bold text-balance ${theme.headingClass}`}>
+                <h2 className="font-display text-3xl font-bold text-[#0B1628] dark:text-white text-balance">
                   {translateText(sec.titulo)}
                 </h2>
-                {sec.subtitulo && <p className={`text-base ${theme.subClass}`}>{translateText(sec.subtitulo)}</p>}
+                {sec.subtitulo && (
+                  <p className="text-base text-[#4B5563] dark:text-slate-300">{translateText(sec.subtitulo)}</p>
+                )}
                 {sec.conteudoHtml && (
                   <div
-                    className={`text-sm leading-relaxed ${theme.subClass}`}
+                    className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
-                )}
-                {sec.imagemUrl && (
-                  <div className="pt-3 max-w-xl mx-auto">
-                    <div className="max-h-80 overflow-hidden card-radius border border-slate-200 dark:border-[#1C324B]">
-                      <OptimizedImage
-                        src={sec.imagemUrl}
-                        alt={translateText(sec.titulo)}
-                        sizes="(max-width: 768px) 100vw, 576px"
-                        className={`w-full max-h-80 mx-auto ${imgFitClass}`}
-                      />
-                    </div>
-                  </div>
                 )}
                 {sec.ctaTexto && (
                   <div className="pt-2">
                     <button
                       type="button"
                       onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                      className="inline-flex items-center gap-2 px-6 py-3 btn-radius text-sm font-semibold"
-                      style={{
-                        backgroundColor: theme.isDark ? 'var(--color-accent)' : 'var(--color-primary)',
-                        color: theme.isDark ? '#0F172A' : '#FFFFFF',
-                      }}
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white"
                     >
                       {translateText(sec.ctaTexto)}
                       <ArrowRight className="w-4 h-4" />
@@ -1128,21 +895,22 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
         {serviceDrawer && !previewMode && (
           <div
-            className="fixed inset-0 z-50 bg-[#060B14]/75 backdrop-blur-[2px] flex justify-end"
+            className="fixed inset-0 z-50 bg-[#070B12]/70 backdrop-blur-[2px] flex justify-end"
             role="dialog"
             aria-modal="true"
             onClick={(e) => {
               if (e.target === e.currentTarget) setServiceDrawer(null);
             }}
           >
-            <div className="bg-white dark:bg-[#0D1524] w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E2E8F0] dark:border-[#1E293B]">
-              <BrandRibbon className="h-[2px] w-full shrink-0" />
-              <div className="bg-[#090F1A] text-white px-6 py-5 flex items-start justify-between gap-3 shrink-0">
+            <div className="bg-white dark:bg-[#0D1422] w-full max-w-md h-full flex flex-col justify-between overflow-hidden shadow-2xl border-l border-[#E5E7EB] dark:border-[#1E293B]">
+              <div className="bg-[#0B1628] text-white px-6 py-6 flex items-start justify-between gap-3 shrink-0">
                 <div>
-                  <p className="text-xs font-semibold text-[#34D399] font-mono tabular-nums">
+                  <p className="text-xs font-mono text-[#C9A86A] tabular-nums">
                     {serviceDrawer.numero} · {t.services.drawer.headerPrefix}
                   </p>
-                  <h3 className="font-display text-lg font-bold text-white mt-1 leading-snug">{serviceDrawer.titulo}</h3>
+                  <h3 className="font-display text-lg font-bold text-white mt-1 leading-snug">
+                    {serviceDrawer.titulo}
+                  </h3>
                 </div>
                 <button
                   type="button"
@@ -1154,44 +922,50 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </button>
               </div>
 
-              <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">{serviceDrawer.descricao}</p>
-                <div className="space-y-3 text-xs pt-1">
-                  <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B]">
-                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
+              <div className="p-6 flex-1 overflow-y-auto space-y-5">
+                <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                  {serviceDrawer.descricao}
+                </p>
+                <dl className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B] border-y border-[#E5E7EB] dark:border-[#1E293B] text-xs">
+                  <div className="py-4 space-y-1">
+                    <dt className="font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
                       {t.services.drawer.whoFor}
-                    </p>
-                    <p className="text-[#090F1A] dark:text-slate-100 mt-1 leading-relaxed">
+                    </dt>
+                    <dd className="text-[#0B1628] dark:text-slate-200 leading-relaxed">
                       {serviceDrawer.paraQuem || drawerFallback?.paraQuem || t.services.drawer.defaultWhoFor}
-                    </p>
+                    </dd>
                   </div>
-                  <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B]">
-                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
+                  <div className="py-4 space-y-1">
+                    <dt className="font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
                       {t.services.drawer.framework}
-                    </p>
-                    <p className="text-[#090F1A] dark:text-slate-100 mt-1 leading-relaxed">
-                      {serviceDrawer.subcategoriaTipica || drawerFallback?.subcategoriaTipica || t.services.drawer.defaultFramework}
-                    </p>
+                    </dt>
+                    <dd className="text-[#0B1628] dark:text-slate-200 leading-relaxed">
+                      {serviceDrawer.subcategoriaTipica ||
+                        drawerFallback?.subcategoriaTipica ||
+                        t.services.drawer.defaultFramework}
+                    </dd>
                   </div>
-                  <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#131F33] border border-[#E2E8F0] dark:border-[#1E293B]">
-                    <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
+                  <div className="py-4 space-y-1">
+                    <dt className="font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
                       {t.services.drawer.timeline}
-                    </p>
-                    <p className="text-[#090F1A] dark:text-slate-100 font-mono tabular-nums mt-1 leading-relaxed">
-                      {serviceDrawer.faixaPrazo || drawerFallback?.faixaPrazo || t.services.drawer.defaultTimeline}
-                    </p>
+                    </dt>
+                    <dd className="text-[#0B1628] dark:text-slate-200 font-mono tabular-nums leading-relaxed">
+                      {serviceDrawer.faixaPrazo ||
+                        drawerFallback?.faixaPrazo ||
+                        t.services.drawer.defaultTimeline}
+                    </dd>
                   </div>
-                </div>
+                </dl>
               </div>
 
-              <div className="px-6 py-4 bg-[#F8FAFC] dark:bg-[#060A12] border-t border-[#E2E8F0] dark:border-[#1E293B] space-y-2 shrink-0">
+              <div className="px-6 py-5 bg-[#F7F8FA] dark:bg-[#070B12] border-t border-[#E5E7EB] dark:border-[#1E293B] space-y-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setServiceDrawer(null);
                     onNavigate('/diagnostico');
                   }}
-                  className="w-full py-3 px-4 btn-radius text-xs font-bold text-[#041C16] bg-[#10B981] hover:bg-[#34D399] inline-flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-3 px-4 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:opacity-90 inline-flex items-center justify-center gap-2 transition-opacity"
                 >
                   {t.services.drawer.ctaDiagnostic}
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -1203,9 +977,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 btn-radius border border-[#CBD5E1] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-xs font-semibold text-[#090F1A] dark:text-slate-100 hover:bg-[#F1F5F9] dark:hover:bg-[#1A2942]"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-lg border border-[#D1D5DB] dark:border-[#334155] bg-white dark:bg-[#151F32] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#1E293B]"
                 >
-                  <MessageCircle className="w-4 h-4 text-[#047857] dark:text-[#34D399]" />
+                  <MessageCircle className="w-4 h-4" />
                   {t.services.drawer.ctaWhatsapp}
                 </a>
               </div>

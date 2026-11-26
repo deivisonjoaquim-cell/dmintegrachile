@@ -2,58 +2,58 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================================
- * D&M Integra Chile — Andean Architectural Atelier Design System
- * 60% Mineral Alabaster & Pure White Canvas (#F8FAFC · #FFFFFF)
- * 30% Midnight Obsidian & Deep Cordillera Slate (#090F1A · #0F172A)
- * 10% Focused Conversion Accents: Andean Emerald (#047857 / #10B981)
- *     & Champagne Brass (#D4A853)
- * Typography: Bricolage Grotesque (Architectural Display) + DM Sans (Body)
+ * D&M Integra Chile — Global Corporate Advisory Design System
+ * 60% Pure White & Cool Alabaster Canvas (#FFFFFF · #F7F8FA)
+ * 30% Institutional Navy & Crisp Architectural Slate (#0B1628 · #E5E7EB)
+ * 10% Sovereign Accent: Executive Sapphire (#0F3D91 / #3B82F6)
+ *     & Restrained Champagne Gold (#B08D57)
+ * Typography: Plus Jakarta Sans (Display) + DM Sans (Body)
  *             + JetBrains Mono (Tabular Metrics & Legal References)
  * ============================================================================ */
 
 :root {
-  --color-primary: #090F1A;
-  --color-primary-soft: #132036;
-  --color-accent: #10B981;
-  --color-accent-strong: #047857;
-  --color-brass: #D4A853;
-  --color-accent-ink: #047857;
-  --color-accent-light: #34D399;
+  --color-primary: #0B1628;
+  --color-primary-soft: #16233B;
+  --color-accent: #0F3D91;
+  --color-accent-strong: #0B2E6F;
+  --color-brass: #B08D57;
+  --color-accent-ink: #0F3D91;
+  --color-accent-light: #3B82F6;
   --color-brand-emerald: #047857;
   --color-brand-emerald-dark: #065F46;
   --color-brand-crimson: #B91C1C;
-  --color-bg: #F8FAFC;
+  --color-bg: #F7F8FA;
   --color-surface: #FFFFFF;
-  --color-surface-subtle: #F1F5F9;
-  --color-border-subtle: #E2E8F0;
-  --color-text: #090F1A;
-  --color-text-muted: #475569;
-  --color-footer-bg: #060B14;
+  --color-surface-subtle: #F1F4F8;
+  --color-border-subtle: #E5E7EB;
+  --color-text: #0B1628;
+  --color-text-muted: #4B5563;
+  --color-footer-bg: #070B12;
   --color-success: #047857;
   --color-warning: #B45309;
   --color-critical: #B91C1C;
   --font-main: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --radius-card: 1rem;
-  --radius-button: 0.625rem;
+  --radius-card: 0.75rem;
+  --radius-button: 0.5rem;
 }
 
 .dark,
 .panel-dark {
-  --color-primary: #10B981;
-  --color-primary-soft: #059669;
-  --color-accent: #10B981;
-  --color-accent-strong: #34D399;
-  --color-brass: #E5C16C;
-  --color-accent-ink: #34D399;
-  --color-bg: #060A12;
-  --color-surface: #0D1524;
-  --color-surface-subtle: #131F33;
+  --color-primary: #3B82F6;
+  --color-primary-soft: #2563EB;
+  --color-accent: #3B82F6;
+  --color-accent-strong: #60A5FA;
+  --color-brass: #C9A86A;
+  --color-accent-ink: #60A5FA;
+  --color-bg: #070B12;
+  --color-surface: #0D1422;
+  --color-surface-subtle: #151F32;
   --color-border-subtle: #1E293B;
   --color-text: #F8FAFC;
   --color-text-muted: #94A3B8;
-  --color-footer-bg: #04070D;
+  --color-footer-bg: #05080E;
   color-scheme: dark;
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -69,7 +69,7 @@
 .panel-dark input:focus-visible,
 .panel-dark select:focus-visible,
 .panel-dark textarea:focus-visible {
-  outline: 2px solid #34D399;
+  outline: 2px solid #60A5FA;
   outline-offset: 2px;
 }
 
@@ -81,7 +81,7 @@
 
 .dark ::-webkit-scrollbar-track,
 .panel-dark ::-webkit-scrollbar-track {
-  background: #060A12;
+  background: #070B12;
 }
 
 .dark ::-webkit-scrollbar-thumb,
@@ -113,17 +113,17 @@ body {
 }
 
 ::selection {
-  background-color: rgba(16, 185, 129, 0.22);
-  color: #090F1A;
+  background-color: rgba(15, 61, 145, 0.14);
+  color: #0B1628;
 }
 
 .dark ::selection,
 .panel-dark ::selection {
-  background-color: rgba(52, 211, 153, 0.28);
+  background-color: rgba(59, 130, 246, 0.28);
   color: #F8FAFC;
 }
 
-/* Architectural Display Typography: Bricolage Grotesque with tight precision tracking */
+/* Corporate Editorial Display Typography */
 h1, h2 {
   font-family: var(--font-display);
   letter-spacing: -0.028em;
@@ -131,7 +131,7 @@ h1, h2 {
 
 h3, h4 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.018em;
 }
 
 .panel-workspace h1,
@@ -139,7 +139,7 @@ h3, h4 {
 .panel-workspace h3,
 .panel-workspace h4 {
   font-family: var(--font-main);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.018em;
 }
 
 .font-brand-serif,
@@ -155,37 +155,28 @@ h3, h4 {
   font-family: var(--font-mono);
 }
 
-/* Signature Bilateral Architectural Hairline: Emerald -> Brass -> Obsidian -> Crimson */
+/* Understated institutional hairline divider */
 .brand-ribbon {
-  background: linear-gradient(
-    90deg,
-    #047857 0%,
-    #10B981 26%,
-    #D4A853 48%,
-    #0F172A 78%,
-    #B91C1C 100%
-  );
+  background: var(--color-border-subtle);
 }
 
 .brand-card {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-card);
-  box-shadow: 0 1px 2px rgba(9, 15, 26, 0.04);
   transition: border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    background-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark .brand-card {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: none;
 }
 
 .brand-kicker {
   font-family: var(--font-main);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.06em;
   color: var(--color-accent-ink);
 }
 
@@ -205,10 +196,9 @@ h3, h4 {
   text-wrap: balance;
 }
 
-/* Defer layout and paint of below-the-fold sections on mobile for instant FCP/LCP */
+/* Keep below-the-fold sections painted cleanly during fast scrolling and full-page rendering */
 .cv-auto {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 620px;
+  content-visibility: visible;
 }
 
 a:focus-visible,

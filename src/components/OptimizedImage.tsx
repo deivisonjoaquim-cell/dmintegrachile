@@ -41,7 +41,6 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
 }) => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const [inView, setInView] = useState<boolean>(priority);
   const [loaded, setLoaded] = useState<boolean>(false);
   const [webpFailed, setWebpFailed] = useState<boolean>(false);
 
@@ -53,41 +52,11 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   }, [src]);
 
   useEffect(() => {
-    if (!inView) return;
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0) {
       setLoaded(true);
     }
-  }, [inView, src, webpFailed]);
-
-  useEffect(() => {
-    if (priority || inView) return;
-    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
-      setInView(true);
-      return;
-    }
-    const el = wrapperRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setInView(true);
-            observer.disconnect();
-            break;
-          }
-        }
-      },
-      {
-        rootMargin: '250px 0px',
-        threshold: 0.01,
-      },
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [priority, inView]);
+  }, [src, webpFailed]);
 
   if (!sources.fallbackSrc) {
     return null;
@@ -95,59 +64,56 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
 
   const placeholderBg =
     placeholderTone === 'dark'
-      ? 'bg-[#0B1F33]'
-      : 'bg-[#EDE8DD]';
+      ? 'bg-[#070E1C]'
+      : 'bg-[#F1F4F8] dark:bg-[#151F32]';
 
   const shouldRenderWebpSource = !webpFailed && !sources.isVector && Boolean(sources.webpSrcSet || sources.webpSrc);
 
   return (
-    <div ref={wrapperRef} className={`${containerClassName} ${placeholderBg}`}>
-      {/* Subtle non-pulsing architectural placeholder while decoding */}
+    <div ref={wrapperRef} className={`relative overflow-hidden ${containerClassName} ${placeholderBg}`}>
       {!loaded && !priority && (
         <div
           aria-hidden="true"
           className={`absolute inset-0 ${
             placeholderTone === 'dark'
-              ? 'bg-gradient-to-br from-[#0B1F33] via-[#132D47] to-[#081726]'
-              : 'bg-gradient-to-br from-[#F3EFE6] via-[#EAE3D4] to-[#F7F5F0]'
+              ? 'bg-gradient-to-br from-[#070E1C] via-[#0D1422] to-[#05080E]'
+              : 'bg-gradient-to-br from-[#F7F8FA] via-[#EEF2F6] to-[#F7F8FA] dark:from-[#0D1422] dark:via-[#151F32] dark:to-[#0D1422]'
           }`}
         />
       )}
 
-      {inView && (
-        <picture className="block w-full h-full">
-          {shouldRenderWebpSource && (
-            <source
-              type="image/webp"
-              srcSet={sources.webpSrcSet || sources.webpSrc}
-              sizes={sources.webpSrcSet ? sizes : undefined}
-            />
-          )}
-          <img
-            ref={imgRef}
-            src={sources.fallbackSrc}
-            alt={alt}
-            width={width}
-            height={height}
-            loading={priority ? 'eager' : 'lazy'}
-            decoding={priority ? 'sync' : 'async'}
-            fetchPriority={priority ? 'high' : 'low'}
-            referrerPolicy={referrerPolicy}
-            style={style}
-            onLoad={() => setLoaded(true)}
-            onError={() => {
-              if (!webpFailed && shouldRenderWebpSource) {
-                setWebpFailed(true);
-              } else {
-                setLoaded(true);
-              }
-            }}
-            className={`${className} transition-opacity duration-300 ${
-              priority || loaded ? 'opacity-100' : 'opacity-0'
-            }`}
+      <picture className="block w-full h-full">
+        {shouldRenderWebpSource && (
+          <source
+            type="image/webp"
+            srcSet={sources.webpSrcSet || sources.webpSrc}
+            sizes={sources.webpSrcSet ? sizes : undefined}
           />
-        </picture>
-      )}
+        )}
+        <img
+          ref={imgRef}
+          src={sources.fallbackSrc}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding={priority ? 'sync' : 'async'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          referrerPolicy={referrerPolicy}
+          style={style}
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            if (!webpFailed && shouldRenderWebpSource) {
+              setWebpFailed(true);
+            } else {
+              setLoaded(true);
+            }
+          }}
+          className={`${className} transition-opacity duration-300 ${
+            priority || loaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      </picture>
     </div>
   );
 };

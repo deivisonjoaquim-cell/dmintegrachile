@@ -15,6 +15,9 @@ export interface ResolvedImageSources {
 }
 
 const KNOWN_RESPONSIVE_PHOTO_BASES = new Set([
+  '/src/assets/images/hero_corporate_santiago_skyline_1795699452140',
+  '/src/assets/images/advisory_boardroom_minimal_1795699453098',
+  '/src/assets/images/andes_horizon_banner_1795635435326',
   '/src/assets/images/hero_santiago_andes_1794944011226',
   '/src/assets/images/about_consultoria_office_1794944011861',
   '/src/assets/images/about_consultoria_office_1794997278170',

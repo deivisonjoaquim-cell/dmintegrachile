@@ -1291,99 +1291,90 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     <MotionConfig reducedMotion="user">
       <div className="py-8 lg:py-12 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
-        {/* Cabeçalho Executivo em Midnight Obsidian & Esmeralda */}
-        <section className="rounded-2xl overflow-hidden border border-white/10 bg-[#090F1A] text-white shadow-[0_16px_38px_rgba(9,15,26,0.16)]">
-          <BrandRibbon className="h-[3px] w-full" />
-          <div className="px-6 sm:px-8 py-6 sm:py-7 space-y-5">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-              <div className="space-y-2 max-w-2xl">
-                <p className="text-xs font-semibold text-[#34D399]">
-                  Diagnóstico completo em 6 etapas · Ley Nº 21.325 &amp; Acordo Mercosul · Proteção LGPD
+        {/* Cabeçalho Corporativo do Diagnóstico */}
+        <section className="rounded-xl overflow-hidden border border-[#1E293B] bg-[#070E1C] text-white">
+          <div className="px-6 sm:px-8 py-7 sm:py-8 space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+              <div className="space-y-2.5 max-w-2xl">
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#C9A86A]">
+                  Diagnóstico técnico em 6 etapas · Ley Nº 21.325 &amp; Acordo Mercosul · LGPD
                 </p>
                 <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.1] text-balance">
                   Diagnóstico Inteligente de Elegibilidade Migratória
                 </h1>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Acompanhe seu índice de viabilidade calculado em tempo real enquanto responde às 6 etapas. Ao final, explore o gráfico radar, teste cenários no simulador &ldquo;E se...&rdquo; e baixe seu Dossiê em PDF.
+                  Acompanhe seu índice de viabilidade em tempo real enquanto responde às 6 etapas. Ao final, consulte seu radar técnico e baixe o Dossiê em PDF.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between lg:justify-end gap-4 shrink-0 border-t lg:border-t-0 border-white/10 pt-3 lg:pt-0">
+              <div className="flex flex-wrap items-center justify-between lg:justify-end gap-5 shrink-0 border-t lg:border-t-0 border-white/10 pt-4 lg:pt-0">
                 <button
                   type="button"
                   onClick={() => setOnboardingOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border border-[#10B981]/35 bg-white/[0.06] hover:bg-white/[0.12] text-xs font-semibold text-[#34D399] transition-colors whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg border border-white/20 bg-white/[0.05] hover:bg-white/[0.1] text-xs font-medium text-slate-200 transition-colors whitespace-nowrap shrink-0"
                 >
-                  <Compass className="w-3.5 h-3.5 shrink-0" />
+                  <Compass className="w-3.5 h-3.5 shrink-0 text-[#C9A86A]" />
                   Guia rápido
                 </button>
                 <div className="text-left lg:text-right">
-                  <p className="text-xs font-medium text-slate-300">
-                    Progresso da análise
-                  </p>
-                  <p className="font-mono text-2xl font-bold text-[#34D399] tabular-nums">
+                  <p className="text-xs font-medium text-slate-400">Progresso da análise</p>
+                  <p className="font-mono text-2xl font-bold text-white tabular-nums">
                     {adaptiveMeta.percentualProgresso}%
                   </p>
-                  <p className="text-[11px] text-slate-300 tabular-nums">
-                    Etapa {step} de 6 · ~{adaptiveMeta.tempoEstimadoMinutos}{' '}
-                    {adaptiveMeta.tempoEstimadoMinutos === 1 ? 'min' : 'min'} restante(s)
+                  <p className="text-[11px] text-slate-400 tabular-nums">
+                    Etapa {step} de 6 · ~{adaptiveMeta.tempoEstimadoMinutos} min restante(s)
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Trilha de progresso contínua */}
             <div
-              className="h-1.5 rounded-full bg-white/15 overflow-hidden"
+              className="h-1 rounded-full bg-white/15 overflow-hidden"
               role="progressbar"
               aria-valuenow={adaptiveMeta.percentualProgresso}
               aria-valuemin={0}
               aria-valuemax={100}
             >
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-[#047857] via-[#10B981] to-[#34D399]"
+                className="h-full rounded-full bg-[#3B82F6]"
                 initial={false}
                 animate={{ width: `${Math.max(10, adaptiveMeta.percentualProgresso)}%` }}
                 transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
               />
             </div>
 
-            {/* Navegação clicável das 6 etapas */}
             <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" aria-label="Etapas do diagnóstico">
               {STEP_LABELS.map((item) => {
                 const isCurrent = step === item.num;
                 const isReachable = item.num <= maxStepReached;
                 const isDone = item.num < step;
                 return (
-                  <motion.button
+                  <button
                     key={item.num}
                     type="button"
                     disabled={!isReachable}
-                    whileHover={isReachable ? { y: -1.5, scale: 1.01 } : undefined}
-                    whileTap={isReachable ? { scale: 0.98 } : undefined}
-                    transition={{ duration: 0.16 }}
                     onClick={() => {
                       if (isReachable) {
                         setStepError(null);
                         navigateToStep(item.num);
                       }
                     }}
-                    className={`px-3 py-2.5 rounded-xl border text-left text-xs transition-colors duration-200 ${
+                    className={`px-3 py-2.5 rounded-lg border text-left text-xs transition-colors ${
                       isCurrent
-                        ? 'bg-white text-[#090F1A] border-[#10B981] font-bold shadow-[0_6px_18px_rgba(16,185,129,0.24)]'
+                        ? 'bg-white text-[#0B1628] border-white font-semibold'
                         : isDone
-                          ? 'bg-white/10 text-white border-[#10B981]/45 hover:bg-white/15 font-medium'
+                          ? 'bg-white/10 text-white border-white/25 hover:bg-white/15 font-medium'
                           : isReachable
-                            ? 'bg-white/[0.06] text-slate-200 border-white/15 hover:bg-white/10'
-                            : 'bg-white/[0.03] text-slate-500 border-white/10 cursor-not-allowed'
+                            ? 'bg-white/[0.04] text-slate-200 border-white/15 hover:bg-white/10'
+                            : 'bg-white/[0.02] text-slate-500 border-white/10 cursor-not-allowed'
                     }`}
                   >
                     <span className="flex items-center justify-between gap-1 text-[10px] font-mono tabular-nums opacity-80">
                       <span>0{item.num}</span>
-                      {isDone && <Check className="w-3 h-3 text-[#34D399]" />}
+                      {isDone && <Check className="w-3 h-3 text-[#60A5FA]" />}
                     </span>
                     <span className="block truncate mt-0.5">{item.title}</span>
-                  </motion.button>
+                  </button>
                 );
               })}
             </nav>

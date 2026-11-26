@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { ArrowRight, Check, Clock, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getJourneyPhases } from '../../utils/heroProfilePreview';
 import { prefetchRouteChunk } from '../../utils/routePrefetch';
+import { OptimizedImage } from '../OptimizedImage';
 
-const EASE_ARCHITECTURAL = [0.16, 1, 0.3, 1] as const;
+const EASE_EXECUTIVE = [0.16, 1, 0.3, 1] as const;
+const BOARDROOM_PHOTO = '/src/assets/images/advisory_boardroom_minimal_1795699453098.jpg';
 
 interface InteractiveJourneyShowcaseProps {
   sectionPad: string;
@@ -28,167 +30,169 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
   const [activeIndex, setActiveIndex] = useState(0);
 
   const currentPhase = phases[activeIndex] || phases[0];
-  const progressPct = Math.round(((activeIndex + 1) / phases.length) * 100);
 
   return (
     <section
-      className={`${sectionPad} bg-[var(--color-surface)] border-y border-[var(--color-border-subtle)] text-[var(--color-text)]`}
+      className={`${sectionPad} bg-white dark:bg-[#0D1422] border-y border-[#E5E7EB] dark:border-[#1E293B] text-[#0B1628] dark:text-white`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
-        {/* Editorial Section Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-          <div className="max-w-2xl space-y-2.5">
-            <div className="flex items-center gap-3">
-              <span className="h-[2px] w-7 bg-[#10B981]" aria-hidden="true" />
-              <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
-                {eyebrow || (isEs ? 'Método en 4 fases claras' : 'Método em 4 fases claras')}
-              </p>
-            </div>
-            <h2 className="font-display text-2xl sm:text-4xl font-bold tracking-tight leading-[1.1] text-[#090F1A] dark:text-white text-balance">
+      <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-14">
+        {/* Clean Editorial Header */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+          <div className="lg:col-span-7 space-y-3">
+            <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
+              {eyebrow || (isEs ? 'Metodología de ejecución' : 'Metodologia de execução')}
+            </p>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.12] text-[#0B1628] dark:text-white text-balance">
               {title ||
                 (isEs
-                  ? 'De Brasil a tu Cédula chilena, sin improvisaciones'
-                  : 'Do Brasil à sua Cédula chilena, sem improvisos')}
+                  ? 'De Brasil a tu Cédula chilena, en cuatro fases estructuradas'
+                  : 'Do Brasil à sua Cédula chilena, em quatro fases estruturadas')}
             </h2>
-            <p className="text-sm sm:text-base text-[#475569] dark:text-slate-300 leading-relaxed">
+          </div>
+          <div className="lg:col-span-5 lg:text-right space-y-4">
+            <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed lg:text-left">
               {subtitle ||
                 (isEs
-                  ? 'Explora cada fase de la asesoría y mira qué entregables y protecciones legales recibes en tu Portal del Cliente.'
-                  : 'Explore cada fase da assessoria e veja exatamente quais entregáveis e blindagens de prazo você acompanha no Portal do Cliente.')}
+                  ? 'Cada fase cuenta con entregables verificables, control legal de plazos (30, 60 y 90 días) y seguimiento en tu Portal del Cliente.'
+                  : 'Cada etapa possui entregáveis verificáveis, controle legal de prazos (30, 60 e 90 dias) e acompanhamento no Portal do Cliente.')}
             </p>
-          </div>
-
-          <div className="shrink-0">
-            <button
-              type="button"
-              onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
-              onClick={() => onNavigateAction('/diagnostico')}
-              className="inline-flex items-center gap-2 px-5 py-3 btn-radius text-xs font-bold text-white bg-[#090F1A] dark:bg-[#10B981] dark:text-[#041C16] hover:opacity-92 transition-opacity whitespace-nowrap"
-            >
-              {isEs ? 'Comenzar por la Fase 01' : 'Começar pela Fase 01'}
-              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
           </div>
         </div>
 
-        {/* Interactive Split: Clickable Phase Index (5 cols) + Dynamic Phase Canvas (7 cols) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          <div
-            role="tablist"
-            aria-label={isEs ? 'Fases del proceso migratorio' : 'Fases do processo migratório'}
-            className="lg:col-span-5 flex flex-col divide-y divide-[#E2E8F0] dark:divide-[#1E293B] border border-[#E2E8F0] dark:border-[#1E293B] rounded-2xl overflow-hidden bg-[#F8FAFC] dark:bg-[#0D1524]"
-          >
-            {phases.map((phase, idx) => {
-              const active = idx === activeIndex;
-              return (
-                <button
-                  key={phase.code}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setActiveIndex(idx)}
-                  className={`flex-1 text-left p-5 transition-colors flex items-start gap-4 ${
-                    active
-                      ? 'bg-[#090F1A] text-white dark:bg-[#131F33]'
-                      : 'hover:bg-white dark:hover:bg-[#101B2E] text-[#090F1A] dark:text-slate-200'
+        {/* Clean 4-Column Horizontal Phase Tabs (Zero Clutter) */}
+        <div
+          role="tablist"
+          aria-label={isEs ? 'Fases del proceso migratorio' : 'Fases do processo migratório'}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-b border-[#E5E7EB] dark:border-[#1E293B]"
+        >
+          {phases.map((phase, idx) => {
+            const active = idx === activeIndex;
+            return (
+              <button
+                key={phase.code}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveIndex(idx)}
+                className={`text-left py-5 px-4 border-b-2 transition-colors flex flex-col gap-1 ${
+                  active
+                    ? 'border-[#0F3D91] dark:border-[#60A5FA] bg-[#F7F8FA] dark:bg-[#151F32]'
+                    : 'border-transparent hover:bg-[#F7F8FA]/60 dark:hover:bg-[#151F32]/50'
+                }`}
+              >
+                <span
+                  className={`font-mono text-xs font-semibold tabular-nums ${
+                    active ? 'text-[#0F3D91] dark:text-[#60A5FA]' : 'text-[#6B7280] dark:text-slate-500'
                   }`}
                 >
-                  <span
-                    className={`font-mono text-lg font-bold tabular-nums shrink-0 leading-none pt-0.5 ${
-                      active ? 'text-[#34D399]' : 'text-[#94A3B8] dark:text-slate-500'
-                    }`}
-                  >
-                    {phase.code}
-                  </span>
-                  <div className="min-w-0 space-y-1">
-                    <p
-                      className={`font-display text-base font-bold leading-snug ${
-                        active ? 'text-white' : 'text-[#090F1A] dark:text-white'
-                      }`}
-                    >
-                      {phase.title}
-                    </p>
-                    <p
-                      className={`text-xs leading-relaxed ${
-                        active ? 'text-slate-300' : 'text-[#475569] dark:text-slate-400'
-                      }`}
-                    >
-                      {phase.subtitle}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="lg:col-span-7 rounded-2xl border border-[#E2E8F0] dark:border-[#1E293B] bg-[#090F1A] text-white p-6 sm:p-8 flex flex-col justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="font-mono text-[#34D399] tabular-nums">
-                  {isEs ? `Fase ${currentPhase.code} de 04` : `Fase ${currentPhase.code} de 04`} · {currentPhase.timeframe}
+                  {phase.code} · {phase.timeframe}
                 </span>
-                <span className="font-mono text-slate-400 tabular-nums">{progressPct}%</span>
-              </div>
-              <div className="h-1 rounded-full bg-white/10 overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full bg-[#10B981]"
-                  initial={false}
-                  animate={{ width: `${progressPct}%` }}
-                  transition={{ duration: 0.28, ease: EASE_ARCHITECTURAL }}
-                />
-              </div>
-            </div>
+                <span
+                  className={`font-display text-base font-bold leading-snug ${
+                    active ? 'text-[#0B1628] dark:text-white' : 'text-[#4B5563] dark:text-slate-300'
+                  }`}
+                >
+                  {phase.title}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
+        {/* Serene Editorial Stage: Active Phase Detail (7 cols) + Architectural Boardroom Photography (5 cols) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-stretch">
+          <div className="lg:col-span-7 flex flex-col justify-between gap-8">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={currentPhase.code}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.2, ease: EASE_ARCHITECTURAL }}
-                className="space-y-6 flex-1 flex flex-col justify-between"
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: EASE_EXECUTIVE }}
+                className="space-y-6"
               >
-                <div className="space-y-3">
-                  <h3 className="font-display text-2xl sm:text-3xl font-bold text-white leading-tight">
+                <div className="space-y-2.5">
+                  <h3 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1628] dark:text-white leading-tight">
                     {currentPhase.code}. {currentPhase.title}
                   </h3>
-                  <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
+                  <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-2xl">
                     {currentPhase.subtitle}
                   </p>
                 </div>
 
-                <div className="space-y-2.5">
-                  <p className="text-xs font-semibold text-[#D4A853]">
-                    {isEs ? 'Entregables de esta fase' : 'O que você recebe nesta fase'}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-[#6B7280] dark:text-slate-400">
+                    {isEs ? 'Entregables de esta fase' : 'Entregáveis desta etapa'}
                   </p>
-                  <ul className="space-y-2.5">
+                  <ul className="space-y-3">
                     {currentPhase.deliverables.map((item) => (
-                      <li key={item} className="flex items-start gap-3 text-sm text-slate-100 leading-relaxed">
-                        <Check className="w-4 h-4 text-[#34D399] shrink-0 mt-1" aria-hidden="true" />
+                      <li
+                        key={item}
+                        className="flex items-start gap-3 text-sm text-[#0B1628] dark:text-slate-200 leading-relaxed"
+                      >
+                        <Check
+                          className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA] shrink-0 mt-1"
+                          aria-hidden="true"
+                        />
                         <span>{item}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-5 border-t border-white/12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-[#E5E7EB] dark:border-[#1E293B]">
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold text-[#D4A853] flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                      {isEs ? 'Protección de plazo' : 'Proteção de prazo'}
+                    <p className="text-xs font-semibold text-[#0B1628] dark:text-white">
+                      {isEs ? 'Protección de plazo' : 'Controle de prazo legal'}
                     </p>
-                    <p className="text-xs text-slate-300 leading-relaxed">{currentPhase.deadlineGuard}</p>
+                    <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                      {currentPhase.deadlineGuard}
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold text-[#34D399] flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                      {isEs ? 'En tu Portal del Cliente' : 'No seu Portal do Cliente'}
+                    <p className="text-xs font-semibold text-[#0B1628] dark:text-white">
+                      {isEs ? 'En tu Portal del Cliente' : 'No Portal do Cliente'}
                     </p>
-                    <p className="text-xs text-slate-300 leading-relaxed">{currentPhase.portalView}</p>
+                    <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                      {currentPhase.portalView}
+                    </p>
                   </div>
                 </div>
               </motion.div>
             </AnimatePresence>
+
+            <div className="flex flex-wrap items-center gap-5 pt-2">
+              <button
+                type="button"
+                onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
+                onClick={() => onNavigateAction('/diagnostico')}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:bg-[#16233B] dark:hover:bg-slate-200 transition-colors whitespace-nowrap"
+              >
+                {isEs ? 'Iniciar por el Diagnóstico' : 'Começar pelo Diagnóstico'}
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onMouseEnter={() => prefetchRouteChunk('/acompanhar')}
+                onClick={() => onNavigateAction('/acompanhar')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap"
+              >
+                {isEs ? 'Conocer el Portal del Cliente' : 'Acessar Portal do Cliente'}
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5">
+            <div className="h-72 lg:h-full min-h-[320px] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32]">
+              <OptimizedImage
+                src={BOARDROOM_PHOTO}
+                alt={isEs ? 'Sala ejecutiva de asesoría migratoria en Santiago' : 'Sala executiva de assessoria migratória em Santiago'}
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                containerClassName="w-full h-full"
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </div>
