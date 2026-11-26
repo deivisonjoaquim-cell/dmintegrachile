@@ -45,7 +45,7 @@ import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
 import { ClientActionCenterCard } from '../components/portal/ClientActionCenterCard';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
-import { ImmigrationStatusTimeline } from '../components/portal/ImmigrationStatusTimeline';
+import { ProcessTimeline } from '../components/portal/ProcessTimeline';
 import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
@@ -1557,8 +1557,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </div>
                   )}
 
-                  {/* Linha do tempo visual conectada ao Firestore em tempo real */}
-                  <ImmigrationStatusTimeline
+                  {/* Linha do Tempo de Processo conectada ao Firestore em tempo real */}
+                  <ProcessTimeline
                     clientId={client?.id}
                     activeCase={activeCase}
                     modality={paidModality}

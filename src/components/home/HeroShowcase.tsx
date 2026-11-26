@@ -49,10 +49,10 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
         { value: 'Ley 21.325', label: 'Base jurídica chilena', note: 'Protocolo oficial SERMIG' },
       ]
     : [
-        { value: '16', label: 'Subcategorias migratórias', note: 'Decreto Supremo Nº 177/2022' },
-        { value: '15 Etapas', label: 'Acompanhamento transparente', note: 'Portal do Cliente online' },
-        { value: '7 Pilares', label: 'Avaliação técnica prévia', note: 'Diagnóstico de viabilidade' },
-        { value: 'Ley 21.325', label: 'Base jurídica chilena', note: 'Protocolo oficial SERMIG' },
+        { value: 'Visto Certo', label: '16 rotas oficiais analisadas', note: 'Mercosul, Trabalho, Família e Renda' },
+        { value: '15 Etapas', label: 'Acompanhamento transparente', note: 'Do Brasil à Cédula (RUT) no Portal' },
+        { value: 'Sem Fiador', label: 'Apoio no arriendo em UF', note: 'Rede imobiliária validada no Chile' },
+        { value: 'Zero Golpes', label: 'Segurança jurídica real', note: 'Base na Ley 21.325 e SERMIG' },
       ];
 
   return (

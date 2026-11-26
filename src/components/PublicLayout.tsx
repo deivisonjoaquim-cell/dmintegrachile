@@ -355,6 +355,11 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               <div className="space-y-1.5 text-sm">
                 <p className="text-slate-200 font-medium">{empresa.email}</p>
                 <p className="text-slate-400 tabular-nums">{empresa.whatsapp}</p>
+                <p className="text-xs text-slate-400 pt-1 leading-relaxed">
+                  {locale === 'es-CL'
+                    ? '¿Tienes dudas sobre tu visa, RUT o arriendo? Escríbenos sin compromiso.'
+                    : 'Tem dúvidas sobre visto, RUT ou arriendo no Chile? Chame nossa equipe sem compromisso.'}
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-5 text-xs">
                 <a
@@ -363,7 +368,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                   rel="noopener noreferrer"
                   className="text-slate-300 hover:text-white underline underline-offset-4 transition-colors"
                 >
-                  WhatsApp
+                  {locale === 'es-CL' ? 'Hablar por WhatsApp' : 'Tirar dúvidas no WhatsApp'}
                 </a>
                 {empresa.siteInstagram && (
                   <a

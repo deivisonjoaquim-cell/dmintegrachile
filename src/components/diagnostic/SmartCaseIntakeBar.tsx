@@ -51,10 +51,10 @@ export const SmartCaseIntakeBar: React.FC<SmartCaseIntakeBarProps> = ({
         <div className="space-y-0.5">
           <p className="text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA] flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-[#C9A86A] shrink-0" />
-            Assistente de Preenchimento Inteligente (opcional)
+            Conte sua história em uma frase (opcional)
           </p>
           <p className="text-xs text-[#475569] dark:text-slate-400 leading-relaxed">
-            Descreva sua situação em uma frase ou escolha um cenário abaixo para pré-configurar automaticamente as etapas 2 a 6 e ver o Radar reagir ao vivo.
+            Prefere ir direto ao ponto? Escreva como você imagina sua mudança ou escolha um perfil parecido com o seu para já montarmos seu plano ao vivo.
           </p>
         </div>
 

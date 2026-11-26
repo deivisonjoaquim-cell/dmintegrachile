@@ -74,7 +74,7 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Tradutor Juramentado',
     defaultPais: 'Brasil',
     defaultMoeda: 'BRL',
-    demandPt: 'Certidões civis, diplomas e antecedentes exigidos antes do protocolo de visto.',
+    demandPt: 'Traduções aceitas de primeira pelo SERMIG, evitando gastos em dobro ou documentos recusados.',
     demandEs: 'Certificados civiles, diplomas y antecedentes requeridos antes de solicitar visa.',
     stagePt: 'Pré-embarque · Brasil',
     stageEs: 'Pre-embarque · Brasil',
@@ -83,7 +83,7 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Cartório / Apostilamento',
     defaultPais: 'Brasil',
     defaultMoeda: 'BRL',
-    demandPt: 'Emissão de 2ª via atualizada e Apostila de Haia com envio ágil para famílias.',
+    demandPt: 'Certidões atualizadas e Apostila de Haia no prazo certo para nada vencer antes do protocolo.',
     demandEs: 'Emisión de actas actualizadas y Apostilla de La Haya con despacho ágil.',
     stagePt: 'Documentação · CNJ',
     stageEs: 'Documentación · Haya',
@@ -92,16 +92,16 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Imobiliária',
     defaultPais: 'Chile',
     defaultMoeda: 'CLP',
-    demandPt: 'Locação em Santiago e regiões para recém-chegados sem histórico de crédito local.',
+    demandPt: 'Corretores validados para contrato de arriendo em UF sem fiador local e sem risco de golpes.',
     demandEs: 'Arriendo en Santiago y regiones para recién llegados sin historial crediticio local.',
-    stagePt: 'Chegada · Moradia',
+    stagePt: 'Moradia · Sem Avalista',
     stageEs: 'Llegada · Vivienda',
   },
   {
     category: 'Contabilidade / Abertura Empresa',
     defaultPais: 'Chile',
     defaultMoeda: 'CLP',
-    demandPt: 'Constituição de SpA, RUT empresarial, início de atividades no SII e tributação.',
+    demandPt: 'Abertura de empresa (SpA), RUT empresarial e tributação clara no SII sem dor de cabeça fiscal.',
     demandEs: 'Constitución de SpA, RUT empresarial, inicio de actividades SII y tributación.',
     stagePt: 'Negócios · SII',
     stageEs: 'Negocios · SII',
@@ -110,7 +110,7 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Escritório de Advocacia',
     defaultPais: 'Ambos',
     defaultMoeda: 'USD',
-    demandPt: 'Estruturação societária, contratos internacionais, recursos e planejamento patrimonial.',
+    demandPt: 'Proteção jurídica em contratos internacionais, estrutura societária e planejamento patrimonial.',
     demandEs: 'Estructuración societaria, contratos internacionales y planificación patrimonial.',
     stagePt: 'Jurídico · Binacional',
     stageEs: 'Legal · Binacional',
@@ -119,7 +119,7 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Seguradora / Saúde',
     defaultPais: 'Ambos',
     defaultMoeda: 'CLP',
-    demandPt: 'Seguro viagem obrigatório, planos Isapre, seguros residenciais e proteção familiar.',
+    demandPt: 'Seguro viagem, planos Isapre e proteção residencial para você e sua família chegarem amparados.',
     demandEs: 'Seguro de viaje obligatorio, planes Isapre, seguros de hogar y protección familiar.',
     stagePt: 'Proteção · Saúde',
     stageEs: 'Protección · Salud',
@@ -128,7 +128,7 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Escola / Universidade',
     defaultPais: 'Chile',
     defaultMoeda: 'CLP',
-    demandPt: 'Matrícula bilíngue para filhos, cursos de espanhol e programas de pós-graduação.',
+    demandPt: 'Acolhimento escolar bilíngue para seus filhos, cursos de espanhol e instituições reconhecidas.',
     demandEs: 'Matrícula bilingüe para hijos, cursos de español y programas de posgrado.',
     stagePt: 'Educação · Família',
     stageEs: 'Educación · Familia',
@@ -137,9 +137,9 @@ const HIGH_DEMAND_AREAS: DemandAreaConfig[] = [
     category: 'Despachante',
     defaultPais: 'Ambos',
     defaultMoeda: 'CLP',
-    demandPt: 'Trâmites veiculares, validações presenciais, pet relocation e logística documental.',
+    demandPt: 'Apoio presencial seguro para pet relocation, trâmites locais e logística documental sem estresse.',
     demandEs: 'Trámites veiculares, gestiones presenciales, traslado de mascotas y logística.',
-    stagePt: 'Operacional · Relocation',
+    stagePt: 'Apoio Local · Chile',
     stageEs: 'Operativo · Relocation',
   },
 ];
@@ -473,17 +473,17 @@ export const ParceirosPage: React.FC = () => {
           <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 pt-16 pb-14 lg:pt-24 lg:pb-16 space-y-14">
             <div className="max-w-3xl space-y-5">
               <p className="text-xs font-semibold tracking-[0.06em] text-[#C9A86A]">
-                {isEs ? 'Red Homologada B2B · Brasil y Chile' : 'Rede Homologada B2B · Brasil & Chile'}
+                {isEs ? 'Red Homologada B2B · Brasil y Chile' : 'Curadoria & Proteção Contra Riscos · Brasil & Chile'}
               </p>
               <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight leading-[1.08] text-white text-balance">
                 {isEs
                   ? 'Especialistas verificados para cada etapa de tu llegada a Chile'
-                  : 'Especialistas homologados para cada etapa da sua mudança ao Chile'}
+                  : 'Rede de Parceiros Homologados para uma mudança sem riscos no Chile'}
               </h1>
               <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl">
                 {isEs
                   ? 'Explora nuestra red curada de traductores, corredoras, contadores y abogados en Brasil y Chile, o postula tu empresa sin cuota mensual.'
-                  : 'Explore nossa rede curada de tradutores, imobiliárias, contabilidades e escritórios no Brasil e no Chile — ou credencie sua empresa sem mensalidade.'}
+                  : 'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.'}
               </p>
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <button
@@ -506,7 +506,7 @@ export const ParceirosPage: React.FC = () => {
                   className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg border border-white/25 text-white hover:bg-white/10 text-sm font-medium transition-colors whitespace-nowrap"
                 >
                   <MapPin className="w-4 h-4 text-slate-300" />
-                  {isEs ? 'Ver mapa en Chile' : 'Explorar mapa no Chile'}
+                  {isEs ? 'Ver mapa en Chile' : 'Ver parceiros no mapa do Chile'}
                 </button>
               </div>
             </div>

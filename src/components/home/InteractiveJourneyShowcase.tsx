@@ -43,13 +43,13 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
           <div className="lg:col-span-7 space-y-3">
             <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
-              {eyebrow || (isEs ? 'Metodología de ejecución' : 'Metodologia de execução')}
+              {eyebrow || (isEs ? 'Metodología de ejecución' : 'Como Conduzimos Sua Mudança')}
             </p>
             <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.12] text-[#0B1628] dark:text-white text-balance">
               {title ||
                 (isEs
                   ? 'De Brasil a tu Cédula chilena, en cuatro fases estructuradas'
-                  : 'Do Brasil à sua Cédula chilena, em quatro fases estruturadas')}
+                  : 'Da decisão no Brasil às chaves da sua casa no Chile, em 4 fases claras')}
             </h2>
           </div>
           <div className="lg:col-span-5 lg:text-right space-y-4">
@@ -57,7 +57,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
               {subtitle ||
                 (isEs
                   ? 'Cada fase cuenta con entregables verificables, control legal de plazos (30, 60 y 90 días) y seguimiento en tu Portal del Cliente.'
-                  : 'Cada etapa possui entregáveis verificáveis, controle legal de prazos (30, 60 e 90 dias) e acompanhamento no Portal do Cliente.')}
+                  : 'Um roteiro previsível com entregas claras, proteção de prazos e acompanhamento direto pelo Portal do Cliente.')}
             </p>
           </div>
         </div>
@@ -125,7 +125,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
 
                 <div className="space-y-3">
                   <p className="text-xs font-semibold text-[#6B7280] dark:text-slate-400">
-                    {isEs ? 'Entregables de esta fase' : 'Entregáveis desta etapa'}
+                    {isEs ? 'Entregables de esta fase' : 'O que resolvemos para você nesta fase'}
                   </p>
                   <ul className="space-y-3">
                     {currentPhase.deliverables.map((item) => (
@@ -146,7 +146,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-[#E5E7EB] dark:border-[#1E293B]">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-[#0B1628] dark:text-white">
-                      {isEs ? 'Protección de plazo' : 'Controle de prazo legal'}
+                      {isEs ? 'Protección de plazo' : 'Como protegemos seus prazos'}
                     </p>
                     <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
                       {currentPhase.deadlineGuard}
@@ -154,7 +154,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-[#0B1628] dark:text-white">
-                      {isEs ? 'En tu Portal del Cliente' : 'No Portal do Cliente'}
+                      {isEs ? 'En tu Portal del Cliente' : 'O que você acompanha no Portal'}
                     </p>
                     <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
                       {currentPhase.portalView}
@@ -171,7 +171,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
                 onClick={() => onNavigateAction('/diagnostico')}
                 className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:bg-[#16233B] dark:hover:bg-slate-200 transition-colors whitespace-nowrap"
               >
-                {isEs ? 'Iniciar por el Diagnóstico' : 'Começar pelo Diagnóstico'}
+                {isEs ? 'Iniciar por el Diagnóstico' : 'Simular Meu Plano de Mudança'}
                 <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
               <button
@@ -180,7 +180,7 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
                 onClick={() => onNavigateAction('/acompanhar')}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap"
               >
-                {isEs ? 'Conocer el Portal del Cliente' : 'Acessar Portal do Cliente'}
+                {isEs ? 'Conocer el Portal del Cliente' : 'Conhecer o Portal do Cliente'}
                 <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>

@@ -83,7 +83,8 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     destinoCtaCabecalho: '/entrar-equipe',
     mostrarBotaoWhatsappFlutuante: true,
     mostrarBarraCtaMobile: true,
-    rodapeSubtitulo: 'Consultoria especializada em imigração e relocation Brasil–Chile.',
+    rodapeSubtitulo:
+      'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.',
     rodapeCopyright: 'Todos os direitos reservados.',
     linksNavegacao: [
       { path: '/', label: 'Início', visivel: true },
@@ -160,29 +161,30 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'hero',
     secao: 'hero',
-    titulo: 'Imigração e relocation para o Chile com segurança jurídica e previsibilidade',
+    titulo: 'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.',
     subtitulo:
-      'Da análise de elegibilidade pelo Acordo Mercosul e pela legislação chilena (Ley Nº 21.325) até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.',
+      'Do planejamento documental no Brasil (Vistos, PDI e RUT) à assinatura do seu contrato de arriendo sem fiador local: conduzimos cada etapa da sua mudança com rigor técnico e acolhimento.',
     conteudoHtml:
-      'Conduzimos cada fase com conferência documental criteriosa, controle rigoroso de prazos e acompanhamento transparente pelo Portal do Cliente.',
+      'Protegemos sua família contra golpes, exigências inesperadas no SERMIG e contratos abusivos — com acompanhamento transparente do Brasil até você receber as chaves no Chile.',
     imagemUrl: '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
     ordem: 1,
     ativo: true,
     metadados: {
-      ctaPrimario: 'Fazer Diagnóstico Gratuito',
-      ctaSecundario: 'Falar no WhatsApp',
+      ctaPrimario: 'Iniciar Diagnóstico Gratuito',
+      ctaSecundario: 'Falar com um Especialista',
       destaques: [
-        'Atendimento integral em português do Brasil',
-        'Base normativa alinhada à legislação chilena (Ley Nº 21.325) e ao SERMIG',
-        'Acompanhamento transparente em 15 etapas',
+        'Atendimento humano e direto em português',
+        'Proteção contra golpes e erros no SERMIG',
+        'Apoio do visto ao arriendo sem fiador local',
       ],
     },
   },
   {
     id: 'servicos',
     secao: 'servicos',
-    titulo: 'Soluções completas para imigração e estabelecimento no Chile',
-    subtitulo: 'Assessoria estruturada para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.',
+    titulo: 'Entregas claras de tranquilidade para cada etapa da sua mudança',
+    subtitulo:
+      'Cuidamos da burocracia migratória e da sua instalação no Chile para você chegar com tudo legalizado, moradia segura e zero sustos.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
     ordem: 2,
@@ -191,27 +193,27 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       itens: [
         {
           numero: '01',
-          titulo: 'Residência Temporal — Acordo Mercosul e Subcategorias',
+          titulo: 'Regularização Migratória Completa',
           descricao:
-            'Enquadramento técnico conforme a legislação chilena (Ley Nº 21.325, Art. 70, nº 13) e o Acordo Mercosul, abrangendo trabalho com oferta formal, rentistas, investidores, estudantes e reunificação familiar.',
+            'Cuidamos do seu visto, PDI e RUT para você viver e trabalhar legalmente desde o primeiro dia — escolhendo a rota certa entre Mercosul, trabalho, estudo, família ou renda.',
         },
         {
           numero: '02',
-          titulo: 'Prorrogação, Mudança de Subcategoria e Residência Definitiva',
+          titulo: 'Renovação Sem Susto e Residência Definitiva',
           descricao:
-            'Monitoramento preventivo da janela legal (de 90 a 10 dias antes do vencimento), ratificação de dados e transição segura para a Residência Definitiva.',
+            'Acompanhamos seus prazos antes do vencimento para você renovar ou conquistar a Residência Definitiva sem correr risco de multas, irregularidade ou perda de direitos.',
         },
         {
           numero: '03',
-          titulo: 'Preparação Documental, Apostila de Haia e Traduções',
+          titulo: 'Dossiê Blindado, Apostila e Traduções Sem Retrabalho',
           descricao:
-            'Cronograma reverso que preserva o prazo de 60 dias dos Antecedentes da Polícia Federal, coordenando cartórios, Apostila de Haia e tradutores juramentados.',
+            'Montamos a ordem exata das certidões para seus Antecedentes da PF não vencerem em 60 dias, evitando gastar duas vezes com cartórios ou travar o pedido por erro simples.',
         },
         {
           numero: '04',
-          titulo: 'Relocation e Integração Pós-Chegada',
+          titulo: 'Chegada Segura, RUT e Moradia Sem Fiador Local',
           descricao:
-            'Suporte completo no Estampado Electrónico, registro na PDI, Cédula de Identidade no Registro Civil, ClaveÚnica, RUT, abertura de conta bancária e busca de moradia.',
+            'Acompanhamos sua chegada na PDI, emissão da Cédula (RUT), ClaveÚnica, conta bancária e a negociação segura do seu contrato de arriendo em UF sem avalista chileno.',
         },
       ],
     },
@@ -219,9 +221,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'diferenciais',
     secao: 'diferenciais',
-    titulo: 'Por que conduzir sua mudança com a D&M Integra Chile',
+    titulo: 'Por que brasileiros confiam sua mudança à D&M Integra Chile',
     subtitulo:
-      'Rigor técnico e planejamento preventivo para evitar exigências do SERMIG, perda de validade de certidões e indeferimentos.',
+      'Você não precisa enfrentar a burocracia chilena sozinho nem arriscar seu patrimônio com informações desencontradas de grupos na internet.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
     ordem: 3,
@@ -229,19 +231,19 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     metadados: {
       itens: [
         {
-          titulo: 'Diagnóstico fundamentado na legislação vigente',
+          titulo: 'Estratégia certa antes de comprar passagem ou gastar em cartório',
           descricao:
-            'Avaliamos se o pedido deve ser protocolado a partir do exterior ou se há hipótese legal de solicitação no Chile, prevenindo exigências administrativas e notificações de saída.',
+            'Evitamos o erro mais caro de quem muda sem orientação: entrar como turista sem poder pedir o visto no Chile e acabar travado com exigências ou ordens de saída.',
         },
         {
-          titulo: 'Termômetro de Prontidão Documental',
+          titulo: 'Conferência rigorosa antes do protocolo no SERMIG',
           descricao:
-            'Cada certidão é verificada por critérios técnicos e pesos de obrigatoriedade, impedindo protocolos incompletos que comprometeriam o prazo de aprovação.',
+            'Validamos cada documento, prazo e tradução antes do envio oficial, blindando seu pedido contra atrasos de meses por falhas fáceis de evitar.',
         },
         {
-          titulo: 'Portal do Cliente e Rede Homologada',
+          titulo: 'Transparência total e parceiros testados no Brasil e no Chile',
           descricao:
-            'Envio seguro de documentos, cronograma personalizado de emissões, aprovação transparente de orçamentos e acesso direto a parceiros homologados no Brasil e no Chile.',
+            'Acompanhe cada etapa pelo Portal do Cliente e conte com corretores, cartórios e tradutores validados pela D&M para fugir de golpes e contratos abusivos.',
         },
       ],
     },
@@ -249,8 +251,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'como_funciona',
     secao: 'como_funciona',
-    titulo: 'Como funciona a jornada até sua residência no Chile',
-    subtitulo: 'Um processo estruturado em quatro etapas claras, do enquadramento inicial à emissão da Cédula.',
+    titulo: 'Da decisão no Brasil às chaves da sua casa no Chile, em 4 fases claras',
+    subtitulo:
+      'Um roteiro previsível para você saber exatamente o que fazer hoje, o que pagar e quando embarcar com tranquilidade.',
     conteudoHtml: '',
     imagemUrl: '',
     ordem: 4,
@@ -259,27 +262,27 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       passos: [
         {
           passo: '01',
-          titulo: 'Diagnóstico Orientativo',
+          titulo: 'Diagnóstico Personalizado',
           descricao:
-            'Você preenche o questionário em 6 etapas e recebe uma pré-análise estruturada com as subcategorias elegíveis e o pré-checklist documental.',
+            'Em 2 minutos você descobre qual visto faz mais sentido para o seu momento de vida, quais riscos evitar e o que preparar primeiro.',
         },
         {
           passo: '02',
-          titulo: 'Reunião e Enquadramento Técnico',
+          titulo: 'Plano de Ação com Especialista',
           descricao:
-            'Nossa equipe valida vínculos, prazos e particularidades do seu perfil, formaliza o plano de atuação e libera seu acesso ao Portal do Cliente.',
+            'Validamos cada detalhe do seu caso familiar ou profissional, definimos prazos realistas e liberamos seu acesso ao Portal do Cliente.',
         },
         {
           passo: '03',
-          titulo: 'Esteira Documental e Apostilamento',
+          titulo: 'Documentação Blindada no Brasil',
           descricao:
-            'Definimos a ordem exata de emissão das certidões, conferimos cada arquivo e coordenamos apostilamentos e traduções juramentadas.',
+            'Organizamos certidões, Apostila de Haia e traduções juramentadas na sequência certa para nada vencer ou travar no SERMIG.',
         },
         {
           passo: '04',
-          titulo: 'Protocolo SERMIG, Estampado e Cédula',
+          titulo: 'Visto Aprovado, PDI, RUT e Moradia',
           descricao:
-            'Acompanhamos toda a tramitação até o Estampado Electrónico, orientamos o ingresso no Chile dentro do prazo de 90 dias e apoiamos a emissão da Cédula.',
+            'Acompanhamos o protocolo até o Estampado Electrónico, orientamos sua chegada na PDI, emissão do RUT e assinatura segura do seu arriendo.',
         },
       ],
     },
@@ -287,10 +290,11 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'quem_somos',
     secao: 'quem_somos',
-    titulo: 'Especialistas dedicados à jornada Brasil–Chile',
-    subtitulo: 'Assessoria personalizada com foco em segurança operacional, clareza jurídica e atendimento próximo.',
+    titulo: 'Rigor técnico no processo, acolhimento real com a sua família',
+    subtitulo:
+      'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada caso como um projeto de vida único.',
     conteudoHtml:
-      'A D&M Integra Chile nasceu para eliminar a insegurança de brasileiros que desejam trabalhar, empreender, estudar ou viver no Chile. Atuamos com metodologia própria de análise normativa, controle de prazos do SERMIG e rede de parceiros verificados nos dois países.',
+      'A D&M Integra Chile nasceu para proteger brasileiros do medo de cair em golpes, travar na burocracia do SERMIG ou não conseguir alugar um imóvel no Chile. Unimos precisão jurídica na legislação chilena a um atendimento próximo, transparente e 100% em português.',
     imagemUrl: '/src/assets/images/quem_somos_founder_1794993847940.jpg',
     ordem: 5,
     ativo: true,
@@ -302,7 +306,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       experienciaTitulo: 'Especialização e Escopo de Atuação',
       experiencia:
         'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.',
-      missao: 'Transformar uma mudança internacional complexa em um processo organizado, ético e transparente.',
+      missao: 'Transformar uma mudança internacional complexa em uma travessia segura, ética e tranquila para você e sua família.',
       credenciais: 'Atuação alinhada à legislação chilena (Ley Nº 21.325 e Decreto Nº 177/2022), ao Acordo de Residência Mercosul e à legislação brasileira (LGPD – Lei Nº 13.709/2018).',
     },
   },
@@ -310,16 +314,17 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     id: 'parceiros',
     secao: 'parceiros',
     titulo: 'Rede de Parceiros Homologados Brasil–Chile',
-    subtitulo: 'Profissionais e empresas verificados pela consultoria para apoiar cada etapa da sua mudança.',
+    subtitulo:
+      'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.',
     conteudoHtml:
-      'Cartórios, tradutores juramentados, seguradoras, contabilidades e assessoria imobiliária avaliados por qualidade técnica e atendimento em português.',
+      'Corretores preparados para arriendo em UF sem avalista local, tradutores juramentados, cartórios e contadores selecionados a dedo para proteger seu patrimônio.',
     imagemUrl: '',
-    ctaTexto: 'Explorar rede de parceiros',
+    ctaTexto: 'Conhecer parceiros validados',
     ctaDestino: '/parceiros',
     ordem: 6,
     ativo: true,
     metadados: {
-      eyebrow: 'Ecossistema Verificado',
+      eyebrow: 'Curadoria & Proteção Contra Riscos',
       temaSecao: 'claro',
       maxItens: 3,
     },
@@ -327,8 +332,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'faq',
     secao: 'faq',
-    titulo: 'Perguntas frequentes sobre imigração para o Chile',
-    subtitulo: 'Esclareça os pontos que mais geram dúvidas antes de iniciar o seu processo.',
+    titulo: 'Dúvidas reais de quem está planejando viver no Chile',
+    subtitulo: 'Respostas diretas e sem juridiquês sobre vistos, trabalho, prazos e chegada ao Chile.',
     conteudoHtml: '',
     imagemUrl: '',
     ordem: 7,
@@ -336,24 +341,24 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     metadados: {
       perguntas: [
         {
-          pergunta: 'Brasileiros podem solicitar a Residência Mercosul estando como turistas no Chile?',
+          pergunta: 'Posso viajar como turista para o Chile e pedir o Visto Mercosul lá dentro?',
           resposta:
-            'Pela regra geral da legislação chilena (Ley Nº 21.325 e Decreto Supremo Nº 177/2022), a primeira Residência Temporal por Reciprocidade Internacional (Acordo Mercosul) deve ser solicitada a partir do exterior. Quem se encontra no Chile como turista, sem vínculo familiar formalizado ou hipótese humanitária prevista em lei chilena, precisa sair do território chileno para protocolar o pedido.',
+            'Não. Pela regra atual da legislação chilena, o primeiro pedido do Visto Mercosul precisa ser enviado enquanto você ainda está no Brasil (ou fora do Chile). Quem entra como turista sem vínculo familiar formalizado acaba tendo o pedido travado e precisa sair do país para protocolar — por isso planejar antes do embarque evita gastos e frustrações.',
         },
         {
-          pergunta: 'A Residência Mercosul exige contrato de trabalho prévio ou comprovação de renda?',
+          pergunta: 'Preciso já ter emprego garantido ou comprovar renda alta para tirar o Visto Mercosul?',
           resposta:
-            'Não. A subcategoria de Reciprocidade Internacional (Mercosul) autoriza o exercício de atividade laboral regular no Chile após a concessão e não exige oferta prévia de emprego nem comprovação de renda passiva como requisito de elegibilidade.',
+            'Não! Essa é a grande vantagem de ser brasileiro: o Acordo Mercosul não exige oferta prévia de emprego nem comprovação de renda mínima para aprovação, e ainda permite trabalhar formalmente ou empreender assim que o visto é concedido.',
         },
         {
-          pergunta: 'Qual é a validade dos Antecedentes Criminais da Polícia Federal?',
+          pergunta: 'Por que tanta gente perde prazo com os Antecedentes da Polícia Federal?',
           resposta:
-            'Para fins migratórios no Chile, o Certificado de Antecedentes Criminais da Polícia Federal — devidamente apostilado — deve ter sido emitido há no máximo 60 dias na data do protocolo no SERMIG. Por isso, estruturamos um cronograma reverso para cada emissão.',
+            'Porque o Chile só aceita os Antecedentes da Polícia Federal emitidos e apostilados há no máximo 60 dias na data do protocolo no SERMIG. Se você tira esse documento cedo demais, ele vence antes do envio — e por isso montamos um cronograma reverso para você não perder tempo nem dinheiro.',
         },
         {
-          pergunta: 'Em quanto tempo posso solicitar a Residência Definitiva?',
+          pergunta: 'Quando posso conquistar a Residência Definitiva no Chile?',
           resposta:
-            'Como regra geral para o Acordo Mercosul e a maioria das residências temporais, após 24 meses de residência regular no Chile — respeitados os limites de ausência do país e a janela legal de 90 a 10 dias antes do vencimento — o titular torna-se elegível à Residência Definitiva.',
+            'Na maioria das rotas — incluindo o Acordo Mercosul — você pode pedir a Residência Definitiva ao completar 24 meses vivendo regularmente no Chile, respeitando o limite de viagens para fora do país e protocolando entre 90 e 10 dias antes do vencimento.',
         },
       ],
     },
@@ -361,8 +366,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'depoimentos',
     secao: 'depoimentos',
-    titulo: 'Histórias reais de quem realizou a mudança com segurança',
-    subtitulo: 'Depoimentos publicados somente mediante autorização expressa dos clientes atendidos.',
+    titulo: 'Famílias e profissionais que fizeram essa travessia com tranquilidade',
+    subtitulo: 'Relatos reais publicados somente mediante autorização expressa de cada cliente.',
     conteudoHtml: '',
     imagemUrl: '',
     ordem: 8,
@@ -371,10 +376,11 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'contato',
     secao: 'contato',
-    titulo: 'Pronto para planejar sua mudança para o Chile com segurança?',
-    subtitulo: 'Comece pelo diagnóstico gratuito ou converse diretamente com nossa consultoria especializada.',
+    titulo: 'Vamos planejar a sua mudança para o Chile com segurança e zero improviso?',
+    subtitulo:
+      'Faça seu diagnóstico gratuito em 2 minutos ou chame nossa equipe no WhatsApp para tirar suas dúvidas sem compromisso.',
     conteudoHtml:
-      'Atendemos clientes em todo o Brasil e em Santiago, Valparaíso, Viña del Mar e demais regiões do Chile.',
+      'Atendemos brasileiros em todo o Brasil e em Santiago, Valparaíso, Viña del Mar e demais regiões do Chile.',
     imagemUrl: '',
     ordem: 9,
     ativo: true,
@@ -383,7 +389,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     id: 'rodape',
     secao: 'rodape',
     titulo: 'D&M Integra Chile – Relocation & Assessoria',
-    subtitulo: 'Consultoria especializada em processos migratórios Brasil–Chile.',
+    subtitulo:
+      'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.',
     conteudoHtml: DEFAULT_AVISO_LEGAL,
     imagemUrl: '',
     ordem: 10,

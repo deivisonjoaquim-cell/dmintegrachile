@@ -48,6 +48,17 @@ import {
   subscribeOfflineEngineChanges,
   type CatalogSyncSource,
 } from '../utils/offlineRuleEngineStore';
+import {
+  clearDiagnosticCacheStorage,
+  clearDiagnosticDraftStorage,
+  DIAGNOSTIC_CACHE_STORAGE_KEY,
+  readDiagnosticCache,
+  writeDiagnosticDraft,
+  writeDiagnosticResult,
+  type DiagnosticLocalCache,
+  type SaveDiagnosticDraftInput,
+  type SaveDiagnosticResultInput,
+} from '../utils/diagnosticCache';
 import type {
   Client,
   DiagnosticRuleVersion,
@@ -103,6 +114,13 @@ interface AppContextValue {
   refreshUserProfile: () => Promise<void>;
   refreshClientPortalAccess: () => Promise<PortalAccessResolution | null>;
   forceSyncOfflineData: () => Promise<OfflineSyncResultSummary>;
+  diagnosticCache: DiagnosticLocalCache;
+  hasDiagnosticDraft: boolean;
+  hasCachedDiagnosticResult: boolean;
+  saveDiagnosticDraft: (input: SaveDiagnosticDraftInput) => DiagnosticLocalCache;
+  saveDiagnosticResultCache: (input: SaveDiagnosticResultInput) => DiagnosticLocalCache;
+  clearDiagnosticDraft: () => void;
+  clearDiagnosticCache: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -178,6 +196,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [pendingOfflineCounts, setPendingOfflineCounts] = useState(() => countPendingOfflineItems());
   const [syncingOffline, setSyncingOffline] = useState(false);
   const [lastSyncFeedback, setLastSyncFeedback] = useState<string | null>(null);
+
+  // Cache local centralizado de rascunho e resultado do diagnóstico migratório
+  const [diagnosticCache, setDiagnosticCache] = useState<DiagnosticLocalCache>(() => readDiagnosticCache());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === DIAGNOSTIC_CACHE_STORAGE_KEY) {
+        setDiagnosticCache(readDiagnosticCache());
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const saveDiagnosticDraft = useCallback(
+    (input: SaveDiagnosticDraftInput): DiagnosticLocalCache => {
+      const ttlDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
+      const next = writeDiagnosticDraft(input, undefined, Date.now(), ttlDays);
+      setDiagnosticCache(next);
+      return next;
+    },
+    [empresa.diasExpiracaoLinkDiagnostico],
+  );
+
+  const saveDiagnosticResultCache = useCallback(
+    (input: SaveDiagnosticResultInput): DiagnosticLocalCache => {
+      const ttlDays = Math.max(1, empresa.diasExpiracaoLinkDiagnostico || 30);
+      const next = writeDiagnosticResult(input, undefined, Date.now(), ttlDays);
+      setDiagnosticCache(next);
+      return next;
+    },
+    [empresa.diasExpiracaoLinkDiagnostico],
+  );
+
+  const clearDiagnosticDraft = useCallback(() => {
+    const next = clearDiagnosticDraftStorage();
+    setDiagnosticCache(next);
+  }, []);
+
+  const clearDiagnosticCache = useCallback(() => {
+    const next = clearDiagnosticCacheStorage();
+    setDiagnosticCache(next);
+  }, []);
 
   // Aplica tema e layout dinâmicos lidos do Firestore (config/empresa) via CSS variables + Favicon
   // No modo escuro (.dark), remove overrides inline de cores claras para respeitar a paleta escura em index.css
@@ -832,6 +894,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshUserProfile,
         refreshClientPortalAccess,
         forceSyncOfflineData,
+        diagnosticCache,
+        hasDiagnosticDraft: Boolean(diagnosticCache.draft),
+        hasCachedDiagnosticResult: Boolean(diagnosticCache.lastResult),
+        saveDiagnosticDraft,
+        saveDiagnosticResultCache,
+        clearDiagnosticDraft,
+        clearDiagnosticCache,
       }}
     >
       {children}

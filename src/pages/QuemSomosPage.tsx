@@ -4,6 +4,7 @@ import { LegalBaseModal } from '../components/LegalBaseModal';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { useSeoMetadata } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { sanitizeHtml } from '../utils/formatters';
 
 interface QuemSomosPageProps {
@@ -12,6 +13,7 @@ interface QuemSomosPageProps {
 
 export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
   const { siteContent, empresa, legalSources } = useApp();
+  const { translateText } = useLanguage();
   const [lawModalOpen, setLawModalOpen] = useState(false);
 
   const quemSomos = siteContent.find((s) => s.secao === 'quem_somos');
@@ -52,20 +54,20 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           <div className="lg:col-span-7 space-y-6">
             <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
-              Institucional · {empresa.nome_empresa}
+              Quem Cuida da Sua Mudança · {empresa.nome_empresa}
             </p>
             <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight text-[#0B1628] dark:text-white leading-[1.08] text-balance">
-              {quemSomos?.titulo || 'Quem Somos'}
+              {translateText(quemSomos?.titulo) || 'Rigor técnico no processo, acolhimento real com a sua família'}
             </h1>
             {quemSomos?.subtitulo && (
               <p className="text-base sm:text-lg text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-2xl">
-                {quemSomos.subtitulo}
+                {translateText(quemSomos.subtitulo)}
               </p>
             )}
             {quemSomos?.conteudoHtml && (
               <div
                 className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed max-w-2xl"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(quemSomos.conteudoHtml) }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(quemSomos.conteudoHtml)) }}
               />
             )}
 
@@ -84,7 +86,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                 className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-[#D1D5DB] dark:border-[#334155] text-sm font-medium text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors whitespace-nowrap"
               >
                 <BookOpen className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA]" />
-                Entenda a legislação
+                Entender as regras do Chile
               </button>
             </div>
           </div>
@@ -113,24 +115,24 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
       <section className="bg-[#070E1C] text-white py-14 lg:py-16">
         <div className="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 md:grid-cols-3 gap-10 divide-y md:divide-y-0 md:divide-x divide-white/12">
           <div className="space-y-2">
-            <p className="font-mono text-xs text-[#C9A86A]">01. Base Jurídica</p>
-            <h2 className="font-display text-lg font-bold text-white">Ley Nº 21.325 &amp; Decreto Nº 177</h2>
+            <p className="font-mono text-xs text-[#C9A86A]">01. Segurança Jurídica</p>
+            <h2 className="font-display text-lg font-bold text-white">Domínio Real das Regras do Chile</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Estratégias migratórias estruturadas sobre a legislação chilena atualizada e o Acordo Mercosul.
+              Conduzimos cada pedido alinhado à Ley Nº 21.325 e ao Acordo Mercosul para blindar você contra rejeições e atrasos no SERMIG.
             </p>
           </div>
           <div className="pt-8 md:pt-0 md:pl-10 space-y-2">
-            <p className="font-mono text-xs text-[#C9A86A]">02. Atuação Brasil – Chile</p>
-            <h2 className="font-display text-lg font-bold text-white">Planejamento Antes do Embarque</h2>
+            <p className="font-mono text-xs text-[#C9A86A]">02. Do Brasil ao Arriendo</p>
+            <h2 className="font-display text-lg font-bold text-white">Zero Improviso Antes de Embarcar</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Sincronização de certidões, Apostila de Haia e protocolo digital SERMIG para eliminar retrabalho.
+              Sincronizamos certidões, Apostila de Haia, PDI, RUT e o apoio para moradia sem fiador local para você chegar tranquilo.
             </p>
           </div>
           <div className="pt-8 md:pt-0 md:pl-10 space-y-2">
-            <p className="font-mono text-xs text-[#C9A86A]">03. Privacidade &amp; Ética</p>
-            <h2 className="font-display text-lg font-bold text-white">Conformidade Integral LGPD</h2>
+            <p className="font-mono text-xs text-[#C9A86A]">03. Acolhimento &amp; Sigilo</p>
+            <h2 className="font-display text-lg font-bold text-white">Atendimento Humano em Português</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Gestão documental em ambiente restrito com rastreabilidade, transparência de prazos e atendimento em português.
+              Você fala direto com quem acompanha o seu caso, com total transparência de prazos e proteção absoluta dos seus documentos (LGPD).
             </p>
           </div>
         </div>
@@ -144,13 +146,13 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
         <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-10">
           <div className="max-w-2xl space-y-2.5">
             <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
-              Bastidores da Assessoria · Atuação Técnica
+              Na Prática · Como Trabalhamos Pelo Seu Projeto
             </p>
             <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
-              Dedicação direta em cada etapa do seu processo migratório
+              Cuidado real em cada documento, prazo e decisão da sua mudança
             </h2>
             <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
-              Da conferência manual de cada certidão apostilada às reuniões de alinhamento e acompanhamento digital no portal do SERMIG.
+              Da conferência detalhada de cada certidão apostilada às conversas de alinhamento e acompanhamento contínuo no portal do SERMIG.
             </p>
           </div>
 

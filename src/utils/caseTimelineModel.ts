@@ -10,6 +10,69 @@ import { formatDateBR } from './formatters';
 import { mapPipelineStepToOrientativaStep, ORIENTATIVA_STAGES } from './portalAccess';
 
 export type MilestoneVisualStatus = 'completed' | 'current' | 'attention' | 'upcoming';
+export type ProcessStepStatus = 'aprovado' | 'em_analise' | 'pendente';
+
+export interface ProcessTimelineSummary {
+  total: number;
+  aprovadas: number;
+  emAnalise: number;
+  pendentes: number;
+  attentionCount: number;
+}
+
+export function resolveProcessStepStatus(status: MilestoneVisualStatus): ProcessStepStatus {
+  if (status === 'completed') return 'aprovado';
+  if (status === 'current') return 'em_analise';
+  return 'pendente';
+}
+
+export function getProcessStepStatusLabel(status: MilestoneVisualStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'Aprovado';
+    case 'current':
+      return 'Em análise';
+    case 'attention':
+      return 'Pendente · Atenção';
+    default:
+      return 'Pendente · Próximo passo';
+  }
+}
+
+export function summarizeProcessTimeline(milestones: TimelineMilestoneItem[]): ProcessTimelineSummary {
+  let aprovadas = 0;
+  let emAnalise = 0;
+  let pendentes = 0;
+  let attentionCount = 0;
+
+  for (const item of milestones) {
+    const mapped = resolveProcessStepStatus(item.status);
+    if (mapped === 'aprovado') aprovadas += 1;
+    else if (mapped === 'em_analise') emAnalise += 1;
+    else pendentes += 1;
+    if (item.status === 'attention') attentionCount += 1;
+  }
+
+  return {
+    total: milestones.length,
+    aprovadas,
+    emAnalise,
+    pendentes,
+    attentionCount,
+  };
+}
+
+export function filterProcessMilestones(
+  milestones: TimelineMilestoneItem[],
+  statusFilter: 'all' | ProcessStepStatus,
+  phaseKey: string = 'all',
+): TimelineMilestoneItem[] {
+  return milestones.filter((item) => {
+    if (phaseKey !== 'all' && item.phaseKey !== phaseKey) return false;
+    if (statusFilter === 'all') return true;
+    return resolveProcessStepStatus(item.status) === statusFilter;
+  });
+}
 
 export interface TimelineMilestoneItem {
   id: string;

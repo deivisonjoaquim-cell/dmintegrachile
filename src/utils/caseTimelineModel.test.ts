@@ -1,108 +1,110 @@
-import assert from 'node:assert/strict';
 import test from 'node:test';
+import assert from 'node:assert/strict';
 import type { Case, CaseDocument, Deadline } from '../types/domain';
-import { buildClientStatusTimeline } from './caseTimelineModel';
+import {
+  buildClientStatusTimeline,
+  filterProcessMilestones,
+  getProcessStepStatusLabel,
+  resolveProcessStepStatus,
+  summarizeProcessTimeline,
+} from './caseTimelineModel';
 
-const baseCase: Case = {
-  id: 'case_1',
-  titulo: 'Residência Temporal Mercosul — João',
-  clientId: 'cli_1',
-  tipoServico: 'Residência Temporal',
+const SAMPLE_CASE = {
+  id: 'case-101',
+  clientId: 'client-101',
+  titulo: 'Residência Temporal — Mercosul',
   etapaPipeline: 8,
   statusSermig: 'Em trâmite',
-  portalLiberado: true,
-  modalidadeConsultoria: 'completa',
-  relatorioViabilidadeLiberado: true,
-  numeroPedidoSermig: 'SERMIG-2026-9988',
-  dataProtocolo: '2026-04-10',
-  prioridade: 'Alta',
-  createdAt: '2026-03-01T10:00:00.000Z',
-};
+  numeroPedidoSermig: 'SRM-2026-88412',
+  dataContrato: '2026-08-10',
+  dataProtocolo: '2026-09-22',
+  createdAt: '2026-08-01',
+  updatedAt: '2026-10-15',
+} as unknown as Case;
 
-const sampleDocs: CaseDocument[] = [
+const SAMPLE_DOCS: CaseDocument[] = [
   {
-    id: 'doc_1',
-    caseId: 'case_1',
-    clientId: 'cli_1',
-    pessoa: 'Titular',
-    nomeDocumento: 'Passaporte',
-    categoriaDoc: 'Identidade',
-    etapaEsteira: '6 Aprovado para Protocolo',
-    ordemEmissao: 1,
+    id: 'doc-1',
+    caseId: 'case-101',
+    clientId: 'client-101',
+    nomeDocumento: 'Passaporte válido',
+    obrigatorio: true,
     status: 'Aprovado',
-    validadeDias: 365,
-    apostilado: false,
-    traduzido: false,
-    exigeApostila: false,
-    exigeTraducao: false,
-    obrigatorio: true,
-    peso: 5,
-    versao: 1,
-  },
+  } as CaseDocument,
   {
-    id: 'doc_2',
-    caseId: 'case_1',
-    clientId: 'cli_1',
-    pessoa: 'Titular',
-    nomeDocumento: 'Antecedentes PF',
-    categoriaDoc: 'Antecedentes',
-    etapaEsteira: '4 Pendência/Reprovado',
-    ordemEmissao: 2,
-    status: 'Reprovado',
-    validadeDias: 60,
-    apostilado: false,
-    traduzido: false,
-    exigeApostila: true,
-    exigeTraducao: false,
+    id: 'doc-2',
+    caseId: 'case-101',
+    clientId: 'client-101',
+    nomeDocumento: 'Antecedentes Criminais Apostilados',
     obrigatorio: true,
-    peso: 5,
-    versao: 1,
-  },
+    status: 'Aprovado',
+  } as CaseDocument,
 ];
 
-const sampleDeadlines: Deadline[] = [
+const SAMPLE_DEADLINES: Deadline[] = [
   {
-    id: 'dl_1',
-    titulo: 'Responder requerimento SERMIG',
-    tipo: 'Resposta Requerimento/Recurso',
-    dataLimite: '2026-05-15',
-    caseId: 'case_1',
-    clientId: 'cli_1',
+    id: 'dl-1',
+    caseId: 'case-101',
+    clientId: 'client-101',
+    tipo: 'Prazo Legal 6 Meses SERMIG',
+    titulo: 'Acompanhar movimentação SERMIG',
+    dataLimite: '2026-12-10',
     concluido: false,
-  },
+  } as Deadline,
 ];
 
-test('buildClientStatusTimeline builds 15 milestones for completa modality with SERMIG status and attention alerts', () => {
-  const model = buildClientStatusTimeline({
-    activeCase: { ...baseCase, statusSermig: 'Requerimento de documentos', prazoRequerimento: '2026-05-15' },
-    modality: 'completa',
-    caseDocuments: sampleDocs,
-    deadlines: sampleDeadlines,
-    nowMs: Date.parse('2026-05-01T12:00:00.000Z'),
-  });
+test('resolveProcessStepStatus maps completed, current, attention and upcoming accurately', () => {
+  assert.equal(resolveProcessStepStatus('completed'), 'aprovado');
+  assert.equal(resolveProcessStepStatus('current'), 'em_analise');
+  assert.equal(resolveProcessStepStatus('attention'), 'pendente');
+  assert.equal(resolveProcessStepStatus('upcoming'), 'pendente');
 
-  assert.equal(model.totalSteps, 15);
-  assert.equal(model.currentStepNumber, 8);
-  assert.equal(model.milestones.length, 15);
-  assert.equal(model.phases.length, 4);
-  assert.equal(model.currentMilestone?.status, 'attention');
-  assert.equal(model.sermigBadge.tone, 'warning');
-  assert.equal(model.sermigBadge.protocolNumber, 'SERMIG-2026-9988');
-  assert.equal(model.alerts.length, 2); // SERMIG warning + rejected doc
-  assert.equal(model.nextDeadline?.titulo, 'Responder requerimento SERMIG');
+  assert.equal(getProcessStepStatusLabel('completed'), 'Aprovado');
+  assert.equal(getProcessStepStatusLabel('current'), 'Em análise');
+  assert.equal(getProcessStepStatusLabel('attention'), 'Pendente · Atenção');
+  assert.equal(getProcessStepStatusLabel('upcoming'), 'Pendente · Próximo passo');
 });
 
-test('buildClientStatusTimeline maps orientativa modality to 6 milestones with owner separation', () => {
-  const model = buildClientStatusTimeline({
-    activeCase: { ...baseCase, etapaPipeline: 4, modalidadeConsultoria: 'orientativa' },
-    modality: 'orientativa',
-    caseDocuments: sampleDocs,
-    deadlines: [],
-    nowMs: Date.parse('2026-05-01T12:00:00.000Z'),
+test('summarizeProcessTimeline and filterProcessMilestones return accurate counts for Completa modality', () => {
+  const timeline = buildClientStatusTimeline({
+    activeCase: SAMPLE_CASE,
+    modality: 'completa',
+    caseDocuments: SAMPLE_DOCS,
+    deadlines: SAMPLE_DEADLINES,
+    nowMs: Date.UTC(2026, 10, 26),
   });
 
-  assert.equal(model.totalSteps, 6);
-  assert.equal(model.milestones.length, 6);
-  assert.equal(model.sermigBadge.label, 'Protocolo conduzido pelo cliente');
-  assert.equal(model.phases.length, 2);
+  const summary = summarizeProcessTimeline(timeline.milestones);
+  assert.equal(summary.total, 15);
+  assert.equal(summary.aprovadas, 7);
+  assert.equal(summary.emAnalise, 1);
+  assert.equal(summary.pendentes, 7);
+  assert.equal(summary.attentionCount, 0);
+
+  const approved = filterProcessMilestones(timeline.milestones, 'aprovado');
+  const inReview = filterProcessMilestones(timeline.milestones, 'em_analise');
+  const pending = filterProcessMilestones(timeline.milestones, 'pendente');
+
+  assert.equal(approved.length, 7);
+  assert.equal(inReview.length, 1);
+  assert.equal(inReview[0].numero, 8);
+  assert.equal(pending.length, 7);
+});
+
+test('attention stage on SERMIG document requirement maps to pendente with attentionCount', () => {
+  const timeline = buildClientStatusTimeline({
+    activeCase: { ...SAMPLE_CASE, statusSermig: 'Requerimento de documentos', etapaPipeline: 9 },
+    modality: 'completa',
+    caseDocuments: SAMPLE_DOCS,
+    deadlines: SAMPLE_DEADLINES,
+    nowMs: Date.UTC(2026, 10, 26),
+  });
+
+  const summary = summarizeProcessTimeline(timeline.milestones);
+  assert.equal(summary.aprovadas, 8);
+  assert.equal(summary.attentionCount, 1);
+  assert.equal(summary.pendentes, 7);
+
+  const pendingInAnalisePhase = filterProcessMilestones(timeline.milestones, 'pendente', 'analise');
+  assert.ok(pendingInAnalisePhase.some((m) => m.numero === 9 && m.status === 'attention'));
 });

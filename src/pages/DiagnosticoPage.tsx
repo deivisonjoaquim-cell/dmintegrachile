@@ -8,8 +8,10 @@ import {
   Compass,
   Copy,
   HelpCircle,
+  History,
   Lock,
   Plus,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   Wrench,
@@ -73,46 +75,50 @@ import {
   type LiveRadarSnapshot,
 } from '../utils/smartDiagnosticInterpreter';
 
+import {
+  formatCacheTimestampPT,
+  hasMeaningfulDraftContent,
+} from '../utils/diagnosticCache';
+
 interface DiagnosticoPageProps {
   onNavigate: (path: string) => void;
 }
 
-const STORAGE_KEY = 'dm_integra_diagnostico_rascunho_v2';
 const SUBMIT_COOLDOWN_KEY = 'dm_integra_diag_last_submit_ms';
 
 const STEP_LABELS = [
-  { num: 1, title: 'Contato' },
-  { num: 2, title: 'Perfil & Passaporte' },
-  { num: 3, title: 'Vínculos no Chile' },
-  { num: 4, title: 'Objetivo SERMIG' },
+  { num: 1, title: 'Seus Dados' },
+  { num: 2, title: 'Momento Atual' },
+  { num: 3, title: 'Família no Chile' },
+  { num: 4, title: 'Objetivo de Vida' },
   { num: 5, title: 'Histórico' },
-  { num: 6, title: 'Documentos & LGPD' },
+  { num: 6, title: 'Documentos & Plano' },
 ] as const;
 
 const STEP_SERMIG_CONTEXT: Record<number, { foco: string; justificativa: string }> = {
   1: {
-    foco: 'Identificação & link de retomada',
-    justificativa: 'Permite salvar seu progresso por 30 dias e enviar o resumo técnico do seu diagnóstico.',
+    foco: 'Para quem estamos montando este plano',
+    justificativa: 'Usamos seus dados apenas para salvar seu progresso e entregar seu plano personalizado em PDF.',
   },
   2: {
-    foco: 'Elegibilidade territorial & nacionalidade',
-    justificativa: 'A Ley Nº 21.325 exige protocolo do exterior na regra geral; brasileiros têm acesso à rota Mercosul.',
+    foco: 'Onde você está hoje & passaporte',
+    justificativa: 'Essa resposta evita o erro mais caro de quem muda sem orientação: tentar pedir visto estando como turista quando a lei exige envio do Brasil.',
   },
   3: {
-    foco: 'Vínculos familiares & dependentes',
-    justificativa: 'Define exceções de pedido dentro do Chile (Reunificação) e o enquadramento de dependentes.',
+    foco: 'Seus laços familiares no Chile',
+    justificativa: 'Cônjuge, união civil ou filhos no Chile podem abrir rotas mais flexíveis e proteger toda a família desde o início.',
   },
   4: {
-    foco: 'Subcategoria de Residência Temporal',
-    justificativa: 'Cruza seu objetivo real com as 16 subcategorias oficiais do Decreto Supremo Nº 177/2022.',
+    foco: 'Seu projeto de vida no Chile',
+    justificativa: 'Avaliamos se seu objetivo é trabalhar, empreender, estudar, viver de renda ou reunir a família para indicar o visto mais vantajoso.',
   },
   5: {
-    foco: 'Triagem preventiva de impedimentos',
-    justificativa: 'Detecta antecipadamente alertas de overstay, ordem de abandono ou antecedentes que exigem estratégia.',
+    foco: 'Checagem sigilosa de imprevistos',
+    justificativa: 'Identificamos antecipadamente qualquer detalhe de viagens anteriores para você protocolar sem surpresas desagradáveis.',
   },
   6: {
-    foco: 'Prontidão documental & autorização LGPD',
-    justificativa: 'Calcula o que falta emitir/apostilar antes do protocolo e libera seu relatório técnico completo.',
+    foco: 'O que você já tem pronto & liberação do plano',
+    justificativa: 'Mapeamos exatamente o que emitir primeiro (sem deixar certidões vencerem) e geramos seu Plano de Mudança completo.',
   },
 };
 
@@ -155,15 +161,6 @@ const INITIAL_ANSWERS: DiagnosticAnswers = {
   lgpdAceito: false,
   lgpdVersao: '1.0',
 };
-
-interface SavedDraftMeta {
-  answers: DiagnosticAnswers;
-  step: number;
-  sessionToken?: string;
-  leadId?: string;
-  leadCreatedAt?: string;
-  sessionCreatedAt?: string;
-}
 
 const ContextualHelp: React.FC<{
   title: string;
@@ -255,8 +252,17 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     firebaseUser,
     userProfile,
     loginWithGoogle,
+    diagnosticCache,
+    saveDiagnosticDraft,
+    saveDiagnosticResultCache,
+    clearDiagnosticDraft,
+    clearDiagnosticCache,
   } = useApp();
 
+  const initialDraft = diagnosticCache.draft;
+  const restoredFromDraftOnMountRef = useRef<boolean>(
+    Boolean(initialDraft && hasMeaningfulDraftContent(initialDraft.answers, initialDraft.step)),
+  );
   const isAdmin = Boolean(userProfile && userProfile.status === 'ativo' && userProfile.role === 'admin');
   const [adminViewFull, setAdminViewFull] = useState(true);
 
@@ -266,9 +272,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     getDiagnosticSession: getDiagnosticSessionFirestore,
   } = useFirestore({ realtime: false });
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => initialDraft?.step || 1);
   const [stepDirection, setStepDirection] = useState<1 | -1>(1);
-  const [maxStepReached, setMaxStepReached] = useState(1);
+  const [maxStepReached, setMaxStepReached] = useState(() =>
+    Math.max(initialDraft?.step || 1, initialDraft?.maxStepReached || 1),
+  );
 
   const navigateToStep = useCallback((nextStep: number) => {
     setStep((current) => {
@@ -278,19 +286,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     });
   }, []);
   const [answers, setAnswers] = useState<DiagnosticAnswers>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<SavedDraftMeta>;
-        if (parsed.answers) {
-          return sanitizeDiagnosticAnswers(
-            { ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' },
-            parsed.answers,
-          );
-        }
-      }
-    } catch {
-      // ignore
+    if (initialDraft?.answers) {
+      return sanitizeDiagnosticAnswers(
+        { ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' },
+        initialDraft.answers,
+      );
     }
     return { ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' };
   });
@@ -328,47 +328,17 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
   }, []);
 
   const [sessionToken, setSessionToken] = useState<string>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<SavedDraftMeta>;
-        if (parsed.sessionToken && parsed.sessionToken.length >= 20) return parsed.sessionToken;
-      }
-    } catch {
-      // ignore
+    if (initialDraft?.sessionToken && initialDraft.sessionToken.length >= 20) {
+      return initialDraft.sessionToken;
     }
     return generateSecureSessionToken();
   });
 
-  const [savedLeadId, setSavedLeadId] = useState<string | null>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return (JSON.parse(raw) as Partial<SavedDraftMeta>).leadId || null;
-    } catch {
-      // ignore
-    }
-    return null;
-  });
+  const [savedLeadId, setSavedLeadId] = useState<string | null>(() => initialDraft?.leadId || null);
 
-  const [leadCreatedAt, setLeadCreatedAt] = useState<string | undefined>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return (JSON.parse(raw) as Partial<SavedDraftMeta>).leadCreatedAt;
-    } catch {
-      // ignore
-    }
-    return undefined;
-  });
+  const [leadCreatedAt, setLeadCreatedAt] = useState<string | undefined>(() => initialDraft?.leadCreatedAt);
 
-  const [sessionCreatedAt, setSessionCreatedAt] = useState<string | undefined>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return (JSON.parse(raw) as Partial<SavedDraftMeta>).sessionCreatedAt;
-    } catch {
-      // ignore
-    }
-    return undefined;
-  });
+  const [sessionCreatedAt, setSessionCreatedAt] = useState<string | undefined>(() => initialDraft?.sessionCreatedAt);
 
   // Refs síncronos + fila de persistência para evitar corrida entre cliques rápidos de etapa e envio final
   const sessionTokenRef = useRef<string>(sessionToken);
@@ -516,23 +486,30 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Salvar rascunho local sempre que answers/step mudarem
+  // Salvar rascunho local no cache do AppContext sempre que answers/step mudarem com conteúdo preenchido
   useEffect(() => {
     if (result) return;
-    try {
-      const payload: SavedDraftMeta = {
-        answers,
-        step,
-        sessionToken,
-        leadId: savedLeadId || undefined,
-        leadCreatedAt,
-        sessionCreatedAt,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // ignore
-    }
-  }, [answers, step, sessionToken, savedLeadId, leadCreatedAt, sessionCreatedAt, result]);
+    if (!hasMeaningfulDraftContent(answers, step)) return;
+    saveDiagnosticDraft({
+      answers,
+      step,
+      maxStepReached,
+      sessionToken,
+      leadId: savedLeadId || undefined,
+      leadCreatedAt,
+      sessionCreatedAt,
+    });
+  }, [
+    answers,
+    step,
+    maxStepReached,
+    sessionToken,
+    savedLeadId,
+    leadCreatedAt,
+    sessionCreatedAt,
+    result,
+    saveDiagnosticDraft,
+  ]);
 
   // Ref para detectar abandono sem reiniciar em cada tecla
   const abandonRef = useRef({ answers, step, sessionToken, savedLeadId, leadCreatedAt, result, empresa, utm });
@@ -725,16 +702,68 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
   const handleSaveAndCopyLink = async () => {
     setStepError(null);
-    if (!answers.nome.trim() || !answers.email.includes('@') || !isValidWhatsApp(answers.whatsapp)) {
-      setStepError('Preencha Nome, WhatsApp e E-mail válidos na Etapa 1 para gerar seu link de retomada.');
-      return;
-    }
     setSavingDraft(true);
     try {
-      await persistProgressSession(step, true);
+      // Salva sempre no cache local centralizado do AppContext (mesmo antes de preencher todo o contato)
+      const nextCache = saveDiagnosticDraft({
+        answers,
+        step,
+        maxStepReached,
+        sessionToken,
+        leadId: savedLeadId || undefined,
+        leadCreatedAt,
+        sessionCreatedAt,
+      });
+      const savedTime = formatCacheTimestampPT(nextCache.draft?.updatedAt);
+      const hasValidContact =
+        answers.nome.trim().length >= 2 &&
+        answers.email.includes('@') &&
+        isValidWhatsApp(answers.whatsapp);
+
+      if (hasValidContact) {
+        await persistProgressSession(step, true);
+        setResumeBanner(
+          `Rascunho salvo localmente${savedTime ? ` (${savedTime})` : ''} e sincronizado com link de retomada.`,
+        );
+      } else {
+        setResumeBanner(
+          `Rascunho salvo neste dispositivo${savedTime ? ` (${savedTime})` : ''}. Você pode fechar e retomar da Etapa ${step} quando quiser.`,
+        );
+      }
     } finally {
       setSavingDraft(false);
     }
+  };
+
+  const handleOpenCachedResult = () => {
+    const cached = diagnosticCache.lastResult;
+    if (!cached) return;
+    setAnswers(
+      sanitizeDiagnosticAnswers(
+        { ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' },
+        cached.answers,
+      ),
+    );
+    if (cached.savedLeadId) {
+      savedLeadIdRef.current = cached.savedLeadId;
+      setSavedLeadId(cached.savedLeadId);
+    }
+    if (cached.resumeUrl) {
+      setResumeUrlSaved(cached.resumeUrl);
+    }
+    setResult(cached.result);
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  };
+
+  const handleDiscardDraft = () => {
+    clearDiagnosticDraft();
+    restoredFromDraftOnMountRef.current = false;
+    setStep(1);
+    setMaxStepReached(1);
+    setResumeBanner(null);
+    setResumeUrlSaved(null);
+    setStepError(null);
+    setAnswers({ ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' });
   };
 
   const validateStep = (): boolean => {
@@ -933,9 +962,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
         const finalUrl = `${window.location.origin}/diagnostico?retomar=${token}`;
         setResumeUrlSaved(finalUrl);
+        saveDiagnosticResultCache({
+          answers: cleanAnswers,
+          result: diag,
+          savedLeadId: finalLeadId,
+          resumeUrl: finalUrl,
+          clearDraft: true,
+        });
       });
       setResult(diag);
-      localStorage.removeItem(STORAGE_KEY);
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     } finally {
       setSubmitting(false);
@@ -1137,7 +1172,8 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     setPrevRadarSnapshot(null);
     smartUndoSnapshotRef.current = null;
     setCanUndoSmart(false);
-    localStorage.removeItem(STORAGE_KEY);
+    restoredFromDraftOnMountRef.current = false;
+    clearDiagnosticDraft();
     setAnswers({ ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' });
   };
 
@@ -1279,13 +1315,13 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
               <div className="space-y-2.5 max-w-2xl">
                 <p className="text-xs font-semibold tracking-[0.06em] text-[#C9A86A]">
-                  Diagnóstico técnico em 6 etapas · Ley Nº 21.325 &amp; Acordo Mercosul · LGPD
+                  Avaliação Consultiva Gratuita · 6 Etapas Rápidas · Sigilo LGPD
                 </p>
                 <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-white leading-[1.1] text-balance">
-                  Diagnóstico Inteligente de Elegibilidade Migratória
+                  Descubra em 2 minutos qual o caminho mais seguro e econômico para a sua mudança ao Chile.
                 </h1>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Acompanhe seu índice de viabilidade em tempo real enquanto responde às 6 etapas. Ao final, consulte seu radar técnico e baixe o Dossiê em PDF.
+                  Pense nesta avaliação como uma primeira conversa com seu consultor particular: analisamos seu momento de vida, evitamos erros caros no SERMIG e entregamos seu Plano de Mudança em PDF.
                 </p>
               </div>
 
@@ -1384,24 +1420,99 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           </div>
         </div>
 
+        {/* Banner de Cache Local (Rascunho Retomado ou Último Resultado Salvo no AppContext) */}
+        {(restoredFromDraftOnMountRef.current || diagnosticCache.lastResult) && (
+          <div
+            data-testid="diag-cache-banner"
+            className="rounded-xl border border-[#CBD5E1] dark:border-[#1E293B] bg-white dark:bg-[#0D1422] p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+          >
+            <div className="flex items-start gap-3 min-w-0">
+              <span className="w-9 h-9 rounded-lg bg-[#F1F5F9] dark:bg-[#132038] text-[#0F3D91] dark:text-[#60A5FA] flex items-center justify-center shrink-0">
+                <History className="w-4 h-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 space-y-0.5">
+                {restoredFromDraftOnMountRef.current && diagnosticCache.draft ? (
+                  <>
+                    <p className="text-xs font-bold text-[#070E1C] dark:text-white">
+                      Rascunho retomado automaticamente — Etapa {diagnosticCache.draft.step} de 6 (
+                      {diagnosticCache.draft.completionPct}% preenchido)
+                    </p>
+                    <p className="text-xs text-[#475569] dark:text-slate-400">
+                      Salvo localmente em {formatCacheTimestampPT(diagnosticCache.draft.updatedAt)}. Continue de onde parou sem preencher tudo novamente.
+                    </p>
+                  </>
+                ) : diagnosticCache.lastResult ? (
+                  <>
+                    <p className="text-xs font-bold text-[#070E1C] dark:text-white">
+                      Último diagnóstico salvo em cache —{' '}
+                      {diagnosticCache.lastResult.result.recomendada?.visa.nomePortugues || 'Análise Migratória'} (
+                      {Math.round(diagnosticCache.lastResult.result.viabilidade.total)}/100)
+                    </p>
+                    <p className="text-xs text-[#475569] dark:text-slate-400">
+                      Concluído em {formatCacheTimestampPT(diagnosticCache.lastResult.savedAt)}. Reabra o relatório completo em 1 clique ou inicie uma nova simulação abaixo.
+                    </p>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {diagnosticCache.lastResult && (
+                <button
+                  type="button"
+                  data-testid="diag-open-cached-result-btn"
+                  onClick={handleOpenCachedResult}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#070E1C] dark:bg-[#3B82F6] text-white text-xs font-semibold hover:opacity-95 transition-opacity whitespace-nowrap"
+                >
+                  <History className="w-3.5 h-3.5" aria-hidden="true" />
+                  Abrir último resultado salvo
+                </button>
+              )}
+              {restoredFromDraftOnMountRef.current && (
+                <button
+                  type="button"
+                  data-testid="diag-discard-draft-btn"
+                  onClick={handleDiscardDraft}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#334155] bg-[#F7F8FA] dark:bg-[#0A101C] text-xs font-semibold text-[#334155] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                  Descartar rascunho
+                </button>
+              )}
+              {diagnosticCache.lastResult && !restoredFromDraftOnMountRef.current && (
+                <button
+                  type="button"
+                  onClick={() => clearDiagnosticCache()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#334155] text-xs font-medium text-[#475569] dark:text-slate-400 hover:text-[#070E1C] dark:hover:text-white transition-colors whitespace-nowrap"
+                >
+                  Limpar cache
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {resumeBanner && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium">
+          <div
+            data-testid="diag-resume-feedback"
+            className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-900 dark:text-emerald-200 font-medium"
+          >
             {resumeBanner}
           </div>
         )}
 
         {resumeUrlSaved && (
-          <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-300 text-xs text-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-[#0D1422] border border-slate-300 dark:border-[#1E293B] text-xs text-slate-800 dark:text-slate-200 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-semibold">
                 Link salvo para continuar depois (validade de {empresa.diasExpiracaoLinkDiagnostico || 30} dias):
               </p>
-              <p className="text-[11px] text-slate-600 break-all mt-0.5">{resumeUrlSaved}</p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 break-all mt-0.5">{resumeUrlSaved}</p>
             </div>
             <button
               type="button"
               onClick={() => navigator.clipboard?.writeText(resumeUrlSaved).catch(() => {})}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white dark:bg-[#111C30] border border-slate-300 dark:border-[#24324A] text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#192842]"
             >
               <Copy className="w-3.5 h-3.5" />
               Copiar link
@@ -1516,9 +1627,9 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {step === 1 && (
               <div className="space-y-5">
                 <div className="space-y-1">
-                  <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">1. Identificação e contato</h2>
+                  <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">1. Vamos começar: como podemos falar com você?</h2>
                   <p className="text-xs text-[#64748B] dark:text-slate-400">
-                    Privacidade (Legislação Brasileira — LGPD, Lei nº 13.709/2018): não solicitamos CPF nem número de passaporte nesta triagem inicial.
+                    Fique tranquilo (LGPD): não pedimos CPF nem número de passaporte agora. Seus dados servem apenas para gerar e salvar seu plano com segurança.
                   </p>
                 </div>
 
@@ -1634,16 +1745,16 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 2 */}
             {step === 2 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">2. Localização atual, perfil e passaporte</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">2. Onde você está hoje e como está seu passaporte?</h2>
 
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200" htmlFor="diag-loc">
-                      Onde você está neste momento?
+                      De onde você está planejando essa mudança agora?
                     </label>
                     <ContextualHelp
-                      title="Regra da legislação chilena"
-                      text="A legislação chilena (Ley Nº 21.325) restringe a mudança de turista (Permanencia Transitoria) para residência de dentro do Chile, salvo exceções como Reunificação Familiar formalizada ou razões humanitárias."
+                      title="Por que isso faz toda diferença?"
+                      text="Pela regra atual do Chile (Ley Nº 21.325), quem está como turista geralmente não pode pedir o primeiro visto lá dentro — salvo casos específicos como família formalizada. Saber disso agora evita gastos e sustos."
                       sourceLabel={legalSourceText('leg_ley_21325')}
                     />
                   </div>
@@ -1653,10 +1764,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     onChange={(e) => updateAnswers({ localizacao: e.target.value as DiagnosticLocation })}
                     className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm bg-white dark:bg-[#0B1220] text-[#0B1628] dark:text-white"
                   >
-                    <option value="No Brasil">No Brasil</option>
-                    <option value="No Chile como turista">No Chile como turista (Permanencia Transitoria)</option>
-                    <option value="No Chile com residência">No Chile com residência vigente</option>
-                    <option value="Em outro país">Em outro país</option>
+                    <option value="No Brasil">Estou no Brasil planejando minha mudança</option>
+                    <option value="No Chile como turista">Já estou no Chile como turista</option>
+                    <option value="No Chile com residência">Já moro no Chile com residência vigente</option>
+                    <option value="Em outro país">Estou vivendo em outro país</option>
                   </select>
                 </div>
 
@@ -1880,13 +1991,13 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 3 */}
             {step === 3 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">3. Vínculos familiares no Chile</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">3. Você já tem laços familiares no Chile?</h2>
                 <BooleanChoice
-                  label="Possui cônjuge, convivente civil, filho(a) chileno(a) ou pais residentes no Chile?"
+                  label="Você tem cônjuge, união civil registrada, filho(a) chileno(a) ou pais morando regularmente no Chile?"
                   value={answers.vinculoFamiliarChile}
                   onChange={(val) => updateAnswers({ vinculoFamiliarChile: val })}
-                  helpTitle="Regra da legislação chilena"
-                  helpText="Na legislação chilena (Decreto Supremo Nº 177/2022), a Subcategoria 01 (Reunificação Familiar) é uma das poucas exceções que permitem solicitar residência mesmo estando no Chile como turista, desde que o vínculo esteja formalmente registrado."
+                  helpTitle="Como sua família pode facilitar o visto"
+                  helpText="Ter vínculo familiar formalizado com cidadão chileno ou residente definitivo abre a rota de Reunificação Familiar — uma das poucas exceções que permitem dar entrada mesmo já estando no Chile."
                   sourceLabel={legalSourceText('leg_dec_177_2022')}
                 />
 
@@ -1956,15 +2067,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 4 */}
             {step === 4 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">4. Objetivo principal no Chile</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">4. Qual é o seu principal projeto de vida no Chile?</h2>
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200" htmlFor="diag-obj">
-                      Qual é o seu objetivo principal?
+                      O que melhor descreve o que você busca nessa nova fase?
                     </label>
                     <ContextualHelp
-                      title="Perguntas dinâmicas pela base SERMIG"
-                      text="Cada objetivo corresponde a uma subcategoria da legislação chilena (Decreto Supremo Nº 177/2022) ou ao Acordo Mercosul. Exibimos apenas as perguntas exigidas pelo SERMIG para o objetivo escolhido."
+                      title="Avaliação personalizada para o seu objetivo"
+                      text="Cruzamos seu momento de vida com as regras do SERMIG e do Acordo Mercosul para mostrar o caminho mais simples, barato e seguro — sem pedir documentos desnecessários."
                       sourceLabel={legalSourceText('leg_dec_177_2022')}
                     />
                   </div>
@@ -1974,18 +2085,18 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     onChange={(e) => updateAnswers({ objetivo: e.target.value as DiagnosticObjective })}
                     className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm bg-white dark:bg-[#0B1220] text-[#0B1628] dark:text-white"
                   >
-                    <option value="explorar">Explorar oportunidades / morar no Chile (Mercosul)</option>
-                    <option value="trabalho_formal">Trabalho com oferta formal de empresa no Chile</option>
-                    <option value="servicos_90d">Prestação de serviços acima de 90 dias</option>
-                    <option value="nomade_digital">Trabalho remoto / Nômade digital</option>
-                    <option value="empreender_investir">Empreender ou investir no Chile</option>
-                    <option value="estudar">Estudar em instituição reconhecida</option>
-                    <option value="aposentado_renda">Aposentado ou rentista (renda passiva)</option>
-                    <option value="tratamento_medico">Tratamento médico no Chile</option>
-                    <option value="religioso">Atividade religiosa</option>
-                    <option value="humanitario">Razões humanitárias</option>
-                    <option value="temporada">Trabalho de temporada</option>
-                    <option value="dependente_titular">Sou dependente de um titular de residência</option>
+                    <option value="explorar">Viver no Chile com liberdade para trabalhar ou empreender (Mercosul)</option>
+                    <option value="trabalho_formal">Mudar para trabalhar com proposta de empresa no Chile</option>
+                    <option value="servicos_90d">Prestar serviços ou projeto profissional no Chile (+90 dias)</option>
+                    <option value="nomade_digital">Trabalhar remotamente para o Brasil ou exterior (Nômade Digital)</option>
+                    <option value="empreender_investir">Abrir negócio próprio ou investir no Chile</option>
+                    <option value="estudar">Fazer faculdade, pós-graduação ou intercâmbio no Chile</option>
+                    <option value="aposentado_renda">Viver tranquilo de aposentadoria ou renda própria</option>
+                    <option value="tratamento_medico">Realizar tratamento de saúde no Chile</option>
+                    <option value="religioso">Atuar em missão ou atividade religiosa</option>
+                    <option value="humanitario">Preciso de acolhimento por razões humanitárias</option>
+                    <option value="temporada">Trabalhar em temporada específica no Chile</option>
+                    <option value="dependente_titular">Vou acompanhar um familiar que já tem visto ou residência</option>
                   </select>
                 </div>
 
@@ -2175,15 +2286,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 5 (Perguntas Sensíveis isoladas) */}
             {step === 5 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">5. Histórico migratório e dados sensíveis</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">5. Checagem rápida e sigilosa do seu histórico</h2>
                 <div className="p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] text-xs text-[#475569] dark:text-slate-300 flex items-start gap-2.5">
                   <Lock className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA] shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-[#0B1628] dark:text-white">
-                      Aviso de Confidencialidade e Sigilo — Legislação Brasileira (Art. 11 da LGPD, Lei nº 13.709/2018)
+                      Sigilo Absoluto Garantido (LGPD — Lei nº 13.709/2018)
                     </p>
                     <p className="mt-1 leading-relaxed">
-                      Estes dados sensíveis têm acesso restrito à consultoria para avaliar eventuais impedimentos previstos na legislação chilena. Caso prefira não detalhar agora, escolha &quot;Prefiro falar com o consultor&quot; — essa opção não gera penalização nem impede a emissão do seu diagnóstico.
+                      Perguntamos estes pontos apenas para proteger você de surpresas no SERMIG. Se preferir conversar diretamente com nosso especialista sobre algum deles, basta clicar em &quot;Prefiro falar com o consultor&quot; — seu diagnóstico sai normalmente.
                     </p>
                   </div>
                 </div>
@@ -2276,10 +2387,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 6 */}
             {step === 6 && (
               <div className="space-y-5">
-                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">6. Família acompanhante, documentos SERMIG e aceite LGPD</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">6. Quem vai com você e o que já está pronto?</h2>
 
                 <BooleanChoice
-                  label="Outras pessoas da família (cônjuge/filhos) viajarão ou solicitarão residência com você?"
+                  label="Você vai fazer essa mudança acompanhado da família (cônjuge ou filhos)?"
                   value={answers.familiaAcompanhante}
                   onChange={(val) =>
                     updateAnswers({
@@ -2503,13 +2614,14 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 )}
                 <motion.button
                   type="button"
+                  data-testid="diag-save-draft-btn"
                   whileTap={{ scale: 0.98 }}
                   disabled={savingDraft}
                   onClick={() => void handleSaveAndCopyLink()}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] disabled:opacity-50 transition-colors"
                 >
                   <BookmarkCheck className="w-4 h-4 text-[#C9A86A]" />
-                  {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
+                  {savingDraft ? 'Salvando...' : 'Salvar rascunho'}
                 </motion.button>
               </div>
 
@@ -2534,7 +2646,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   disabled={submitting}
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C9A86A] hover:bg-[#d6b67a] text-sm font-bold text-[#070E1C] shadow-[0_6px_18px_rgba(201,168,106,0.28)] disabled:opacity-50 transition-colors"
                 >
-                  {submitting ? 'Calculando Dossiê...' : 'Gerar Diagnóstico Completo & PDF'}
+                  {submitting ? 'Montando seu Plano de Mudança...' : 'Simular Meu Plano de Mudança & PDF'}
                   <ArrowRight className="w-4 h-4" />
                 </motion.button>
               )}

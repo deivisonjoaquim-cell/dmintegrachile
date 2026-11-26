@@ -235,11 +235,15 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
       const ctaSecundario =
         translateText(meta.ctaSecundario as string | undefined) || t.hero.defaultSecondaryCta;
 
+      const DEFAULT_HERO_TITLE =
+        'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.';
+      const rawHeroTitle = !sec.titulo ? DEFAULT_HERO_TITLE : sec.titulo;
+
       return (
         <HeroShowcase
           key={sec.id}
           eyebrow={eyebrow}
-          heroTitle={translateText(sec.titulo)}
+          heroTitle={translateText(rawHeroTitle)}
           heroSubtitle={translateText(sec.subtitulo)}
           heroHtml={translateText(sec.conteudoHtml)}
           ctaPrimario={ctaPrimario}
@@ -617,12 +621,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                   {locale === 'es-CL'
                     ? 'En la Oficina · Trabajo Técnico Directo'
-                    : 'No Escritório · Rotina Técnica da Assessoria'}
+                    : 'Na Prática · Como Cuidamos do Seu Processo'}
                 </p>
                 <span className="text-xs text-[#6B7280] dark:text-slate-400">
                   {locale === 'es-CL'
                     ? 'Análisis documental, reuniones online y gestión SERMIG'
-                    : 'Análise documental, atendimento consultivo e gestão SERMIG'}
+                    : 'Conferência documental, conversas próximas e controle total no SERMIG'}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -638,7 +642,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
                     {locale === 'es-CL'
                       ? '01. Seguimiento digital de trámites y plazos SERMIG'
-                      : '01. Acompanhamento digital de processos e prazos SERMIG'}
+                      : '01. Acompanhamento de perto de cada prazo e protocolo no SERMIG'}
                   </figcaption>
                 </figure>
                 <figure className="space-y-2.5">
@@ -653,7 +657,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
                     {locale === 'es-CL'
                       ? '02. Revisión técnica de certificados y apostillas'
-                      : '02. Revisão técnica de certidões, apostilas e dossiês'}
+                      : '02. Revisão minuciosa de certidões, apostilas e contratos antes do envio'}
                   </figcaption>
                 </figure>
                 <figure className="space-y-2.5">
@@ -668,7 +672,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
                     {locale === 'es-CL'
                       ? '03. Sesiones personalizadas de orientación Brasil–Chile'
-                      : '03. Reuniões personalizadas de orientação Brasil–Chile'}
+                      : '03. Conversas individuais para planejar sua mudança e a da sua família'}
                   </figcaption>
                 </figure>
               </div>

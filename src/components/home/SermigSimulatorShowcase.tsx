@@ -69,17 +69,17 @@ export const SermigSimulatorShowcase: React.FC<SermigSimulatorShowcaseProps> = (
             <p className="text-xs font-semibold tracking-[0.08em] text-[#C9A86A]">
               {isEsCL
                 ? 'Tecnología Exclusiva para Clientes · Portal SERMIG'
-                : 'Diferencial Exclusivo para Clientes · Tecnologia Proprietária'}
+                : 'Exclusivo para Clientes D&M · Zero Medo de Errar no Protocolo'}
             </p>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-[42px] font-bold tracking-tight text-white leading-[1.1] text-balance">
               {isEsCL
                 ? 'Simula todo tu trámite en el Portal SERMIG antes de presentar el envío oficial.'
-                : 'Simule todo o procedimento no Portal SERMIG antes de dar entrada oficial.'}
+                : 'Treine todo o seu pedido no Portal SERMIG antes de dar entrada oficial.'}
             </h2>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-xl">
               {isEsCL
                 ? 'Un error de formato, un certificado vencido o una selección incorrecta puede retrasar meses tu residencia. Nuestros clientes practican en un entorno fiel al Portal de Trámites Digitales de Chile, con validación técnica preventiva.'
-                : 'Um único arquivo acima de 5 MB, certidão fora do prazo ou subcategoria incorreta pode atrasar meses sua residência. Com o nosso Simulador SERMIG, você treina cada tela idêntica ao site oficial do Chile antes do protocolo real.'}
+                : 'Um PDF pesado demais, uma certidão vencida ou uma opção marcada errado pode atrasar sua mudança em meses. No nosso Simulador SERMIG, você ensaia cada tela idêntica ao site oficial do Chile com validação automática antes de enviar de verdade.'}
             </p>
           </div>
 
@@ -88,34 +88,34 @@ export const SermigSimulatorShowcase: React.FC<SermigSimulatorShowcaseProps> = (
             <div className="py-4 grid grid-cols-1 sm:grid-cols-12 gap-1.5 sm:gap-4">
               <p className="sm:col-span-5 text-xs font-semibold text-white">
                 <span className="font-mono text-[#C9A86A] mr-2">01.</span>
-                {isEsCL ? 'Réplica del Portal Oficial' : 'Experiência fiel ao site SERMIG'}
+                {isEsCL ? 'Réplica del Portal Oficial' : 'Idêntico ao portal oficial do Chile'}
               </p>
               <p className="sm:col-span-7 text-xs sm:text-[13px] text-slate-300 leading-relaxed">
                 {isEsCL
                   ? 'Del inicio de sesión (Cuenta SERMIG / ClaveÚnica) hasta la declaración jurada y el comprobante final.'
-                  : 'Do login (Cuenta SERMIG / ClaveÚnica) e preenchimento cadastral até a declaração juramentada e o recibo final.'}
+                  : 'Você pratica do login (Cuenta SERMIG / ClaveÚnica) até os anexos e o recibo final — sem sustos na hora H.'}
               </p>
             </div>
             <div className="py-4 grid grid-cols-1 sm:grid-cols-12 gap-1.5 sm:gap-4">
               <p className="sm:col-span-5 text-xs font-semibold text-white">
                 <span className="font-mono text-[#C9A86A] mr-2">02.</span>
-                {isEsCL ? 'Auditoría Preventiva en Vivo' : 'Validação automática de regras'}
+                {isEsCL ? 'Auditoría Preventiva en Vivo' : 'Proteção imediata contra erros caros'}
               </p>
               <p className="sm:col-span-7 text-xs sm:text-[13px] text-slate-300 leading-relaxed">
                 {isEsCL
                   ? 'Bloquea errores del Art. 69, controla el límite de 5 MB en PDF y verifica la ventana de 60 días de antecedentes.'
-                  : 'Alerta na hora sobre bloqueios do Art. 69 (turista no Chile), limite de 5 MB em PDF e validade de 60 dias da Polícia Federal.'}
+                  : 'Avisa na hora se você tentar protocolar como turista no Chile, se o PDF passar de 5 MB ou se os Antecedentes da PF estiverem vencendo.'}
               </p>
             </div>
             <div className="py-4 grid grid-cols-1 sm:grid-cols-12 gap-1.5 sm:gap-4">
               <p className="sm:col-span-5 text-xs font-semibold text-white">
                 <span className="font-mono text-[#C9A86A] mr-2">03.</span>
-                {isEsCL ? 'Liberado en tu Portal de Cliente' : 'Liberado no Portal do Cliente'}
+                {isEsCL ? 'Liberado en tu Portal de Cliente' : 'Acesso guiado no seu Portal'}
               </p>
               <p className="sm:col-span-7 text-xs sm:text-[13px] text-slate-300 leading-relaxed">
                 {isEsCL
                   ? 'Habilitado por nuestro equipo con tus datos pre-cargados para entrenar cuantas veces necesites con total seguridad.'
-                  : 'Liberado pela nossa consultoria com seus dados pré-carregados para você treinar sem risco antes de protocolar no órgão oficial.'}
+                  : 'Nosso consultor libera o simulador já com os seus dados para você testar quantas vezes quiser com tranquilidade.'}
               </p>
             </div>
           </div>
@@ -128,7 +128,7 @@ export const SermigSimulatorShowcase: React.FC<SermigSimulatorShowcaseProps> = (
               onClick={() => onNavigateAction('/diagnostico')}
               className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] text-sm font-semibold text-white transition-colors whitespace-nowrap"
             >
-              {isEsCL ? 'Iniciar Diagnóstico y Desbloquear' : 'Fazer Diagnóstico e Liberar Acesso'}
+              {isEsCL ? 'Iniciar Diagnóstico y Desbloquear' : 'Iniciar Diagnóstico Gratuito'}
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
@@ -138,19 +138,19 @@ export const SermigSimulatorShowcase: React.FC<SermigSimulatorShowcaseProps> = (
               className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg border border-white/20 hover:bg-white/10 text-sm font-semibold text-white transition-colors whitespace-nowrap"
             >
               <Lock className="w-3.5 h-3.5 text-[#C9A86A]" />
-              {isEsCL ? 'Ya soy cliente · Entrar al Portal' : 'Já sou cliente · Acessar Portal'}
+              {isEsCL ? 'Ya soy cliente · Entrar al Portal' : 'Já sou cliente · Entrar no Portal'}
             </button>
           </div>
 
           <p className="text-xs text-slate-400">
-            {isEsCL ? '¿Quieres ver cómo funciona en tu modalidad?' : 'Quer incluir o Simulador SERMIG na sua assessoria?'}{' '}
+            {isEsCL ? '¿Quieres ver cómo funciona en tu modalidad?' : 'Ficou com dúvida sobre como o simulador pode ajudar no seu visto?'}{' '}
             <a
               href={waSimuladorUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-[#60A5FA] hover:underline font-medium"
             >
-              {isEsCL ? 'Habla con un especialista por WhatsApp →' : 'Fale com um especialista no WhatsApp →'}
+              {isEsCL ? 'Habla con un especialista por WhatsApp →' : 'Converse sem compromisso com um especialista no WhatsApp →'}
             </a>
           </p>
         </div>
