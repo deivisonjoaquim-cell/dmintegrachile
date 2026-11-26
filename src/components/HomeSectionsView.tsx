@@ -566,90 +566,20 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     }
 
     if (key === 'quem_somos') {
-      const portraitSrc =
-        sec.imagemUrl?.trim() || '/src/assets/images/founder_executive_portrait_1795718964136.jpg';
-      const responsavelLabel =
-        (typeof meta.responsavel === 'string' && meta.responsavel.trim()) ||
-        empresa.responsavel_tecnico ||
-        'Diretoria Técnica D&M Integra Chile';
-
-      const officeGallery = [
-        {
-          src: '/src/assets/images/founder_advisory_boardroom_1795718965144.jpg',
-          alt: 'Planejamento estratégico de mudança e análise de dossiê no escritório',
-          num: '01.',
-          title:
-            locale === 'es-CL'
-              ? 'Planificación estratégica y dossier a medida'
-              : 'Planejamento estratégico e dossiê sob medida',
-          caption:
-            locale === 'es-CL'
-              ? 'Definimos tu visa y hoja de ruta antes de viajar.'
-              : 'Definimos sua rota legal e prazos antes mesmo de embarcar.',
-          span: 'lg:col-span-6',
-          pos: 'object-[50%_20%]',
-        },
-        {
-          src: '/src/assets/images/founder_office_client_call_1795706903356.jpg',
-          alt: 'Reunião de consultoria migratória online com clientes',
-          num: '02.',
-          title:
-            locale === 'es-CL'
-              ? 'Sesiones individuales Brasil–Chile'
-              : 'Conversas individuais em português',
-          caption:
-            locale === 'es-CL'
-              ? 'Acompañamiento directo para ti y tu familia.'
-              : 'Atendimento direto para alinhar trabalho, família e moradia.',
-          span: 'lg:col-span-6',
-          pos: 'object-[55%_20%]',
-        },
-        {
-          src: '/src/assets/images/founder_office_document_review_1795706904668.jpg',
-          alt: 'Auditoria documental e revisão de dossiês no escritório',
-          num: '03.',
-          title:
-            locale === 'es-CL'
-              ? 'Revisión técnica de certificados y apostillas'
-              : 'Auditoria de certidões, apostilas e contratos',
-          caption:
-            locale === 'es-CL'
-              ? 'Cada documento validado antes de ingresar al SERMIG.'
-              : 'Cada certidão e cláusula conferida antes do protocolo.',
-          span: 'lg:col-span-6',
-          pos: 'object-[55%_18%]',
-        },
-        {
-          src: '/src/assets/images/founder_office_desk_work_1795706900230.jpg',
-          alt: 'Gestão digital de processos SERMIG no escritório',
-          num: '04.',
-          title:
-            locale === 'es-CL'
-              ? 'Seguimiento continuo en SERMIG, PDI y RUT'
-              : 'Controle ativo de prazos no SERMIG, PDI e RUT',
-          caption:
-            locale === 'es-CL'
-              ? 'Monitoreo hasta tu Estampado Electrónico y residencia.'
-              : 'Acompanhamento de perto até seu visto aprovado e RUT em mãos.',
-          span: 'lg:col-span-6',
-          pos: 'object-[55%_18%]',
-        },
-      ];
-
       return (
         <React.Fragment key={sec.id}>
           <section
             className={`${sectionPad} bg-white dark:bg-[#0D1422] border-y border-[#E5E7EB] dark:border-[#1E293B] text-[#0B1628] dark:text-white cv-auto`}
           >
             <div className="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-              <div className="lg:col-span-7 space-y-6">
-                <p className="text-xs font-semibold tracking-[0.08em] uppercase text-[#0F3D91] dark:text-[#C9A86A]">
+              <div className="lg:col-span-7 space-y-5">
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
                   {translateText(meta.eyebrow as string | undefined) || t.sections.quemSomosEyebrow}
                 </p>
-                <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance leading-[1.12]">
+                <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
                   {translateText(sec.titulo)}
                 </h2>
-                <p className="text-base sm:text-lg text-[#374151] dark:text-slate-200 leading-relaxed font-medium">
+                <p className="text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
                   {translateText(sec.subtitulo)}
                 </p>
                 {sec.conteudoHtml && (
@@ -658,46 +588,12 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(translateText(sec.conteudoHtml)) }}
                   />
                 )}
-
-                <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B] grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
-                  <div>
-                    <p className="font-display text-sm font-bold text-[#0B1628] dark:text-white">
-                      {locale === 'es-CL' ? 'Formación Jurídica' : 'Formação Jurídica'}
-                    </p>
-                    <p className="text-xs text-[#6B7280] dark:text-slate-400 mt-0.5">
-                      {locale === 'es-CL'
-                        ? 'Derecho y conformidad normativa'
-                        : 'Bacharel e Especialista em Direito'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-display text-sm font-bold text-[#0B1628] dark:text-white">
-                      {locale === 'es-CL' ? 'Ley Nº 21.325' : 'Ley Nº 21.325'}
-                    </p>
-                    <p className="text-xs text-[#6B7280] dark:text-slate-400 mt-0.5">
-                      {locale === 'es-CL'
-                        ? 'SERMIG, Mercosur, PDI y RUT'
-                        : 'SERMIG, Mercosul, PDI e RUT'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-display text-sm font-bold text-[#0B1628] dark:text-white">
-                      {locale === 'es-CL' ? 'Trato Directo' : 'Atendimento Direto'}
-                    </p>
-                    <p className="text-xs text-[#6B7280] dark:text-slate-400 mt-0.5">
-                      {locale === 'es-CL'
-                        ? '100% en portugués y sigilo LGPD'
-                        : '100% em português e sigilo LGPD'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex flex-wrap items-center gap-4">
+                <div className="pt-2">
                   <button
                     type="button"
                     onMouseEnter={() => prefetchRouteChunk(sec.ctaDestino || '/quem-somos')}
                     onClick={() => navigateAction(sec.ctaDestino || '/quem-somos')}
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#0B1628] dark:bg-[#C9A86A] text-white dark:text-[#070E1C] text-sm font-semibold hover:bg-[#132542] dark:hover:bg-[#D8BA80] transition-colors"
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-[#D1D5DB] dark:border-[#334155] text-sm font-semibold text-[#0B1628] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors"
                   >
                     {translateText(sec.ctaTexto) || t.sections.quemSomosCta}
                     <ArrowRight className="w-4 h-4" />
@@ -706,93 +602,79 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               </div>
 
               <div className="lg:col-span-5">
-                <div className="relative max-w-[390px] mx-auto">
-                  <div
-                    aria-hidden="true"
-                    className="hidden sm:block absolute -inset-y-3 -right-3 left-6 rounded-2xl border border-[#B08D57]/35 dark:border-[#C9A86A]/30 pointer-events-none"
-                  />
-                  <figure className="relative rounded-2xl overflow-hidden border border-[#E2E8F0] dark:border-white/10 bg-[#0B1628] shadow-[0_22px_44px_-22px_rgba(11,22,40,0.3)] dark:shadow-[0_24px_52px_-20px_rgba(0,0,0,0.7)]">
-                    <div className="aspect-[3/4] w-full overflow-hidden">
-                      <OptimizedImage
-                        src={portraitSrc}
-                        alt={`${responsavelLabel} — ${translateText(sec.titulo)}`}
-                        sizes="(max-width: 1024px) 92vw, 390px"
-                        className={`w-full h-full ${imgFitClass} object-top`}
-                      />
-                    </div>
-                    <figcaption className="bg-[#070E1C] text-white px-5 py-4 border-t border-[#C9A86A]/35 space-y-1">
-                      <p className="font-display text-sm font-bold text-white leading-snug">
-                        {responsavelLabel}
-                      </p>
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="text-slate-300">
-                          {locale === 'es-CL'
-                            ? 'Asesoría Jurídica y Relocation'
-                            : 'Assessoria Jurídica & Relocation'}
-                        </span>
-                        <span className="font-mono text-[#C9A86A] whitespace-nowrap shrink-0">
-                          Brasil · Chile
-                        </span>
-                      </div>
-                    </figcaption>
-                  </figure>
+                <div className="aspect-[3/4] max-w-sm mx-auto rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32]">
+                  {sec.imagemUrl ? (
+                    <OptimizedImage
+                      src={sec.imagemUrl}
+                      alt={translateText(sec.titulo)}
+                      sizes="(max-width: 1024px) 92vw, 384px"
+                      className={`w-full h-full ${imgFitClass}`}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
 
-            {/* Galeria Editorial de Trabalho no Escritório */}
-            <div className="max-w-7xl mx-auto px-5 sm:px-8 mt-16 pt-14 border-t border-[#E5E7EB] dark:border-[#1E293B]">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold tracking-[0.08em] uppercase text-[#0F3D91] dark:text-[#C9A86A]">
-                    {locale === 'es-CL'
-                      ? 'En la Oficina · Trabajo Técnico Directo'
-                      : 'Na Prática · Como Cuidamos do Seu Processo'}
-                  </p>
-                  <h3 className="font-display text-xl sm:text-2xl font-bold text-[#0B1628] dark:text-white">
-                    {locale === 'es-CL'
-                      ? 'Rigor documental y acompañamiento cercano en cada etapa'
-                      : 'Da conferência documental às reuniões de alinhamento com você'}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onMouseEnter={() => prefetchRouteChunk('/quem-somos')}
-                  onClick={() => navigateAction('/quem-somos')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F3D91] dark:text-[#C9A86A] hover:underline underline-offset-4 whitespace-nowrap shrink-0"
-                >
-                  {locale === 'es-CL' ? 'Ver galería y credenciales completas' : 'Ver galeria e trajetória completa'}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+            {/* Galeria de Trabalho no Escritório */}
+            <div className="max-w-7xl mx-auto px-5 sm:px-8 mt-14 pt-12 border-t border-[#E5E7EB] dark:border-[#1E293B]">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-6">
+                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
+                  {locale === 'es-CL'
+                    ? 'En la Oficina · Trabajo Técnico Directo'
+                    : 'Na Prática · Como Cuidamos do Seu Processo'}
+                </p>
+                <span className="text-xs text-[#6B7280] dark:text-slate-400">
+                  {locale === 'es-CL'
+                    ? 'Análisis documental, reuniones online y gestión SERMIG'
+                    : 'Conferência documental, conversas próximas e controle total no SERMIG'}
+                </span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {officeGallery.map((item) => (
-                  <figure
-                    key={item.num}
-                    className="group bg-[#F8FAFC] dark:bg-[#0A111E] rounded-xl overflow-hidden border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#B08D57]/60 dark:hover:border-[#C9A86A]/55 transition-colors flex flex-col"
-                  >
-                    <div className="aspect-[4/3] overflow-hidden bg-[#0B1628]">
-                      <OptimizedImage
-                        src={item.src}
-                        alt={item.alt}
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                        className={`w-full h-full object-cover ${item.pos} transition-transform duration-500 ease-out group-hover:scale-[1.04]`}
-                      />
-                    </div>
-                    <figcaption className="p-4 space-y-1 flex-1">
-                      <p className="font-mono text-[11px] font-semibold text-[#B08D57] dark:text-[#C9A86A]">
-                        {item.num}
-                      </p>
-                      <p className="font-display text-sm font-bold text-[#0B1628] dark:text-white leading-snug">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-[#4B5563] dark:text-slate-400 leading-relaxed">
-                        {item.caption}
-                      </p>
-                    </figcaption>
-                  </figure>
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <figure className="space-y-2.5">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                    <OptimizedImage
+                      src="/src/assets/images/founder_office_desk_work_1795706900230.jpg"
+                      alt="Gestão digital de processos SERMIG no escritório"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
+                    {locale === 'es-CL'
+                      ? '01. Seguimiento digital de trámites y plazos SERMIG'
+                      : '01. Acompanhamento de perto de cada prazo e protocolo no SERMIG'}
+                  </figcaption>
+                </figure>
+                <figure className="space-y-2.5">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                    <OptimizedImage
+                      src="/src/assets/images/founder_office_document_review_1795706904668.jpg"
+                      alt="Auditoria documental e revisão de dossiês no escritório"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
+                    {locale === 'es-CL'
+                      ? '02. Revisión técnica de certificados y apostillas'
+                      : '02. Revisão minuciosa de certidões, apostilas e contratos antes do envio'}
+                  </figcaption>
+                </figure>
+                <figure className="space-y-2.5">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E]">
+                    <OptimizedImage
+                      src="/src/assets/images/founder_office_client_call_1795706903356.jpg"
+                      alt="Reunião de consultoria migratória online com clientes"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <figcaption className="text-xs font-medium text-[#4B5563] dark:text-slate-300">
+                    {locale === 'es-CL'
+                      ? '03. Sesiones personalizadas de orientación Brasil–Chile'
+                      : '03. Conversas individuais para planejar sua mudança e a da sua família'}
+                  </figcaption>
+                </figure>
               </div>
             </div>
           </section>

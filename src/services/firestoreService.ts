@@ -112,10 +112,7 @@ function isEffectiveAdmin(role?: UserRole): boolean {
 // Public Readers (Safe without login)
 // =============================================================================
 const LEGACY_IMAGE_REPLACEMENTS: Record<string, string> = {
-  '/src/assets/images/quem_somos_founder_1794944012517.jpg': '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
-  '/src/assets/images/quem_somos_founder_1794993847940.jpg': '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
-  '/assets/aistudio/D72F15E6-B3B0-4F64-9723-A9A714D830E6_e0167eca.JPG': '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
-  '/assets/aistudio/D72F15E6-B3B0-4F64-9723-A9A714D830E6_e0167eca.webp': '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
+  '/src/assets/images/quem_somos_founder_1794944012517.jpg': '/src/assets/images/quem_somos_founder_1794993847940.jpg',
   '/src/assets/images/hero_santiago_andes_1794944011226.jpg': '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
   '/src/assets/images/about_consultoria_office_1794944011861.jpg': '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
   '/src/assets/images/about_consultoria_office_1794997278170.jpg': '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
