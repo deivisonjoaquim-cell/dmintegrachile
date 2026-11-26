@@ -43,6 +43,7 @@ import { CalendlyModal } from '../components/CalendlyModal';
 import { DiagnosticRadarChart } from '../components/diagnostic/DiagnosticRadarChart';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
+import { ClientActionCenterCard } from '../components/portal/ClientActionCenterCard';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
 import { ImmigrationStatusTimeline } from '../components/portal/ImmigrationStatusTimeline';
 import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
@@ -116,6 +117,7 @@ import {
   type BasicDiagnosticSummary,
 } from '../utils/portalAccess';
 import { runDiagnosticEngine } from '../utils/diagnosticEngine';
+import { buildClientActionCenter } from '../utils/clientPortalIntelligence';
 import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
 
 interface PortalClientePageProps {
@@ -205,6 +207,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const [npsNota, setNpsNota] = useState(5);
   const [npsComent, setNpsComent] = useState('');
   const [showPortalRadar, setShowPortalRadar] = useState(false);
+  const [pushSettingsOpen, setPushSettingsOpen] = useState(false);
+  const [officialDocSearch, setOfficialDocSearch] = useState('');
+  const [officialDocStatusFilter, setOfficialDocStatusFilter] = useState<'todos' | 'pendentes' | 'assinados'>('todos');
 
   const portalRadarDimensions = useMemo(() => {
     const leadAnswers = clientLeads[0]?.respostasTriagem;
@@ -402,13 +407,13 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   if (portalStage === 'loading' || portalAccessLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[#F7F8FA] dark:bg-[#070B12]">
+        <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(7,14,28,0.08)]">
           <BrandRibbon className="h-[3px] w-full" />
           <div className="p-8 space-y-3">
-            <RefreshCw className="w-6 h-6 text-[#0B1F33] animate-spin mx-auto" />
-            <h1 className="text-lg font-bold text-[#0B1F33]">Sincronizando Portal do Cliente...</h1>
-            <p className="text-sm text-[#4A5A6D]">
+            <RefreshCw className="w-6 h-6 text-[#0F3D91] dark:text-[#60A5FA] animate-spin mx-auto" />
+            <h1 className="text-lg font-bold text-[#0B1628] dark:text-white">Sincronizando Portal do Cliente...</h1>
+            <p className="text-sm text-[#475569] dark:text-slate-300">
               Validando sua permissão no Firestore e preparando seus documentos.
             </p>
           </div>
@@ -419,19 +424,18 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   if (!userProfile || userProfile.role !== 'cliente' || portalStage === 'unauthenticated') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.06)]">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[#F7F8FA] dark:bg-[#070B12]">
+        <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(7,14,28,0.08)]">
           <BrandRibbon className="h-[3px] w-full" />
           <div className="p-8 space-y-4">
-            <h1 className="font-display text-2xl font-bold text-[#0B1F33]">Portal do Cliente</h1>
-            <p className="text-sm text-[#4A5A6D]">
+            <h1 className="font-display text-2xl font-bold text-[#0B1628] dark:text-white">Portal do Cliente</h1>
+            <p className="text-sm text-[#475569] dark:text-slate-300">
               Faça login com sua conta Google para acompanhar seu diagnóstico ou processo contratado.
             </p>
             <button
               type="button"
               onClick={() => onNavigate('/acompanhar')}
-              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white"
-              style={{ backgroundColor: 'var(--color-primary)' }}
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#0B1628] hover:bg-[#152847] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] transition-colors"
             >
               Entrar no Portal do Cliente
             </button>
@@ -443,13 +447,13 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   if (portalStage === 'inativo') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-bg)]">
-        <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(11,31,51,0.08)]">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[#F7F8FA] dark:bg-[#070B12]">
+        <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden max-w-md w-full text-center shadow-[0_12px_36px_rgba(7,14,28,0.08)]">
           <BrandRibbon className="h-[3px] w-full" />
           <div className="p-8 space-y-4">
             <p className="brand-kicker">Portal do Cliente · Conta Desativada</p>
-            <h1 className="font-display text-2xl font-bold text-[#0B1F33]">Acesso Temporariamente Inativo</h1>
-            <p className="text-sm text-[#4A5A6D] leading-relaxed">
+            <h1 className="font-display text-2xl font-bold text-[#0B1628] dark:text-white">Acesso Temporariamente Inativo</h1>
+            <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
               {portalAccess?.kind === 'inactive'
                 ? portalAccess.reason
                 : 'Seu acesso ao portal está inativo no momento. Fale com a consultoria para reativar.'}
@@ -458,7 +462,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               <button
                 type="button"
                 onClick={logout}
-                className="px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                className="px-4 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842]"
               >
                 Trocar conta Google
               </button>
@@ -481,8 +485,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     const isPending = portalStage === 'pendente';
 
     return (
-      <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
-        <header className="bg-white/95 backdrop-blur-xl border-b border-[#E5DFD2] sticky top-0 z-30">
+      <div className="min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-[#070B12]">
+        <header className="bg-white/95 dark:bg-[#0B1220]/95 backdrop-blur-xl border-b border-[#E5E7EB] dark:border-[#1E293B] sticky top-0 z-30">
           <BrandRibbon className="h-[3px] w-full no-print" />
           <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2.5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
@@ -490,17 +494,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 src={empresa.logoUrl}
                 alt={empresa.nome_empresa}
                 brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-                variant="light"
+                variant={isDark ? 'dark' : 'light'}
                 imgClassName="h-9 w-auto max-w-[160px] object-contain shrink-0"
               />
-              <div className="min-w-0 border-l border-[#E5DFD2] pl-3">
-                <p className="text-xs sm:text-sm font-bold text-[#0B1F33] truncate">
+              <div className="min-w-0 border-l border-[#E5E7EB] dark:border-[#1E293B] pl-3">
+                <p className="text-xs sm:text-sm font-bold text-[#0B1628] dark:text-white truncate">
                   Portal do Cliente ·{' '}
-                  <span className="text-[#8C6D14]">
+                  <span className="text-[#0F3D91] dark:text-[#C9A86A]">
                     {isPending ? 'Liberação em Andamento' : 'Diagnóstico Gratuito'}
                   </span>
                 </p>
-                <p className="text-xs text-[#4A5A6D] truncate">{userProfile.email}</p>
+                <p className="text-xs text-[#475569] dark:text-slate-400 truncate">{userProfile.email}</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -509,15 +513,15 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 onClick={toggleTheme}
                 aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
                 aria-pressed={isDark}
-                className="inline-flex items-center justify-center p-2 rounded-lg border border-[#DDD6C7] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#1E293B]"
+                className="inline-flex items-center justify-center p-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-[#0B1628] dark:text-slate-200 hover:bg-[#F7F8FA] dark:hover:bg-[#192842]"
               >
-                {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5" />}
+                {isDark ? <Sun className="w-3.5 h-3.5 text-[#C9A86A]" /> : <Moon className="w-3.5 h-3.5" />}
               </button>
               <button
                 type="button"
                 disabled={syncCheckBusy}
                 onClick={() => void handleManualPortalRefresh()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] whitespace-nowrap disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncCheckBusy ? 'animate-spin' : ''}`} />
                 {syncCheckBusy ? 'Verificando...' : 'Verificar liberação'}
@@ -525,7 +529,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               <button
                 type="button"
                 onClick={logout}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#475569] dark:text-slate-300 hover:bg-[#F7F8FA] dark:hover:bg-[#111C30] whitespace-nowrap"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Sair
@@ -535,21 +539,21 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </header>
 
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
-          <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-[#070E1C] text-[#C9A86A] flex items-center justify-center shrink-0">
                 {isPending ? <Clock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
               </div>
               <div className="min-w-0 space-y-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0F3D91] dark:text-[#C9A86A]">
                   {isPending ? 'Cadastro localizado · Aguardando ativação' : 'Modo Diagnóstico Gratuito'}
                 </p>
-                <h1 className="font-display text-xl font-bold text-[#0B1F33]">
+                <h1 className="font-display text-xl font-bold text-[#0B1628] dark:text-white">
                   {isPending
                     ? 'Seu portal completo será liberado automaticamente aqui'
                     : 'Resumo inicial disponível — liberação automática ao contratar'}
                 </h1>
-                <p className="text-xs text-[#4A5A6D] leading-relaxed">
+                <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
                   {isPending
                     ? `Identificamos seu cadastro (${portalClient?.nomeCompleto || userProfile.nome}). Assim que o consultor ativar seu acesso no painel, esta tela muda automaticamente para o Portal Contratado.`
                     : 'Você pode consultar seu diagnóstico básico e já adiantar a digitalização segura dos seus documentos de identidade abaixo.'}
@@ -564,7 +568,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#146B43] text-white text-xs font-semibold whitespace-nowrap hover:opacity-95"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#0F3D91] hover:bg-[#0B2E6E] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] text-white text-xs font-semibold whitespace-nowrap transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
                 Falar com a equipe
@@ -573,42 +577,42 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           </div>
 
           {syncCheckMsg && (
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950">
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-950 dark:text-amber-200">
               {syncCheckMsg}
             </div>
           )}
 
           {basicSummary && (
-            <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden">
-              <div className="bg-[#0B1F33] text-white p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden">
+              <div className="bg-[#070E1C] text-white p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#C9A86A]">
                     Resumo do Diagnóstico Preliminar
                   </p>
                   <h2 className="font-display text-xl font-bold text-white mt-1">{basicSummary.subcategoriaNome}</h2>
                 </div>
                 <div className="text-right">
                   <p className="text-[11px] uppercase tracking-wider text-slate-300">Viabilidade</p>
-                  <p className="font-mono text-3xl font-bold tabular-nums text-[#E5C76B]">
+                  <p className="font-mono text-3xl font-bold tabular-nums text-[#C9A86A]">
                     {basicSummary.notaViabilidade}
                     <span className="text-sm font-normal text-slate-300">/100</span>
                   </p>
                 </div>
               </div>
               <div className="p-5 sm:p-6 space-y-4">
-                <p className="text-sm text-[#0B1523] leading-relaxed">{basicSummary.resumoBasico}</p>
+                <p className="text-sm text-[#0B1628] dark:text-slate-200 leading-relaxed">{basicSummary.resumoBasico}</p>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
                     onClick={() => onNavigate('/diagnostico')}
-                    className="px-4 py-2 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-white"
+                    className="px-4 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-white dark:hover:bg-[#192842]"
                   >
                     Atualizar / Refazer Diagnóstico
                   </button>
                   <button
                     type="button"
                     onClick={() => onNavigate('/acompanhar')}
-                    className="px-4 py-2 rounded-lg bg-[#0B1F33] text-xs font-semibold text-white hover:opacity-95"
+                    className="px-4 py-2 rounded-lg bg-[#0B1628] dark:bg-[#3B82F6] text-xs font-semibold text-white hover:opacity-95"
                   >
                     Ver planos de consultoria
                   </button>
@@ -662,10 +666,36 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const primaryLead = clientLeads[0] || null;
   const releasedAssessments = assessments.filter((a) => a.liberadoAoCliente === true);
   const thermo = calcularTermometroDocumentos(activeDocs, empresa.bloqueioProtocoloMinimo || 100);
-  const needsLgpdAccept =
-    client && (!client.lgpdAceito || client.lgpdVersao !== (empresa.termoLgpdVersao || '1.0'));
+  const needsLgpdAccept = Boolean(
+    client && (!client.lgpdAceito || client.lgpdVersao !== (empresa.termoLgpdVersao || '1.0')),
+  );
   const unreadNotifCount = notifications.filter((n) => !n.lida).length;
   const vapidConfig = getEffectiveVapidConfig(empresa);
+
+  const clientActionCenter = buildClientActionCenter({
+    activeCase,
+    docs: activeDocs,
+    deadlines,
+    appointments,
+    genDocs,
+    budgets,
+    financials,
+    thermo,
+    needsLgpdAccept,
+    canAccessSimulator,
+  });
+
+  const filteredGenDocs = genDocs.filter((gd) => {
+    if (officialDocStatusFilter === 'pendentes' && (gd.canceladoEm || gd.status === 'Assinado')) return false;
+    if (officialDocStatusFilter === 'assinados' && gd.status !== 'Assinado') return false;
+    const q = officialDocSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      gd.titulo.toLowerCase().includes(q) ||
+      (gd.codigoVerificacao || '').toLowerCase().includes(q) ||
+      (gd.status || '').toLowerCase().includes(q)
+    );
+  });
 
   const handleEnablePush = async () => {
     if (!userProfile?.uid || !userProfile?.clientId || pushBusy) return;
@@ -1108,9 +1138,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
-      {/* Header do Portal */}
-      <header className="bg-white/95 backdrop-blur-xl border-b border-[#E5DFD2] sticky top-0 z-30 shadow-[0_2px_10px_rgba(11,31,51,0.035)]">
+    <div className="min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-[#070B12]">
+      {/* Header do Portal (Corporate Light/Dark) */}
+      <header className="bg-white/95 dark:bg-[#0B1220]/95 backdrop-blur-xl border-b border-[#E5E7EB] dark:border-[#1E293B] sticky top-0 z-30">
         <BrandRibbon className="h-[3px] w-full no-print" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-16 py-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
@@ -1118,14 +1148,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               src={empresa.logoUrl}
               alt={empresa.nome_empresa}
               brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-              variant="light"
+              variant={isDark ? 'dark' : 'light'}
               imgClassName="h-9 sm:h-10 w-auto max-w-[135px] sm:max-w-[190px] object-contain shrink-0"
             />
-            <div className="min-w-0 border-l border-[#E5DFD2] pl-2.5 sm:pl-3">
-              <p className="text-xs sm:text-sm font-bold text-[#0B1F33] leading-snug break-words">
-                Portal do Cliente · <span className="text-[#8C6D14]">{planSpec.nome}</span>
+            <div className="min-w-0 border-l border-[#E5E7EB] dark:border-[#1E293B] pl-2.5 sm:pl-3">
+              <p className="text-xs sm:text-sm font-bold text-[#0B1628] dark:text-white leading-snug break-words">
+                Portal do Cliente · <span className="text-[#0F3D91] dark:text-[#C9A86A]">{planSpec.nome}</span>
               </p>
-              <p className="text-xs text-[#4A5A6D] leading-snug break-words">{client?.nomeCompleto || userProfile.nome}</p>
+              <p className="text-xs text-[#475569] dark:text-slate-400 leading-snug break-words">{client?.nomeCompleto || userProfile.nome}</p>
             </div>
           </div>
 
@@ -1135,17 +1165,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={toggleTheme}
               aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
               aria-pressed={isDark}
-              className="inline-flex items-center justify-center p-2 rounded-lg border border-[#DDD6C7] dark:border-[#1E293B] bg-white dark:bg-[#131F33] text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#1E293B] transition-colors"
+              className="inline-flex items-center justify-center p-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-[#0B1628] dark:text-slate-200 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] transition-colors"
             >
-              {isDark ? <Sun className="w-3.5 h-3.5 text-[#D4A853]" /> : <Moon className="w-3.5 h-3.5" />}
+              {isDark ? <Sun className="w-3.5 h-3.5 text-[#C9A86A]" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
             <button
               type="button"
               onClick={() => setNotifDrawerOpen(true)}
               aria-label="Abrir central de notificações do processo"
-              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors whitespace-nowrap"
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] transition-colors whitespace-nowrap"
             >
-              <Bell className="w-3.5 h-3.5 text-[#0B1F33]" />
+              <Bell className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
               <span className="hidden sm:inline">Alertas</span>
               {unreadNotifCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-[#A61C2B] text-white text-[10px] font-bold tabular-nums">
@@ -1156,14 +1186,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-medium text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-medium text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] transition-colors whitespace-nowrap"
             >
               Site público
             </button>
             <button
               type="button"
               onClick={logout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#4A5A6D] hover:bg-[#F7F5F0] hover:text-[#0B1F33] transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#475569] dark:text-slate-300 hover:bg-[#F7F8FA] dark:hover:bg-[#111C30] hover:text-[#0B1628] dark:hover:text-white transition-colors whitespace-nowrap"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sair
@@ -1172,7 +1202,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
 
         {/* Abas desktop/tablet */}
-        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#F1EDE4] dark:border-[#1E293B] no-print">
+        <nav className="hidden md:flex max-w-6xl mx-auto px-4 sm:px-6 items-center gap-1 overflow-x-auto border-t border-[#E5E7EB] dark:border-[#1E293B] no-print">
           {[
             { id: 'processo', label: 'Meu Processo & Etapas' },
             { id: 'documentos', label: 'Documentos & Prioridades' },
@@ -1188,8 +1218,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={() => setTab(item.id as PortalTab)}
               className={`px-3.5 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 tab === item.id
-                  ? 'border-[#10B981] text-[#090F1A] dark:text-[#34D399] font-semibold'
-                  : 'border-transparent text-[#4A5A6D] dark:text-slate-400 hover:text-[#090F1A] dark:hover:text-white'
+                  ? 'border-[#0F3D91] dark:border-[#3B82F6] text-[#0B1628] dark:text-white font-semibold'
+                  : 'border-transparent text-[#475569] dark:text-slate-400 hover:text-[#0B1628] dark:hover:text-white'
               }`}
             >
               {item.label}
@@ -1252,167 +1282,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 1: PROCESSO & ETAPAS */}
             {tab === 'processo' && (
               <div className="space-y-6">
-                {/* Banner de Notificações Push (Opt-in, Categorias & Botão de Teste) */}
-                <section
-                  aria-label="Preferências de notificações push do processo"
-                  className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 no-print"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                        {pushActive ? (
-                          <BellRing className="w-5 h-5 text-[#1E7E34]" />
-                        ) : (
-                          <Bell className="w-5 h-5 text-[var(--color-primary)]" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900">
-                          Notificações do Processo
-                          <span className="font-semibold text-slate-500">
-                            {' · '}
-                            {!pushSupport.supported
-                              ? 'Somente no portal'
-                              : pushSupport.permission === 'denied'
-                                ? 'Bloqueado no navegador'
-                                : pushActive
-                                  ? pushMode === 'fcm'
-                                    ? 'Push em segundo plano (FCM)'
-                                    : 'Alertas em tempo real no navegador'
-                                  : 'Desativado'}
-                          </span>
-                        </p>
-                        <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                          {!pushSupport.supported
-                            ? 'Seu navegador não suporta notificações do sistema; todas as atualizações continuam disponíveis na Central de Alertas.'
-                            : pushSupport.permission === 'denied'
-                              ? 'As notificações estão bloqueadas nas permissões do navegador. Libere o acesso no ícone de cadeado da barra de endereço.'
-                              : pushActive
-                                ? pushMode === 'fcm'
-                                  ? 'Você receberá alertas automáticos neste dispositivo (inclusive com o portal fechado) conforme as categorias selecionadas abaixo.'
-                                  : 'Alertas nativos ativos enquanto o portal estiver aberto. Assim que a chave VAPID for configurada, o push funcionará também em segundo plano.'
-                                : 'Ative os alertas no navegador para ser avisado imediatamente sobre mudanças de etapa, documentos analisados e mensagens da equipe.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {pushSupport.supported && pushSupport.permission !== 'denied' && (
-                        <>
-                          {pushActive ? (
-                            <button
-                              type="button"
-                              disabled={pushBusy}
-                              onClick={() => void handleDisablePush()}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                            >
-                              <BellOff className="w-3.5 h-3.5" />
-                              {pushBusy ? 'Atualizando...' : 'Desativar Push'}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={pushBusy}
-                              onClick={() => void handleEnablePush()}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 disabled:opacity-50"
-                              style={{ backgroundColor: 'var(--color-primary)' }}
-                            >
-                              <BellRing className="w-3.5 h-3.5" />
-                              {pushBusy ? 'Ativando...' : 'Ativar Alertas Push'}
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            disabled={testNotifBusy || pushBusy}
-                            onClick={() => void handleTestNotification()}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 disabled:opacity-50"
-                          >
-                            <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                            {testNotifBusy ? 'Enviando...' : 'Testar notificação'}
-                          </button>
-                        </>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setNotifDrawerOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 tabular-nums"
-                      >
-                        <Bell className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                        Ver histórico ({notifications.length})
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Controles por categoria de evento */}
-                  <div className="pt-3.5 border-t border-slate-100">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2.5">
-                      Categorias de alerta no navegador
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {(
-                        [
-                          {
-                            key: 'statusProcesso' as const,
-                            label: 'Etapas e status SERMIG',
-                            desc: 'Mudanças de fase, prazos e pareceres',
-                          },
-                          {
-                            key: 'documentos' as const,
-                            label: 'Documentos e checklist',
-                            desc: 'Aprovações, pendências e solicitações',
-                          },
-                          {
-                            key: 'mensagensEquipe' as const,
-                            label: 'Mensagens da equipe',
-                            desc: 'Respostas do consultor no chat do portal',
-                          },
-                        ] as const
-                      ).map((cat) => {
-                        const checked = pushPrefs[cat.key];
-                        return (
-                          <button
-                            key={cat.key}
-                            type="button"
-                            role="switch"
-                            aria-checked={checked}
-                            disabled={pushPrefsBusy}
-                            onClick={() => void handleTogglePushCategory(cat.key)}
-                            className={`flex items-center justify-between gap-3 px-3.5 py-2.5 min-h-[44px] rounded-lg border text-left transition-colors disabled:opacity-60 ${
-                              checked
-                                ? 'border-slate-300 bg-slate-50/70'
-                                : 'border-slate-200 bg-white hover:bg-slate-50/40'
-                            }`}
-                          >
-                            <div className="min-w-0 space-y-0.5">
-                              <p className="text-xs font-semibold text-slate-900 leading-snug break-words">{cat.label}</p>
-                              <p className="text-[11px] text-slate-500 leading-snug break-words">{cat.desc}</p>
-                            </div>
-                            <span
-                              aria-hidden="true"
-                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                                checked ? 'bg-[var(--color-primary)]' : 'bg-slate-300'
-                              }`}
-                            >
-                              <span
-                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                  checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                                }`}
-                              />
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(11,31,51,0.05)]">
-                  {/* Cabeçalho Executivo Marinho & Ouro do Processo */}
-                  <div className="bg-[#0B1F33] text-white px-5 sm:px-7 py-6 border-b border-[#1E3B5A]">
+                {/* 1. Cabeçalho Executivo do Processo + Prontidão Documental */}
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden shadow-[0_6px_24px_rgba(7,14,28,0.06)]">
+                  <div className="bg-[#070E1C] text-white px-5 sm:px-7 py-6 border-b border-[#1E293B]">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
                       <div className="space-y-1.5 min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#E5C76B]">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#C9A86A]">
                           {planSpec.nome}
                           {activeCase
                             ? isOrientativa
@@ -1430,7 +1305,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
                             Prontidão Documental
                           </p>
-                          <p className="text-3xl font-bold font-mono tabular-nums text-[#E5C76B]">
+                          <p className="text-3xl font-bold font-mono tabular-nums text-[#C9A86A]">
                             {thermo.notaGeral}%
                           </p>
                         </div>
@@ -1439,7 +1314,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             type="button"
                             disabled={pdfBusy !== null}
                             onClick={() => void handleExportDiagnosticoPdf()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#C8A236] hover:bg-[#B89228] text-xs font-bold text-[#0B1523] whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#C9A86A] hover:bg-[#d6b67a] text-xs font-bold text-[#070E1C] whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
                           >
                             <FileText className="w-3.5 h-3.5" />
                             {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Dossiê Diagnóstico (PDF)'}
@@ -1450,7 +1325,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             onClick={() => void handleExportProgressoPdf()}
                             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-white/25 bg-white/10 hover:bg-white/15 text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
                           >
-                            <Download className="w-3.5 h-3.5 text-[#E5C76B]" />
+                            <Download className="w-3.5 h-3.5 text-[#C9A86A]" />
                             {pdfBusy === 'progresso' ? 'Gerando PDF...' : 'Relatório de Progresso'}
                           </button>
                           <button
@@ -1476,21 +1351,186 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                               : 'Todos os documentos obrigatórios foram aprovados!'
                             : `Faltam ${thermo.faltantesObrigatorios} documento(s) obrigatório(s). Seu processo está ${thermo.notaGeral}% pronto.`}
                         </span>
-                        <span className="font-mono font-bold tabular-nums text-[#E5C76B]">{thermo.notaGeral}%</span>
+                        <span className="font-mono font-bold tabular-nums text-[#C9A86A]">{thermo.notaGeral}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-white/15 overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all duration-500"
                           style={{
                             width: `${thermo.notaGeral}%`,
-                            background: 'linear-gradient(90deg, #C8A236 0%, #E5C76B 60%, #146B43 100%)',
+                            background: 'linear-gradient(90deg, #3B82F6 0%, #60A5FA 55%, #C9A86A 100%)',
                           }}
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-5 sm:p-6">
+                  {/* 2. Central Inteligente de KPIs + Próximas Ações Prioritárias */}
+                  <div className="p-5 sm:p-6 space-y-6">
+                    <ClientActionCenterCard
+                      center={clientActionCenter}
+                      onSelectTab={(nextTab) => setTab(nextTab)}
+                      onOpenSignDoc={(genDocId) => {
+                        const targetDoc = genDocs.find((g) => g.id === genDocId);
+                        if (targetDoc) {
+                          setSigningGenDoc(targetDoc);
+                        } else {
+                          setTab('documentos');
+                        }
+                      }}
+                    />
+
+                    {/* Barra compacta e expansível de Notificações Push (mantém a 1ª dobra limpa) */}
+                    <section
+                      aria-label="Preferências de notificações push do processo"
+                      className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] p-4 space-y-3 no-print"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-white dark:bg-[#111C30] border border-[#E5E7EB] dark:border-[#24324A] flex items-center justify-center shrink-0">
+                            {pushActive ? (
+                              <BellRing className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Bell className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA]" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-[#0B1628] dark:text-white">
+                              Alertas do Processo ·{' '}
+                              <span className="font-semibold text-[#475569] dark:text-slate-300">
+                                {!pushSupport.supported
+                                  ? 'Somente no portal'
+                                  : pushSupport.permission === 'denied'
+                                    ? 'Bloqueado no navegador'
+                                    : pushActive
+                                      ? pushMode === 'fcm'
+                                        ? 'Push ativo (FCM)'
+                                        : 'Alertas ativos'
+                                      : 'Desativado'}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {pushSupport.supported && pushSupport.permission !== 'denied' && !pushActive && (
+                            <button
+                              type="button"
+                              disabled={pushBusy}
+                              onClick={() => void handleEnablePush()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0F3D91] hover:bg-[#0B2E6E] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] text-xs font-semibold text-white whitespace-nowrap disabled:opacity-50"
+                            >
+                              <BellRing className="w-3.5 h-3.5" />
+                              {pushBusy ? 'Ativando...' : 'Ativar Push'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPushSettingsOpen((v) => !v)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-[#192842]"
+                          >
+                            {pushSettingsOpen ? 'Ocultar preferências' : 'Preferências'}
+                            {pushSettingsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNotifDrawerOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-[#192842] tabular-nums"
+                          >
+                            Histórico ({notifications.length})
+                          </button>
+                        </div>
+                      </div>
+
+                      {pushSettingsOpen && (
+                        <div className="pt-3 border-t border-[#E5E7EB] dark:border-[#1E293B] space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-[#475569] dark:text-slate-300">
+                              Escolha quais categorias disparam alertas instantâneos neste dispositivo:
+                            </p>
+                            {pushSupport.supported && pushSupport.permission !== 'denied' && (
+                              <div className="flex items-center gap-2">
+                                {pushActive && (
+                                  <button
+                                    type="button"
+                                    disabled={pushBusy}
+                                    onClick={() => void handleDisablePush()}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#475569] dark:text-slate-300 disabled:opacity-50"
+                                  >
+                                    <BellOff className="w-3.5 h-3.5" />
+                                    Desativar
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={testNotifBusy || pushBusy}
+                                  onClick={() => void handleTestNotification()}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 disabled:opacity-50"
+                                >
+                                  <Bell className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                                  {testNotifBusy ? 'Enviando...' : 'Testar alerta'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            {(
+                              [
+                                {
+                                  key: 'statusProcesso' as const,
+                                  label: 'Etapas e status SERMIG',
+                                  desc: 'Mudanças de fase, prazos e pareceres',
+                                },
+                                {
+                                  key: 'documentos' as const,
+                                  label: 'Documentos e checklist',
+                                  desc: 'Aprovações, pendências e solicitações',
+                                },
+                                {
+                                  key: 'mensagensEquipe' as const,
+                                  label: 'Mensagens da equipe',
+                                  desc: 'Respostas do consultor no chat do portal',
+                                },
+                              ] as const
+                            ).map((cat) => {
+                              const checked = pushPrefs[cat.key];
+                              return (
+                                <button
+                                  key={cat.key}
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={checked}
+                                  disabled={pushPrefsBusy}
+                                  onClick={() => void handleTogglePushCategory(cat.key)}
+                                  className={`flex items-center justify-between gap-3 px-3.5 py-2.5 min-h-[44px] rounded-lg border text-left transition-colors disabled:opacity-60 ${
+                                    checked
+                                      ? 'border-[#0F3D91]/40 dark:border-[#3B82F6]/50 bg-white dark:bg-[#111C30]'
+                                      : 'border-[#E5E7EB] dark:border-[#1E293B] bg-white/60 dark:bg-[#0D1422]'
+                                  }`}
+                                >
+                                  <div className="min-w-0 space-y-0.5">
+                                    <p className="text-xs font-semibold text-[#0B1628] dark:text-white leading-snug break-words">{cat.label}</p>
+                                    <p className="text-[11px] text-[#64748B] dark:text-slate-400 leading-snug break-words">{cat.desc}</p>
+                                  </div>
+                                  <span
+                                    aria-hidden="true"
+                                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                                      checked ? 'bg-[#0F3D91] dark:bg-[#3B82F6]' : 'bg-slate-300 dark:bg-slate-700'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                                      }`}
+                                    />
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </section>
                   {/* Aviso de escopo conforme modalidade contratada */}
                   {isOrientativa && (
                     <div className="p-4 rounded-xl bg-amber-50/75 border border-amber-200 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -1532,14 +1572,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
                 {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
                 {(primaryLead || releasedAssessments.length > 0) && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="brand-kicker">Dossiê Técnico · Exportável em PDF</p>
-                        <h2 className="text-lg font-bold text-[#0B1F33] font-brand-sans mt-0.5">
+                        <h2 className="text-lg font-bold text-[#070E1C] dark:text-white font-brand-sans mt-0.5">
                           Diagnóstico de Viabilidade &amp; Parecer Técnico
                         </h2>
-                        <p className="text-xs text-[#4A5A6D]">
+                        <p className="text-xs text-[#475569] dark:text-slate-400">
                           Histórico do seu diagnóstico completo e orientações técnicas liberadas pela consultoria
                         </p>
                       </div>
@@ -1548,34 +1588,34 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           type="button"
                           disabled={pdfBusy !== null}
                           onClick={() => void handlePreviewPdf('diagnostico')}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] whitespace-nowrap shrink-0 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B] whitespace-nowrap shrink-0 disabled:opacity-50"
                         >
-                          <Eye className="w-3.5 h-3.5 text-[#0B1F33]" />
+                          <Eye className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
                           Pré-visualizar Dossiê
                         </button>
                         <button
                           type="button"
                           disabled={pdfBusy !== null}
                           onClick={() => void handleExportDiagnosticoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F33] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap shrink-0 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap shrink-0 disabled:opacity-50"
                         >
-                          <Download className="w-3.5 h-3.5 text-[#E5C76B]" />
+                          <Download className="w-3.5 h-3.5 text-[#C9A86A]" />
                           {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Dossiê (PDF 2 Págs)'}
                         </button>
                       </div>
                     </div>
 
                     {primaryLead && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2] text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] text-xs">
                         <div>
-                          <p className="text-[#4A5A6D]">Subcategoria sugerida</p>
-                          <p className="font-bold text-[#0B1F33] mt-0.5">
+                          <p className="text-[#475569] dark:text-slate-400">Subcategoria sugerida</p>
+                          <p className="font-bold text-[#070E1C] dark:text-white mt-0.5">
                             {primaryLead.subcategoriaSugerida || primaryLead.interesse || 'Em análise'}
                           </p>
                         </div>
                         <div>
-                          <p className="text-[#4A5A6D]">Índice de viabilidade</p>
-                          <p className="font-bold font-mono text-[#0B1F33] mt-0.5 tabular-nums">
+                          <p className="text-[#475569] dark:text-slate-400">Índice de viabilidade</p>
+                          <p className="font-bold font-mono text-[#070E1C] dark:text-white mt-0.5 tabular-nums">
                             {typeof primaryLead.notaViabilidade === 'number'
                               ? `${primaryLead.notaViabilidade}/100`
                               : 'Em avaliação'}
@@ -1583,8 +1623,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           </p>
                         </div>
                         <div>
-                          <p className="text-[#4A5A6D]">Realizado em</p>
-                          <p className="font-bold font-mono text-[#0B1F33] mt-0.5 tabular-nums">
+                          <p className="text-[#475569] dark:text-slate-400">Realizado em</p>
+                          <p className="font-bold font-mono text-[#070E1C] dark:text-white mt-0.5 tabular-nums">
                             {formatDateBR(primaryLead.createdAt)}
                             {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
                           </p>
@@ -1598,19 +1638,19 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           <button
                             type="button"
                             onClick={() => setShowPortalRadar((v) => !v)}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:border-[#C8A236]/60 transition-colors"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-xs font-semibold text-[#070E1C] dark:text-white hover:border-[#0F3D91] dark:hover:border-[#60A5FA] transition-colors"
                           >
-                            <Compass className="w-3.5 h-3.5 text-[#8C6D14]" />
+                            <Compass className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
                             {showPortalRadar ? 'Ocultar Gráfico Radar (7 Pilares)' : 'Ver Gráfico Radar (7 Pilares)'}
                             {showPortalRadar ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                           </button>
-                          <span className="text-[11px] text-[#4A5A6D]">
+                          <span className="text-[11px] text-[#475569] dark:text-slate-400">
                             Motor determinístico SERMIG · 7 dimensões de elegibilidade
                           </span>
                         </div>
 
                         {showPortalRadar && (
-                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center p-4 sm:p-5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center p-4 sm:p-5 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B]">
                             <div className="lg:col-span-5">
                               <DiagnosticRadarChart dimensions={portalRadarDimensions} />
                             </div>
@@ -1618,22 +1658,22 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                               {portalRadarDimensions.map((dim) => (
                                 <div key={dim.nome} className="space-y-1">
                                   <div className="flex items-baseline justify-between gap-2 text-xs">
-                                    <span className="font-semibold text-[#0B1F33]">{dim.nome}</span>
-                                    <span className="font-mono font-bold tabular-nums text-[#4A5A6D]">
+                                    <span className="font-semibold text-[#070E1C] dark:text-white">{dim.nome}</span>
+                                    <span className="font-mono font-bold tabular-nums text-[#475569] dark:text-slate-300">
                                       {dim.pontos}/{dim.maximo} pts ({dim.percentual}%)
                                     </span>
                                   </div>
-                                  <div className="h-1.5 rounded-full bg-[#E5DFD2] overflow-hidden">
+                                  <div className="h-1.5 rounded-full bg-[#E5E7EB] dark:bg-[#1E293B] overflow-hidden">
                                     <div
                                       className="h-full rounded-full"
                                       style={{
                                         width: `${Math.max(4, dim.percentual)}%`,
                                         backgroundColor:
                                           dim.percentual >= 75
-                                            ? '#146B43'
+                                            ? '#10B981'
                                             : dim.percentual >= 50
-                                              ? '#0B1F33'
-                                              : '#C8A236',
+                                              ? '#3B82F6'
+                                              : '#C9A86A',
                                       }}
                                     />
                                   </div>
@@ -1646,20 +1686,20 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     )}
 
                     {releasedAssessments.length > 0 && (
-                      <div className="space-y-3 pt-2 border-t border-[#E5DFD2]">
-                        <p className="text-xs font-bold text-[#0B1F33]">
+                      <div className="space-y-3 pt-2 border-t border-[#E5E7EB] dark:border-[#1E293B]">
+                        <p className="text-xs font-bold text-[#070E1C] dark:text-white">
                           Parecer Técnico Liberado (Versão {releasedAssessments[0].versao} · Nota{' '}
-                          <span className="font-mono tabular-nums text-[#8C6D14]">{releasedAssessments[0].notaGeral}/100</span>)
+                          <span className="font-mono tabular-nums text-[#0F3D91] dark:text-[#60A5FA]">{releasedAssessments[0].notaGeral}/100</span>)
                         </p>
-                        <p className="text-sm text-[#4A5A6D] leading-relaxed whitespace-pre-wrap">
+                        <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                           {releasedAssessments[0].enquadramentoLegal}
                         </p>
                         {releasedAssessments[0].fundamentacaoNormativa && (
-                          <p className="text-xs text-[#0B1F33] whitespace-pre-wrap bg-[#FAF9F6] border border-[#E5DFD2] rounded-xl p-3.5 leading-relaxed">
+                          <p className="text-xs text-[#070E1C] dark:text-slate-200 whitespace-pre-wrap bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-3.5 leading-relaxed">
                             {releasedAssessments[0].fundamentacaoNormativa}
                           </p>
                         )}
-                        <p className="text-sm text-[#4A5A6D] leading-relaxed whitespace-pre-wrap">
+                        <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                           {releasedAssessments[0].recomendacoes}
                         </p>
                       </div>
@@ -1669,28 +1709,28 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
                 {/* Documentos emitidos liberados */}
                 {genDocs.length > 0 && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-3.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                     <div>
                       <p className="brand-kicker">Acervo Contratual · Assinatura &amp; A4</p>
-                      <h2 className="text-base font-bold text-[#0B1F33] mt-0.5">Documentos Oficiais Disponíveis</h2>
+                      <h2 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">Documentos Oficiais Disponíveis</h2>
                     </div>
                     {genDocs.map((gd) => {
                       const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
                       return (
-                        <div key={gd.id} className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div key={gd.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="space-y-0.5">
-                            <p className="text-sm font-bold text-[#0B1F33]">{gd.titulo}</p>
-                            <p className="text-xs text-[#4A5A6D] font-mono tabular-nums">
-                              Status: <strong className="font-sans text-[#0B1F33]">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
+                            <p className="text-sm font-bold text-[#070E1C] dark:text-white">{gd.titulo}</p>
+                            <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
+                              Status: <strong className="font-sans text-[#070E1C] dark:text-white">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
                               {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
                             </p>
                             {gd.confirmadoLeituraEm && (
-                              <p className="text-[11px] text-[#146B43] font-medium">
+                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                                 Leitura confirmada em {formatDateTimeBR(gd.confirmadoLeituraEm)}
                               </p>
                             )}
                             {gd.assinadoEm && (
-                              <p className="text-[11px] text-[#146B43] font-medium">
+                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                                 Assinado em {formatDateTimeBR(gd.assinadoEm)}
                               </p>
                             )}
@@ -1699,7 +1739,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             <button
                               type="button"
                               onClick={() => setViewingGenDoc(gd)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               Visualizar / Imprimir A4
@@ -1708,10 +1748,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                               <button
                                 type="button"
                                 onClick={() => setSigningGenDoc(gd)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-95"
-                                style={{ backgroundColor: 'var(--color-primary)' }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95"
                               >
-                                <FileSignature className="w-3.5 h-3.5 text-[#E5C76B]" />
+                                <FileSignature className="w-3.5 h-3.5 text-[#C9A86A]" />
                                 Assinar / Anexar Assinado
                               </button>
                             )}
@@ -1724,10 +1763,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
                 {/* Pesquisa NPS após Protocolo (7) ou Aprovação */}
                 {activeCase && (activeCase.etapaPipeline >= 7 || activeCase.statusSermig === 'Aprovado') && !activeCase.npsNota && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-3.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                     <div>
                       <p className="brand-kicker">Qualidade do Atendimento</p>
-                      <h2 className="text-base font-bold text-[#0B1F33] mt-0.5">
+                      <h2 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">
                         Como está sendo sua experiência com a D&amp;M Integra Chile?
                       </h2>
                     </div>
@@ -1739,11 +1778,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           onClick={() => setNpsNota(n)}
                           className={`px-3.5 py-2 rounded-lg border text-xs font-bold font-mono inline-flex items-center gap-1 transition-colors ${
                             npsNota === n
-                              ? 'bg-[#0B1F33] text-white border-[#0B1F33]'
-                              : 'bg-[#FAF9F6] text-[#0B1F33] border-[#DDD6C7] hover:border-[#C8A236]'
+                              ? 'bg-[#070E1C] dark:bg-[#0F3D91] text-white border-[#070E1C] dark:border-[#3B82F6]'
+                              : 'bg-[#F7F8FA] dark:bg-[#0B1220] text-[#070E1C] dark:text-slate-200 border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#0F3D91]'
                           }`}
                         >
-                          <Star className={`w-3.5 h-3.5 ${npsNota === n ? 'text-[#E5C76B]' : 'text-[#8C6D14]'}`} />
+                          <Star className={`w-3.5 h-3.5 ${npsNota === n ? 'text-[#C9A86A]' : 'text-[#9A7B3E] dark:text-[#C9A86A]'}`} />
                           {n}
                         </button>
                       ))}
@@ -1753,13 +1792,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       value={npsComent}
                       onChange={(e) => setNpsComent(e.target.value)}
                       placeholder="Deixe um comentário opcional..."
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-sm text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-sm text-[#070E1C] dark:text-white focus:bg-white dark:focus:bg-[#111B2E] focus:border-[#0F3D91] dark:focus:border-[#60A5FA] focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={handleSendNps}
-                      className="px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-95"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
+                      className="px-4 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95"
                     >
                       Enviar avaliação
                     </button>
@@ -1772,25 +1810,25 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {tab === 'documentos' && (
               <div className="space-y-6">
                 {/* Faixa de confirmação de permissão Firestore (Acesso Completo / Orientativa) */}
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#070E1C] text-[#C9A86A] flex items-center justify-center shrink-0">
                       <ShieldCheck className="w-4.5 h-4.5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#146B43]">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">
                         Permissão Verificada no Firestore · {planSpec.nome} Liberada
                       </p>
-                      <p className="text-xs text-[#4A5A6D] mt-0.5 leading-relaxed">
-                        Acesso completo confirmado para <strong className="text-[#0B1F33]">{client?.email || userProfile.email}</strong>. Seus documentos oficiais liberados, digitalizações via câmera e checklist do processo estão sincronizados em tempo real.
+                      <p className="text-xs text-[#475569] dark:text-slate-300 mt-0.5 leading-relaxed">
+                        Acesso completo confirmado para <strong className="text-[#0B1628] dark:text-white">{client?.email || userProfile.email}</strong>. Seus documentos oficiais liberados, digitalizações via câmera e checklist do processo estão sincronizados em tempo real.
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-mono tabular-nums shrink-0 text-[#0B1F33]">
-                    <span className="px-2.5 py-1 rounded-md border border-[#E5DFD2] bg-[#FAF9F6]">
+                  <div className="flex items-center gap-2.5 text-xs font-mono tabular-nums shrink-0 text-[#0B1628] dark:text-white">
+                    <span className="px-2.5 py-1 rounded-md border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111C30]">
                       Oficiais: <strong>{genDocs.length + releasedAssessments.length}</strong>
                     </span>
-                    <span className="px-2.5 py-1 rounded-md border border-[#E5DFD2] bg-[#FAF9F6]">
+                    <span className="px-2.5 py-1 rounded-md border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111C30]">
                       Checklist: <strong>{activeDocs.length}</strong>
                     </span>
                   </div>
@@ -1804,45 +1842,84 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 />
 
                 {(genDocs.length > 0 || releasedAssessments.length > 0) && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-5 sm:p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-5 sm:p-6 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="brand-kicker">Acervo Liberado pela Consultoria</p>
-                        <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1F33] mt-0.5">
+                        <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1628] dark:text-white mt-0.5">
                           Documentos Oficiais &amp; Pareceres Disponíveis ({genDocs.length + releasedAssessments.length})
                         </h2>
                       </div>
                       <button
                         type="button"
                         onClick={() => void loadPortal()}
-                        className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-white"
+                        className="px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-white dark:hover:bg-[#192842]"
                       >
                         Atualizar lista
                       </button>
                     </div>
 
                     {genDocs.length > 0 && (
-                      <div className="space-y-2.5">
-                        {genDocs.map((gd) => {
+                      <div className="space-y-3">
+                        {/* Busca e filtro rápido em tempo real para documentos oficiais */}
+                        <div className="flex flex-col sm:flex-row gap-2.5">
+                          <input
+                            type="search"
+                            value={officialDocSearch}
+                            onChange={(e) => setOfficialDocSearch(e.target.value)}
+                            placeholder="Buscar documento oficial por título ou código..."
+                            className="flex-1 px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#0B1220] text-xs sm:text-sm text-[#0B1628] dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/30"
+                          />
+                          <div className="inline-flex rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] p-0.5 shrink-0">
+                            {(
+                              [
+                                { id: 'todos', label: 'Todos' },
+                                { id: 'pendentes', label: 'Pendentes' },
+                                { id: 'assinados', label: 'Assinados' },
+                              ] as const
+                            ).map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => setOfficialDocStatusFilter(f.id)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                                  officialDocStatusFilter === f.id
+                                    ? 'bg-[#0B1628] dark:bg-[#3B82F6] text-white'
+                                    : 'text-[#475569] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white'
+                                }`}
+                              >
+                                {f.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {filteredGenDocs.length === 0 ? (
+                          <p className="text-xs text-[#64748B] dark:text-slate-400 py-3">
+                            Nenhum documento oficial encontrado para o filtro atual.
+                          </p>
+                        ) : (
+                        <div className="space-y-2.5">
+                        {filteredGenDocs.map((gd) => {
                           const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
                           return (
                             <div
                               key={gd.id}
-                              className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                              className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA]/70 dark:bg-[#0B1220] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                             >
                               <div className="space-y-0.5 min-w-0">
-                                <p className="text-sm font-bold text-[#0B1F33] break-words">{gd.titulo}</p>
-                                <p className="text-xs text-[#4A5A6D] font-mono tabular-nums">
-                                  Status: <strong className="font-sans text-[#0B1F33]">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
+                                <p className="text-sm font-bold text-[#0B1628] dark:text-white break-words">{gd.titulo}</p>
+                                <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
+                                  Status: <strong className="font-sans text-[#0B1628] dark:text-slate-100">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
                                   {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
                                 </p>
                                 {gd.confirmadoLeituraEm && (
-                                  <p className="text-[11px] text-[#146B43] font-medium">
+                                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                                     Leitura confirmada em {formatDateTimeBR(gd.confirmadoLeituraEm)}
                                   </p>
                                 )}
                                 {gd.assinadoEm && (
-                                  <p className="text-[11px] text-[#146B43] font-medium">
+                                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                                     Assinado em {formatDateTimeBR(gd.assinadoEm)}
                                   </p>
                                 )}
@@ -1851,7 +1928,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                                 <button
                                   type="button"
                                   onClick={() => setViewingGenDoc(gd)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842]"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                   Visualizar / Imprimir A4
@@ -1860,10 +1937,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                                   <button
                                     type="button"
                                     onClick={() => setSigningGenDoc(gd)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-95"
-                                    style={{ backgroundColor: 'var(--color-primary)' }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white bg-[#0B1628] hover:bg-[#152847] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
                                   >
-                                    <FileSignature className="w-3.5 h-3.5 text-[#E5C76B]" />
+                                    <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
                                     Assinar / Anexar Assinado
                                   </button>
                                 )}
@@ -1871,6 +1947,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             </div>
                           );
                         })}
+                        </div>
+                        )}
                       </div>
                     )}
 
@@ -1952,41 +2030,41 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 3: ORÇAMENTOS & FINANCEIRO */}
             {tab === 'financeiro' && (
               <div className="space-y-6">
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4">
                   <div>
                     <p className="brand-kicker">Propostas Comerciais</p>
-                    <h2 className="font-display text-xl font-bold text-[#0B1F33] mt-0.5">Orçamentos Recebidos</h2>
+                    <h2 className="font-display text-xl font-bold text-[#070E1C] dark:text-white mt-0.5">Orçamentos Recebidos</h2>
                   </div>
                   {budgets.length === 0 ? (
-                    <p className="text-sm text-[#4A5A6D]">Nenhum orçamento enviado até o momento.</p>
+                    <p className="text-sm text-[#475569] dark:text-slate-400">Nenhum orçamento enviado até o momento.</p>
                   ) : (
                     budgets.map((b) => (
-                      <div key={b.id} className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6]/60 space-y-3">
+                      <div key={b.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <p className="text-xs font-mono text-[#4A5A6D] tabular-nums">
-                              Nº {b.numeroOrcamento} · Validade {formatDateBR(b.validade)} · Status: <strong className="font-sans text-[#0B1F33]">{b.status}</strong>
+                            <p className="text-xs font-mono text-[#475569] dark:text-slate-400 tabular-nums">
+                              Nº {b.numeroOrcamento} · Validade {formatDateBR(b.validade)} · Status: <strong className="font-sans text-[#070E1C] dark:text-white">{b.status}</strong>
                             </p>
-                            <h3 className="text-base font-bold text-[#0B1F33] mt-0.5">{b.titulo}</h3>
+                            <h3 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">{b.titulo}</h3>
                           </div>
-                          <p className="font-mono text-lg font-bold tabular-nums text-[#0B1F33]">
+                          <p className="font-mono text-lg font-bold tabular-nums text-[#070E1C] dark:text-white">
                             {formatCurrency(b.totalGeral, b.moedaPrincipal)}
                           </p>
                         </div>
-                        <p className="text-xs text-[#4A5A6D]">{b.condicoesPagamento}</p>
+                        <p className="text-xs text-[#475569] dark:text-slate-400">{b.condicoesPagamento}</p>
                         {b.status === 'Enviado ao Cliente' && (
                           <div className="flex flex-wrap gap-2 pt-2">
                             <button
                               type="button"
                               onClick={() => handleBudgetDecision(b, 'Aprovado')}
-                              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#146B43] hover:opacity-95"
+                              className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800"
                             >
                               Aprovar orçamento
                             </button>
                             <button
                               type="button"
                               onClick={() => handleBudgetDecision(b, 'Recusado')}
-                              className="px-4 py-2 rounded-lg text-xs font-semibold border border-[#DDD6C7] bg-white text-[#0B1F33] hover:bg-[#FAF9F6]"
+                              className="px-4 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
                             >
                               Recusar
                             </button>
@@ -1999,16 +2077,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
                 {/* Pix e Pagamento */}
                 {(empresa.chavePix || empresa.linkPagamentoCartao) && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-3.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                     <div>
                       <p className="brand-kicker">Canais de Quitação</p>
-                      <h2 className="text-base font-bold text-[#0B1F33] mt-0.5">Opções de Pagamento</h2>
+                      <h2 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">Opções de Pagamento</h2>
                     </div>
                     {empresa.chavePix && (
-                      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2]">
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B]">
                         <div className="text-xs">
-                          <span className="font-semibold text-[#8C6D14] uppercase tracking-wider text-[10px] block">Chave Pix Oficial</span>
-                          <span className="font-mono text-sm font-semibold text-[#0B1F33]">{empresa.chavePix}</span>
+                          <span className="font-semibold text-[#9A7B3E] dark:text-[#C9A86A] uppercase tracking-wider text-[10px] block">Chave Pix Oficial</span>
+                          <span className="font-mono text-sm font-semibold text-[#070E1C] dark:text-white">{empresa.chavePix}</span>
                         </div>
                         <button
                           type="button"
@@ -2017,9 +2095,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             setPixCopied(true);
                             setTimeout(() => setPixCopied(false), 2000);
                           }}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F33] text-xs font-semibold text-white hover:opacity-95"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95"
                         >
-                          <Copy className="w-3.5 h-3.5 text-[#E5C76B]" />
+                          <Copy className="w-3.5 h-3.5 text-[#C9A86A]" />
                           {pixCopied ? 'Copiado!' : 'Copiar Pix'}
                         </button>
                       </div>
@@ -2029,8 +2107,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         href={empresa.linkPagamentoCartao}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-[#0B1523] hover:opacity-95"
-                        style={{ backgroundColor: 'var(--color-accent)' }}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#C9A86A] text-xs font-bold text-[#070E1C] hover:opacity-95"
                       >
                         Pagar com Cartão
                       </a>
@@ -2038,28 +2115,28 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </div>
                 )}
 
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-3.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                   <div>
                     <p className="brand-kicker">Extrato do Processo</p>
-                    <h2 className="text-base font-bold text-[#0B1F33] mt-0.5">Parcelas e Lançamentos</h2>
+                    <h2 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">Parcelas e Lançamentos</h2>
                   </div>
                   {financials.length === 0 ? (
-                    <p className="text-sm text-[#4A5A6D]">Nenhuma parcela lançada.</p>
+                    <p className="text-sm text-[#475569] dark:text-slate-400">Nenhuma parcela lançada.</p>
                   ) : (
-                    <div className="divide-y divide-[#E5DFD2]">
+                    <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B]">
                       {financials.map((f) => (
                         <div key={f.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-bold text-[#0B1F33]">{f.descricao}</p>
-                            <p className="text-xs text-[#4A5A6D] font-mono tabular-nums">
-                              {f.tipo} · Venc. {formatDateBR(f.vencimento)} · <strong className="font-sans text-[#0B1F33]">{f.status}</strong>
+                            <p className="text-sm font-bold text-[#070E1C] dark:text-white">{f.descricao}</p>
+                            <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
+                              {f.tipo} · Venc. {formatDateBR(f.vencimento)} · <strong className="font-sans text-[#070E1C] dark:text-white">{f.status}</strong>
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="font-mono text-sm font-bold tabular-nums text-[#0B1F33]">
+                            <span className="font-mono text-sm font-bold tabular-nums text-[#070E1C] dark:text-white">
                               {formatCurrency(f.valor, f.moeda)}
                             </span>
-                            <label className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] cursor-pointer hover:bg-white">
+                            <label className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white cursor-pointer hover:bg-white dark:hover:bg-[#16233B]">
                               {f.comprovanteUrl ? 'Atualizar comprovante' : 'Anexar comprovante'}
                               <input
                                 type="file"
@@ -2083,27 +2160,26 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 4: AGENDAMENTO & SUPORTE */}
             {tab === 'suporte' && (
               <div className="space-y-6">
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="brand-kicker">Atendimento Especializado</p>
-                    <h2 className="font-display text-xl font-bold text-[#0B1F33] mt-0.5">Agendamento e Canais de Atendimento</h2>
-                    <p className="text-xs text-[#4A5A6D] mt-0.5">Marque reuniões, adicione prazos ao Google Agenda ou tire dúvidas no WhatsApp.</p>
+                    <h2 className="font-display text-xl font-bold text-[#070E1C] dark:text-white mt-0.5">Agendamento e Canais de Atendimento</h2>
+                    <p className="text-xs text-[#475569] dark:text-slate-400 mt-0.5">Marque reuniões, adicione prazos ao Google Agenda ou tire dúvidas no WhatsApp.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setCalendlyOpen(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-95"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95"
                     >
-                      <Calendar className="w-4 h-4 text-[#E5C76B]" />
+                      <Calendar className="w-4 h-4 text-[#C9A86A]" />
                       Agendar no Calendly
                     </button>
                     <a
                       href={buildWhatsAppUrl(empresa.whatsapp, `Olá! Sou ${client?.nomeCompleto} e gostaria de falar sobre meu processo.`)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#146B43] hover:opacity-95"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800"
                     >
                       <MessageCircle className="w-4 h-4" />
                       Falar no WhatsApp
@@ -2111,37 +2187,37 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <button
                       type="button"
                       onClick={() => setTab('biblioteca')}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
                     >
-                      <Scale className="w-4 h-4 text-[#8C6D14]" />
+                      <Scale className="w-4 h-4 text-[#9A7B3E] dark:text-[#C9A86A]" />
                       Biblioteca Legal SERMIG
                     </button>
                     <button
                       type="button"
                       onClick={() => setLawOpen(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
                     >
-                      <BookOpen className="w-4 h-4 text-[#0B1F33]" />
+                      <BookOpen className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA]" />
                       Entenda a Lei
                     </button>
                   </div>
                 </div>
 
                 {/* Reuniões e Prazos com Google Agenda e .ics */}
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-3.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                   <div>
                     <p className="brand-kicker">Agenda do Processo</p>
-                    <h3 className="text-base font-bold text-[#0B1F33] mt-0.5">Minhas Reuniões e Prazos</h3>
+                    <h3 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">Minhas Reuniões e Prazos</h3>
                   </div>
                   {appointments.length === 0 && deadlines.length === 0 ? (
-                    <p className="text-sm text-[#4A5A6D]">Nenhuma reunião ou prazo cadastrado ainda.</p>
+                    <p className="text-sm text-[#475569] dark:text-slate-400">Nenhuma reunião ou prazo cadastrado ainda.</p>
                   ) : (
-                    <div className="divide-y divide-[#E5DFD2]">
+                    <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B]">
                       {appointments.map((apt) => (
                         <div key={apt.id} className="py-3.5 flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-bold text-[#0B1F33]">{apt.titulo}</p>
-                            <p className="text-xs font-mono text-[#4A5A6D] tabular-nums">
+                            <p className="text-sm font-bold text-[#070E1C] dark:text-white">{apt.titulo}</p>
+                            <p className="text-xs font-mono text-[#475569] dark:text-slate-400 tabular-nums">
                               {formatDateTimeBR(apt.dataHoraInicio)} · <span className="font-sans">{apt.status}</span>
                             </p>
                           </div>
@@ -2150,14 +2226,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                               href={buildGoogleCalendarUrl({ title: apt.titulo, startIso: apt.dataHoraInicio })}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                              className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
                             >
                               Google Agenda
                             </a>
                             <button
                               type="button"
                               onClick={() => downloadIcsFile({ title: apt.titulo, startIso: apt.dataHoraInicio })}
-                              className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-white"
+                              className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-white dark:hover:bg-[#16233B]"
                             >
                               Baixar .ics
                             </button>
@@ -2167,15 +2243,15 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       {deadlines.map((dl) => (
                         <div key={dl.id} className="py-3.5 flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-bold text-[#0B1F33]">{dl.titulo}</p>
-                            <p className="text-xs font-mono text-[#4A5A6D] tabular-nums">
+                            <p className="text-sm font-bold text-[#070E1C] dark:text-white">{dl.titulo}</p>
+                            <p className="text-xs font-mono text-[#475569] dark:text-slate-400 tabular-nums">
                               <span className="font-sans">{dl.tipo}</span> · Data limite: {formatDateBR(dl.dataLimite)}
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => downloadIcsFile({ title: dl.titulo, startIso: dl.dataLimite })}
-                            className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] hover:bg-white"
+                            className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-white dark:hover:bg-[#16233B]"
                           >
                             Baixar .ics
                           </button>
@@ -2186,17 +2262,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 </div>
 
                 {/* Parceiros recomendados */}
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-3.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                   <div className="flex items-center gap-2">
-                    <Handshake className="w-5 h-5 text-[#C8A236]" />
-                    <h3 className="text-base font-bold text-[#0B1F33]">Parceiros Recomendados</h3>
+                    <Handshake className="w-5 h-5 text-[#9A7B3E] dark:text-[#C9A86A]" />
+                    <h3 className="text-base font-bold text-[#070E1C] dark:text-white">Parceiros Recomendados</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {partnersPublic.map((p) => (
-                      <div key={p.id} className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6]/60">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#8C6D14]">{p.categoria} · {p.pais}</p>
-                        <p className="text-sm font-bold text-[#0B1F33] mt-1">{p.nome}</p>
-                        <p className="text-xs text-[#4A5A6D] mt-1 leading-relaxed">{p.descricaoPublica}</p>
+                      <div key={p.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220]">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9A7B3E] dark:text-[#C9A86A]">{p.categoria} · {p.pais}</p>
+                        <p className="text-sm font-bold text-[#070E1C] dark:text-white mt-1">{p.nome}</p>
+                        <p className="text-xs text-[#475569] dark:text-slate-400 mt-1 leading-relaxed">{p.descricaoPublica}</p>
                       </div>
                     ))}
                   </div>
@@ -2207,33 +2283,32 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 5: MEUS DADOS & LGPD */}
             {tab === 'dados' && (
               <div className="space-y-6">
-                <form onSubmit={handleSavePersonalData} className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <form onSubmit={handleSavePersonalData} className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <User className="w-5 h-5 text-[#8C6D14]" />
-                    <h2 className="font-display text-xl font-bold text-[#0B1F33]">Meus Dados Cadastrais</h2>
+                    <User className="w-5 h-5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                    <h2 className="font-display text-xl font-bold text-[#070E1C] dark:text-white">Meus Dados Cadastrais</h2>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-[#0B1F33] mb-1.5" htmlFor="pt-nome">Nome completo</label>
-                      <input id="pt-nome" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-sm text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none" />
+                      <label className="block text-xs font-semibold text-[#070E1C] dark:text-slate-200 mb-1.5" htmlFor="pt-nome">Nome completo</label>
+                      <input id="pt-nome" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-sm text-[#070E1C] dark:text-white focus:bg-white dark:focus:bg-[#111B2E] focus:border-[#0F3D91] dark:focus:border-[#60A5FA] focus:outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#0B1F33] mb-1.5" htmlFor="pt-whats">WhatsApp</label>
-                      <input id="pt-whats" value={editWhats} onChange={(e) => setEditWhats(maskPhoneBR(e.target.value))} className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-sm font-mono tabular-nums text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none" />
+                      <label className="block text-xs font-semibold text-[#070E1C] dark:text-slate-200 mb-1.5" htmlFor="pt-whats">WhatsApp</label>
+                      <input id="pt-whats" value={editWhats} onChange={(e) => setEditWhats(maskPhoneBR(e.target.value))} className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-sm font-mono tabular-nums text-[#070E1C] dark:text-white focus:bg-white dark:focus:bg-[#111B2E] focus:border-[#0F3D91] dark:focus:border-[#60A5FA] focus:outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#0B1F33] mb-1.5" htmlFor="pt-prof">Profissão</label>
-                      <input id="pt-prof" value={editProfissao} onChange={(e) => setEditProfissao(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-sm text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none" />
+                      <label className="block text-xs font-semibold text-[#070E1C] dark:text-slate-200 mb-1.5" htmlFor="pt-prof">Profissão</label>
+                      <input id="pt-prof" value={editProfissao} onChange={(e) => setEditProfissao(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-sm text-[#070E1C] dark:text-white focus:bg-white dark:focus:bg-[#111B2E] focus:border-[#0F3D91] dark:focus:border-[#60A5FA] focus:outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#0B1F33] mb-1.5" htmlFor="pt-end">Endereço completo</label>
-                      <input id="pt-end" value={editEndereco} onChange={(e) => setEditEndereco(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-sm text-[#0B1F33] focus:bg-white focus:border-[#0B1F33] focus:outline-none" />
+                      <label className="block text-xs font-semibold text-[#070E1C] dark:text-slate-200 mb-1.5" htmlFor="pt-end">Endereço completo</label>
+                      <input id="pt-end" value={editEndereco} onChange={(e) => setEditEndereco(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] text-sm text-[#070E1C] dark:text-white focus:bg-white dark:focus:bg-[#111B2E] focus:border-[#0F3D91] dark:focus:border-[#60A5FA] focus:outline-none" />
                     </div>
                   </div>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white hover:opacity-95 transition-opacity"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
+                    className="px-5 py-2.5 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 transition-opacity"
                   >
                     Salvar alterações
                   </button>
@@ -2242,25 +2317,25 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 {userProfile && <ProfileIdentityDocumentsCard userProfile={userProfile} />}
 
                 {dependents.length > 0 && (
-                  <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-2.5 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-2.5">
                     <p className="brand-kicker">Núcleo Familiar</p>
-                    <h3 className="text-base font-bold text-[#0B1F33]">Dependentes Vinculados</h3>
-                    <div className="divide-y divide-[#F1EDE4]">
+                    <h3 className="text-base font-bold text-[#070E1C] dark:text-white">Dependentes Vinculados</h3>
+                    <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B]">
                       {dependents.map((dep) => (
-                        <p key={dep.id} className="py-2 text-sm text-[#0B1F33]">
-                          <strong>{dep.nomeCompleto}</strong> <span className="text-[#4A5A6D]">· {dep.parentesco}</span>
+                        <p key={dep.id} className="py-2 text-sm text-[#070E1C] dark:text-white">
+                          <strong>{dep.nomeCompleto}</strong> <span className="text-[#475569] dark:text-slate-400">· {dep.parentesco}</span>
                         </p>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <div className="bg-white border border-[#E5DFD2] rounded-2xl p-6 space-y-4 shadow-[0_2px_10px_rgba(11,31,51,0.03)]">
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <Shield className="w-5 h-5 text-[#8C6D14]" />
-                    <h3 className="text-base font-bold text-[#0B1F33]">Privacidade e Direitos LGPD (Lei nº 13.709/2018)</h3>
+                    <Shield className="w-5 h-5 text-[#9A7B3E] dark:text-[#C9A86A]" />
+                    <h3 className="text-base font-bold text-[#070E1C] dark:text-white">Privacidade e Direitos LGPD (Lei nº 13.709/2018)</h3>
                   </div>
-                  <p className="text-xs text-[#4A5A6D] font-mono tabular-nums">
+                  <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
                     Consentimento registrado na versão {client?.lgpdVersao || empresa.termoLgpdVersao}
                     {client?.lgpdAceitoEm ? ` em ${formatDateTimeBR(client.lgpdAceitoEm)}` : ''}.
                   </p>
@@ -2268,7 +2343,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <button
                       type="button"
                       onClick={() => handleLgpdRequest('exportação')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#DDD6C7] bg-white text-xs font-semibold text-[#0B1F33] hover:bg-[#FAF9F6]"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
                     >
                       <Download className="w-3.5 h-3.5" />
                       Solicitar exportação de dados
@@ -2276,7 +2351,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <button
                       type="button"
                       onClick={() => handleLgpdRequest('exclusão')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-200 text-xs font-semibold text-[#A61C2B] hover:bg-red-50"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-200 dark:border-red-900/50 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Solicitar exclusão de dados
@@ -2289,16 +2364,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         )}
       </main>
 
-      <footer className="bg-white border-t border-[#E5DFD2] py-5 px-4 sm:px-6 text-xs text-[#4A5A6D] text-center mb-16 md:mb-0">
+      <footer className="bg-white dark:bg-[#0B1220] border-t border-[#E5E7EB] dark:border-[#1E293B] py-5 px-4 sm:px-6 text-xs text-[#475569] dark:text-slate-400 text-center mb-16 md:mb-0">
         {empresa.avisoLegal}
       </footer>
 
       {/* Barra inferior mobile fixa com >=48px touch targets */}
       <nav
         aria-label="Navegação rápida do portal"
-        className={`md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0D1524]/95 backdrop-blur-md border-t border-[#E2E8F0] dark:border-[#1E293B] grid ${
+        className={`md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0B1220]/95 backdrop-blur-md border-t border-[#E5E7EB] dark:border-[#1E293B] grid ${
           canAccessSimulator ? 'grid-cols-7' : 'grid-cols-6'
-        } no-print shadow-[0_-4px_16px_rgba(9,15,26,0.06)]`}
+        } no-print shadow-[0_-4px_16px_rgba(7,14,28,0.08)]`}
       >
         {[
           { id: 'processo', label: 'Processo', icon: <Briefcase className="w-4 h-4" /> },
@@ -2319,11 +2394,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onClick={() => setTab(item.id as PortalTab)}
               className={`relative min-h-[54px] min-w-0 px-0.5 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
                 active
-                  ? 'text-[#090F1A] dark:text-[#34D399] bg-[#F8FAFC] dark:bg-[#131F33]'
+                  ? 'text-[#0F3D91] dark:text-[#60A5FA] bg-[#F7F8FA] dark:bg-[#111C30]'
                   : 'text-[#64748B] dark:text-slate-400'
               }`}
             >
-              {active && <span className="absolute top-0 inset-x-1.5 h-[2.5px] bg-[#10B981] rounded-b" aria-hidden="true" />}
+              {active && <span className="absolute top-0 inset-x-1.5 h-[2.5px] bg-[#0F3D91] dark:bg-[#3B82F6] rounded-b" aria-hidden="true" />}
               {item.icon}
               <span className="max-w-full truncate leading-tight">{item.label}</span>
             </button>

@@ -54,6 +54,7 @@ import {
   buildBasicDiagnosticSummary,
   CONSULTANCY_PLANS,
 } from '../utils/portalAccess';
+import { buildSmartDiagnosticBrief } from '../utils/smartDiagnosticInterpreter';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export interface AiDiagnosticDraft {
@@ -141,6 +142,8 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     if (!publicSimulatedResult) return null;
     return buildBasicDiagnosticSummary(publicSimulatedResult, answers).dimensoes || null;
   }, [publicSimulatedResult, answers]);
+
+  const smartBrief = useMemo(() => buildSmartDiagnosticBrief(answers, result), [answers, result]);
 
   const togglePublicSimLever = (leverId: PublicSimLeverId) => {
     setPublicSimLevers((prev) =>
@@ -333,11 +336,11 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     return (
       <div className="space-y-8">
         {/* 1. CABEÇALHO EDITORIAL DO DOSSIÊ EXECUTIVO */}
-        <section className="bg-white border border-[#E5DFD2] rounded-2xl overflow-hidden shadow-[0_12px_32px_rgba(11,31,51,0.06)]">
+        <section className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden shadow-[0_12px_32px_rgba(7,14,28,0.06)]">
           <BrandRibbon className="h-[3px] w-full" />
 
           {/* Faixa Executiva Superior */}
-          <div className="bg-[#0B1F33] text-white px-6 sm:px-9 py-7 sm:py-9">
+          <div className="bg-[#070E1C] text-white px-6 sm:px-9 py-7 sm:py-9">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
               <div className="space-y-3.5 max-w-2xl">
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-semibold tracking-[0.12em] uppercase text-slate-300">
@@ -490,18 +493,18 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           </div>
 
           {/* 4 Parâmetros Estratégicos (faixa limpa com divisórias hairline) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#E5DFD2] bg-[#FAF9F6] border-b border-[#E5DFD2]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#E5E7EB] dark:divide-[#1E293B] bg-[#F7F8FA] dark:bg-[#111A2C] border-b border-[#E5E7EB] dark:border-[#1E293B]">
             <div className="p-5 space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
                 Local de Protocolo
               </p>
-              <p className="text-sm font-bold text-[#0B1F33] leading-snug">{protocoloDentroLabel}</p>
+              <p className="text-sm font-bold text-[#0B1628] dark:text-white leading-snug">{protocoloDentroLabel}</p>
             </div>
             <div className="p-5 space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
                 Autorização de Trabalho
               </p>
-              <p className="text-sm font-bold text-[#0B1F33] leading-snug">
+              <p className="text-sm font-bold text-[#0B1628] dark:text-white leading-snug">
                 {basic.permiteTrabalhar === undefined
                   ? 'Conforme subcategoria'
                   : basic.permiteTrabalhar
@@ -510,10 +513,10 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               </p>
             </div>
             <div className="p-5 space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
                 Residência Definitiva
               </p>
-              <p className="text-sm font-bold text-[#0B1F33] leading-snug">
+              <p className="text-sm font-bold text-[#0B1628] dark:text-white leading-snug">
                 {basic.levaDefinitiva === undefined
                   ? 'Sob validação técnica'
                   : basic.levaDefinitiva
@@ -522,10 +525,10 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
               </p>
             </div>
             <div className="p-5 space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
                 Referência de Prazo SERMIG
               </p>
-              <p className="text-sm font-bold text-[#0B1F33] leading-snug tabular-nums">
+              <p className="text-sm font-bold text-[#0B1628] dark:text-white leading-snug tabular-nums">
                 {basic.prazoEstimadoResumo || 'Conforme fila oficial SERMIG'}
               </p>
             </div>
@@ -535,32 +538,110 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
           <div className="p-6 sm:p-9 space-y-9">
             {/* Alerta Crítico (quando aplicável) */}
             {basic.temAlertaCritico && basic.alertaGeral && (
-              <div className="p-5 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3.5">
-                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+              <div className="p-5 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-950 dark:text-amber-100 flex items-start gap-3.5">
+                <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-900">
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-900 dark:text-amber-300">
                     Ponto de Atenção Prioritário no Seu Perfil
                   </p>
-                  <p className="text-sm leading-relaxed text-amber-950">{basic.alertaGeral}</p>
+                  <p className="text-sm leading-relaxed text-amber-950 dark:text-amber-100">{basic.alertaGeral}</p>
                 </div>
               </div>
             )}
 
+            {/* Síntese Estratégica Inteligente (por que a rota líder venceu + força + gargalo + 3 movimentos) */}
+            <div
+              data-testid="smart-diagnostic-brief"
+              className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] p-5 sm:p-6 space-y-4"
+            >
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F3D91] dark:text-[#C9A86A] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C9A86A]" />
+                  Síntese Estratégica Inteligente
+                </p>
+                <h2 className="font-display text-base sm:text-lg font-bold text-[#0B1628] dark:text-white leading-snug">
+                  {smartBrief.headline}
+                </h2>
+                <p className="text-xs sm:text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
+                  {smartBrief.whyLeaderWon}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-emerald-200/80 dark:border-emerald-800/50 bg-white dark:bg-[#0D1422] p-3.5 space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-semibold text-emerald-800 dark:text-emerald-300">
+                      Principal ponto forte · {smartBrief.topStrength.pillar}
+                    </span>
+                    <span className="font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+                      {smartBrief.topStrength.scoreLabel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                    {smartBrief.topStrength.note}
+                  </p>
+                </div>
+
+                {smartBrief.primaryBottleneck ? (
+                  <div className="rounded-lg border border-amber-200/80 dark:border-amber-800/50 bg-white dark:bg-[#0D1422] p-3.5 space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-semibold text-amber-800 dark:text-amber-300">
+                        Alavanca de melhoria · {smartBrief.primaryBottleneck.pillar}
+                      </span>
+                      <span className="font-mono font-bold tabular-nums text-amber-700 dark:text-amber-300">
+                        {smartBrief.primaryBottleneck.scoreLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                      {smartBrief.primaryBottleneck.note}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#0D1422] p-3.5 space-y-1">
+                    <span className="text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
+                      Perfil equilibrado nos 7 pilares
+                    </span>
+                    <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                      Nenhum gargalo crítico detectado no enquadramento preliminar — foco total na ordem correta de certidões e apostilamento.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {smartBrief.smartNextMoves.length > 0 && (
+                <div className="pt-2 border-t border-[#E5E7EB] dark:border-[#1E293B] space-y-2">
+                  <p className="text-xs font-semibold text-[#0B1628] dark:text-white">
+                    3 movimentos práticos recomendados agora
+                  </p>
+                  <ul className="space-y-1.5">
+                    {smartBrief.smartNextMoves.map((move, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-[#334155] dark:text-slate-300 leading-relaxed">
+                        <span className="font-mono text-[11px] font-bold text-[#0F3D91] dark:text-[#60A5FA] shrink-0 mt-0.5">
+                          0{i + 1}.
+                        </span>
+                        <span>{move}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
             {/* 2. GRÁFICO RADAR DE 7 PILARES + DECOMPOSIÇÃO POR DIMENSÃO */}
             {basic.dimensoes && basic.dimensoes.length > 0 && (
               <div className="space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-3 border-b border-[#E5DFD2]">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-3 border-b border-[#E5E7EB] dark:border-[#1E293B]">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C6D14]">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F3D91] dark:text-[#C9A86A]">
                       Raio-X de Viabilidade
                     </p>
-                    <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1F33] mt-0.5">
+                    <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1628] dark:text-white mt-0.5">
                       Gráfico Radar &amp; Pilares Técnicos da Pontuação
                     </h2>
                   </div>
-                  <p className="text-xs text-slate-500 tabular-nums">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                     Total consolidado:{' '}
-                    <strong className="font-mono text-[#0B1F33]">{basic.notaViabilidade}/100 pontos</strong>
+                    <strong className="font-mono text-[#0B1628] dark:text-white">{basic.notaViabilidade}/100 pontos</strong>
                   </p>
                 </div>
 

@@ -23,6 +23,7 @@ import {
   markDiagnosticOnboardingSeen,
 } from '../components/diagnostic/DiagnosticOnboardingGuide';
 import { LiveDiagnosticRadarSidebar } from '../components/diagnostic/LiveDiagnosticRadarSidebar';
+import { SmartCaseIntakeBar } from '../components/diagnostic/SmartCaseIntakeBar';
 import { LegalBaseModal } from '../components/LegalBaseModal';
 import { useApp } from '../contexts/AppContext';
 import { useFirestore } from '../hooks/useFirestore';
@@ -67,6 +68,10 @@ import {
   getSermigObjectiveMeta,
   sanitizeDiagnosticAnswers,
 } from '../utils/sermigDiagnosticQuestions';
+import {
+  computeLiveDiagnosticIntelligence,
+  type LiveRadarSnapshot,
+} from '../utils/smartDiagnosticInterpreter';
 
 interface DiagnosticoPageProps {
   onNavigate: (path: string) => void;
@@ -110,71 +115,6 @@ const STEP_SERMIG_CONTEXT: Record<number, { foco: string; justificativa: string 
     justificativa: 'Calcula o que falta emitir/apostilar antes do protocolo e libera seu relatório técnico completo.',
   },
 };
-
-const COMMON_PROFILE_PRESETS: {
-  id: string;
-  label: string;
-  detail: string;
-  patch: Partial<DiagnosticAnswers>;
-}[] = [
-  {
-    id: 'mercosul_br',
-    label: 'Brasileiro indo pelo Mercosul',
-    detail: 'No Brasil · Exploração/Mercosul',
-    patch: {
-      localizacao: 'No Brasil',
-      nacionalidadeBrasileira: true,
-      objetivo: 'explorar',
-      possuiOfertaTrabalhoFormal: false,
-      possuiRendaPassiva: false,
-      composicaoFamiliar: 'individual',
-      familiaAcompanhante: false,
-      quantidadeDependentes: 0,
-    },
-  },
-  {
-    id: 'trabalho_cl',
-    label: 'Proposta de Trabalho Formal',
-    detail: 'Contrato com empresa chilena',
-    patch: {
-      localizacao: 'No Brasil',
-      nacionalidadeBrasileira: true,
-      objetivo: 'trabalho_formal',
-      possuiOfertaTrabalhoFormal: true,
-      composicaoFamiliar: 'individual',
-      familiaAcompanhante: false,
-      quantidadeDependentes: 0,
-    },
-  },
-  {
-    id: 'aposentado_renda',
-    label: 'Aposentado / Renda Passiva',
-    detail: 'Rentista ou jubilado',
-    patch: {
-      localizacao: 'No Brasil',
-      nacionalidadeBrasileira: true,
-      objetivo: 'aposentado_renda',
-      possuiRendaPassiva: true,
-      faixaRendaMensalUsd: 'acima_2500',
-      composicaoFamiliar: 'individual',
-      familiaAcompanhante: false,
-      quantidadeDependentes: 0,
-    },
-  },
-  {
-    id: 'familia_mudanca',
-    label: 'Mudança em Casal / Família',
-    detail: 'Titular + dependentes',
-    patch: {
-      localizacao: 'No Brasil',
-      nacionalidadeBrasileira: true,
-      objetivo: 'explorar',
-      composicaoFamiliar: 'familia_com_filhos',
-      familiaAcompanhante: true,
-      quantidadeDependentes: 2,
-    },
-  },
-];
 
 const INITIAL_ANSWERS: DiagnosticAnswers = {
   nome: '',
@@ -237,7 +177,7 @@ const ContextualHelp: React.FC<{
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-primary)] hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 rounded"
+        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/30 rounded"
       >
         <HelpCircle className="w-3.5 h-3.5" />
         {title}
@@ -249,11 +189,11 @@ const ContextualHelp: React.FC<{
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -4 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-2 p-3.5 rounded-xl bg-[#FAF9F6] border border-[#E5DFD2] text-xs text-[#4A5A6D] leading-relaxed space-y-1.5 shadow-[0_6px_18px_rgba(11,31,51,0.06)] origin-top"
+            className="mt-2 p-3.5 rounded-xl bg-[#F7F8FA] dark:bg-[#111A2C] border border-[#E5E7EB] dark:border-[#1E293B] text-xs text-[#475569] dark:text-slate-300 leading-relaxed space-y-1.5 shadow-[0_6px_18px_rgba(7,14,28,0.08)] origin-top"
           >
-            <p className="text-[#0B1F33]">{text}</p>
+            <p className="text-[#0B1628] dark:text-slate-100">{text}</p>
             {sourceLabel && (
-              <p className="text-[11px] font-semibold text-[#8C6D14] font-mono">
+              <p className="text-[11px] font-semibold text-[#8C6D14] dark:text-[#C9A86A] font-mono">
                 Base normativa: {sourceLabel}
               </p>
             )}
@@ -272,9 +212,9 @@ const BooleanChoice: React.FC<{
   helpText?: string;
   sourceLabel?: string;
 }> = ({ label, value, onChange, helpTitle, helpText, sourceLabel }) => (
-  <div className="p-4 rounded-xl border border-[#E5DFD2] bg-[#FAF9F6] space-y-2.5 transition-colors duration-200 hover:border-[#D4C9B3]">
+  <div className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-2.5 transition-colors duration-200 hover:border-[#CBD5E1] dark:hover:border-[#334155]">
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <p className="text-sm font-semibold text-[#0B1F33] leading-snug">{label}</p>
+      <p className="text-sm font-semibold text-[#0B1628] dark:text-white leading-snug">{label}</p>
       {helpTitle && helpText && <ContextualHelp title={helpTitle} text={helpText} sourceLabel={sourceLabel} />}
     </div>
     <div className="flex flex-wrap gap-2 pt-0.5">
@@ -291,10 +231,10 @@ const BooleanChoice: React.FC<{
             whileTap={{ scale: 0.96 }}
             transition={{ duration: 0.14 }}
             onClick={() => onChange(opt.val)}
-            className={`px-5 py-2 rounded-lg text-xs font-bold border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#0B1F33]/30 ${
+            className={`px-5 py-2 rounded-lg text-xs font-bold border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/30 ${
               active
-                ? 'bg-[#0B1F33] text-white border-[#0B1F33] shadow-[0_4px_12px_rgba(11,31,51,0.18)]'
-                : 'bg-white text-slate-700 border-[#DDD6C7] hover:border-[#C8A236] hover:text-[#0B1F33]'
+                ? 'bg-[#0B1628] dark:bg-[#3B82F6] text-white border-[#0B1628] dark:border-[#3B82F6] shadow-[0_4px_12px_rgba(7,14,28,0.18)]'
+                : 'bg-white dark:bg-[#111C30] text-slate-700 dark:text-slate-200 border-[#D1D5DB] dark:border-[#24324A] hover:border-[#0F3D91] dark:hover:border-[#60A5FA] hover:text-[#0B1628] dark:hover:text-white'
             }`}
           >
             {opt.label}
@@ -355,8 +295,36 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     return { ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' };
   });
 
+  const lastCommittedSnapshotRef = useRef<LiveRadarSnapshot | null>(null);
+  const [prevRadarSnapshot, setPrevRadarSnapshot] = useState<LiveRadarSnapshot | null>(null);
+  const smartUndoSnapshotRef = useRef<DiagnosticAnswers | null>(null);
+  const [canUndoSmart, setCanUndoSmart] = useState(false);
+
   const updateAnswers = useCallback((patch: Partial<DiagnosticAnswers>) => {
+    if (lastCommittedSnapshotRef.current) {
+      setPrevRadarSnapshot(lastCommittedSnapshotRef.current);
+    }
     setAnswers((prev) => sanitizeDiagnosticAnswers(prev, patch));
+  }, []);
+
+  const handleApplySmartPatch = useCallback(
+    (patch: Partial<DiagnosticAnswers>) => {
+      smartUndoSnapshotRef.current = answers;
+      setCanUndoSmart(true);
+      updateAnswers(patch);
+    },
+    [answers, updateAnswers],
+  );
+
+  const handleUndoSmartPatch = useCallback(() => {
+    if (!smartUndoSnapshotRef.current) return;
+    const restored = smartUndoSnapshotRef.current;
+    smartUndoSnapshotRef.current = null;
+    setCanUndoSmart(false);
+    if (lastCommittedSnapshotRef.current) {
+      setPrevRadarSnapshot(lastCommittedSnapshotRef.current);
+    }
+    setAnswers(restored);
   }, []);
 
   const [sessionToken, setSessionToken] = useState<string>(() => {
@@ -637,6 +605,17 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     () => runDiagnosticEngine(answers, visaCategories, visaRequirements, legalSources, engineOptions),
     [answers, visaCategories, visaRequirements, legalSources, engineOptions],
   );
+  const liveIntelligence = useMemo(
+    () => computeLiveDiagnosticIntelligence(answers, liveResult, prevRadarSnapshot),
+    [answers, liveResult, prevRadarSnapshot],
+  );
+  useEffect(() => {
+    lastCommittedSnapshotRef.current = {
+      score: Math.round(liveResult.viabilidade?.total || 0),
+      routeCode: liveResult.recomendada?.visa.codigo || '',
+      routeName: liveResult.recomendada?.visa.nomePortugues || 'Análise em andamento',
+    };
+  }, [liveResult]);
   const handleSimulatePublicAnswers = useCallback(
     (simAnswers: DiagnosticAnswers) =>
       runDiagnosticEngine(simAnswers, visaCategories, visaRequirements, legalSources, engineOptions),
@@ -1155,6 +1134,9 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
     setResumeBanner(null);
     setStep(1);
     setMaxStepReached(1);
+    setPrevRadarSnapshot(null);
+    smartUndoSnapshotRef.current = null;
+    setCanUndoSmart(false);
     localStorage.removeItem(STORAGE_KEY);
     setAnswers({ ...INITIAL_ANSWERS, lgpdVersao: empresa.termoLgpdVersao || '1.0' });
   };
@@ -1384,10 +1366,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         {/* Barra Compacta de Radar ao Vivo em Telas Mobile (< lg) */}
         <div
           data-onboarding-target="live-radar-mobile"
-          className="lg:hidden rounded-xl border border-white/10 bg-[#090F1A] text-white px-4 py-3 flex items-center justify-between gap-3"
+          className="lg:hidden rounded-xl border border-[#1E293B] bg-[#070E1C] text-white px-4 py-3 flex items-center justify-between gap-3"
         >
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#34D399]">
+            <p className="text-xs font-semibold text-[#C9A86A]">
               Radar ao vivo · Tendência SERMIG
             </p>
             <p className="text-xs font-bold text-white truncate mt-0.5">
@@ -1499,21 +1481,21 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
             {/* Faixa contextual da etapa atual (por que o SERMIG avalia estes dados) */}
             {STEP_SERMIG_CONTEXT[step] && (
-              <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111A2C] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[#047857] dark:text-[#34D399]">
+                  <p className="text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
                     Etapa 0{step}/06 · {STEP_SERMIG_CONTEXT[step].foco}
                   </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                  <p className="text-xs text-[#475569] dark:text-slate-300 mt-0.5 leading-relaxed">
                     {STEP_SERMIG_CONTEXT[step].justificativa}
                   </p>
                 </div>
                 {livePreview.subcategoriaLider && (
-                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E2E8F0] dark:border-[#1E293B] sm:max-w-[270px]">
+                  <div className="shrink-0 sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E5E7EB] dark:border-[#1E293B] sm:max-w-[270px]">
                     <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                       Rota líder atual
                     </p>
-                    <p className="text-xs font-bold text-[#090F1A] dark:text-white leading-snug">
+                    <p className="text-xs font-bold text-[#0B1628] dark:text-white leading-snug">
                       {livePreview.subcategoriaLider.nomePortugues}
                     </p>
                   </div>
@@ -1532,58 +1514,25 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               >
             {/* ETAPA 1 */}
             {step === 1 && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="space-y-1">
-                  <h2 className="text-lg font-semibold text-[#090F1A] dark:text-white">1. Identificação e contato</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">1. Identificação e contato</h2>
+                  <p className="text-xs text-[#64748B] dark:text-slate-400">
                     Privacidade (Legislação Brasileira — LGPD, Lei nº 13.709/2018): não solicitamos CPF nem número de passaporte nesta triagem inicial.
                   </p>
                 </div>
 
-                {/* Atalho opcional de cenários frequentes (pré-configura etapas seguintes mantendo seus dados de contato) */}
-                <div className="rounded-xl border border-[#E2E8F0] dark:border-[#1E293B] bg-[#F8FAFC] dark:bg-[#131F33] p-3.5 space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-[#090F1A] dark:text-white">
-                      Cenários frequentes (atalho opcional)
-                    </p>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Você poderá ajustar qualquer detalhe nas próximas etapas
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {COMMON_PROFILE_PRESETS.map((preset) => {
-                      const isMatched =
-                        answers.objetivo === preset.patch.objetivo &&
-                        Boolean(answers.familiaAcompanhante) === Boolean(preset.patch.familiaAcompanhante) &&
-                        answers.localizacao === preset.patch.localizacao;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => updateAnswers(preset.patch)}
-                          className={`text-left px-3 py-2.5 rounded-lg border transition-colors ${
-                            isMatched
-                              ? 'bg-[#090F1A] dark:bg-[#10B981] text-white dark:text-[#041C16] border-[#090F1A] dark:border-[#10B981]'
-                              : 'bg-white dark:bg-[#0D1524] text-slate-800 dark:text-slate-100 border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#047857]'
-                          }`}
-                        >
-                          <span className="block text-xs font-semibold leading-snug">{preset.label}</span>
-                          <span
-                            className={`block text-[11px] mt-0.5 ${
-                              isMatched ? 'text-[#34D399] dark:text-[#041C16]/80' : 'text-slate-500 dark:text-slate-400'
-                            }`}
-                          >
-                            {preset.detail}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Assistente de Preenchimento Inteligente em Linguagem Natural + 4 Cenários Rápidos */}
+                <SmartCaseIntakeBar
+                  currentAnswers={answers}
+                  onApplyPatch={handleApplySmartPatch}
+                  onUndoLastPatch={handleUndoSmartPatch}
+                  canUndo={canUndoSmart}
+                />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-nome">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-nome">
                       Nome completo *
                     </label>
                     <input
@@ -1591,15 +1540,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       required
                       value={answers.nome}
                       onChange={(e) => updateAnswers({ nome: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-sm text-[#0B1628] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/35 dark:focus:ring-[#3B82F6]/40"
                     />
                     {answers.nome && answers.nome.trim().length < 2 && (
-                      <p className="text-[11px] text-[#A61C2B] mt-1">Digite seu nome completo.</p>
+                      <p className="text-[11px] text-[#A61C2B] dark:text-red-400 mt-1">Digite seu nome completo.</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-whats">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-whats">
                       WhatsApp *
                     </label>
                     <input
@@ -1611,27 +1560,27 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       value={answers.whatsapp}
                       onChange={(e) => updateAnswers({ whatsapp: maskPhoneBR(e.target.value) })}
                       placeholder="+55 (11) 99999-0000 ou +56 9 8888 5566"
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-sm text-[#0B1628] dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/35 dark:focus:ring-[#3B82F6]/40"
                     />
                     {answers.whatsapp ? (
                       isValidWhatsApp(answers.whatsapp) ? (
-                        <p className="text-[11px] text-[#146B43] mt-1 flex items-center gap-1">
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1">
                           <Check className="w-3 h-3" /> Número válido.
                         </p>
                       ) : (
-                        <p className="text-[11px] text-amber-800 mt-1">
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-1">
                           Informe o DDD e o número completo. Para números do Chile ou do exterior, inicie com &quot;+&quot; (ex.: +56 9 8888 5566).
                         </p>
                       )
                     ) : (
-                      <p className="text-[11px] text-slate-500 mt-1">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                         Para números do Chile ou do exterior, inicie com &quot;+&quot; (ex.: +56 9 8888 5566).
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-email">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-email">
                       E-mail *
                     </label>
                     <input
@@ -1640,15 +1589,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       required
                       value={answers.email}
                       onChange={(e) => updateAnswers({ email: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-sm text-[#0B1628] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/35 dark:focus:ring-[#3B82F6]/40"
                     />
                     {answers.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(answers.email.trim()) && (
-                      <p className="text-[11px] text-amber-800 mt-1">Verifique o formato do e-mail (ex.: nome@dominio.com).</p>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-1">Verifique o formato do e-mail (ex.: nome@dominio.com).</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-cidade">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-cidade">
                       Cidade / UF atual
                     </label>
                     <input
@@ -1656,19 +1605,19 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       value={answers.cidadeUf}
                       onChange={(e) => updateAnswers({ cidadeUf: e.target.value })}
                       placeholder="Ex.: São Paulo - SP ou Santiago"
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm"
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-sm text-[#0B1628] dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-origem">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-origem">
                       Como conheceu a D&amp;M?
                     </label>
                     <select
                       id="diag-origem"
                       value={answers.origem}
                       onChange={(e) => updateAnswers({ origem: e.target.value as DiagnosticAnswers['origem'] })}
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-sm text-[#0B1628] dark:text-white"
                     >
                       <option value="Site">Site</option>
                       <option value="Instagram">Instagram</option>
@@ -1685,11 +1634,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 2 */}
             {step === 2 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-slate-900">2. Localização atual, perfil e passaporte</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">2. Localização atual, perfil e passaporte</h2>
 
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="block text-xs font-semibold text-slate-700" htmlFor="diag-loc">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200" htmlFor="diag-loc">
                       Onde você está neste momento?
                     </label>
                     <ContextualHelp
@@ -1702,7 +1651,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     id="diag-loc"
                     value={answers.localizacao}
                     onChange={(e) => updateAnswers({ localizacao: e.target.value as DiagnosticLocation })}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm bg-white dark:bg-[#0B1220] text-[#0B1628] dark:text-white"
                   >
                     <option value="No Brasil">No Brasil</option>
                     <option value="No Chile como turista">No Chile como turista (Permanencia Transitoria)</option>
@@ -1876,9 +1825,9 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   </div>
                 )}
 
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+                <div className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-sm font-medium text-slate-900" htmlFor="diag-pass-status">
+                    <label className="text-sm font-medium text-[#0B1628] dark:text-white" htmlFor="diag-pass-status">
                       Situação atual do passaporte
                     </label>
                     <ContextualHelp
@@ -1896,7 +1845,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                         passaporteValidadeMeses: st === 'valido' ? Math.max(12, answers.passaporteValidadeMeses || 24) : 0,
                       });
                     }}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm bg-white dark:bg-[#0D1422] text-[#0B1628] dark:text-white"
                   >
                     <option value="valido">Passaporte válido</option>
                     <option value="vencido">Passaporte vencido</option>
@@ -1905,7 +1854,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
                   {answers.passaporteStatus !== 'nao_possui' && (
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-pass">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-pass">
                         Validade restante aproximada (em meses)
                       </label>
                       <input
@@ -1915,10 +1864,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                         max={120}
                         value={answers.passaporteValidadeMeses}
                         onChange={(e) => updateAnswers({ passaporteValidadeMeses: Number(e.target.value) })}
-                        className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm tabular-nums bg-white"
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm tabular-nums bg-white dark:bg-[#0D1422] text-[#0B1628] dark:text-white"
                       />
                       {answers.passaporteValidadeMeses > 0 && answers.passaporteValidadeMeses < 12 && (
-                        <p className="text-[11px] text-amber-800 mt-1">
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-1">
                           Atenção: validade inferior a 12 meses reduz o índice de prontidão documental; recomenda-se a renovação prévia na Polícia Federal brasileira.
                         </p>
                       )}
@@ -1931,7 +1880,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 3 */}
             {step === 3 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-slate-900">3. Vínculos familiares no Chile</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">3. Vínculos familiares no Chile</h2>
                 <BooleanChoice
                   label="Possui cônjuge, convivente civil, filho(a) chileno(a) ou pais residentes no Chile?"
                   value={answers.vinculoFamiliarChile}
@@ -2007,10 +1956,10 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 4 */}
             {step === 4 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-slate-900">4. Objetivo principal no Chile</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">4. Objetivo principal no Chile</h2>
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                    <label className="block text-xs font-semibold text-slate-700" htmlFor="diag-obj">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200" htmlFor="diag-obj">
                       Qual é o seu objetivo principal?
                     </label>
                     <ContextualHelp
@@ -2023,7 +1972,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     id="diag-obj"
                     value={answers.objetivo}
                     onChange={(e) => updateAnswers({ objetivo: e.target.value as DiagnosticObjective })}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm bg-white dark:bg-[#0B1220] text-[#0B1628] dark:text-white"
                   >
                     <option value="explorar">Explorar oportunidades / morar no Chile (Mercosul)</option>
                     <option value="trabalho_formal">Trabalho com oferta formal de empresa no Chile</option>
@@ -2042,15 +1991,15 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
 
                 {/* Ficha SERMIG contextual ao objetivo escolhido */}
                 {objectiveMeta && (
-                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/90 space-y-2 text-xs">
+                  <div className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-2 text-xs">
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="font-bold text-slate-900">
+                      <p className="font-bold text-[#0B1628] dark:text-white">
                         Referência SERMIG · Subcategoria {objectiveMeta.visaCode} — {objectiveMeta.nomePortugues}
                       </p>
-                      <span className="text-slate-500 italic">{objectiveMeta.nomeEspanhol}</span>
+                      <span className="text-slate-500 dark:text-slate-400 italic">{objectiveMeta.nomeEspanhol}</span>
                     </div>
-                    <p className="text-slate-600 leading-relaxed">{objectiveMeta.resumoSermig}</p>
-                    <p className="text-slate-700 pt-1.5 border-t border-slate-200/80 tabular-nums">
+                    <p className="text-[#475569] dark:text-slate-300 leading-relaxed">{objectiveMeta.resumoSermig}</p>
+                    <p className="text-[#334155] dark:text-slate-200 pt-1.5 border-t border-[#E5E7EB] dark:border-[#1E293B] tabular-nums">
                       Trabalho: <strong>{objectiveMeta.permiteTrabalhar ? 'Permitido' : 'Restrito'}</strong>
                       {' · '}Pedido no Chile: <strong>{objectiveMeta.permiteDentroChile}</strong>
                       {' · '}Definitiva:{' '}
@@ -2058,7 +2007,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                         {objectiveMeta.levaDefinitiva ? `${objectiveMeta.mesesDefinitiva} meses` : 'Não direta'}
                       </strong>
                     </p>
-                    <p className="text-[11px] text-slate-500">Base normativa: {objectiveMeta.legalSourcesLabel}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Base normativa: {objectiveMeta.legalSourcesLabel}</p>
                   </div>
                 )}
 
@@ -2226,11 +2175,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 5 (Perguntas Sensíveis isoladas) */}
             {step === 5 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-slate-900">5. Histórico migratório e dados sensíveis</h2>
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-700 flex items-start gap-2.5">
-                  <Lock className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-0.5" />
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">5. Histórico migratório e dados sensíveis</h2>
+                <div className="p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] text-xs text-[#475569] dark:text-slate-300 flex items-start gap-2.5">
+                  <Lock className="w-4 h-4 text-[#0F3D91] dark:text-[#60A5FA] shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-slate-900">
+                    <p className="font-bold text-[#0B1628] dark:text-white">
                       Aviso de Confidencialidade e Sigilo — Legislação Brasileira (Art. 11 da LGPD, Lei nº 13.709/2018)
                     </p>
                     <p className="mt-1 leading-relaxed">
@@ -2274,9 +2223,9 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   const isConsultor = (answers.riscoConsultaConsultor || []).includes(item.key);
                   const val = answers[item.key];
                   return (
-                    <div key={item.key} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                    <div key={item.key} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-2">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-slate-900">{item.label}</p>
+                        <p className="text-sm font-medium text-[#0B1628] dark:text-white">{item.label}</p>
                         <ContextualHelp
                           title={item.helpTitle}
                           text={item.helpText}
@@ -2289,8 +2238,8 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                           onClick={() => setSensitiveChoice(item.key, 'sim')}
                           className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors ${
                             !isConsultor && val === true
-                              ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              ? 'bg-[#0B1628] dark:bg-[#3B82F6] text-white border-[#0B1628] dark:border-[#3B82F6]'
+                              : 'bg-white dark:bg-[#111C30] text-slate-700 dark:text-slate-200 border-[#D1D5DB] dark:border-[#24324A] hover:bg-slate-100 dark:hover:bg-[#192842]'
                           }`}
                         >
                           Sim
@@ -2300,8 +2249,8 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                           onClick={() => setSensitiveChoice(item.key, 'nao')}
                           className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors ${
                             !isConsultor && val === false
-                              ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              ? 'bg-[#0B1628] dark:bg-[#3B82F6] text-white border-[#0B1628] dark:border-[#3B82F6]'
+                              : 'bg-white dark:bg-[#111C30] text-slate-700 dark:text-slate-200 border-[#D1D5DB] dark:border-[#24324A] hover:bg-slate-100 dark:hover:bg-[#192842]'
                           }`}
                         >
                           Não
@@ -2311,8 +2260,8 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                           onClick={() => setSensitiveChoice(item.key, 'consultor')}
                           className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors ${
                             isConsultor
-                              ? 'bg-slate-800 text-white border-slate-800'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              ? 'bg-[#0B1628] dark:bg-[#3B82F6] text-white border-[#0B1628] dark:border-[#3B82F6]'
+                              : 'bg-white dark:bg-[#111C30] text-slate-700 dark:text-slate-200 border-[#D1D5DB] dark:border-[#24324A] hover:bg-slate-100 dark:hover:bg-[#192842]'
                           }`}
                         >
                           Prefiro falar com o consultor
@@ -2327,7 +2276,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* ETAPA 6 */}
             {step === 6 && (
               <div className="space-y-5">
-                <h2 className="text-lg font-semibold text-slate-900">6. Família acompanhante, documentos SERMIG e aceite LGPD</h2>
+                <h2 className="text-lg font-semibold text-[#0B1628] dark:text-white">6. Família acompanhante, documentos SERMIG e aceite LGPD</h2>
 
                 <BooleanChoice
                   label="Outras pessoas da família (cônjuge/filhos) viajarão ou solicitarão residência com você?"
@@ -2445,7 +2394,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="diag-prazo">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" htmlFor="diag-prazo">
                     Prazo pretendido para iniciar o protocolo no SERMIG
                   </label>
                   <select
@@ -2454,7 +2403,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     onChange={(e) =>
                       updateAnswers({ prazoPretendido: e.target.value as DiagnosticAnswers['prazoPretendido'] })
                     }
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="w-full px-3 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] text-sm bg-white dark:bg-[#0B1220] text-[#0B1628] dark:text-white"
                   >
                     <option value="Imediato (até 30 dias)">Imediato (até 30 dias)</option>
                     <option value="1 a 3 meses">1 a 3 meses</option>
@@ -2466,20 +2415,20 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                 {/* Checklist dinâmico gerado a partir dos requisitos SERMIG do perfil */}
                 <div className="space-y-2.5">
                   <div>
-                    <p className="text-xs font-semibold text-slate-800">
+                    <p className="text-xs font-semibold text-[#0B1628] dark:text-white">
                       Documentos já disponíveis para {dynamicDocs.subcategoriaLabel}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] text-[#64748B] dark:text-slate-400 mt-0.5">
                       Lista montada automaticamente pela base oficial SERMIG para o seu perfil. Marque os itens que você já possui em mãos:
                     </p>
                   </div>
-                  <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-slate-50/40">
+                  <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl bg-[#F7F8FA]/60 dark:bg-[#0B1220]">
                     {dynamicDocs.options.map((docOpt) => {
                       const checked = answers.documentosJaPossui.includes(docOpt.value);
                       return (
                         <label
                           key={docOpt.value}
-                          className="flex items-start gap-3 p-3 text-sm text-slate-800 cursor-pointer hover:bg-white transition-colors"
+                          className="flex items-start gap-3 p-3 text-sm text-[#0B1628] dark:text-slate-100 cursor-pointer hover:bg-white dark:hover:bg-[#111A2C] transition-colors"
                         >
                           <input
                             type="checkbox"
@@ -2490,11 +2439,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                                 : [...answers.documentosJaPossui, docOpt.value];
                               updateAnswers({ documentosJaPossui: next });
                             }}
-                            className="mt-1 rounded border-slate-300"
+                            className="mt-1 rounded border-slate-300 dark:border-slate-600"
                           />
                           <span className="min-w-0">
-                            <span className="block text-sm font-medium text-slate-900">{docOpt.label}</span>
-                            <span className="block text-[11px] text-slate-500 mt-0.5">{docOpt.meta}</span>
+                            <span className="block text-sm font-medium text-[#0B1628] dark:text-white">{docOpt.label}</span>
+                            <span className="block text-[11px] text-[#64748B] dark:text-slate-400 mt-0.5">{docOpt.meta}</span>
                           </span>
                         </label>
                       );
@@ -2502,21 +2451,22 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                  <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer">
+                <div className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-2">
+                  <label className="flex items-start gap-2.5 text-xs text-[#475569] dark:text-slate-300 cursor-pointer">
                     <input
+                      id="diag-lgpd-checkbox"
                       type="checkbox"
                       checked={answers.lgpdAceito}
                       onChange={(e) => updateAnswers({ lgpdAceito: e.target.checked })}
-                      className="mt-0.5 rounded border-slate-300"
+                      className="mt-0.5 rounded border-slate-300 dark:border-slate-600"
                     />
                     <span>
                       Li e concordo com o tratamento dos meus dados pessoais e sensíveis exclusivamente para fins de pré-análise migratória e contato da consultoria, nos termos da{' '}
-                      <strong>Legislação Brasileira (LGPD — Lei nº 13.709/2018)</strong> e do{' '}
+                      <strong className="text-[#0B1628] dark:text-white">Legislação Brasileira (LGPD — Lei nº 13.709/2018)</strong> e do{' '}
                       <button
                         type="button"
                         onClick={() => setLgpdOpen(true)}
-                        className="font-semibold underline text-[var(--color-primary)]"
+                        className="font-semibold underline text-[#0F3D91] dark:text-[#60A5FA]"
                       >
                         Termo LGPD (Versão {empresa.termoLgpdVersao || '1.0'})
                       </button>
@@ -2532,7 +2482,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             {/* Barra de Navegação do Formulário (6 Etapas) */}
             <div
               data-onboarding-target="final-actions"
-              className="pt-5 border-t border-[#E5DFD2] flex flex-wrap items-center justify-between gap-3"
+              className="pt-5 border-t border-[#E5E7EB] dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-3"
             >
               <div className="flex items-center gap-2">
                 {step > 1 && (
@@ -2545,7 +2495,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                       navigateToStep(step - 1);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#DDD6C7] bg-white text-sm font-semibold text-[#0B1F33] hover:bg-[#FAF9F6] transition-colors"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-sm font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Voltar
@@ -2556,9 +2506,9 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   whileTap={{ scale: 0.98 }}
                   disabled={savingDraft}
                   onClick={() => void handleSaveAndCopyLink()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-[#DDD6C7] bg-white text-xs font-semibold text-slate-700 hover:bg-[#FAF9F6] disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] disabled:opacity-50 transition-colors"
                 >
-                  <BookmarkCheck className="w-4 h-4 text-[#8C6D14]" />
+                  <BookmarkCheck className="w-4 h-4 text-[#C9A86A]" />
                   {savingDraft ? 'Salvando...' : 'Salvar e continuar depois'}
                 </motion.button>
               </div>
@@ -2566,10 +2516,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               {step < 6 ? (
                 <motion.button
                   type="button"
+                  data-testid="diag-next-step-btn"
                   whileHover={{ y: -1, scale: 1.01 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => void handleNext()}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0B1F33] hover:bg-[#132E4A] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(11,31,51,0.16)] transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0B1628] hover:bg-[#152847] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(7,14,28,0.16)] transition-colors"
                 >
                   Avançar para Etapa {step + 1}
                   <ArrowRight className="w-4 h-4" />
@@ -2577,10 +2528,11 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
               ) : (
                 <motion.button
                   type="submit"
+                  data-testid="diag-submit-btn"
                   whileHover={{ y: -1, scale: 1.01 }}
                   whileTap={{ scale: 0.97 }}
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C8A236] hover:bg-[#d6b145] text-sm font-bold text-[#0B1523] shadow-[0_6px_18px_rgba(200,162,54,0.28)] disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C9A86A] hover:bg-[#d6b67a] text-sm font-bold text-[#070E1C] shadow-[0_6px_18px_rgba(201,168,106,0.28)] disabled:opacity-50 transition-colors"
                 >
                   {submitting ? 'Calculando Dossiê...' : 'Gerar Diagnóstico Completo & PDF'}
                   <ArrowRight className="w-4 h-4" />
@@ -2589,15 +2541,22 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
             </div>
           </form>
 
-          {/* PAINEL LATERAL STICKY: Radar de Viabilidade ao Vivo para todos os usuários */}
+          {/* PAINEL LATERAL STICKY: Radar de Viabilidade ao Vivo + Inteligência SERMIG */}
           <LiveDiagnosticRadarSidebar
             answers={answers}
             step={step}
+            maxStepReached={maxStepReached}
             steps={STEP_LABELS}
             livePreview={livePreview}
             liveResult={liveResult}
+            intelligence={liveIntelligence}
             contradictionsCount={contradictions.length}
             isAdmin={isAdmin}
+            onJumpToStep={(target) => {
+              setStepError(null);
+              navigateToStep(target);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         </div>
       </div>
