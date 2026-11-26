@@ -63,6 +63,18 @@ export const BUILT_IN_MEDIA_GALLERY: { id: string; nome: string; categoria: Medi
     url: '/src/assets/images/about_consultoria_office_1794997278170.jpg',
   },
   {
+    id: 'builtin_founder_executive_portrait',
+    nome: 'Retrato Executivo Oficial — Escritório & Andes',
+    categoria: 'equipe',
+    url: '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
+  },
+  {
+    id: 'builtin_founder_advisory_boardroom',
+    nome: 'Escritório — Mesa Executiva e Dossiê Migratório',
+    categoria: 'equipe',
+    url: '/src/assets/images/founder_advisory_boardroom_1795718965144.jpg',
+  },
+  {
     id: 'builtin_founder_portrait',
     nome: 'Retrato Institucional / Diretoria Técnica',
     categoria: 'equipe',

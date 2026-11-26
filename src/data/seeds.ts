@@ -295,7 +295,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada caso como um projeto de vida único.',
     conteudoHtml:
       'A D&M Integra Chile nasceu para proteger brasileiros do medo de cair em golpes, travar na burocracia do SERMIG ou não conseguir alugar um imóvel no Chile. Unimos precisão jurídica na legislação chilena a um atendimento próximo, transparente e 100% em português.',
-    imagemUrl: '/src/assets/images/quem_somos_founder_1794993847940.jpg',
+    imagemUrl: '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
     ordem: 5,
     ativo: true,
     metadados: {

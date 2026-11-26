@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight, Globe, Menu, MessageCircle, Moon, Sun, X } from 'lucide-react';
-import { isCompleteHorizontalBrandLogo } from '../constants/brandAssets';
+import { isCompleteHorizontalBrandLogo, isLegacyOrBrokenBrandUrl } from '../constants/brandAssets';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -27,6 +27,16 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   const { locale, setLocale, t, translateText } = useLanguage();
   const { isDark, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setIsScrolled(window.scrollY > 12);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const isStaff = Boolean(
     userProfile &&
@@ -56,8 +66,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       : []),
   ];
 
-  const logoHeight = Math.min(48, Math.max(34, Number(lc.logoAlturaPx || 40)));
+  const logoHeight = Math.min(52, Math.max(38, Number(lc.logoAlturaPx || 44)));
   const isCompleteLogo = isCompleteHorizontalBrandLogo(empresa.logoUrl);
+  const isOfficialDmBrand =
+    !empresa.logoUrl || isLegacyOrBrokenBrandUrl(empresa.logoUrl) || isCompleteLogo;
   const showBrandText = !isCompleteLogo && (lc.mostrarNomeComLogo !== false || !empresa.logoUrl);
   const headerStyle = lc.estiloCabecalho || 'sticky_vidro';
 
@@ -80,6 +92,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   };
 
   const brandShortName = empresa.nome_empresa.split('–')[0].trim();
+  const isDefaultDmWordmark = /^d\s*&\s*m\s+integra\s+chile$/i.test(brandShortName);
   const waFloatingUrl = buildWhatsAppUrl(
     empresa.whatsapp,
     t.mobileBar.waGreeting(empresa.nome_empresa),
@@ -91,12 +104,16 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
     currentPath !== '/acompanhar' &&
     currentPath !== '/entrar-equipe';
 
+  const scrollShadowClass = isScrolled
+    ? 'shadow-[0_10px_28px_-14px_rgba(11,22,40,0.16)] dark:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)]'
+    : 'shadow-none';
+
   const headerClass =
     headerStyle === 'minimal'
-      ? 'bg-white dark:bg-[#070B12] border-b border-[#E5E7EB] dark:border-[#1E293B] no-print'
+      ? `bg-white dark:bg-[#070E1C] border-b border-[#E2E8F0] dark:border-white/[0.08] no-print transition-shadow duration-200 ${scrollShadowClass}`
       : headerStyle === 'solido'
-        ? 'sticky top-0 z-40 bg-white dark:bg-[#070B12] border-b border-[#E5E7EB] dark:border-[#1E293B] no-print'
-        : 'sticky top-0 z-40 bg-white/95 dark:bg-[#070B12]/95 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#1E293B] no-print';
+        ? `sticky top-0 z-40 bg-white dark:bg-[#070E1C] border-b border-[#E2E8F0] dark:border-white/[0.08] no-print transition-shadow duration-200 ${scrollShadowClass}`
+        : `sticky top-0 z-40 bg-white/[0.97] dark:bg-[#070E1C]/[0.96] backdrop-blur-xl border-b border-[#E2E8F0]/90 dark:border-white/[0.08] no-print transition-shadow duration-200 ${scrollShadowClass}`;
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const headerLogoSrc = isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl;
@@ -104,34 +121,77 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-200">
       <header className={headerClass}>
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-[64px] lg:h-[76px] flex items-center justify-between gap-8">
-          {/* Zona 1: Marca Oficial */}
+        {/* Filete arquitetônico superior institucional (marinho + ouro champanhe) */}
+        <div
+          aria-hidden="true"
+          className="h-[2px] w-full bg-gradient-to-r from-[#0B1628] via-[#B08D57] to-[#0B1628] dark:from-[#070E1C] dark:via-[#C9A86A] dark:to-[#070E1C]"
+        />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-[62px] lg:h-[78px] flex items-center justify-between gap-4 lg:gap-8">
+          {/* Zona 1: Marca Oficial (Emblema vetorial nítido + assinatura editorial em linha única) */}
           <a
             href="#/"
             onClick={(e) => {
               e.preventDefault();
               onNavigate('/');
             }}
-            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 rounded focus-visible:outline-2 focus-visible:outline-[#0F3D91] dark:focus-visible:outline-[#60A5FA]"
+            aria-label={`${brandShortName} — Página inicial`}
+            className="group flex items-center gap-3 sm:gap-3.5 min-w-0 whitespace-nowrap shrink-0 rounded-lg py-1 pr-1 focus-visible:outline-2 focus-visible:outline-[#0F3D91] dark:focus-visible:outline-[#C9A86A]"
           >
-            <BrandLogo
-              src={headerLogoSrc}
-              alt={empresa.nome_empresa}
-              brandShortName={brandShortName}
-              variant={isDark ? 'dark' : 'light'}
-              priority
-              imgStyle={{ height: `${logoHeight}px` }}
-              imgClassName="w-auto max-h-[36px] lg:max-h-[42px] max-w-[180px] sm:max-w-[210px] object-contain shrink-0"
-            />
-            {showBrandText && (
-              <span className="font-display text-base font-bold tracking-tight text-[#0B1628] dark:text-white whitespace-nowrap truncate">
-                {brandShortName}
-              </span>
+            {isOfficialDmBrand ? (
+              <>
+                <span className="relative flex items-center justify-center rounded-full p-[2px] bg-white dark:bg-[#0D1A2E] ring-1 ring-[#B08D57]/40 dark:ring-[#C9A86A]/45 shadow-[0_2px_10px_rgba(11,22,40,0.08)] dark:shadow-[0_2px_14px_rgba(0,0,0,0.45)] transition-all duration-200 group-hover:ring-[#B08D57]/75 dark:group-hover:ring-[#C9A86A]/80 shrink-0">
+                  <BrandLogo
+                    src={headerLogoSrc}
+                    alt=""
+                    brandShortName={brandShortName}
+                    variant={isDark ? 'emblem-dark' : 'emblem'}
+                    priority
+                    imgClassName="h-9 w-9 sm:h-10 sm:w-10 lg:h-11 lg:w-11 object-contain shrink-0 transition-transform duration-200 group-hover:scale-[1.04]"
+                  />
+                </span>
+
+                {isDefaultDmWordmark ? (
+                  <span className="inline-flex items-center gap-2 sm:gap-2.5 whitespace-nowrap shrink-0">
+                    <span className="font-display text-[17px] sm:text-[19px] lg:text-[21px] font-extrabold tracking-[-0.035em] text-[#0B1628] dark:text-white leading-none">
+                      D<span className="text-[#B08D57] dark:text-[#C9A86A] mx-[1px]">&amp;</span>M
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-px bg-[#CBD5E1] dark:bg-white/15 shrink-0"
+                    />
+                    <span className="font-display text-[14px] sm:text-[15.5px] lg:text-[16.5px] font-semibold tracking-[-0.015em] text-[#1E3A5F] dark:text-slate-200 leading-none">
+                      Integra Chile
+                    </span>
+                  </span>
+                ) : (
+                  <span className="font-display text-[16px] sm:text-[18px] lg:text-[19px] font-bold tracking-[-0.025em] text-[#0B1628] dark:text-white whitespace-nowrap shrink-0">
+                    {brandShortName}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <BrandLogo
+                  src={headerLogoSrc}
+                  alt={empresa.nome_empresa}
+                  brandShortName={brandShortName}
+                  variant={isDark ? 'dark' : 'light'}
+                  priority
+                  imgStyle={{ height: `${logoHeight}px` }}
+                  imgClassName="w-auto max-h-[42px] lg:max-h-[50px] max-w-[200px] sm:max-w-[240px] object-contain shrink-0"
+                />
+                {showBrandText && (
+                  <span className="font-display text-base lg:text-lg font-bold tracking-tight text-[#0B1628] dark:text-white whitespace-nowrap truncate">
+                    {brandShortName}
+                  </span>
+                )}
+              </>
             )}
           </a>
 
-          {/* Zona 2: Navegação Institucional (linha única, zero poluição) */}
-          <nav className="hidden lg:flex items-center gap-9" aria-label="Navegação principal">
+          {/* Zona 2: Navegação Institucional (linha única, indicador arquitetônico alinhado à base) */}
+          <nav className="hidden lg:flex items-center h-full gap-8 xl:gap-10" aria-label="Navegação principal">
             {desktopNavItems.map((item) => {
               const active = currentPath === item.path;
               return (
@@ -145,20 +205,34 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     e.preventDefault();
                     onNavigate(item.path);
                   }}
-                  className={`text-sm whitespace-nowrap shrink-0 py-1.5 border-b transition-colors ${
+                  aria-current={active ? 'page' : undefined}
+                  className={`group relative h-full inline-flex items-center text-[13.5px] xl:text-sm whitespace-nowrap shrink-0 transition-colors duration-150 ${
                     active
-                      ? 'text-[#0B1628] dark:text-white font-semibold border-[#0F3D91] dark:border-[#60A5FA]'
-                      : 'text-[#4B5563] dark:text-slate-300 font-medium border-transparent hover:text-[#0B1628] dark:hover:text-white'
+                      ? 'text-[#0B1628] dark:text-white font-semibold'
+                      : 'text-[#475569] dark:text-slate-300 font-medium hover:text-[#0B1628] dark:hover:text-white'
                   }`}
                 >
                   {item.localizedLabel}
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 h-[2px] transition-all duration-200 ${
+                      active
+                        ? 'bg-[#0F3D91] dark:bg-[#C9A86A] opacity-100'
+                        : 'bg-[#0B1628]/25 dark:bg-white/30 opacity-0 group-hover:opacity-100'
+                    }`}
+                  />
                 </a>
               );
             })}
           </nav>
 
           {/* Zona 3: Alternador discreto de tema + 1 CTA Primário + Menu Mobile */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <span
+              aria-hidden="true"
+              className="hidden lg:block h-6 w-px bg-[#E2E8F0] dark:bg-white/10 mr-1"
+            />
+
             <button
               type="button"
               data-testid="navbar-theme-toggle"
@@ -166,7 +240,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
               aria-pressed={isDark}
               title={isDark ? 'Modo Claro' : 'Modo Escuro'}
-              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors shrink-0"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-[#E2E8F0] dark:border-white/10 bg-[#F8FAFC] dark:bg-white/[0.04] text-[#475569] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white hover:border-[#B08D57]/55 dark:hover:border-[#C9A86A]/55 hover:bg-white dark:hover:bg-white/[0.08] transition-colors shrink-0"
             >
               {isDark ? (
                 <Sun className="w-4 h-4 text-[#C9A86A]" aria-hidden="true" />
@@ -179,15 +253,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               type="button"
               onMouseEnter={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
-              className={`hidden lg:inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-colors ${
+              className={`group hidden lg:inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold tracking-[-0.01em] rounded-lg whitespace-nowrap shrink-0 transition-all duration-150 ${
                 currentPath === headerCtaDest
-                  ? 'bg-[#F1F4F8] dark:bg-[#151F32] text-[#0B1628] dark:text-white border border-[#D1D5DB] dark:border-[#334155]'
-                  : 'bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628] hover:bg-[#16233B] dark:hover:bg-slate-200'
+                  ? 'bg-[#F1F5F9] dark:bg-white/[0.08] text-[#0B1628] dark:text-white border border-[#CBD5E1] dark:border-white/15'
+                  : 'bg-[#0B1628] dark:bg-[#C9A86A] text-white dark:text-[#070E1C] border border-[#1B2D4B] dark:border-[#E2C992]/40 hover:bg-[#132542] dark:hover:bg-[#D8BA80] shadow-[0_1px_2px_rgba(11,22,40,0.14),0_6px_16px_-6px_rgba(11,22,40,0.28)]'
               }`}
             >
               {headerCtaLabel}
               {currentPath !== headerCtaDest && (
-                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                <ArrowRight
+                  className="w-3.5 h-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
               )}
             </button>
 
@@ -196,7 +273,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="lg:hidden p-2 rounded-lg text-[#0B1628] dark:text-slate-200 hover:bg-[#F1F4F8] dark:hover:bg-[#151F32] min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+              className="lg:hidden p-2 rounded-lg border border-transparent hover:border-[#E2E8F0] dark:hover:border-white/10 text-[#0B1628] dark:text-slate-200 hover:bg-[#F1F5F9] dark:hover:bg-white/[0.06] min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
