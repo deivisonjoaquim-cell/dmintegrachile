@@ -1,126 +1,196 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { DEFAULT_EMPRESA_CONFIG, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS } from '../data/seeds';
-import { runSermigSimulation } from './sermigSimulator';
+import {
+  buildSermigDocumentSlots,
+  buildSermigSimulatedReceipt,
+  createInitialSermigPortalState,
+  SERMIG_MAX_FILE_BYTES,
+  validateSermigAttachmentFile,
+  validateSermigPortalStep,
+} from './sermigSimulator';
 
-describe('sermigSimulator — SERMIG legal scenario, timeline & fee engine', () => {
-  it('simulates Mercosul (15) from Brazil with clean profile as eligible and computes 60-day PF window', () => {
-    const result = runSermigSimulation(
-      {
-        visaCode: '15',
-        localizacaoAtual: 'brasil_exterior',
-        dataAlvoProtocolo: '2026-12-01',
-        quantidadeDependentes: 1,
-        possuiAntecedentesLimpos: true,
-        possuiPassaporteValido12m: true,
-        possuiComprovacaoFinanceiraOuContrato: true,
-        vinculoFamiliarChile: false,
-        moedaExibicao: 'BRL',
-      },
-      SEED_VISA_CATEGORIES,
-      SEED_VISA_REQUIREMENTS,
-      DEFAULT_EMPRESA_CONFIG,
-    );
+describe('sermigSimulator — SERMIG Portal de Trámites Digitales state machine & validator', () => {
+  const fixedNow = new Date('2026-11-26T12:00:00Z');
 
-    assert.equal(result.visa.codigo, '15');
-    assert.equal(result.elegibilidadeStatus, 'elegivel');
-    assert.ok(result.pontuacaoAdesao >= 80);
-    assert.equal(result.custos.totalPessoas, 2);
-    assert.ok(result.custos.totalBrl > 0);
-    assert.ok(result.custos.totalClp > result.custos.totalBrl);
-    assert.ok(result.custos.totalUsd > 0);
+  it('validates login screen (Cuenta SERMIG vs ClaveÚnica) and rejects empty credentials', () => {
+    const state = createInitialSermigPortalState({
+      visaCategories: SEED_VISA_CATEGORIES,
+      now: fixedNow,
+    });
+    const emptyCheck = validateSermigPortalStep('acceso', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(emptyCheck.valid, false);
+    assert.ok(emptyCheck.errors.some((e) => e.field === 'loginEmail'));
+    assert.ok(emptyCheck.errors.some((e) => e.field === 'loginPassword'));
 
-    // Antecedentes PF milestone must be scheduled 15 days before protocol (within 60-day validity rule)
-    const pfStep = result.cronogramaReverso.find((m) => m.marco.includes('Antecedentes'));
-    assert.ok(pfStep);
-    assert.equal(pfStep.dataSugeridaIso, '2026-11-16');
-    assert.match(pfStep.janelaLegal, /60 dias/i);
+    const validState = { ...state, loginEmail: 'cliente@exemplo.com', loginPassword: 'treino123' };
+    const okCheck = validateSermigPortalStep('acceso', validState, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(okCheck.valid, true);
+    assert.equal(okCheck.errors.length, 0);
   });
 
-  it('flags critical legal blocker under Ley 21.325 when tourist in Chile simulates exterior-only visa', () => {
-    const result = runSermigSimulation(
-      {
-        visaCode: '15',
-        localizacaoAtual: 'chile_turista',
-        dataAlvoProtocolo: '2026-12-15',
-        quantidadeDependentes: 0,
-        possuiAntecedentesLimpos: true,
-        possuiPassaporteValido12m: true,
-        possuiComprovacaoFinanceiraOuContrato: true,
-        vinculoFamiliarChile: false,
-        moedaExibicao: 'USD',
-      },
-      SEED_VISA_CATEGORIES,
-      SEED_VISA_REQUIREMENTS,
-      DEFAULT_EMPRESA_CONFIG,
-    );
+  it('blocks Mercosur inside-Chile first-time application under Ley 21.325 Art. 69', () => {
+    const mercosur = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
+    const state = createInitialSermigPortalState({
+      visaCategories: SEED_VISA_CATEGORIES,
+      initialVisaId: mercosur.id,
+      now: fixedNow,
+    });
+    state.tramiteType = 'rt_chile';
+    state.possuiResidenciaVigenteChile = false;
 
-    assert.equal(result.elegibilidadeStatus, 'bloqueio_legal');
-    assert.equal(result.requerSaidaDoChile, true);
-    assert.ok(result.alertasLegais.some((a) => a.nivel === 'critico' && a.baseLegal.includes('21.325')));
+    const check = validateSermigPortalStep('tramite', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(check.valid, false);
+    assert.ok(check.errors.some((e) => e.legalRef?.includes('21.325')));
+
+    // Switching to Extranjeros Fuera de Chile clears the block
+    state.tramiteType = 'rt_exterior';
+    const fixedCheck = validateSermigPortalStep('tramite', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(fixedCheck.valid, true);
   });
 
-  it('allows inside-Chile protocol for Reunificação Familiar (01) with formalized family link', () => {
-    const result = runSermigSimulation(
-      {
-        visaCode: '01',
-        localizacaoAtual: 'chile_turista',
-        dataAlvoProtocolo: '2026-12-20',
-        quantidadeDependentes: 0,
-        possuiAntecedentesLimpos: true,
-        possuiPassaporteValido12m: true,
-        possuiComprovacaoFinanceiraOuContrato: true,
-        vinculoFamiliarChile: true,
-        moedaExibicao: 'CLP',
-      },
+  it('validates personal data including double email confirmation and passport expiration', () => {
+    const state = createInitialSermigPortalState({
+      visaCategories: SEED_VISA_CATEGORIES,
+      now: fixedNow,
+    });
+    state.nombres = 'Ana Carolina';
+    state.primerApellido = 'Ferreira';
+    state.segundoApellido = 'Lima';
+    state.fechaNacimiento = '1992-05-14';
+    state.correoNotificacion = 'ana@exemplo.com';
+    state.confirmarCorreo = 'ana.errado@exemplo.com';
+
+    const mismatch = validateSermigPortalStep('datos_personales', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(mismatch.valid, false);
+    assert.ok(mismatch.errors.some((e) => e.field === 'confirmarCorreo'));
+
+    state.confirmarCorreo = 'ana@exemplo.com';
+    const matched = validateSermigPortalStep('datos_personales', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(matched.valid, true);
+
+    // Expired passport must block step 3
+    state.numeroDocumento = 'FY123456';
+    state.fechaVencimientoDoc = '2026-10-01';
+    state.direccionResidencia = 'Av. Paulista 1000';
+    const expiredCheck = validateSermigPortalStep(
+      'identificacion_domicilio',
+      state,
       SEED_VISA_CATEGORIES,
       SEED_VISA_REQUIREMENTS,
-      DEFAULT_EMPRESA_CONFIG,
+      fixedNow,
     );
-
-    assert.equal(result.visa.codigo, '01');
-    assert.equal(result.protocoloPermitidoNoChile, true);
-    assert.equal(result.requerSaidaDoChile, false);
-    assert.equal(result.elegibilidadeStatus, 'elegivel');
+    assert.equal(expiredCheck.valid, false);
+    assert.ok(expiredCheck.errors.some((e) => e.field === 'fechaVencimientoDoc'));
   });
 
-  it('scales official SERMIG & apostille costs proportionally with dependents', () => {
-    const solo = runSermigSimulation(
+  it('enforces SERMIG 5MB limit, PDF format, and strict 60-day Polícia Federal validity window', () => {
+    const mercosur = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
+    const slots = buildSermigDocumentSlots(mercosur, SEED_VISA_REQUIREMENTS, 0);
+    const pfSlot = slots.find((s) => s.isAntecedentesPf)!;
+    assert.ok(pfSlot);
+
+    // Oversized file > 5MB rejected
+    const oversized = validateSermigAttachmentFile(
+      { name: 'antecedentes.pdf', size: SERMIG_MAX_FILE_BYTES + 1024, type: 'application/pdf' },
+      pfSlot,
+    );
+    assert.equal(oversized.ok, false);
+
+    // Non-PDF file rejected for PF slot
+    const wrongExt = validateSermigAttachmentFile(
+      { name: 'antecedentes.jpg', size: 200_000, type: 'image/jpeg' },
+      pfSlot,
+    );
+    assert.equal(wrongExt.ok, false);
+
+    // 75-day-old PF certificate fails step 4 validation
+    const state = createInitialSermigPortalState({
+      visaCategories: SEED_VISA_CATEGORIES,
+      initialVisaId: mercosur.id,
+      now: fixedNow,
+    });
+    for (const s of slots) {
+      state.attachments[s.id] = {
+        slotId: s.id,
+        fileName: s.accepts === 'image' ? 'foto_3x4.jpg' : `${s.id}.pdf`,
+        fileSizeBytes: 350_000,
+        mimeType: s.accepts === 'image' ? 'image/jpeg' : 'application/pdf',
+        dataEmissao: s.isAntecedentesPf ? '2026-09-01' : undefined, // > 60 days before 2026-11-26
+        apostilaConfirmada: true,
+        attachedAtIso: fixedNow.toISOString(),
+      };
+    }
+
+    const expiredPf = validateSermigPortalStep('documentos', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(expiredPf.valid, false);
+    assert.ok(expiredPf.errors.some((e) => e.field.includes('emissao')));
+
+    // Fresh 10-day-old PF certificate passes
+    state.attachments[pfSlot.id].dataEmissao = '2026-11-16';
+    const freshPf = validateSermigPortalStep('documentos', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(freshPf.valid, true);
+  });
+
+  it('requires sworn declaration & captcha and generates a realistic SERMIG simulated receipt', () => {
+    const mercosur = SEED_VISA_CATEGORIES.find((v) => v.codigo === '15')!;
+    const state = createInitialSermigPortalState({
+      visaCategories: SEED_VISA_CATEGORIES,
+      initialVisaId: mercosur.id,
+      now: fixedNow,
+    });
+    state.nombres = 'Lucas';
+    state.primerApellido = 'Mendes';
+    state.segundoApellido = 'Rocha';
+    state.numeroDocumento = 'GL998877';
+    state.correoNotificacion = 'lucas@exemplo.com';
+    state.confirmarCorreo = 'lucas@exemplo.com';
+    state.dependientes = [
       {
-        visaCode: '15',
-        localizacaoAtual: 'brasil_exterior',
-        dataAlvoProtocolo: '2027-01-10',
-        quantidadeDependentes: 0,
-        possuiAntecedentesLimpos: true,
-        possuiPassaporteValido12m: true,
-        possuiComprovacaoFinanceiraOuContrato: true,
-        vinculoFamiliarChile: false,
-        moedaExibicao: 'BRL',
+        id: 'dep_1',
+        nombreCompleto: 'Sofia Mendes',
+        parentesco: 'Cónyuge / Conviviente',
+        fechaNacimiento: '1994-03-10',
+        numeroDocumento: 'GL554433',
       },
+    ];
+
+    const unconfirmed = validateSermigPortalStep('revision_declaracion', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(unconfirmed.valid, false);
+
+    state.declaraVeracidad = true;
+    state.aceptaNotificacionElectronica = true;
+    state.captchaVerificado = true;
+    const confirmed = validateSermigPortalStep('revision_declaracion', state, SEED_VISA_CATEGORIES, SEED_VISA_REQUIREMENTS, fixedNow);
+    assert.equal(confirmed.valid, true);
+
+    const slots = buildSermigDocumentSlots(mercosur, SEED_VISA_REQUIREMENTS, 1);
+    for (const s of slots) {
+      state.attachments[s.id] = {
+        slotId: s.id,
+        fileName: s.accepts === 'image' ? 'foto.jpg' : `${s.id}.pdf`,
+        fileSizeBytes: 240_000,
+        mimeType: s.accepts === 'image' ? 'image/jpeg' : 'application/pdf',
+        dataEmissao: s.isAntecedentesPf ? '2026-11-20' : undefined,
+        apostilaConfirmada: true,
+        attachedAtIso: fixedNow.toISOString(),
+      };
+    }
+
+    const receipt = buildSermigSimulatedReceipt(
+      state,
       SEED_VISA_CATEGORIES,
       SEED_VISA_REQUIREMENTS,
       DEFAULT_EMPRESA_CONFIG,
+      fixedNow,
     );
 
-    const family = runSermigSimulation(
-      {
-        visaCode: '15',
-        localizacaoAtual: 'brasil_exterior',
-        dataAlvoProtocolo: '2027-01-10',
-        quantidadeDependentes: 2,
-        possuiAntecedentesLimpos: true,
-        possuiPassaporteValido12m: true,
-        possuiComprovacaoFinanceiraOuContrato: true,
-        vinculoFamiliarChile: false,
-        moedaExibicao: 'BRL',
-      },
-      SEED_VISA_CATEGORIES,
-      SEED_VISA_REQUIREMENTS,
-      DEFAULT_EMPRESA_CONFIG,
-    );
-
-    assert.equal(solo.custos.totalPessoas, 1);
-    assert.equal(family.custos.totalPessoas, 3);
-    assert.ok(family.custos.totalBrl > solo.custos.totalBrl * 2.5);
+    assert.match(receipt.folioSolicitud, /^SOL-2026-\d{8}$/);
+    assert.match(receipt.codigoVerificacion, /^SERMIG-SIM-\d{6}$/);
+    assert.equal(receipt.titularCompleto, 'Lucas Mendes Rocha');
+    assert.equal(receipt.totalDependientes, 1);
+    assert.equal(receipt.totalDocumentosAnexados, slots.length);
+    assert.equal(receipt.readinessScore, 100);
+    assert.equal(receipt.proximasEtapasReais.length, 4);
   });
 });

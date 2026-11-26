@@ -197,7 +197,7 @@ export const PANEL_HUBS: PanelHubDefinition[] = [
     id: 'simulador',
     label: 'Simulador SERMIG',
     shortLabel: 'Simulador',
-    description: 'Simulador interativo SERMIG (Ley 21.325), cronograma reverso, taxas e liberação para clientes',
+    description: 'Simulador fiel do Portal de Entrada SERMIG (tramites.extranjeria.gob.cl) e liberação por cliente',
     roles: ['admin', 'consultor', 'assistente'],
   },
   {
