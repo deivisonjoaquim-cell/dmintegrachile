@@ -6,7 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { buildWhatsAppUrl, formatDateBR, openExternalSafe } from '../utils/formatters';
 import { prefetchRouteChunk } from '../utils/routePrefetch';
-import { BrandLogo } from './BrandLogo';
+import { BrandLogo, InstitutionalBrandMark, shouldUseInstitutionalMark } from './BrandLogo';
 
 interface PublicLayoutProps {
   currentPath: string;
@@ -96,42 +96,51 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
       ? 'bg-white dark:bg-[#070B12] border-b border-[#E5E7EB] dark:border-[#1E293B] no-print'
       : headerStyle === 'solido'
         ? 'sticky top-0 z-40 bg-white dark:bg-[#070B12] border-b border-[#E5E7EB] dark:border-[#1E293B] no-print'
-        : 'sticky top-0 z-40 bg-white/95 dark:bg-[#070B12]/95 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#1E293B] no-print';
+        : 'sticky top-0 z-40 bg-white/92 dark:bg-[#070B12]/92 backdrop-blur-md border-b border-[#E5E7EB]/90 dark:border-[#1E293B] no-print';
 
   const footerLogoSrc = empresa.logoDarkUrl || empresa.logoUrl;
   const headerLogoSrc = isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl;
+  const useInstitutionalHeaderLogo = shouldUseInstitutionalMark(headerLogoSrc);
+  const useInstitutionalFooterLogo = shouldUseInstitutionalMark(footerLogoSrc);
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-200">
       <header className={headerClass}>
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-[64px] lg:h-[76px] flex items-center justify-between gap-8">
-          {/* Zona 1: Marca Oficial */}
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-[66px] lg:h-[82px] flex items-center justify-between gap-8">
+          {/* Zona 1: Marca Institucional de Alta Fidelidade */}
           <a
             href="#/"
+            aria-label={empresa.nome_empresa}
             onClick={(e) => {
               e.preventDefault();
               onNavigate('/');
             }}
-            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 rounded focus-visible:outline-2 focus-visible:outline-[#0F3D91] dark:focus-visible:outline-[#60A5FA]"
+            className="flex items-center gap-3 min-w-0 whitespace-nowrap shrink-0 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-[#0F3D91] dark:focus-visible:outline-[#60A5FA]"
           >
-            <BrandLogo
-              src={headerLogoSrc}
-              alt={empresa.nome_empresa}
-              brandShortName={brandShortName}
-              variant={isDark ? 'dark' : 'light'}
-              priority
-              imgStyle={{ height: `${logoHeight}px` }}
-              imgClassName="w-auto max-h-[36px] lg:max-h-[42px] max-w-[180px] sm:max-w-[210px] object-contain shrink-0"
-            />
-            {showBrandText && (
-              <span className="font-display text-base font-bold tracking-tight text-[#0B1628] dark:text-white whitespace-nowrap truncate">
-                {brandShortName}
-              </span>
+            {useInstitutionalHeaderLogo ? (
+              <InstitutionalBrandMark tone="auto" size="header" />
+            ) : (
+              <>
+                <BrandLogo
+                  src={headerLogoSrc}
+                  alt={empresa.nome_empresa}
+                  brandShortName={brandShortName}
+                  variant={isDark ? 'dark' : 'light'}
+                  priority
+                  imgStyle={{ height: `${logoHeight}px` }}
+                  imgClassName="w-auto max-h-[36px] lg:max-h-[42px] max-w-[180px] sm:max-w-[210px] object-contain shrink-0"
+                />
+                {showBrandText && (
+                  <span className="font-display text-base font-bold tracking-tight text-[#0B1628] dark:text-white whitespace-nowrap truncate">
+                    {brandShortName}
+                  </span>
+                )}
+              </>
             )}
           </a>
 
-          {/* Zona 2: Navegação Institucional (linha única, zero poluição) */}
-          <nav className="hidden lg:flex items-center gap-9" aria-label="Navegação principal">
+          {/* Zona 2: Navegação Institucional (linha única, tipografia executiva refinada) */}
+          <nav className="hidden lg:flex items-center gap-10" aria-label="Navegação principal">
             {desktopNavItems.map((item) => {
               const active = currentPath === item.path;
               return (
@@ -145,10 +154,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                     e.preventDefault();
                     onNavigate(item.path);
                   }}
-                  className={`text-sm whitespace-nowrap shrink-0 py-1.5 border-b transition-colors ${
+                  className={`text-[13.5px] tracking-[0.014em] whitespace-nowrap shrink-0 py-2 border-b-[1.5px] transition-colors ${
                     active
                       ? 'text-[#0B1628] dark:text-white font-semibold border-[#0F3D91] dark:border-[#60A5FA]'
-                      : 'text-[#4B5563] dark:text-slate-300 font-medium border-transparent hover:text-[#0B1628] dark:hover:text-white'
+                      : 'text-[#4B5563] dark:text-slate-300 font-medium border-transparent hover:text-[#0B1628] dark:hover:text-white hover:border-[#CBD5E1] dark:hover:border-slate-600'
                   }`}
                 >
                   {item.localizedLabel}
@@ -158,7 +167,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
           </nav>
 
           {/* Zona 3: Alternador discreto de tema + 1 CTA Primário + Menu Mobile */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3.5 shrink-0">
             <button
               type="button"
               data-testid="navbar-theme-toggle"
@@ -166,7 +175,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               aria-label={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
               aria-pressed={isDark}
               title={isDark ? 'Modo Claro' : 'Modo Escuro'}
-              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors shrink-0"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors shrink-0"
             >
               {isDark ? (
                 <Sun className="w-4 h-4 text-[#C9A86A]" aria-hidden="true" />
@@ -175,11 +184,13 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
               )}
             </button>
 
+            <span aria-hidden="true" className="hidden lg:inline-block h-5 w-px bg-[#E5E7EB] dark:bg-[#1E293B]" />
+
             <button
               type="button"
               onMouseEnter={() => prefetchRouteChunk(headerCtaDest)}
               onClick={handleHeaderCtaClick}
-              className={`hidden lg:inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 transition-colors ${
+              className={`hidden lg:inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] tracking-[0.006em] font-semibold rounded-lg whitespace-nowrap shrink-0 transition-colors ${
                 currentPath === headerCtaDest
                   ? 'bg-[#F1F4F8] dark:bg-[#151F32] text-[#0B1628] dark:text-white border border-[#D1D5DB] dark:border-[#334155]'
                   : 'bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628] hover:bg-[#16233B] dark:hover:bg-slate-200'
@@ -294,16 +305,22 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
         <div className="max-w-7xl mx-auto px-5 sm:px-8 py-16 lg:py-20">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-12 border-b border-white/10">
             <div className="md:col-span-5 space-y-4">
-              <BrandLogo
-                src={footerLogoSrc}
-                alt={empresa.nome_empresa}
-                brandShortName={brandShortName}
-                variant="dark"
-                lazy
-                imgClassName="h-11 w-auto max-w-[240px] object-contain"
-              />
-              {!isCompleteHorizontalBrandLogo(footerLogoSrc) && (
-                <p className="font-display text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
+              {useInstitutionalFooterLogo ? (
+                <InstitutionalBrandMark tone="dark" size="footer" />
+              ) : (
+                <>
+                  <BrandLogo
+                    src={footerLogoSrc}
+                    alt={empresa.nome_empresa}
+                    brandShortName={brandShortName}
+                    variant="dark"
+                    lazy
+                    imgClassName="h-11 w-auto max-w-[240px] object-contain"
+                  />
+                  {!isCompleteHorizontalBrandLogo(footerLogoSrc) && (
+                    <p className="font-display text-lg font-bold tracking-tight text-white">{empresa.nome_empresa}</p>
+                  )}
+                </>
               )}
               <p className="text-sm text-slate-400 leading-relaxed max-w-md">
                 {translateText(lc.rodapeSubtitulo) || t.footer.defaultSubtitle}

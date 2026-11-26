@@ -2306,16 +2306,19 @@ export interface CallAiOptions {
   disableCache?: boolean;
   /** TTL customizado em milissegundos para esta entrada no IndexedDB */
   cacheTtlMs?: number;
+  /** Permite chamar rotas públicas (ex.: /api/ai/diagnostico) mesmo sem login Google */
+  allowPublic?: boolean;
 }
 
 export async function callAiEndpoint<T>(endpoint: string, body: unknown, options?: CallAiOptions): Promise<T> {
   const user = auth.currentUser;
-  if (!user) {
+  if (!user && !options?.allowPublic) {
     throw new Error('Faça login com sua conta Google para utilizar o apoio de IA.');
   }
 
+  const userScope = user?.uid || 'public_anon';
   const useCache = options?.disableCache !== true;
-  const cacheKey = useCache ? await computeAiCacheKey(endpoint, body, user.uid) : '';
+  const cacheKey = useCache ? await computeAiCacheKey(endpoint, body, userScope) : '';
 
   if (useCache && !options?.bypassCache && cacheKey) {
     const cached = await getAiCachedResponse<T>(cacheKey);
@@ -2338,7 +2341,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   const serializedBody = JSON.stringify(body);
 
   const executeAttempt = async (forceRefreshToken: boolean): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string; retryable: boolean }> => {
-    const token = await user.getIdToken(forceRefreshToken);
+    const token = user ? await user.getIdToken(forceRefreshToken) : null;
     const controller = new AbortController();
     let timedOut = false;
     const timeoutHandle = setTimeout(() => {
@@ -2354,7 +2357,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
           headers: {
             'Content-Type': 'application/json',
             Accept: useStream ? 'application/x-ndjson, application/json' : 'application/json',
-            Authorization: `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(useStream ? { 'x-ai-progress': '1' } : {}),
           },
           body: serializedBody,
@@ -2506,7 +2509,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   let outcome = await executeAttempt(false);
 
   // Se o token Firebase expirou ou houve pequena diferença de relógio, força renovação e tenta novamente
-  if (!outcome.ok && outcome.status === 401) {
+  if (!outcome.ok && outcome.status === 401 && user) {
     options?.onProgress?.('Renovando sessão e tentando novamente…', 2, 3);
     outcome = await executeAttempt(true);
   }
@@ -2523,7 +2526,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
     );
     await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[retryIdx]));
     outcome = await executeAttempt(false);
-    if (!outcome.ok && outcome.status === 401) {
+    if (!outcome.ok && outcome.status === 401 && user) {
       options?.onProgress?.('Renovando sessão e tentando novamente…', attemptNum, totalAttempts);
       outcome = await executeAttempt(true);
     }
@@ -2536,7 +2539,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
       void setAiCachedResponse({
         key: cacheKey,
         endpoint,
-        userScope: user.uid,
+        userScope,
         data: outcome.data,
         ttlMs: options?.cacheTtlMs,
       });

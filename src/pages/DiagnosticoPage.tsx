@@ -1125,6 +1125,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
           legalSources: compactLegalSourcesForAi(result.fontesLegais),
         },
         {
+          allowPublic: true,
           onProgress: (msg) => setAiProgress(msg),
         },
       );

@@ -587,19 +587,58 @@ export function buildDiagnosticoSpec(body: Record<string, unknown>) {
   };
 }
 
+function coerceParecerField(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item === 'object') {
+          return Object.values(item as Record<string, unknown>)
+            .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+            .join(' — ');
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => {
+        const text = coerceParecerField(v);
+        return text ? `${k}: ${text}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
 export function buildParecerSpec(body: Record<string, unknown>) {
   const rawCase = (body.caseData && typeof body.caseData === 'object' ? body.caseData : {}) as Record<string, unknown>;
   const rawClient = (body.clientData && typeof body.clientData === 'object' ? body.clientData : {}) as Record<string, unknown>;
+  const rawChecklist =
+    body.checklistResumo && typeof body.checklistResumo === 'object'
+      ? (body.checklistResumo as Record<string, unknown>)
+      : null;
   const rawPassport =
     rawClient.passaporte && typeof rawClient.passaporte === 'object'
       ? (rawClient.passaporte as Record<string, unknown>)
       : null;
 
+  const subcategoriaResolvida =
+    typeof rawCase.subcategoria === 'string' && rawCase.subcategoria.trim()
+      ? rawCase.subcategoria.trim().slice(0, 160)
+      : typeof rawCase.subcategoriaIa === 'string' && rawCase.subcategoriaIa.trim()
+        ? rawCase.subcategoriaIa.trim().slice(0, 160)
+        : '';
+
   const caseBrief = {
     id: rawCase.id,
     titulo: typeof rawCase.titulo === 'string' ? rawCase.titulo.slice(0, 200) : '',
     tipoServico: typeof rawCase.tipoServico === 'string' ? rawCase.tipoServico.slice(0, 120) : '',
-    subcategoria: typeof rawCase.subcategoria === 'string' ? rawCase.subcategoria.slice(0, 160) : '',
+    subcategoria: subcategoriaResolvida,
     etapaPipeline: rawCase.etapaPipeline,
     statusPipeline: rawCase.statusPipeline,
     statusSermig: rawCase.statusSermig,
@@ -636,6 +675,21 @@ export function buildParecerSpec(body: Record<string, unknown>) {
         }))
     : [];
 
+  const checklistBrief = rawChecklist
+    ? {
+        total: Number(rawChecklist.total || 0),
+        aprovados: Number(rawChecklist.aprovados || 0),
+        pendentes: Number(rawChecklist.pendentes || 0),
+        percentualProntidao: Number(rawChecklist.percentualProntidao || 0),
+        pendenciasPrincipais: Array.isArray(rawChecklist.pendenciasPrincipais)
+          ? rawChecklist.pendenciasPrincipais
+              .filter((x): x is string => typeof x === 'string')
+              .slice(0, 8)
+          : [],
+      }
+    : undefined;
+
+  const focoConsultor = typeof body.focoConsultor === 'string' ? body.focoConsultor.trim().slice(0, 600) : '';
   const sourcesBrief = compactServerLegalSources(body.legalSources, 15);
 
   return {
@@ -644,10 +698,12 @@ export function buildParecerSpec(body: Record<string, unknown>) {
       caseData: caseBrief,
       clientData: clientBrief,
       dependents: dependentsBrief,
+      ...(checklistBrief ? { checklistResumo: checklistBrief } : {}),
+      ...(focoConsultor ? { focoConsultor } : {}),
       legalSources: sourcesBrief,
     }),
     systemInstruction:
-      'Elabore um rascunho de Parecer Técnico Migratório em português do Brasil para a consultoria D&M Integra Chile. Preencha os 4 campos (enquadramentoLegal, elegibilidadeRiscos, fundamentacaoNormativa, recomendacoes) com texto técnico claro e objetivo. Cite SOMENTE normas existentes em legalSources enviadas no contexto; caso falte base para alguma afirmação, escreva literalmente "fonte a cadastrar".',
+      'Você é um especialista jurídico migratório Brasil-Chile da consultoria D&M Integra Chile. Elabore um rascunho de Parecer Técnico Migratório completo, claro, executivo e acolhedor em português do Brasil (sem juridiquês excessivo). Preencha os 4 campos obrigatórios como strings (enquadramentoLegal, elegibilidadeRiscos, fundamentacaoNormativa, recomendacoes). Considere o estágio atual do caso, a prontidão do checklist, os dependentes e qualquer focoConsultor informado. Cite SOMENTE normas existentes em legalSources enviadas no contexto; caso falte base cadastrada para alguma afirmação, escreva literalmente "fonte a cadastrar". Responda exclusivamente em JSON válido.',
     responseSchema: {
       type: Type.OBJECT,
       properties: {
@@ -659,11 +715,10 @@ export function buildParecerSpec(body: Record<string, unknown>) {
       required: ['enquadramentoLegal', 'elegibilidadeRiscos', 'fundamentacaoNormativa', 'recomendacoes'],
     },
     validateJson: (parsed: Record<string, unknown>) => {
-      const enquadramentoLegal = typeof parsed.enquadramentoLegal === 'string' ? parsed.enquadramentoLegal.trim() : '';
-      const elegibilidadeRiscos = typeof parsed.elegibilidadeRiscos === 'string' ? parsed.elegibilidadeRiscos.trim() : '';
-      const fundamentacaoNormativa =
-        typeof parsed.fundamentacaoNormativa === 'string' ? parsed.fundamentacaoNormativa.trim() : '';
-      const recomendacoes = typeof parsed.recomendacoes === 'string' ? parsed.recomendacoes.trim() : '';
+      const enquadramentoLegal = coerceParecerField(parsed.enquadramentoLegal);
+      const elegibilidadeRiscos = coerceParecerField(parsed.elegibilidadeRiscos);
+      const fundamentacaoNormativa = coerceParecerField(parsed.fundamentacaoNormativa);
+      const recomendacoes = coerceParecerField(parsed.recomendacoes);
       if (!enquadramentoLegal && !recomendacoes && !elegibilidadeRiscos) {
         return null;
       }

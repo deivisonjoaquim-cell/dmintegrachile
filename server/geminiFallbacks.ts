@@ -293,41 +293,82 @@ export function buildDiagnosticoFallback(body: Record<string, unknown>) {
 export function buildParecerFallback(body: Record<string, unknown>) {
   const caseData = (body.caseData && typeof body.caseData === 'object' ? body.caseData : {}) as Record<string, unknown>;
   const clientData = (body.clientData && typeof body.clientData === 'object' ? body.clientData : {}) as Record<string, unknown>;
+  const checklist =
+    body.checklistResumo && typeof body.checklistResumo === 'object'
+      ? (body.checklistResumo as Record<string, unknown>)
+      : null;
+  const focoConsultor = typeof body.focoConsultor === 'string' ? body.focoConsultor.trim() : '';
   const dependents = Array.isArray(body.dependents) ? body.dependents : [];
   const sources = normalizeLegalSources(body.legalSources);
   const citations = formatLegalCitations(sources);
 
-  const titulo = typeof caseData.titulo === 'string' ? caseData.titulo : 'Processo Migratório';
-  const tipoServico = typeof caseData.tipoServico === 'string' ? caseData.tipoServico : 'Residência Temporal';
-  const subcategoria = typeof caseData.subcategoria === 'string' && caseData.subcategoria.trim() ? caseData.subcategoria.trim() : '';
-  const statusSermig = typeof caseData.statusSermig === 'string' ? caseData.statusSermig : 'Em preparação';
+  const titulo = typeof caseData.titulo === 'string' && caseData.titulo.trim() ? caseData.titulo.trim() : 'Processo Migratório';
+  const tipoServico = typeof caseData.tipoServico === 'string' && caseData.tipoServico.trim() ? caseData.tipoServico.trim() : 'Residência Temporal';
+  const subcategoria =
+    typeof caseData.subcategoria === 'string' && caseData.subcategoria.trim()
+      ? caseData.subcategoria.trim()
+      : typeof caseData.subcategoriaIa === 'string' && caseData.subcategoriaIa.trim()
+        ? caseData.subcategoriaIa.trim()
+        : '';
+  const etapaNum = typeof caseData.etapaPipeline === 'number' ? caseData.etapaPipeline : null;
+  const statusSermig = typeof caseData.statusSermig === 'string' && caseData.statusSermig.trim() ? caseData.statusSermig.trim() : 'Em preparação';
   const notaViabilidade =
     typeof caseData.notaViabilidadeGeral === 'number' ? `${caseData.notaViabilidadeGeral}/100` : 'a apurar';
-  const nomeCliente = typeof clientData.nomeCompleto === 'string' ? clientData.nomeCompleto : 'Titular';
-  const localizacao = typeof clientData.localizacaoAtual === 'string' ? clientData.localizacaoAtual : 'Brasil/Exterior';
+  const nomeCliente = typeof clientData.nomeCompleto === 'string' && clientData.nomeCompleto.trim() ? clientData.nomeCompleto.trim() : 'Titular';
+  const localizacao = typeof clientData.localizacaoAtual === 'string' && clientData.localizacaoAtual.trim() ? clientData.localizacaoAtual.trim() : 'Brasil/Exterior';
+  const localSolicitacao = typeof caseData.localSolicitacao === 'string' && caseData.localSolicitacao.trim() ? caseData.localSolicitacao.trim() : '';
 
   const riskAlerts: string[] = [];
   if (clientData.antecedentesCriminais === true) {
-    riskAlerts.push('Sinalização de antecedentes criminais exige conferência jurídica antes do protocolo.');
+    riskAlerts.push('Sinalização de antecedentes criminais exige conferência jurídica detalhada antes do protocolo.');
   }
   if (clientData.restricaoEntrada === true) {
     riskAlerts.push('Histórico de restrição de entrada informado — validar situação migratória prévia na PDI/SERMIG.');
   }
   const passVal = typeof clientData.validadePassaporte === 'string' ? clientData.validadePassaporte : '';
   if (passVal) {
-    riskAlerts.push(`Passaporte com validade declarada até ${passVal}.`);
+    riskAlerts.push(`Passaporte com validade declarada até ${passVal} (confirmar mínimo de 12 meses).`);
+  }
+
+  const readinessLine = checklist
+    ? `Prontidão documental do checklist: ${Number(checklist.percentualProntidao || 0)}% (${Number(checklist.aprovados || 0)} aprovado(s) e ${Number(checklist.pendentes || 0)} pendente(s) de ${Number(checklist.total || 0)} item(ns)).`
+    : '';
+  const pendingDocs =
+    checklist && Array.isArray(checklist.pendenciasPrincipais)
+      ? checklist.pendenciasPrincipais.filter((d): d is string => typeof d === 'string' && d.trim().length > 0).slice(0, 5)
+      : [];
+
+  const recomendacoesList = [
+    pendingDocs.length > 0
+      ? `1) Priorizar a regularização das pendências abertas no checklist: ${pendingDocs.join(', ')}.`
+      : '1) Conferir todos os documentos obrigatórios do titular e dependentes no checklist do caso.',
+    '2) Emitir certidões civis e apostilamentos de Haia primeiro, deixando a Certidão de Antecedentes da Polícia Federal (validade de 60 dias) estritamente por último antes do protocolo SERMIG.',
+    '3) Validar taxas oficiais do SERMIG, cronograma de ingresso/registro na PDI e emitir revisão humana final antes de liberar este parecer ao cliente.',
+  ];
+  if (focoConsultor) {
+    recomendacoesList.push(`4) Ponto específico solicitado na análise: ${focoConsultor}.`);
   }
 
   return {
     rascunho: true,
-    enquadramentoLegal: `[${AI_FALLBACK_LABEL}]\nCaso: ${titulo} (${tipoServico}${subcategoria ? ` · ${subcategoria}` : ''}) para ${nomeCliente}.\nLocalização informada: ${localizacao}. Status atual no SERMIG: ${statusSermig}.\nEnquadramento orientativo preliminar definido conforme as regras ativas da subcategoria cadastrada.`,
-    elegibilidadeRiscos: `Viabilidade geral registrada: ${notaViabilidade}. Grupo familiar com ${dependents.length} dependente(s) vinculado(s). Conferir passaporte vigente (>= 12 meses para protocolo do exterior), regularidade de entradas/saídas na PDI, apostilamento de Haia e emissão dentro do prazo de validade das certidões (especialmente Antecedentes de 60 dias).${riskAlerts.length > 0 ? `\nAlertas cadastrados: ${riskAlerts.join(' ')}` : ''}`,
+    enquadramentoLegal: [
+      `Caso: ${titulo} (${tipoServico}${subcategoria ? ` · ${subcategoria}` : ''}) — Titular: ${nomeCliente}.`,
+      `Localização atual: ${localizacao}${localSolicitacao ? ` · Via de protocolo: ${localSolicitacao}` : ''}. ${etapaNum ? `Etapa atual no pipeline: ${etapaNum}/15 · ` : ''}Status no SERMIG: ${statusSermig}.`,
+      `Enquadramento técnico estruturado conforme os requisitos vigentes da subcategoria cadastrada e a Base Legal da consultoria.${focoConsultor ? ` Diretriz prioritária do consultor: ${focoConsultor}.` : ''}`,
+    ].join('\n'),
+    elegibilidadeRiscos: [
+      `Viabilidade geral registrada: ${notaViabilidade}. Grupo familiar com ${dependents.length} dependente(s) vinculado(s).`,
+      readinessLine,
+      'Pontos críticos de verificação obrigatória: passaporte com validade mínima recomendada (>= 12 meses), regularidade de entradas/saídas na PDI, Apostila da Haia (CNJ) em todas as certidões brasileiras e respeito à janela de validade de 60 dias dos Antecedentes Federais.',
+      riskAlerts.length > 0 ? `Alertas cadastrados no perfil: ${riskAlerts.join(' ')}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
     fundamentacaoNormativa:
       sources.length > 0
-        ? `Fontes cadastradas na Biblioteca Legal aplicáveis ao caso:\n- ${citations.join('\n- ')}`
+        ? `Fontes vigentes da Biblioteca Legal aplicáveis ao caso:\n- ${citations.join('\n- ')}`
         : 'fonte a cadastrar',
-    recomendacoes:
-      '1) Conferir todos os documentos obrigatórios do titular e dependentes no checklist do caso.\n2) Emitir certidões sem vencimento curto primeiro e deixar Antecedentes Criminais por último antes do protocolo.\n3) Validar taxas SERMIG e revisão final do consultor antes de liberar ao cliente.',
+    recomendacoes: recomendacoesList.join('\n'),
   };
 }
 

@@ -2030,6 +2030,39 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             {/* ABA 3: ORÇAMENTOS & FINANCEIRO */}
             {tab === 'financeiro' && (
               <div className="space-y-6">
+                {/* Resumo Financeiro do Cliente */}
+                {(budgets.length > 0 || financials.length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-4 space-y-1">
+                      <p className="text-xs text-[#475569] dark:text-slate-400">Propostas Recebidas</p>
+                      <p className="font-mono text-xl font-bold tabular-nums text-[#070E1C] dark:text-white">
+                        {budgets.length}
+                      </p>
+                      <p className="text-[11px] text-[#475569] dark:text-slate-400">
+                        {budgets.filter((b) => b.status === 'Enviado ao Cliente').length} aguardando sua aprovação
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-4 space-y-1">
+                      <p className="text-xs text-[#475569] dark:text-slate-400">Parcelas Quitadas</p>
+                      <p className="font-mono text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                        {financials.filter((f) => f.status === 'Pago').length}/{financials.length}
+                      </p>
+                      <p className="text-[11px] text-[#475569] dark:text-slate-400">
+                        Comprovantes e recibos vinculados
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-4 space-y-1">
+                      <p className="text-xs text-[#475569] dark:text-slate-400">Parcelas em Aberto</p>
+                      <p className="font-mono text-xl font-bold tabular-nums text-[#070E1C] dark:text-white">
+                        {financials.filter((f) => f.status !== 'Pago').length}
+                      </p>
+                      <p className="text-[11px] text-[#475569] dark:text-slate-400">
+                        Anexe comprovantes diretamente abaixo
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4">
                   <div>
                     <p className="brand-kicker">Propostas Comerciais</p>
@@ -2039,21 +2072,59 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <p className="text-sm text-[#475569] dark:text-slate-400">Nenhum orçamento enviado até o momento.</p>
                   ) : (
                     budgets.map((b) => (
-                      <div key={b.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
+                      <div key={b.id} className="p-5 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
                             <p className="text-xs font-mono text-[#475569] dark:text-slate-400 tabular-nums">
-                              Nº {b.numeroOrcamento} · Validade {formatDateBR(b.validade)} · Status: <strong className="font-sans text-[#070E1C] dark:text-white">{b.status}</strong>
+                              Nº {b.numeroOrcamento} · {b.tipoCobranca} · Validade {formatDateBR(b.validade)} · Status:{' '}
+                              <strong className="font-sans text-[#070E1C] dark:text-white">{b.status}</strong>
                             </p>
-                            <h3 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">{b.titulo}</h3>
+                            <h3 className="text-base font-bold text-[#070E1C] dark:text-white">{b.titulo}</h3>
                           </div>
-                          <p className="font-mono text-lg font-bold tabular-nums text-[#070E1C] dark:text-white">
-                            {formatCurrency(b.totalGeral, b.moedaPrincipal)}
-                          </p>
+                          <div className="text-left sm:text-right">
+                            <p className="font-mono text-lg font-bold tabular-nums text-[#070E1C] dark:text-white">
+                              {formatCurrency(b.totalGeral, b.moedaPrincipal)}
+                            </p>
+                            <p className="text-[11px] font-mono tabular-nums text-[#475569] dark:text-slate-400">
+                              Honorários {formatCurrency(b.totalHonorarios, b.moedaPrincipal)}
+                              {b.totalTaxas > 0 ? ` · Taxas est. ${formatCurrency(b.totalTaxas, b.moedaPrincipal)}` : ''}
+                              {b.desconto > 0 ? ` · Desc. -${formatCurrency(b.desconto, b.moedaPrincipal)}` : ''}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-[#475569] dark:text-slate-400">{b.condicoesPagamento}</p>
+
+                        {b.itens && b.itens.length > 0 && (
+                          <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B] border-y border-[#E5E7EB] dark:border-[#1E293B]">
+                            {b.itens.map((it) => (
+                              <div key={it.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[#070E1C] dark:text-white">{it.descricao}</p>
+                                  <p className="text-[11px] text-[#475569] dark:text-slate-400">
+                                    {it.etapaVinculada} · {it.statusEtapa}
+                                  </p>
+                                </div>
+                                <div className="text-right font-mono tabular-nums whitespace-nowrap">
+                                  <p className="font-semibold text-[#070E1C] dark:text-white">
+                                    {formatCurrency(it.valorHonorarios, it.moeda || b.moedaPrincipal)}
+                                  </p>
+                                  {Number(it.taxasEstimadasTerceiros || 0) > 0 && (
+                                    <p className="text-[11px] text-[#475569] dark:text-slate-400">
+                                      + {formatCurrency(it.taxasEstimadasTerceiros, it.moeda || b.moedaPrincipal)} taxas est.
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {b.condicoesPagamento && (
+                          <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                            <strong className="text-[#070E1C] dark:text-white">Condições de pagamento:</strong> {b.condicoesPagamento}
+                          </p>
+                        )}
                         {b.status === 'Enviado ao Cliente' && (
-                          <div className="flex flex-wrap gap-2 pt-2">
+                          <div className="flex flex-wrap gap-2 pt-1">
                             <button
                               type="button"
                               onClick={() => handleBudgetDecision(b, 'Aprovado')}
@@ -2124,33 +2195,63 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     <p className="text-sm text-[#475569] dark:text-slate-400">Nenhuma parcela lançada.</p>
                   ) : (
                     <div className="divide-y divide-[#E5E7EB] dark:divide-[#1E293B]">
-                      {financials.map((f) => (
-                        <div key={f.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-bold text-[#070E1C] dark:text-white">{f.descricao}</p>
-                            <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
-                              {f.tipo} · Venc. {formatDateBR(f.vencimento)} · <strong className="font-sans text-[#070E1C] dark:text-white">{f.status}</strong>
-                            </p>
+                      {financials.map((f) => {
+                        const isOverdue = f.status === 'Atrasado' || (f.status === 'Pendente' && f.vencimento && f.vencimento.slice(0, 10) < new Date().toISOString().slice(0, 10));
+                        return (
+                          <div key={f.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-[#070E1C] dark:text-white">{f.descricao}</p>
+                              <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
+                                {f.tipo}
+                                {f.formaPagamento ? ` · ${f.formaPagamento}` : ''} · Venc. {formatDateBR(f.vencimento)} ·{' '}
+                                <strong
+                                  className={`font-sans ${
+                                    f.status === 'Pago'
+                                      ? 'text-emerald-700 dark:text-emerald-400'
+                                      : isOverdue
+                                        ? 'text-red-700 dark:text-red-400'
+                                        : 'text-[#070E1C] dark:text-white'
+                                  }`}
+                                >
+                                  {f.status === 'Pago'
+                                    ? `Pago${f.dataPagamento ? ` em ${formatDateBR(f.dataPagamento)}` : ''}`
+                                    : isOverdue
+                                      ? 'Vencido'
+                                      : f.status}
+                                </strong>
+                                {f.reciboNumero ? ` · Recibo ${f.reciboNumero}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="font-mono text-sm font-bold tabular-nums text-[#070E1C] dark:text-white">
+                                {formatCurrency(f.valor, f.moeda)}
+                              </span>
+                              {f.comprovanteUrl && (
+                                <a
+                                  href={f.comprovanteUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-semibold underline text-[#0F3D91] dark:text-[#60A5FA] whitespace-nowrap"
+                                >
+                                  Ver comprovante
+                                </a>
+                              )}
+                              <label className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white cursor-pointer hover:bg-white dark:hover:bg-[#16233B] whitespace-nowrap">
+                                {f.comprovanteUrl ? 'Atualizar comprovante' : 'Anexar comprovante'}
+                                <input
+                                  type="file"
+                                  accept=".pdf,.jpg,.jpeg,.png"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) void handleUploadComprovante(f, file);
+                                  }}
+                                />
+                              </label>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-sm font-bold tabular-nums text-[#070E1C] dark:text-white">
-                              {formatCurrency(f.valor, f.moeda)}
-                            </span>
-                            <label className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white cursor-pointer hover:bg-white dark:hover:bg-[#16233B]">
-                              {f.comprovanteUrl ? 'Atualizar comprovante' : 'Anexar comprovante'}
-                              <input
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) void handleUploadComprovante(f, file);
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

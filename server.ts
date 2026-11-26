@@ -248,6 +248,28 @@ function requireRole(allowed: string[]) {
   };
 }
 
+async function optionalAuth(req: AuthedRequest, _res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+  const token = authHeader.slice(7).trim();
+  try {
+    const decoded = await verifyFirebaseIdToken(token);
+    if (decoded.email_verified) {
+      const adminEmails = getAdminEmails();
+      const userDoc = await fetchUserRoleFromFirestore(decoded.uid, token);
+      const role = adminEmails.has(decoded.email) ? 'admin' : userDoc?.role || 'cliente';
+      const status = adminEmails.has(decoded.email) ? 'ativo' : userDoc?.status || 'pendente';
+      req.authUser = { ...decoded, role, status, rawToken: token };
+    }
+  } catch {
+    // Public route fallback: proceed as anonymous visitor if token is absent or expired
+  }
+  next();
+}
+
 // =============================================================================
 // Rate limiter (per UID) for /api/ai/*
 // =============================================================================
@@ -264,6 +286,24 @@ function aiRateLimit(req: AuthedRequest, res: Response, next: NextFunction): voi
   }
   hits.push(now);
   rateWindows.set(key, hits);
+  next();
+}
+
+const publicDiagnosticoRateWindows = new Map<string, number[]>();
+function publicDiagnosticoRateLimit(req: AuthedRequest, res: Response, next: NextFunction): void {
+  const key = req.authUser?.uid ? `uid:${req.authUser.uid}` : `ip:${req.ip || 'anon_diag'}`;
+  const now = Date.now();
+  const windowMs = 5 * 60 * 1000;
+  const maxReqs = req.authUser?.uid ? 25 : 15;
+  const hits = (publicDiagnosticoRateWindows.get(key) || []).filter((ts) => now - ts < windowMs);
+  if (hits.length >= maxReqs) {
+    res.status(429).json({
+      error: 'Limite temporário de requisições de IA atingido. Aguarde alguns minutos.',
+    });
+    return;
+  }
+  hits.push(now);
+  publicDiagnosticoRateWindows.set(key, hits);
   next();
 }
 
@@ -692,9 +732,9 @@ app.delete('/api/uploads/:filename', requireAuth, requireRole(['admin', 'consult
 });
 
 // -----------------------------------------------------------------------------
-// 1. /api/ai/diagnostico — Refina parecer orientativo (exige sessão Google válida)
+// 1. /api/ai/diagnostico — Refina parecer orientativo (público ou autenticado)
 // -----------------------------------------------------------------------------
-app.post('/api/ai/diagnostico', requireAuth, aiRateLimit, async (req: AuthedRequest, res: Response) => {
+app.post('/api/ai/diagnostico', optionalAuth, publicDiagnosticoRateLimit, async (req: AuthedRequest, res: Response) => {
   const body = (req.body || {}) as Record<string, unknown>;
   const rawSize = Buffer.byteLength(JSON.stringify(body), 'utf8');
   if (rawSize > 256 * 1024) {
@@ -706,7 +746,12 @@ app.post('/api/ai/diagnostico', requireAuth, aiRateLimit, async (req: AuthedRequ
     return;
   }
   const wantsStream = req.headers['x-ai-progress'] === '1';
-  await runAiRouteExecution(req.authUser, wantsStream, res, buildDiagnosticoSpec(body), aiRouteDeps);
+  const effectiveUser = req.authUser || {
+    uid: `anon_${crypto.createHash('sha256').update(String(req.ip || 'public')).digest('hex').slice(0, 12)}`,
+    email: 'public@dm-integra.local',
+    role: 'cliente',
+  };
+  await runAiRouteExecution(effectiveUser, wantsStream, res, buildDiagnosticoSpec(body), aiRouteDeps);
 });
 
 // -----------------------------------------------------------------------------

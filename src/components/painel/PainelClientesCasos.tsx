@@ -321,6 +321,8 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const [aiParecerProgress, setAiParecerProgress] = useState<string | null>(null);
   const [aiParecerError, setAiParecerError] = useState<string | null>(null);
   const [savingParecer, setSavingParecer] = useState(false);
+  const [parecerFoco, setParecerFoco] = useState('');
+  const [copiedParecerId, setCopiedParecerId] = useState<string | null>(null);
   const [parecerDraft, setParecerDraft] = useState<(AiResponseMeta & {
     enquadramentoLegal: string;
     elegibilidadeRiscos: string;
@@ -1413,7 +1415,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
   const handleGenerateAiParecer = async (forceRefresh = false) => {
     if (!activeCase || isAssistente || aiParecerLoading) return;
     setAiParecerLoading(true);
-    setAiParecerProgress(forceRefresh ? 'Consultando IA (atualização forçada)...' : 'Verificando cache local e consultando IA...');
+    setAiParecerProgress(forceRefresh ? 'Consultando IA (atualização forçada)...' : 'Analisando caso, checklist e Base Legal...');
     setAiParecerError(null);
     setErrorMsg(null);
     try {
@@ -1423,6 +1425,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
             ...compactClientForAi(activeClient as unknown as Record<string, unknown>),
           }
         : {};
+      const prioritizedSources = activeCaseLegalSources.length > 0 ? activeCaseLegalSources : legalSources;
+      const aprovadosCount = caseDocs.filter((d) => d.status === 'Aprovado').length;
+      const pendentesDocs = caseDocs.filter((d) => d.status !== 'Aprovado');
+      const checklistResumo = {
+        total: caseDocs.length,
+        aprovados: aprovadosCount,
+        pendentes: pendentesDocs.length,
+        percentualProntidao: thermo.notaGeral,
+        pendenciasPrincipais: pendentesDocs.slice(0, 5).map((d) => `${d.nomeDocumento} (${d.pessoa} · ${d.status})`),
+      };
       const resp = await callAiEndpoint<
         AiResponseMeta & {
           enquadramentoLegal: string;
@@ -1434,13 +1446,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
         '/api/ai/parecer',
         {
           caseData: compactCaseForAi(activeCase as unknown as Record<string, unknown>),
+          subcategoria: activeVisaCategory?.nomePortugues || activeCase.subcategoriaIa || activeCase.tipoServico,
           clientData: compactClient,
           dependents: compactDependentsForAi(caseDependents as unknown as Array<Record<string, unknown>>),
-          legalSources: compactLegalSourcesForAi(legalSources),
+          legalSources: compactLegalSourcesForAi(prioritizedSources),
+          checklistResumo,
+          focoConsultor: parecerFoco.trim() || undefined,
         },
         {
           onProgress: (msg) => setAiParecerProgress(msg),
-          bypassCache: forceRefresh,
+          bypassCache: forceRefresh || Boolean(parecerFoco.trim()),
         },
       );
       updateParecerDraft({
@@ -1469,37 +1484,99 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
     }
   };
 
+  const handleCopyParecerText = async (
+    idKey: string,
+    data: {
+      enquadramentoLegal: string;
+      elegibilidadeRiscos: string;
+      fundamentacaoNormativa: string;
+      recomendacoes: string;
+      notaGeral?: number;
+    },
+  ) => {
+    const text = [
+      `PARECER TÉCNICO & VIABILIDADE — ${activeCase?.titulo || 'Caso Migratório'}`,
+      activeClient?.nomeCompleto ? `Cliente: ${activeClient.nomeCompleto}` : '',
+      typeof data.notaGeral === 'number' ? `Índice de Viabilidade: ${data.notaGeral}/100` : '',
+      '',
+      '1. ENQUADRAMENTO LEGAL',
+      data.enquadramentoLegal,
+      '',
+      '2. ELEGIBILIDADE E RISCOS',
+      data.elegibilidadeRiscos,
+      '',
+      '3. FUNDAMENTAÇÃO NORMATIVA',
+      data.fundamentacaoNormativa,
+      '',
+      '4. RECOMENDAÇÕES AO CLIENTE',
+      data.recomendacoes,
+    ]
+      .filter((line, idx, arr) => line !== '' || (idx > 0 && arr[idx - 1] !== ''))
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedParecerId(idKey);
+      setTimeout(() => setCopiedParecerId((prev) => (prev === idKey ? null : prev)), 2500);
+    } catch {
+      setErrorMsg('Não foi possível copiar o parecer automaticamente.');
+    }
+  };
+
   const handleSaveParecerDraft = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCase || !parecerDraft || isAssistente || savingParecer) return;
+    const hasText = Boolean(
+      parecerDraft.enquadramentoLegal.trim() ||
+        parecerDraft.elegibilidadeRiscos.trim() ||
+        parecerDraft.fundamentacaoNormativa.trim() ||
+        parecerDraft.recomendacoes.trim(),
+    );
+    if (!hasText) {
+      setAiParecerError('Preencha ao menos uma seção do parecer técnico antes de salvar.');
+      return;
+    }
+    const resolvedClientId = activeCase.clientId || activeClient?.id || '';
+    if (!resolvedClientId) {
+      setAiParecerError('Este caso não possui cliente vinculado. Vincule um cliente antes de salvar o parecer.');
+      return;
+    }
     setSavingParecer(true);
     setAiParecerError(null);
     setErrorMsg(null);
     try {
       const id = makeId('viab');
       const nextVersion = (caseAssessments[0]?.versao || 0) + 1;
+      const notaNormalizada = Math.max(0, Math.min(100, Math.round(Number(parecerDraft.notaGeral) || 85)));
       const record: ViabilityAssessment = {
         id,
         caseId: activeCase.id,
-        clientId: activeCase.clientId,
+        clientId: resolvedClientId,
         versao: nextVersion,
-        enquadramentoLegal: parecerDraft.enquadramentoLegal,
-        elegibilidadeRiscos: parecerDraft.elegibilidadeRiscos,
-        fundamentacaoNormativa: parecerDraft.fundamentacaoNormativa,
-        recomendacoes: parecerDraft.recomendacoes,
-        notaGeral: parecerDraft.notaGeral,
+        enquadramentoLegal: parecerDraft.enquadramentoLegal.trim(),
+        elegibilidadeRiscos: parecerDraft.elegibilidadeRiscos.trim(),
+        fundamentacaoNormativa: parecerDraft.fundamentacaoNormativa.trim(),
+        recomendacoes: parecerDraft.recomendacoes.trim(),
+        notaGeral: notaNormalizada,
         rascunhoIa: parecerDraft.origem !== 'regras',
-        liberadoAoCliente: parecerDraft.liberadoAoCliente,
+        liberadoAoCliente: Boolean(parecerDraft.liberadoAoCliente),
         autorNome: userProfile.nome || userProfile.email,
         createdAt: new Date().toISOString(),
       };
       await saveDocumentAudited('viabilityAssessments', id, record as unknown as Record<string, unknown>, true, role, 'parecer_tecnico');
-      if (parecerDraft.liberadoAoCliente && !activeCase.relatorioViabilidadeLiberado) {
-        await handleSaveCaseField({ relatorioViabilidadeLiberado: true, parecerConsultor: parecerDraft.recomendacoes }, 'liberar_parecer');
+      if (parecerDraft.liberadoAoCliente) {
+        await handleSaveCaseField(
+          {
+            relatorioViabilidadeLiberado: true,
+            notaViabilidadeGeral: notaNormalizada,
+            parecerConsultor: record.recomendacoes,
+          },
+          'liberar_parecer',
+        );
       } else {
-        await onRefresh();
+        await handleSaveCaseField({ notaViabilidadeGeral: notaNormalizada }, 'atualizar_nota_parecer');
       }
       updateParecerDraft(null);
+      setParecerFoco('');
       setFeedback(`Parecer Técnico v${nextVersion} aprovado e salvo.`);
     } catch (err) {
       const translated = translateAppError(err, { path: 'viabilityAssessments' });
@@ -2532,16 +2609,29 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         A IA gera um rascunho citando exclusivamente a Base Legal cadastrada. Edite e aprove antes de liberar ao cliente.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={aiParecerLoading}
-                      onClick={() => void handleGenerateAiParecer(false)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 max-w-full"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                      <span>{aiParecerLoading ? aiParecerProgress || 'Gerando rascunho...' : 'Gerar Rascunho de Parecer com IA'}</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={aiParecerLoading}
+                        onClick={() => void handleGenerateAiParecer(false)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50 max-w-full"
+                        style={{ backgroundColor: 'var(--color-primary)' }}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span>{aiParecerLoading ? aiParecerProgress || 'Gerando rascunho...' : 'Gerar Parecer com IA'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Direcionamento opcional do consultor */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={parecerFoco}
+                      onChange={(e) => setParecerFoco(e.target.value)}
+                      placeholder="Foco opcional para a IA (ex.: destacar dependente menor, prazo de entrada em 90 dias, contrato remoto)..."
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-800"
+                    />
                   </div>
 
                   {aiParecerLoading && aiParecerProgress && (
@@ -2580,15 +2670,15 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                         <div className="space-y-1 min-w-0">
                           {parecerDraft.fallback || parecerDraft.origem === 'regras' ? (
                             <>
-                              <p className="text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg inline-block">
-                                {parecerDraft.origemLabel || 'Rascunho gerado por regras — IA indisponível no momento'}
+                              <p className="text-xs font-semibold text-amber-950">
+                                {parecerDraft.origemLabel || 'Rascunho estruturado pelas regras SERMIG/BCN'}
                               </p>
                               {parecerDraft.mensagemUsuario && (
                                 <p className="text-xs text-amber-900">{parecerDraft.mensagemUsuario}</p>
                               )}
                             </>
                           ) : (
-                            <p className="text-xs font-semibold text-emerald-900 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                            <p className="text-xs font-semibold text-emerald-900">
                               {parecerDraft.origemLabel || 'Rascunho editável gerado pela IA'} — revise e ajuste antes de aprovar.
                               {parecerDraft.fromCache && (
                                 <span className="ml-1.5 font-normal text-emerald-800">
@@ -2598,15 +2688,25 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                             </p>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          disabled={aiParecerLoading || savingParecer}
-                          onClick={() => void handleGenerateAiParecer(true)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 shrink-0"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          {aiParecerLoading ? aiParecerProgress || 'Atualizando...' : parecerDraft.fromCache ? 'Atualizar da IA' : 'Tentar novamente com IA'}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyParecerText('draft', parecerDraft)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            {copiedParecerId === 'draft' ? 'Copiado!' : 'Copiar'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={aiParecerLoading || savingParecer}
+                            onClick={() => void handleGenerateAiParecer(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            {aiParecerLoading ? aiParecerProgress || 'Atualizando...' : 'Regerar com IA'}
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2646,15 +2746,33 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                           />
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={parecerDraft.liberadoAoCliente}
-                            onChange={(e) => updateParecerDraft({ ...parecerDraft, liberadoAoCliente: e.target.checked })}
-                          />
-                          Liberar versão aprovada no Portal do Cliente
-                        </label>
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                        <div className="flex flex-wrap items-center gap-4">
+                          <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                            <span>Nota de Viabilidade (0–100):</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={parecerDraft.notaGeral}
+                              onChange={(e) =>
+                                updateParecerDraft({
+                                  ...parecerDraft,
+                                  notaGeral: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                                })
+                              }
+                              className="w-20 px-2 py-1 rounded border border-slate-300 font-mono tabular-nums text-xs"
+                            />
+                          </label>
+                          <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={parecerDraft.liberadoAoCliente}
+                              onChange={(e) => updateParecerDraft({ ...parecerDraft, liberadoAoCliente: e.target.checked })}
+                            />
+                            Liberar versão aprovada no Portal do Cliente
+                          </label>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
@@ -2680,15 +2798,41 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                     <div className="space-y-2">
                       <p className="text-xs font-semibold text-slate-700">Versões Salvas:</p>
                       {caseAssessments.map((va) => (
-                        <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1">
+                        <div key={va.id} className="bg-white border border-slate-200 rounded-lg p-3.5 text-xs space-y-1.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="font-bold text-slate-900">
-                              Versão {va.versao} · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
+                              Versão {va.versao} · Nota {va.notaGeral}/100 · {formatDateTimeBR(va.createdAt)} · {va.autorNome}
                             </span>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className={va.liberadoAoCliente ? 'text-[#1E7E34] font-semibold' : 'text-slate-500'}>
                                 {va.liberadoAoCliente ? 'Liberado ao cliente' : 'Uso interno'}
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => void handleCopyParecerText(va.id, va)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-[11px] font-semibold whitespace-nowrap shrink-0"
+                              >
+                                <Copy className="w-3 h-3" />
+                                {copiedParecerId === va.id ? 'Copiado!' : 'Copiar'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateParecerDraft({
+                                    origem: va.rascunhoIa ? 'principal' : 'regras',
+                                    origemLabel: `Editando a partir da Versão ${va.versao}`,
+                                    enquadramentoLegal: va.enquadramentoLegal,
+                                    elegibilidadeRiscos: va.elegibilidadeRiscos,
+                                    fundamentacaoNormativa: va.fundamentacaoNormativa,
+                                    recomendacoes: va.recomendacoes,
+                                    notaGeral: va.notaGeral || 85,
+                                    liberadoAoCliente: va.liberadoAoCliente,
+                                  })
+                                }
+                                className="px-2 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-[11px] font-semibold whitespace-nowrap shrink-0"
+                              >
+                                Nova versão desta
+                              </button>
                               {canManageClients && (
                                 <button
                                   type="button"

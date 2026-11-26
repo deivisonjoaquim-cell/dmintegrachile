@@ -278,12 +278,16 @@ export function compactCaseForAi(caseData: Record<string, unknown> | null | unde
     id: caseData.id,
     titulo: caseData.titulo,
     tipoServico: caseData.tipoServico,
-    subcategoria: caseData.subcategoria,
+    subcategoria: caseData.subcategoria || caseData.subcategoriaIa,
+    subcategoriaIa: caseData.subcategoriaIa,
+    visaCategoryId: caseData.visaCategoryId,
+    etapaPipeline: caseData.etapaPipeline,
     statusPipeline: caseData.statusPipeline,
     statusSermig: caseData.statusSermig,
     localSolicitacao: caseData.localSolicitacao,
     notaViabilidadeGeral: caseData.notaViabilidadeGeral,
     observacoes: typeof caseData.observacoes === 'string' ? caseData.observacoes.slice(0, 800) : '',
+    parecerConsultor: typeof caseData.parecerConsultor === 'string' ? caseData.parecerConsultor.slice(0, 600) : '',
   };
 }
 
