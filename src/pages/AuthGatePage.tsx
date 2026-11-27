@@ -21,7 +21,7 @@ import {
   CONSULTANCY_PLANS,
   type BasicDiagnosticSummary,
 } from '../utils/portalAccess';
-import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon, InstitutionalBrandMark, shouldUseInstitutionalMark } from '../components/BrandLogo';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 
 interface AuthGatePageProps {
@@ -311,18 +311,22 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
               {/* Coluna Esquerda: Contexto institucional */}
               <div className="lg:col-span-5 bg-[#070E1C] text-white p-8 sm:p-10 flex flex-col justify-between gap-10">
                 <div className="space-y-5">
-                  <BrandLogo
-                    src={empresa.logoDarkUrl || empresa.logoUrl}
-                    alt={empresa.nome_empresa}
-                    brandShortName={brandShortName}
-                    variant="dark"
-                    imgClassName="h-10 w-auto max-w-[200px] object-contain"
-                    fallbackNode={
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/10 text-[#C9A86A]">
-                        <ShieldCheck className="w-5 h-5" />
-                      </div>
-                    }
-                  />
+                  {shouldUseInstitutionalMark(empresa.logoDarkUrl || empresa.logoUrl) ? (
+                    <InstitutionalBrandMark tone="dark" size="header" />
+                  ) : (
+                    <BrandLogo
+                      src={empresa.logoDarkUrl || empresa.logoUrl}
+                      alt={empresa.nome_empresa}
+                      brandShortName={brandShortName}
+                      variant="dark"
+                      imgClassName="h-12 w-auto max-w-[220px] object-contain"
+                      fallbackNode={
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/10 text-[#C9A86A]">
+                          <ShieldCheck className="w-5 h-5" />
+                        </div>
+                      }
+                    />
+                  )}
                   <div className="space-y-2.5 pt-2">
                     <p className="text-xs font-semibold tracking-[0.06em] text-[#C9A86A]">
                       {mode === 'equipe' ? 'Ambiente Interno Corporativo' : 'Ambiente Seguro · LGPD'}
@@ -435,18 +439,24 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
         <div className="bg-[var(--color-surface)] border border-[#E2E8F0] dark:border-[#1E293B] card-radius overflow-hidden">
           <BrandRibbon className="h-[2.5px] w-full" />
           <div className="p-6 sm:p-8 text-center space-y-5">
-          <BrandLogo
-            src={empresa.logoUrl}
-            alt={empresa.nome_empresa}
-            brandShortName={brandShortName}
-            variant={isDark ? 'dark' : 'light'}
-            imgClassName="h-12 w-auto max-w-[240px] object-contain mx-auto"
-            fallbackNode={
-              <div className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white bg-[#090F1A]">
-                <ShieldCheck className="w-6 h-6 text-[#34D399]" />
-              </div>
-            }
-          />
+          {shouldUseInstitutionalMark(isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl) ? (
+            <div className="flex justify-center">
+              <InstitutionalBrandMark tone="auto" size="header" />
+            </div>
+          ) : (
+            <BrandLogo
+              src={isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl}
+              alt={empresa.nome_empresa}
+              brandShortName={brandShortName}
+              variant={isDark ? 'dark' : 'light'}
+              imgClassName="h-12 w-auto max-w-[240px] object-contain mx-auto"
+              fallbackNode={
+                <div className="w-12 h-12 btn-radius mx-auto flex items-center justify-center text-white bg-[#090F1A]">
+                  <ShieldCheck className="w-6 h-6 text-[#34D399]" />
+                </div>
+              }
+            />
+          )}
 
           <h1 className="font-display text-2xl font-bold text-[#090F1A] dark:text-white">
             {mode === 'equipe' ? 'Área da Equipe — Acesso Restrito' : 'Portal do Cliente'}

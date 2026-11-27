@@ -129,7 +129,7 @@ import {
 } from '../utils/portalAccess';
 import { runDiagnosticEngine } from '../utils/diagnosticEngine';
 import { buildClientActionCenter } from '../utils/clientPortalIntelligence';
-import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon, InstitutionalBrandMark, shouldUseInstitutionalMark } from '../components/BrandLogo';
 
 interface PortalClientePageProps {
   onNavigate: (path: string) => void;
@@ -509,13 +509,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           <BrandRibbon className="h-[3px] w-full no-print" />
           <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2.5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <BrandLogo
-                src={empresa.logoUrl}
-                alt={empresa.nome_empresa}
-                brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-                variant={isDark ? 'dark' : 'light'}
-                imgClassName="h-9 w-auto max-w-[160px] object-contain shrink-0"
-              />
+              {shouldUseInstitutionalMark(isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl) ? (
+                <InstitutionalBrandMark tone="auto" size="compact" />
+              ) : (
+                <BrandLogo
+                  src={isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl}
+                  alt={empresa.nome_empresa}
+                  brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+                  variant={isDark ? 'dark' : 'light'}
+                  imgClassName="h-9 w-auto max-w-[160px] object-contain shrink-0"
+                />
+              )}
               <div className="min-w-0 border-l border-[#E5E7EB] dark:border-[#1E293B] pl-3">
                 <p className="text-xs sm:text-sm font-bold text-[#0B1628] dark:text-white truncate">
                   Portal do Cliente ·{' '}
@@ -1198,13 +1202,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         <BrandRibbon className="h-[3px] w-full no-print" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-16 py-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-            <BrandLogo
-              src={empresa.logoUrl}
-              alt={empresa.nome_empresa}
-              brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-              variant={isDark ? 'dark' : 'light'}
-              imgClassName="h-9 sm:h-10 w-auto max-w-[135px] sm:max-w-[190px] object-contain shrink-0"
-            />
+            {shouldUseInstitutionalMark(isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl) ? (
+              <InstitutionalBrandMark tone="auto" size="compact" />
+            ) : (
+              <BrandLogo
+                src={isDark ? (empresa.logoDarkUrl || empresa.logoUrl) : empresa.logoUrl}
+                alt={empresa.nome_empresa}
+                brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+                variant={isDark ? 'dark' : 'light'}
+                imgClassName="h-9 sm:h-10 w-auto max-w-[135px] sm:max-w-[190px] object-contain shrink-0"
+              />
+            )}
             <div className="min-w-0 border-l border-[#E5E7EB] dark:border-[#1E293B] pl-2.5 sm:pl-3">
               <p className="text-xs sm:text-sm font-bold text-[#0B1628] dark:text-white leading-snug break-words">
                 Portal do Cliente · <span className="text-[#0F3D91] dark:text-[#C9A86A]">{planSpec.nome}</span>

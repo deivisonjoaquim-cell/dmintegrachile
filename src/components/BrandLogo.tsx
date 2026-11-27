@@ -36,32 +36,40 @@ export function shouldUseInstitutionalMark(rawUrl?: string | null): boolean {
 
 export interface InstitutionalBrandMarkProps {
   tone?: 'auto' | 'light' | 'dark';
-  size?: 'header' | 'footer';
+  size?: 'compact' | 'header' | 'footer';
+  showSubtitle?: boolean;
   className?: string;
 }
 
 /**
- * High-fidelity institutional brand lockup (vector crest + single-line architectural wordmark).
- * Renders razor-sharp at any DPI and honors both light and dark corporate palettes.
+ * High-fidelity institutional brand lockup combining the official uploaded
+ * D&M Integra Chile vector emblem (light/dark) with the site's refined
+ * enterprise typography and spacing.
  */
 export const InstitutionalBrandMark: React.FC<InstitutionalBrandMarkProps> = ({
   tone = 'auto',
   size = 'header',
+  showSubtitle = true,
   className = '',
 }) => {
   const isFooter = size === 'footer';
-  const crestSize = isFooter ? 'w-10 h-10' : 'w-8 h-8 lg:w-9 lg:h-9';
+  const isCompact = size === 'compact';
 
-  const frameClass =
-    tone === 'dark'
-      ? 'bg-[#101C33] border-[#C9A86A]/45'
-      : tone === 'light'
-        ? 'bg-[#0B1628] border-[#1E355E]'
-        : 'bg-[#0B1628] dark:bg-[#101C33] border-[#1E355E] dark:border-[#C9A86A]/45';
+  const emblemSizeClass = isFooter
+    ? 'w-12 h-12'
+    : isCompact
+      ? 'w-9 h-9'
+      : 'w-9 h-9 lg:w-11 lg:h-11';
+
+  const dividerHeightClass = isFooter
+    ? 'h-8'
+    : isCompact
+      ? 'h-6'
+      : 'h-6 lg:h-7';
 
   const dividerClass =
     tone === 'dark'
-      ? 'bg-white/20'
+      ? 'bg-white/15'
       : tone === 'light'
         ? 'bg-[#D1D5DB]'
         : 'bg-[#D1D5DB] dark:bg-slate-700';
@@ -75,80 +83,119 @@ export const InstitutionalBrandMark: React.FC<InstitutionalBrandMarkProps> = ({
 
   const secondaryTextClass =
     tone === 'dark'
-      ? 'text-slate-300'
+      ? 'text-slate-200'
       : tone === 'light'
-        ? 'text-[#334155]'
-        : 'text-[#334155] dark:text-slate-300';
+        ? 'text-[#1E293B]'
+        : 'text-[#1E293B] dark:text-slate-200';
+
+  const chileAccentClass =
+    tone === 'dark'
+      ? 'text-[#34D399]'
+      : tone === 'light'
+        ? 'text-[#0F5D3A]'
+        : 'text-[#0F5D3A] dark:text-[#34D399]';
+
+  const subtitleClass =
+    tone === 'dark'
+      ? 'text-[#D4B673]'
+      : tone === 'light'
+        ? 'text-[#8C6D14]'
+        : 'text-[#8C6D14] dark:text-[#D4B673]';
+
+  const dmSizeClass = isFooter
+    ? 'text-[19px]'
+    : isCompact
+      ? 'text-[15px]'
+      : 'text-[16.5px] lg:text-[18.5px]';
+
+  const integraSizeClass = isFooter
+    ? 'text-[11.5px]'
+    : isCompact
+      ? 'text-[9.5px]'
+      : 'text-[10.5px] lg:text-[11.5px]';
+
+  const subtitleSizeClass = isFooter
+    ? 'text-[9px]'
+    : isCompact
+      ? 'text-[7.5px]'
+      : 'text-[8px] lg:text-[8.5px]';
+
+  const handleEmblemFallback = (fallbackUrl: string) => (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.dataset.fallbackApplied === '1') return;
+    img.dataset.fallbackApplied = '1';
+    img.src = fallbackUrl;
+  };
 
   return (
     <span
-      data-testid={isFooter ? 'institutional-brand-footer' : 'institutional-brand-header'}
-      className={`inline-flex items-center gap-3 select-none whitespace-nowrap shrink-0 ${className}`}
+      data-testid={
+        isFooter
+          ? 'institutional-brand-footer'
+          : isCompact
+            ? 'institutional-brand-compact'
+            : 'institutional-brand-header'
+      }
+      className={`inline-flex items-center ${isCompact ? 'gap-2.5' : 'gap-3'} select-none whitespace-nowrap shrink-0 ${className}`}
     >
-      <span
-        aria-hidden="true"
-        className={`inline-flex items-center justify-center rounded-[8px] border shrink-0 transition-colors ${crestSize} ${frameClass}`}
-      >
-        <svg
-          viewBox="0 0 36 36"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-[22px] h-[22px] lg:w-[24px] lg:h-[24px]"
-        >
-          {/* Moldura arquitetônica sutil */}
-          <rect
-            x="2.25"
-            y="2.25"
-            width="31.5"
-            height="31.5"
-            rx="5.25"
-            stroke="#C9A86A"
-            strokeOpacity="0.4"
-            strokeWidth="1"
+      <span className={`relative inline-flex items-center justify-center shrink-0 ${emblemSizeClass}`}>
+        {tone === 'dark' ? (
+          <img
+            src={BRAND_ASSETS.emblemDarkSvg}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            onError={handleEmblemFallback(BRAND_ASSETS.emblemDarkPng)}
+            className="w-full h-full object-contain drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
           />
-          {/* Geometria da Cordilheira / Ponte Brasil-Chile */}
-          <path
-            d="M7.5 25.5L14.25 11.25L18.5 19.25L22.25 13L28.5 25.5"
-            stroke="#FFFFFF"
-            strokeWidth="2.15"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        ) : tone === 'light' ? (
+          <img
+            src={BRAND_ASSETS.emblemLightSvg}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            onError={handleEmblemFallback(BRAND_ASSETS.emblemLightPng)}
+            className="w-full h-full object-contain drop-shadow-[0_1px_2px_rgba(11,22,40,0.12)]"
           />
-          {/* Pedra angular dourada de precisão */}
-          <path
-            d="M14.25 11.25L18.5 19.25L20.35 16.15"
-            stroke="#C9A86A"
-            strokeWidth="2.15"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {/* Base institucional contínua */}
-          <path
-            d="M8.5 28.25H27.5"
-            stroke="#60A5FA"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
+        ) : (
+          <>
+            <img
+              src={BRAND_ASSETS.emblemLightSvg}
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              onError={handleEmblemFallback(BRAND_ASSETS.emblemLightPng)}
+              className="w-full h-full object-contain dark:hidden drop-shadow-[0_1px_2px_rgba(11,22,40,0.12)]"
+            />
+            <img
+              src={BRAND_ASSETS.emblemDarkSvg}
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              onError={handleEmblemFallback(BRAND_ASSETS.emblemDarkPng)}
+              className="w-full h-full object-contain hidden dark:block drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
+            />
+          </>
+        )}
       </span>
 
-      <span aria-hidden="true" className={`hidden sm:inline-block h-5 w-px shrink-0 ${dividerClass}`} />
+      <span aria-hidden="true" className={`hidden sm:inline-block ${dividerHeightClass} w-px shrink-0 ${dividerClass}`} />
 
-      <span className="inline-flex items-baseline gap-2 leading-none">
-        <span
-          className={`font-display font-extrabold tracking-[-0.03em] ${
-            isFooter ? 'text-[19px]' : 'text-[16.5px] lg:text-[18px]'
-          } ${primaryTextClass}`}
-        >
-          D&amp;M
+      <span className="inline-flex flex-col justify-center leading-none gap-[3px]">
+        <span className="inline-flex items-baseline gap-1.5 leading-none">
+          <span className={`font-display font-extrabold tracking-[-0.03em] ${dmSizeClass} ${primaryTextClass}`}>
+            D&amp;M
+          </span>
+          <span className={`font-brand-sans font-semibold uppercase tracking-[0.14em] ${integraSizeClass} ${secondaryTextClass}`}>
+            Integra{' '}
+            <span className={`font-bold ${chileAccentClass}`}>Chile</span>
+          </span>
         </span>
-        <span
-          className={`font-brand-sans font-semibold uppercase tracking-[0.17em] ${
-            isFooter ? 'text-[11px]' : 'text-[10.5px] lg:text-[11px]'
-          } ${secondaryTextClass}`}
-        >
-          Integra Chile
-        </span>
+        {showSubtitle && (
+          <span className={`font-brand-sans font-semibold uppercase tracking-[0.22em] leading-none ${subtitleSizeClass} ${subtitleClass}`}>
+            Relocation &amp; Assessoria
+          </span>
+        )}
       </span>
     </span>
   );

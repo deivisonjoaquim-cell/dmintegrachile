@@ -40,7 +40,7 @@ import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal'
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { BrandLogo, BrandRibbon } from '../components/BrandLogo';
+import { BrandLogo, BrandRibbon, InstitutionalBrandMark, shouldUseInstitutionalMark } from '../components/BrandLogo';
 import { useFirestore } from '../hooks/useFirestore';
 import { subscribeStaffDocumentChat } from '../services/chatService';
 import { reportAppError } from '../services/errorService';
@@ -769,7 +769,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   const activeCaseTitle = selectedCaseId
     ? effectiveWorkspace?.cases.find((c) => c.id === selectedCaseId)?.titulo
     : null;
-  const activeLogoUrl = isDark && empresa.logoDarkUrl ? empresa.logoDarkUrl : empresa.logoUrl;
+  const activeLogoUrl = panelTheme === 'dark' && empresa.logoDarkUrl ? empresa.logoDarkUrl : empresa.logoUrl;
 
   const activeSubTabLabel =
     activeHub === 'processos'
@@ -791,21 +791,29 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         <BrandRibbon className="h-[3px] w-full shrink-0" />
         <div className="h-14 px-3.5 border-b border-[#E5DFD2] dark:border-[#1C324B] flex items-center justify-between gap-2">
           <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-2 text-left min-w-0 overflow-hidden">
-            <BrandLogo
-              src={sidebarCollapsed ? empresa.faviconUrl : activeLogoUrl}
-              alt={empresa.nome_empresa}
-              brandShortName={empresa.nome_empresa.split('–')[0].trim()}
-              variant={
-                sidebarCollapsed
-                  ? panelTheme === 'dark'
-                    ? 'emblem-dark'
-                    : 'emblem'
-                  : panelTheme === 'dark'
-                    ? 'dark'
-                    : 'light'
-              }
-              imgClassName={sidebarCollapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-8 w-auto max-w-[148px] xl:max-w-[172px] object-contain shrink-0'}
-            />
+            {!sidebarCollapsed && shouldUseInstitutionalMark(activeLogoUrl) ? (
+              <InstitutionalBrandMark
+                tone={panelTheme === 'dark' ? 'dark' : 'light'}
+                size="compact"
+                showSubtitle={false}
+              />
+            ) : (
+              <BrandLogo
+                src={sidebarCollapsed ? empresa.faviconUrl : activeLogoUrl}
+                alt={empresa.nome_empresa}
+                brandShortName={empresa.nome_empresa.split('–')[0].trim()}
+                variant={
+                  sidebarCollapsed
+                    ? panelTheme === 'dark'
+                      ? 'emblem-dark'
+                      : 'emblem'
+                    : panelTheme === 'dark'
+                      ? 'dark'
+                      : 'light'
+                }
+                imgClassName={sidebarCollapsed ? 'h-9 w-9 object-contain shrink-0' : 'h-8 w-auto max-w-[148px] xl:max-w-[172px] object-contain shrink-0'}
+              />
+            )}
           </button>
           <button
             type="button"

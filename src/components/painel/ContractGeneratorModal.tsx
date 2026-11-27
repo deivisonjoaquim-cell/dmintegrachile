@@ -18,6 +18,8 @@ import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
 import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
 import { reportAppError } from '../../services/errorService';
+import { BRAND_ASSETS } from '../../constants/brandAssets';
+import { BrandLogo, shouldUseInstitutionalMark } from '../BrandLogo';
 import {
   makeId,
   saveDocumentAudited,
@@ -850,15 +852,22 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
               <div className="bg-white border border-slate-300 rounded-xl p-4 sm:p-8 lg:p-10 max-w-full sm:max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    {empresa.logoUrl ? (
+                    {shouldUseInstitutionalMark(empresa.logoUrl) ? (
+                      <BrandLogo
+                        src={BRAND_ASSETS.emblemLightSvg}
+                        alt={empresa.nome_empresa}
+                        variant="emblem"
+                        imgClassName="h-12 w-12 object-contain shrink-0"
+                      />
+                    ) : empresa.logoUrl ? (
                       <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain shrink-0" />
                     ) : (
-                      <span
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
-                        style={{ backgroundColor: 'var(--color-primary)' }}
-                      >
-                        D&amp;M
-                      </span>
+                      <BrandLogo
+                        src={BRAND_ASSETS.emblemLightSvg}
+                        alt={empresa.nome_empresa}
+                        variant="emblem"
+                        imgClassName="h-12 w-12 object-contain shrink-0"
+                      />
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-900 break-words">{empresa.nome_empresa}</p>
