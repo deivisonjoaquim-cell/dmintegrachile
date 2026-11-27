@@ -180,9 +180,12 @@ async function verifyFirebaseIdToken(idToken: string): Promise<DecodedToken> {
 async function fetchUserRoleFromFirestore(uid: string, idToken: string): Promise<{ role: string; status: string } | null> {
   const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/users/${encodeURIComponent(uid)}`;
   for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
     try {
       const resp = await fetch(url, {
         headers: { Authorization: `Bearer ${idToken}` },
+        signal: controller.signal,
       });
       if (!resp.ok) {
         console.warn(`[Auth] Firestore REST lookup users/${uid} retornou HTTP ${resp.status} (tentativa ${attempt + 1}/2).`);
@@ -208,6 +211,8 @@ async function fetchUserRoleFromFirestore(uid: string, idToken: string): Promise
         continue;
       }
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
   return null;

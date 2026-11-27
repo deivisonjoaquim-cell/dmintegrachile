@@ -28,6 +28,7 @@ import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocum
 import { SermigSimulator } from '../components/SermigSimulator';
 import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
 import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
+import { PainelAssinaturasContratos } from '../components/painel/PainelAssinaturasContratos';
 import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
 import { PainelClientesCasos } from '../components/painel/PainelClientesCasos';
 import { PainelDashboard } from '../components/painel/PainelDashboard';
@@ -52,6 +53,7 @@ import {
   subscribeActivePartnersStaffLive,
 } from '../services/firestoreService';
 import type { CommunicationLog, Partner, SiteContent, Task, UserRole } from '../types/domain';
+import { buildContractSignatureRows, computeContractSignatureMetrics } from '../utils/contractSignatureStatus';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../utils/documentChat';
 import { daysUntilDate, formatDateBR } from '../utils/formatters';
 import type { MacroFunnelStageId } from '../utils/funnelModel';
@@ -519,6 +521,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         processos: 0,
         agenda: 0,
         financeiro: 0,
+        assinaturasPendentes: 0,
         simulador: 0,
         config: role === 'assistente' ? 0 : legalAttention,
         checklist: 0,
@@ -552,6 +555,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     const openProposals = effectiveWorkspace.partnerProposals.filter(
       (p) => p.status === 'Nova' || p.status === 'Em Análise',
     ).length;
+    const contractMetrics = computeContractSignatureMetrics(
+      buildContractSignatureRows(
+        effectiveWorkspace.generatedDocuments,
+        effectiveWorkspace.clients,
+        effectiveWorkspace.cases,
+      ),
+    );
 
     return {
       hoje: urgentDeadlines + unreadChatCount,
@@ -560,7 +570,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       clientes: activeClientsCount,
       processos: activeCasesList.length,
       agenda: openTasks + urgentDeadlines,
-      financeiro: effectiveWorkspace.generatedDocuments.length,
+      financeiro:
+        contractMetrics.pendentes > 0
+          ? contractMetrics.pendentes
+          : effectiveWorkspace.generatedDocuments.length,
+      assinaturasPendentes: contractMetrics.pendentes,
       simulador: simulatorReleasedCount,
       config: role === 'assistente' ? 0 : legalAttention + openProposals,
       checklist: pendingChecklist,
@@ -1415,18 +1429,20 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[#EFECE4] dark:bg-[#11263D] border border-[#E5DFD2] dark:border-[#1C324B] w-fit max-w-full no-print">
               {visibleFinanceiroTabs.map((tab) => {
                 const active = financeiroTab === tab.id;
+                const count = tab.id === 'assinaturas' ? hubBadges.assinaturasPendentes : undefined;
                 return (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setFinanceiroTab(tab.id)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums ${
                       active
                         ? 'bg-white dark:bg-[#0D1E31] text-[#0B1F33] dark:text-slate-100 shadow-xs'
                         : 'text-[#4A5A6D] dark:text-slate-400 hover:text-[#0B1F33] dark:hover:text-slate-100'
                     }`}
                   >
                     {tab.label}
+                    {count !== undefined && count > 0 ? ` (${count})` : ''}
                   </button>
                 );
               })}
@@ -1481,6 +1497,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   tasks={effectiveWorkspace.tasks}
                   appointments={effectiveWorkspace.appointments}
                   financialRecords={effectiveWorkspace.financialRecords}
+                  generatedDocuments={effectiveWorkspace.generatedDocuments}
                   communicationLogs={effectiveWorkspace.communicationLogs}
                   legalSources={legalSources}
                   visaRequirements={visaRequirements}
@@ -1624,8 +1641,23 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 />
               )}
 
-              {/* HUB 5: FINANCEIRO & CONTRATOS */}
-              {activeHub === 'financeiro' && (role === 'admin' || role === 'consultor') && (
+              {/* HUB 5: FINANCEIRO, CONTRATOS & STATUS DE ASSINATURAS */}
+              {activeHub === 'financeiro' && (role === 'admin' || role === 'consultor') && financeiroTab === 'assinaturas' && (
+                <PainelAssinaturasContratos
+                  role={userProfile.role}
+                  userProfile={userProfile}
+                  empresa={empresa}
+                  clients={effectiveWorkspace.clients}
+                  cases={effectiveWorkspace.cases}
+                  dependents={effectiveWorkspace.dependents}
+                  documentTemplates={effectiveWorkspace.documentTemplates}
+                  generatedDocuments={effectiveWorkspace.generatedDocuments}
+                  onRefresh={handleRefreshAll}
+                  onLogWhatsApp={handleLogWhatsApp}
+                />
+              )}
+
+              {activeHub === 'financeiro' && (role === 'admin' || role === 'consultor') && financeiroTab !== 'assinaturas' && (
                 <PainelFinanceiro
                   sectionGroup={financeiroTab === 'contratos' ? 'contratos' : 'financeiro'}
                   role={userProfile.role}

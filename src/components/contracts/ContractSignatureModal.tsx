@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   CheckCircle2,
   Download,
   ExternalLink,
@@ -13,13 +14,17 @@ import {
 } from 'lucide-react';
 import type { EmpresaConfig, GeneratedDocument, GeneratedDocumentSignatureMethod } from '../../types/domain';
 import { BrandRibbon } from '../BrandLogo';
-import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
+import { QrCodeSvg, UiButton } from '../ui/DesignSystem';
+import { SignaturePadCanvas } from './SignaturePadCanvas';
 import { SignatureCertificateCard } from './SignatureCertificateCard';
 import { formatDateTimeBR, sanitizeHtml } from '../../utils/formatters';
 import {
   computeDocumentContentHash,
+  formatSignatureHashShort,
+  getSignatureMethodLabel,
   renderTypedSignatureToDataUrl,
   TYPED_SIGNATURE_STYLES,
+  validateAndNormalizeSignatureDataUrl,
   validateSignerIdentity,
   type TypedSignatureStyleId,
 } from '../../utils/contractSignature';
@@ -58,6 +63,15 @@ interface ContractSignatureModalProps {
 type SignMode = 'desenhar' | 'digitar' | 'pdf';
 type MobilePane = 'contrato' | 'assinar';
 
+interface PendingSignatureConfirmation {
+  mode: SignMode;
+  method: GeneratedDocumentSignatureMethod;
+  signatureDataUrl?: string;
+  file?: File;
+  meta: ClientSignaturePatchMeta;
+  resolvedHash: string;
+}
+
 export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
   doc,
   empresa,
@@ -85,6 +99,8 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
   const [reachedBottom, setReachedBottom] = useState(false);
   const [contentHash, setContentHash] = useState<string>('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingSignatureConfirmation | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completedDoc, setCompletedDoc] = useState<GeneratedDocument | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -140,15 +156,20 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
 
   const isWorking = busy || submitting;
 
-  const canSubmit = useMemo(() => {
+  const canPrepareConfirmation = useMemo(() => {
     if (isWorking || !aceiteTermo || signerName.trim().length < 3) return false;
     if (signMode === 'desenhar') return Boolean(drawnDataUrl);
     if (signMode === 'digitar') return signerName.trim().includes(' ');
     return Boolean(selectedFile);
   }, [isWorking, aceiteTermo, signerName, signMode, drawnDataUrl, selectedFile]);
 
-  const handleConfirmSignature = async () => {
+  /**
+   * Etapa 1: Valida identidade, assinatura (base64 compacta) e abre o modal de confirmação final.
+   */
+  const handleRequestConfirmationModal = async () => {
     setValidationError(null);
+    setConfirmError(null);
+
     const identityCheck = validateSignerIdentity({
       nome: signerName,
       email: defaultSignerEmail,
@@ -160,7 +181,6 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
       return;
     }
 
-    const nowIso = new Date().toISOString();
     const resolvedHash =
       contentHash ||
       (await computeDocumentContentHash({
@@ -171,11 +191,10 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
         codigoVerificacao: doc.codigoVerificacao,
       }));
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 280) : '';
-
     const method: GeneratedDocumentSignatureMethod =
       signMode === 'desenhar' ? 'desenhada' : signMode === 'digitar' ? 'tipografica' : 'pdf_anexado';
 
-    const meta: ClientSignaturePatchMeta = {
+    const baseMeta: ClientSignaturePatchMeta = {
       assinaturaMetodo: method,
       assinadoPorNome: identityCheck.normalizedNome,
       assinadoPorEmail: identityCheck.normalizedEmail || undefined,
@@ -183,45 +202,92 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
       assinaturaHashSha256: resolvedHash,
       assinaturaUserAgent: ua || undefined,
       assinaturaAceiteTermo: true,
-      confirmadoLeituraEm: doc.confirmadoLeituraEm || nowIso,
       confirmadoLeituraPor: doc.confirmadoLeituraPor || identityCheck.normalizedNome,
     };
 
+    if (signMode === 'desenhar') {
+      const check = validateAndNormalizeSignatureDataUrl(drawnDataUrl || '');
+      if (!check.valid) {
+        setValidationError(check.error || 'Desenhe sua assinatura no quadro antes de continuar.');
+        return;
+      }
+      setPendingConfirm({
+        mode: 'desenhar',
+        method,
+        signatureDataUrl: check.dataUrl,
+        meta: baseMeta,
+        resolvedHash,
+      });
+      return;
+    }
+
+    if (signMode === 'digitar') {
+      const rendered = renderTypedSignatureToDataUrl(identityCheck.normalizedNome, typedStyle, typedInk);
+      const check = validateAndNormalizeSignatureDataUrl(rendered);
+      if (!check.valid) {
+        setValidationError(
+          check.error || 'Não foi possível gerar a assinatura tipográfica. Tente o modo Desenhar.',
+        );
+        return;
+      }
+      setPendingConfirm({
+        mode: 'digitar',
+        method,
+        signatureDataUrl: check.dataUrl,
+        meta: baseMeta,
+        resolvedHash,
+      });
+      return;
+    }
+
+    if (!selectedFile) {
+      setValidationError('Selecione o arquivo PDF ou imagem já assinado antes de continuar.');
+      return;
+    }
+
+    setPendingConfirm({
+      mode: 'pdf',
+      method,
+      file: selectedFile,
+      meta: baseMeta,
+      resolvedHash,
+    });
+  };
+
+  /**
+   * Etapa 2 (dentro do modal de confirmação): Persiste no Firestore e exibe o Certificado SHA-256.
+   */
+  const handleFinalizeSignature = async () => {
+    if (!pendingConfirm || submitting) return;
+    setConfirmError(null);
     setSubmitting(true);
+
+    const nowIso = new Date().toISOString();
+    const meta: ClientSignaturePatchMeta = {
+      ...pendingConfirm.meta,
+      confirmadoLeituraEm: doc.confirmadoLeituraEm || nowIso,
+    };
+
     try {
-      if (signMode === 'desenhar') {
-        if (!drawnDataUrl) {
-          setValidationError('Desenhe sua assinatura no quadro antes de confirmar.');
+      if (pendingConfirm.mode === 'desenhar' || pendingConfirm.mode === 'digitar') {
+        const dataUrl = pendingConfirm.signatureDataUrl || '';
+        const check = validateAndNormalizeSignatureDataUrl(dataUrl);
+        if (!check.valid) {
+          setConfirmError(check.error || 'Assinatura inválida. Volte e desenhe novamente.');
           return;
         }
-        await onSubmitDigitalSignature(doc, drawnDataUrl, meta, nowIso);
+        await onSubmitDigitalSignature(doc, check.dataUrl, meta, nowIso);
+        setPendingConfirm(null);
         setCompletedDoc({
           ...doc,
           status: 'Assinado',
-          assinaturaDataUrl: drawnDataUrl,
+          assinaturaDataUrl: check.dataUrl,
           assinadoEm: nowIso,
           ...meta,
         });
-      } else if (signMode === 'digitar') {
-        const rendered = renderTypedSignatureToDataUrl(identityCheck.normalizedNome, typedStyle, typedInk);
-        if (!rendered) {
-          setValidationError('Não foi possível gerar a assinatura tipográfica. Tente o modo Desenhar.');
-          return;
-        }
-        await onSubmitDigitalSignature(doc, rendered, meta, nowIso);
-        setCompletedDoc({
-          ...doc,
-          status: 'Assinado',
-          assinaturaDataUrl: rendered,
-          assinadoEm: nowIso,
-          ...meta,
-        });
-      } else {
-        if (!selectedFile) {
-          setValidationError('Selecione o arquivo PDF ou imagem já assinado.');
-          return;
-        }
-        const uploadedUrl = await onSubmitSignedFile(doc, selectedFile, meta, nowIso);
+      } else if (pendingConfirm.file) {
+        const uploadedUrl = await onSubmitSignedFile(doc, pendingConfirm.file, meta, nowIso);
+        setPendingConfirm(null);
         setCompletedDoc({
           ...doc,
           status: 'Assinado',
@@ -231,8 +297,10 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
         });
       }
     } catch (err) {
-      setValidationError(
-        err instanceof Error ? err.message : 'Não foi possível concluir a assinatura agora. Tente novamente.',
+      setConfirmError(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível concluir a assinatura agora. Seus dados foram preservados; tente novamente.',
       );
     } finally {
       setSubmitting(false);
@@ -256,7 +324,7 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
       aria-modal="true"
       aria-labelledby="contract-signature-modal-title"
     >
-      <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-2xl max-w-6xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl">
+      <div className="relative bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-2xl max-w-6xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl">
         <BrandRibbon className="h-[3px] w-full shrink-0" />
 
         {/* Header institucional */}
@@ -290,9 +358,10 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
             )}
             <button
               type="button"
+              disabled={submitting}
               onClick={onClose}
               aria-label="Fechar janela de assinatura"
-              className="p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+              className="p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
             >
               <X className="w-4 h-4" />
             </button>
@@ -569,7 +638,7 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                   {/* Área interativa do modo selecionado */}
                   {signMode === 'desenhar' && (
                     <div className="space-y-1.5">
-                      <DrawSignaturePad
+                      <SignaturePadCanvas
                         disabled={isWorking}
                         hideSaveButton
                         onChange={(dataUrl) => {
@@ -578,7 +647,7 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                         }}
                       />
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Use o mouse, trackpad ou dedo na tela para assinar com traço suave.
+                        Use o mouse, trackpad ou dedo na tela para assinar com traço contínuo de alta precisão.
                       </p>
                     </div>
                   )}
@@ -756,17 +825,151 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                       variant="primary"
                       size="sm"
                       className="!px-4 !py-2 whitespace-nowrap"
-                      disabled={!canSubmit}
-                      onClick={() => void handleConfirmSignature()}
+                      disabled={!canPrepareConfirmation}
+                      onClick={() => void handleRequestConfirmationModal()}
                     >
                       <FileSignature className="w-3.5 h-3.5" />
-                      {isWorking ? 'Formalizando...' : 'Assinar e Formalizar'}
+                      Revisar e Assinar
                     </UiButton>
                   </div>
                 </div>
               </div>
             </div>
           </>
+        )}
+
+        {/* Modal de Confirmação Final antes de gravar no Firestore */}
+        {pendingConfirm && !completedDoc && (
+          <div
+            className="absolute inset-0 z-30 bg-[#071422]/75 backdrop-blur-[2px] flex items-center justify-center p-4"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="signature-final-confirm-title"
+          >
+            <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
+              <div className="px-5 py-4 bg-[#0B1F33] text-white flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#E5C76B]">Confirmação Obrigatória</p>
+                  <h4 id="signature-final-confirm-title" className="text-sm sm:text-base font-bold text-white mt-0.5">
+                    Confirmar formalização da assinatura
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    setPendingConfirm(null);
+                    setConfirmError(null);
+                  }}
+                  aria-label="Voltar para revisão"
+                  className="p-1.5 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
+                  Verifique os dados abaixo antes de concluir. Após a confirmação, a assinatura será registrada com
+                  validade jurídica, carimbo de data/hora e selo criptográfico SHA-256.
+                </p>
+
+                {/* Resumo estruturado */}
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] text-xs">
+                  <div className="sm:col-span-2">
+                    <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Documento</dt>
+                    <dd className="font-semibold text-[#070E1C] dark:text-white mt-0.5">
+                      {doc.titulo} <span className="font-mono text-slate-500">(v{doc.versao})</span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Signatário</dt>
+                    <dd className="font-semibold text-[#070E1C] dark:text-white mt-0.5 truncate">
+                      {pendingConfirm.meta.assinadoPorNome}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">CPF / Passaporte</dt>
+                    <dd className="font-mono text-[#070E1C] dark:text-slate-200 mt-0.5 truncate">
+                      {pendingConfirm.meta.assinadoPorDocumento || 'Não informado'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Modalidade</dt>
+                    <dd className="text-[#070E1C] dark:text-slate-200 mt-0.5">
+                      {getSignatureMethodLabel(pendingConfirm.method)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Selo SHA-256</dt>
+                    <dd className="font-mono tabular-nums text-[#070E1C] dark:text-slate-200 mt-0.5">
+                      {formatSignatureHashShort(pendingConfirm.resolvedHash)}
+                    </dd>
+                  </div>
+                </dl>
+
+                {/* Prévia da assinatura capturada */}
+                {pendingConfirm.signatureDataUrl ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      Prévia da assinatura que será aplicada ao documento
+                    </p>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white p-3 flex items-center justify-center">
+                      <img
+                        src={pendingConfirm.signatureDataUrl}
+                        alt="Prévia da assinatura capturada"
+                        className="max-h-24 w-auto object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : pendingConfirm.file ? (
+                  <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#F7F8FA] dark:bg-[#0B1220] text-xs flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[#070E1C] dark:text-white truncate">
+                      {pendingConfirm.file.name}
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-500 shrink-0">
+                      {(pendingConfirm.file.size / 1024).toFixed(0)} KB
+                    </span>
+                  </div>
+                ) : null}
+
+                {confirmError && (
+                  <div
+                    role="alert"
+                    className="p-3 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-xs font-medium text-red-800 dark:text-red-300 flex items-start gap-2"
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{confirmError}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-[#E5E7EB] dark:border-[#1E293B]">
+                  <UiButton
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => {
+                      setPendingConfirm(null);
+                      setConfirmError(null);
+                    }}
+                  >
+                    Voltar e Revisar
+                  </UiButton>
+                  <UiButton
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => void handleFinalizeSignature()}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    {submitting ? 'Registrando assinatura...' : 'Confirmar e Assinar Definitivamente'}
+                  </UiButton>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

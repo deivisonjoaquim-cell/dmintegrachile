@@ -373,8 +373,9 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
   }
 
   let streamStarted = false;
+  let clientClosed = false;
   const writeNdjson = (obj: unknown) => {
-    if (!wantsProgressStream) return;
+    if (!wantsProgressStream || clientClosed || res.writableEnded || res.destroyed) return;
     if (!streamStarted) {
       streamStarted = true;
       res.status(200);
@@ -389,11 +390,22 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   let lastProgressMsg = 'Consultando IA…';
 
+  const onSocketClose = () => {
+    clientClosed = true;
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+  if (typeof (res as Response & { once?: (ev: string, fn: () => void) => void }).once === 'function') {
+    res.once('close', onSocketClose);
+  }
+
   try {
     if (wantsProgressStream) {
       writeNdjson({ type: 'progress', attempt: 1, maxAttempts: 2, modelTier: 'principal', message: lastProgressMsg });
       heartbeatTimer = setInterval(() => {
-        if (!res.writableEnded) {
+        if (!clientClosed && !res.writableEnded && !res.destroyed) {
           writeNdjson({ type: 'progress', attempt: 1, maxAttempts: 2, modelTier: 'principal', message: lastProgressMsg });
         }
       }, 4000);
@@ -668,11 +680,15 @@ export function buildParecerSpec(body: Record<string, unknown>) {
       : null;
 
   const subcategoriaResolvida =
-    typeof rawCase.subcategoria === 'string' && rawCase.subcategoria.trim()
-      ? rawCase.subcategoria.trim().slice(0, 160)
-      : typeof rawCase.subcategoriaIa === 'string' && rawCase.subcategoriaIa.trim()
-        ? rawCase.subcategoriaIa.trim().slice(0, 160)
-        : '';
+    typeof body.subcategoria === 'string' && body.subcategoria.trim()
+      ? body.subcategoria.trim().slice(0, 160)
+      : typeof rawCase.subcategoria === 'string' && rawCase.subcategoria.trim()
+        ? rawCase.subcategoria.trim().slice(0, 160)
+        : typeof rawCase.subcategoriaIa === 'string' && rawCase.subcategoriaIa.trim()
+          ? rawCase.subcategoriaIa.trim().slice(0, 160)
+          : typeof rawCase.tipoServico === 'string' && rawCase.tipoServico.trim()
+            ? rawCase.tipoServico.trim().slice(0, 160)
+            : '';
 
   const caseBrief = {
     id: rawCase.id,
@@ -760,18 +776,23 @@ export function buildParecerSpec(body: Record<string, unknown>) {
           ? (parsed.data as Record<string, unknown>)
           : parsed.parecer && typeof parsed.parecer === 'object' && !Array.isArray(parsed.parecer)
             ? (parsed.parecer as Record<string, unknown>)
-            : parsed;
+            : parsed.parecerTecnico && typeof parsed.parecerTecnico === 'object' && !Array.isArray(parsed.parecerTecnico)
+              ? (parsed.parecerTecnico as Record<string, unknown>)
+              : parsed;
       const enquadramentoLegal = coerceParecerField(
-        unwrapped.enquadramentoLegal ?? unwrapped.enquadramento_legal,
+        unwrapped.enquadramentoLegal ?? unwrapped.enquadramento_legal ?? unwrapped.enquadramento,
       );
       const elegibilidadeRiscos = coerceParecerField(
-        unwrapped.elegibilidadeRiscos ?? unwrapped.elegibilidade_riscos,
+        unwrapped.elegibilidadeRiscos ?? unwrapped.elegibilidade_riscos ?? unwrapped.riscos ?? unwrapped.elegibilidade,
       );
       const fundamentacaoNormativa = coerceParecerField(
-        unwrapped.fundamentacaoNormativa ?? unwrapped.fundamentacao_normativa,
+        unwrapped.fundamentacaoNormativa ?? unwrapped.fundamentacao_normativa ?? unwrapped.fundamentacao,
       );
       const recomendacoes = coerceParecerField(
-        unwrapped.recomendacoes ?? unwrapped.recomendacoes_cliente,
+        unwrapped.recomendacoes ??
+          unwrapped.recomendacoes_cliente ??
+          unwrapped.recomendacoesCliente ??
+          unwrapped.proximosPassos,
       );
       if (!enquadramentoLegal && !recomendacoes && !elegibilidadeRiscos) {
         return null;

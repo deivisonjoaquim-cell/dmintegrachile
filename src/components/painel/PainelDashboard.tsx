@@ -5,6 +5,7 @@ import {
   Calendar,
   CheckCircle2,
   CheckSquare,
+  FileSignature,
   FileWarning,
   MessageCircle,
   Scale,
@@ -19,6 +20,7 @@ import type {
   Dependent,
   EmpresaConfig,
   FinancialRecord,
+  GeneratedDocument,
   Lead,
   LegalSource,
   Task,
@@ -27,6 +29,7 @@ import type {
   VisaRequirement,
 } from '../../types/domain';
 import { calcularTermometroDocumentos, calcularUrgencias } from '../../utils/caseMetrics';
+import { buildContractSignatureRows, computeContractSignatureMetrics } from '../../utils/contractSignatureStatus';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../../utils/documentChat';
 import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, openExternalSafe, toIsoDate } from '../../utils/formatters';
 import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../utils/funnelModel';
@@ -66,6 +69,7 @@ interface PainelDashboardProps {
   tasks?: Task[];
   appointments?: Appointment[];
   financialRecords: FinancialRecord[];
+  generatedDocuments?: GeneratedDocument[];
   communicationLogs?: CommunicationLog[];
   legalSources?: LegalSource[];
   visaRequirements?: VisaRequirement[];
@@ -96,6 +100,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   tasks = [],
   appointments = [],
   financialRecords,
+  generatedDocuments = [],
   communicationLogs = [],
   legalSources = [],
   visaRequirements = [],
@@ -232,6 +237,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     [legalSources, diasAlertaRevisaoLegal],
   );
 
+  const contractSignatureOverview = useMemo(() => {
+    const rows = buildContractSignatureRows(generatedDocuments, clients, cases);
+    const metrics = computeContractSignatureMetrics(rows);
+    const latestPending = rows.find((r) => r.isPending) || null;
+    return { metrics, latestPending };
+  }, [generatedDocuments, clients, cases]);
+
   const handleNotifyUrgency = async (u: (typeof urgencias)[number]) => {
     const text = `Olá${u.clientNome ? `, ${u.clientNome}` : ''}! Alerta operacional D&M Integra Chile: ${u.titulo} — ${u.detalhe} (Data ref.: ${u.dataReferenciaBR}).`;
     if (u.clientWhatsapp) {
@@ -324,6 +336,39 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             className="text-xs font-semibold text-amber-900 dark:text-amber-200 hover:underline whitespace-nowrap shrink-0"
           >
             Revisar Base Legal →
+          </button>
+        </div>
+      )}
+
+      {/* Acompanhamento rápido de contratos pendentes de assinatura */}
+      {!isAssistente && contractSignatureOverview.metrics.pendentes > 0 && onNavigateSection && (
+        <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0F1629] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_1px_2px_rgba(11,31,51,0.03)]">
+          <div className="flex items-start sm:items-center gap-2.5 text-xs text-slate-700 dark:text-slate-200 min-w-0">
+            <FileSignature className="w-4 h-4 text-[#0F3D91] dark:text-sky-400 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="min-w-0">
+              <p className="leading-snug">
+                <strong className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                  {contractSignatureOverview.metrics.pendentes} contrato(s) pendente(s) de assinatura
+                </strong>
+                {contractSignatureOverview.metrics.assinados > 0 && (
+                  <span className="text-slate-500 dark:text-slate-400 tabular-nums">
+                    {' '}· {contractSignatureOverview.metrics.assinados} assinado(s) ({contractSignatureOverview.metrics.taxaAssinaturaPct}%)
+                  </span>
+                )}
+              </p>
+              {contractSignatureOverview.latestPending && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums mt-0.5 truncate">
+                  Última interação: {contractSignatureOverview.latestPending.clientName} — {contractSignatureOverview.latestPending.lastInteractionLabel} ({formatDateTimeBR(contractSignatureOverview.latestPending.lastInteractionAt)})
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateSection('assinaturas')}
+            className="text-xs font-semibold text-[#0F3D91] dark:text-sky-400 hover:underline whitespace-nowrap shrink-0 self-start sm:self-center"
+          >
+            Ver Status de Assinaturas →
           </button>
         </div>
       )}

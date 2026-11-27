@@ -5,7 +5,9 @@ import {
   computeDocumentContentHash,
   formatSignatureHashShort,
   getSignatureMethodLabel,
+  MAX_SIGNATURE_DATA_URL_LENGTH,
   TYPED_SIGNATURE_STYLES,
+  validateAndNormalizeSignatureDataUrl,
   validateSignerIdentity,
 } from './contractSignature';
 
@@ -108,4 +110,26 @@ test('buildSignatureCertificateSummary merges explicit signature audit fields wi
   assert.equal(cert.methodLabel, 'Assinatura eletrônica tipográfica');
   assert.equal(cert.verificationCode, 'DOC-2026-XYZ');
   assert.ok(cert.hashShort.startsWith('DEADBEEF01'));
+});
+
+test('validateAndNormalizeSignatureDataUrl accepts valid PNG/WebP/JPEG base64 and rejects malformed or oversized payloads', () => {
+  const validPng = `data:image/png;base64,${'A'.repeat(120)}`;
+  const validWithWhitespace = `  data:image/webp;base64,${'B'.repeat(60)}\n${'C'.repeat(60)}  `;
+
+  const resOk = validateAndNormalizeSignatureDataUrl(validPng);
+  assert.equal(resOk.valid, true);
+  assert.equal(resOk.dataUrl, validPng);
+
+  const resCleaned = validateAndNormalizeSignatureDataUrl(validWithWhitespace);
+  assert.equal(resCleaned.valid, true);
+  assert.equal(resCleaned.dataUrl, `data:image/webp;base64,${'B'.repeat(60)}${'C'.repeat(60)}`);
+
+  assert.equal(validateAndNormalizeSignatureDataUrl('').valid, false);
+  assert.equal(validateAndNormalizeSignatureDataUrl('data:image/svg+xml;base64,PHN2Zz4=').valid, false);
+  assert.equal(validateAndNormalizeSignatureDataUrl('data:image/png;base64,short').valid, false);
+
+  const oversized = `data:image/png;base64,${'A'.repeat(MAX_SIGNATURE_DATA_URL_LENGTH + 10)}`;
+  const resBig = validateAndNormalizeSignatureDataUrl(oversized);
+  assert.equal(resBig.valid, false);
+  assert.match(resBig.error || '', /grande demais/i);
 });

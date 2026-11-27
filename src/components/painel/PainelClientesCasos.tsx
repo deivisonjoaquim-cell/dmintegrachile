@@ -1454,7 +1454,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
           focoConsultor: parecerFoco.trim() || undefined,
         },
         {
-          streamProgress: true,
+          streamProgress: false,
           onProgress: (msg) => setAiParecerProgress(msg),
           bypassCache: forceRefresh || Boolean(parecerFoco.trim()),
         },

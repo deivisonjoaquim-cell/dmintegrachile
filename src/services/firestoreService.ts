@@ -1275,6 +1275,11 @@ export async function updateClientPortalDocAudited(
   const cleanPatch = sanitizeFirestoreData(patch);
   if (Object.keys(cleanPatch).length === 0) return;
 
+  const auditSummaryPatch = { ...cleanPatch };
+  if (typeof auditSummaryPatch.assinaturaDataUrl === 'string' && auditSummaryPatch.assinaturaDataUrl.startsWith('data:image/')) {
+    auditSummaryPatch.assinaturaDataUrl = `[assinatura_base64_${auditSummaryPatch.assinaturaDataUrl.length}_chars]`;
+  }
+
   const performPatch = async () => {
     await updateDoc(doc(db, collectionName, id), cleanPatch);
     await registrarAuditoria(
@@ -1283,7 +1288,7 @@ export async function updateClientPortalDocAudited(
       id,
       campoLabel,
       antes ?? null,
-      cleanPatch,
+      auditSummaryPatch,
       'cliente',
     ).catch(() => undefined);
   };
@@ -2584,6 +2589,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
         let buffer = '';
         let finalResult: T | null = null;
         let streamError: string | null = null;
+        let streamErrorStatus: number | null = null;
 
         try {
           while (true) {
@@ -2601,6 +2607,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
                   message?: string;
                   attempt?: number;
                   maxAttempts?: number;
+                  statusCode?: number;
                   data?: T;
                   error?: string;
                 };
@@ -2610,6 +2617,7 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
                   finalResult = ev.data;
                 } else if (ev.type === 'error') {
                   streamError = sanitizeClientAiError(ev.error || '');
+                  streamErrorStatus = typeof ev.statusCode === 'number' ? ev.statusCode : 500;
                 }
               } catch {
                 // ignore partial line
@@ -2635,17 +2643,27 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
         }
         if (buffer.trim()) {
           try {
-            const ev = JSON.parse(buffer.trim()) as { type?: string; data?: T; error?: string };
+            const ev = JSON.parse(buffer.trim()) as { type?: string; statusCode?: number; data?: T; error?: string };
             if (ev.type === 'result' && ev.data) finalResult = ev.data;
-            else if (ev.type === 'error') streamError = sanitizeClientAiError(ev.error || '');
+            else if (ev.type === 'error') {
+              streamError = sanitizeClientAiError(ev.error || '');
+              streamErrorStatus = typeof ev.statusCode === 'number' ? ev.statusCode : 500;
+            }
           } catch {
             // ignore
           }
         }
 
         if (streamError) {
-          const isTransientStream = resp.status >= 500 || resp.status === 429;
-          return { ok: false, status: resp.status || 500, message: streamError, retryable: isTransientStream };
+          const effectiveStatus = streamErrorStatus || (resp.status >= 400 ? resp.status : 500);
+          const isTransientStream = effectiveStatus >= 500 || effectiveStatus === 429 || effectiveStatus === 408;
+          return {
+            ok: false,
+            status: effectiveStatus,
+            message: streamError,
+            retryable: isTransientStream,
+            streamFailed: isTransientStream,
+          };
         }
         if (finalResult) {
           return { ok: true, data: finalResult };
@@ -2676,6 +2694,38 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
           try {
             data = JSON.parse(trimmedRaw) as T & { error?: unknown };
           } catch {
+            // Proxy may have buffered an NDJSON payload while stripping Content-Type: application/x-ndjson
+            const ndjsonLines = trimmedRaw.split('\n').map((l) => l.trim()).filter(Boolean);
+            let recoveredData: (T & { error?: unknown }) | null = null;
+            let recoveredErr: { message: string; status: number } | null = null;
+            for (const line of ndjsonLines) {
+              try {
+                const ev = JSON.parse(line) as { type?: string; data?: T; error?: string; statusCode?: number };
+                if (ev.type === 'result' && ev.data) {
+                  recoveredData = ev.data as T & { error?: unknown };
+                } else if (ev.type === 'error') {
+                  recoveredErr = {
+                    message: sanitizeClientAiError(ev.error || ''),
+                    status: typeof ev.statusCode === 'number' ? ev.statusCode : 500,
+                  };
+                }
+              } catch {
+                // ignore non-json line
+              }
+            }
+            if (recoveredData) {
+              return { ok: true, data: recoveredData };
+            }
+            if (recoveredErr) {
+              const isTransient = recoveredErr.status >= 500 || recoveredErr.status === 429 || recoveredErr.status === 408;
+              return {
+                ok: false,
+                status: recoveredErr.status,
+                message: recoveredErr.message,
+                retryable: isTransient,
+                streamFailed: true,
+              };
+            }
             data = null;
           }
         } else {

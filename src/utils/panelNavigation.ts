@@ -21,7 +21,7 @@ import { toIsoDate } from './formatters';
 export type PanelHubId = 'hoje' | 'funil' | 'leads' | 'processos' | 'agenda' | 'financeiro' | 'simulador' | 'config';
 
 export type ProcessosSubTab = 'casos' | 'clientes' | 'checklist' | 'dossies';
-export type FinanceiroSubTab = 'financeiro' | 'contratos';
+export type FinanceiroSubTab = 'financeiro' | 'assinaturas' | 'contratos';
 export type ConfigSubTab =
   | 'ferramentas'
   | 'legal'
@@ -40,6 +40,7 @@ export type LegacyPanelSection =
   | 'casos'
   | 'checklist'
   | 'documentos'
+  | 'assinaturas'
   | 'contratos'
   | 'financeiro'
   | 'parceiros'
@@ -244,6 +245,12 @@ export const FINANCEIRO_SUBTABS: PanelSubTabDefinition<FinanceiroSubTab>[] = [
     roles: ['admin', 'consultor'],
   },
   {
+    id: 'assinaturas',
+    label: 'Status de Assinaturas',
+    description: 'Monitoramento de contratos pendentes, assinados e última interação',
+    roles: ['admin', 'consultor'],
+  },
+  {
     id: 'contratos',
     label: 'Contratos & Recibos',
     description: 'Geração de documentos oficiais e PDF A4 multipáginas',
@@ -369,6 +376,10 @@ export function resolveLegacyPanelRoute(
     case 'financeiro':
       return canCommercial
         ? { hub: 'financeiro', financeiroTab: 'financeiro' }
+        : { hub: 'hoje' };
+    case 'assinaturas':
+      return canCommercial
+        ? { hub: 'financeiro', financeiroTab: 'assinaturas' }
         : { hub: 'hoje' };
     case 'contratos':
       return canCommercial

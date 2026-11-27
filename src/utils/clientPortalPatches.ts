@@ -164,9 +164,12 @@ export function buildGeneratedDocCanvasSignaturePatch(
   nowIso = new Date().toISOString(),
   meta?: ClientSignaturePatchMeta,
 ): Record<string, unknown> {
-  const clean = (signatureDataUrl || '').trim();
-  if (!clean.startsWith('data:image/')) {
+  const clean = (signatureDataUrl || '').trim().replace(/\s+/g, '');
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(clean)) {
     throw new Error('Assinatura desenhada inválida. Desenhe sua assinatura novamente.');
+  }
+  if (clean.length > 250_000) {
+    throw new Error('A imagem da assinatura excede o tamanho seguro. Limpe o quadro e assine novamente.');
   }
   return appendSignatureMeta(
     {

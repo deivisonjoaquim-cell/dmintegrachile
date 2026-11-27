@@ -261,7 +261,12 @@ export function getEffectiveRuntimeConfig(
 export function formatFatalAiErrorMessage(fatal: ClassifiedGeminiError): string {
   if (fatal.kind === 'config_missing') return MSG_AI_MISSING_KEY;
   if (fatal.kind === 'blocked') return MSG_AI_BLOCKED;
-  if (fatal.statusCode === 401 || fatal.statusCode === 403 || fatal.safeReason === 'definitive_api_error') {
+  if (
+    fatal.statusCode === 401 ||
+    fatal.statusCode === 403 ||
+    fatal.safeReason === 'auth_api_error' ||
+    fatal.safeReason === 'definitive_api_error'
+  ) {
     return MSG_AI_INVALID_KEY;
   }
   if (fatal.statusCode === 404) return MSG_AI_MODEL_NOT_FOUND;
@@ -311,7 +316,7 @@ export function getGeminiRuntimeConfig(): GeminiRuntimeConfig {
 // Concurrency Guard per User + Route (prevents double-click without blocking other tabs)
 // =============================================================================
 const activeUserCalls = new Map<string, { uid: string; route: string; startedAt: number }>();
-const STALE_LOCK_MS = 5 * 60 * 1000;
+const STALE_LOCK_MS = 90 * 1000;
 
 function lockKey(uid: string, route: string): string {
   return `${uid}::${route}`;
@@ -443,15 +448,23 @@ export function classifyGeminiError(err: unknown): ClassifiedGeminiError {
   if (
     lower.includes('api_key_invalid') ||
     lower.includes('permission_denied') ||
-    lower.includes('unauthenticated') ||
-    lower.includes('invalid_argument')
+    lower.includes('unauthenticated')
   ) {
+    return {
+      statusCode: statusCode || 401,
+      kind: 'definitive',
+      isHighDemand: false,
+      retryable: false,
+      safeReason: 'auth_api_error',
+    };
+  }
+  if (lower.includes('invalid_argument')) {
     return {
       statusCode: statusCode || 400,
       kind: 'definitive',
       isHighDemand: false,
       retryable: false,
-      safeReason: 'definitive_api_error',
+      safeReason: 'http_400_invalid_argument',
     };
   }
 
@@ -804,7 +817,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
     let retriedWithoutThinking = false;
     const effectiveAttemptTimeoutCap =
       isLiveExecution && tier === 'principal' && hasDistinctBackupModel
-        ? Math.min(runtime.timeoutMs, 12000)
+        ? Math.min(runtime.timeoutMs, 15000)
         : runtime.timeoutMs;
 
     for (let attempt = 1; attempt <= maxTries; attempt++) {
@@ -837,18 +850,19 @@ export async function chamarGemini<T extends Record<string, unknown>>(
         const schemaHint = hasTools ? describeResponseSchemaHint(params.responseSchema) : '';
         const isGemini4 = /^gemini-4-/i.test(modelName);
         const includeThinking = isGemini4 && !omitThinkingConfig;
+        const geminiThinkingLevel = ThinkingLevel.MINIMAL ?? ThinkingLevel.LOW;
         const requestConfig: Record<string, unknown> = hasTools
           ? {
               // When search grounding tools are active, omit responseMimeType/responseSchema to prevent 400 INVALID_ARGUMENT
               systemInstruction: `${params.systemInstruction}\nResponda EXCLUSIVAMENTE com um único objeto JSON válido (sem markdown ou texto fora do JSON) seguindo exatamente o esquema solicitado.${schemaHint}`,
               tools: params.tools,
-              ...(includeThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+              ...(includeThinking ? { thinkingConfig: { thinkingLevel: geminiThinkingLevel } } : {}),
             }
           : {
               systemInstruction: params.systemInstruction,
               responseMimeType: 'application/json',
               responseSchema: params.responseSchema,
-              ...(includeThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+              ...(includeThinking ? { thinkingConfig: { thinkingLevel: geminiThinkingLevel } } : {}),
             };
 
         const attemptStartedAt = Date.now();
@@ -992,9 +1006,9 @@ export async function chamarGemini<T extends Record<string, unknown>>(
           return { fatal: classified };
         }
 
-        // Em execução real, ao receber 503/429 (alta demanda) ou timeout no modelo principal,
-        // alterna imediatamente para o modelo reserva para responder em ~2s sem travar o proxy.
-        if (isLiveExecution && tier === 'principal' && hasDistinctBackupModel && classified.isHighDemand) {
+        // Em execução real, ao receber 503/429 (alta demanda), timeout ou falha transitória no modelo principal,
+        // alterna imediatamente para o modelo reserva para responder rapidamente sem travar o proxy.
+        if (isLiveExecution && tier === 'principal' && hasDistinctBackupModel && (classified.isHighDemand || classified.kind === 'timeout' || classified.kind === 'temporary')) {
           liveModelCooldownUntil.set(modelName, Date.now() + LIVE_PRIMARY_HIGH_DEMAND_COOLDOWN_MS);
           console.warn(
             `[Gemini][${params.route}] failover_to_backup from=${modelName} to=${runtime.fallbackModel} reason=${classified.safeReason} elapsedMs=${Date.now() - startedAtMs}`,
@@ -1067,7 +1081,7 @@ export async function chamarGemini<T extends Record<string, unknown>>(
       (primaryOutcome.fatal.kind === 'blocked' ||
         primaryOutcome.fatal.statusCode === 401 ||
         primaryOutcome.fatal.statusCode === 403 ||
-        primaryOutcome.fatal.safeReason === 'definitive_api_error'),
+        primaryOutcome.fatal.safeReason === 'auth_api_error'),
   );
   if (
     primaryOutcome.fatal &&

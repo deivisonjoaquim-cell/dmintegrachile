@@ -1119,7 +1119,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         },
         {
           allowPublic: true,
-          streamProgress: true,
+          streamProgress: false,
           onProgress: (msg) => setAiProgress(msg),
         },
       );

@@ -339,7 +339,7 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
         },
         {
           allowPublic: true,
-          streamProgress: true,
+          streamProgress: false,
           onProgress: (msg) => setAiProgress(msg),
           bypassCache: forceRefresh,
         },

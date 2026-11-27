@@ -107,6 +107,89 @@ export function getSignatureMethodLabel(method?: GeneratedDocumentSignatureMetho
   }
 }
 
+export const MAX_SIGNATURE_DATA_URL_LENGTH = 250_000;
+
+export interface SignatureDataUrlValidationResult {
+  valid: boolean;
+  dataUrl: string;
+  error?: string;
+}
+
+const VALID_SIGNATURE_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/;
+
+/**
+ * Valida e normaliza uma assinatura em base64 (data URL) antes de persistir no Firestore,
+ * garantindo formato suportado e tamanho seguro bem abaixo do limite de 900 KB das regras.
+ */
+export function validateAndNormalizeSignatureDataUrl(raw: string): SignatureDataUrlValidationResult {
+  const cleaned = (raw || '').trim().replace(/\s+/g, '');
+  if (!cleaned) {
+    return {
+      valid: false,
+      dataUrl: '',
+      error: 'Desenhe ou selecione sua assinatura antes de continuar.',
+    };
+  }
+  const match = VALID_SIGNATURE_DATA_URL_RE.exec(cleaned);
+  if (!match || match[2].length < 80) {
+    return {
+      valid: false,
+      dataUrl: '',
+      error: 'A imagem da assinatura está incompleta ou em formato inválido. Tente desenhar novamente.',
+    };
+  }
+  if (cleaned.length > MAX_SIGNATURE_DATA_URL_LENGTH) {
+    return {
+      valid: false,
+      dataUrl: '',
+      error: 'A imagem da assinatura ficou grande demais para envio seguro. Limpe o quadro e assine novamente.',
+    };
+  }
+  return {
+    valid: true,
+    dataUrl: cleaned,
+  };
+}
+
+/**
+ * Normaliza qualquer canvas de assinatura (incluindo HiDPI do signature_pad) para uma imagem
+ * opaca com fundo branco, dimensões controladas (640x192) e base64 compacto pronto para PDF A4 e Firestore.
+ */
+export function exportNormalizedSignatureCanvas(
+  sourceCanvas: HTMLCanvasElement,
+  options?: { maxWidth?: number; maxHeight?: number },
+): string {
+  if (typeof document === 'undefined') return '';
+  const targetW = options?.maxWidth ?? 640;
+  const targetH = options?.maxHeight ?? 192;
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = targetW;
+  offscreen.height = targetH;
+  const ctx = offscreen.getContext('2d');
+  if (!ctx) return '';
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, targetW, targetH);
+
+  const srcW = sourceCanvas.width || targetW;
+  const srcH = sourceCanvas.height || targetH;
+  const scale = Math.min(targetW / srcW, targetH / srcH);
+  const drawW = Math.round(srcW * scale);
+  const drawH = Math.round(srcH * scale);
+  const dx = Math.round((targetW - drawW) / 2);
+  const dy = Math.round((targetH - drawH) / 2);
+
+  ctx.drawImage(sourceCanvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
+
+  let dataUrl = offscreen.toDataURL('image/png');
+  if (dataUrl.length > MAX_SIGNATURE_DATA_URL_LENGTH) {
+    const webp = offscreen.toDataURL('image/webp', 0.88);
+    dataUrl = webp.startsWith('data:image/webp;base64,') ? webp : offscreen.toDataURL('image/jpeg', 0.88);
+  }
+  return dataUrl;
+}
+
 export function formatSignatureHashShort(hash?: string | null): string {
   const clean = (hash || '').trim().toUpperCase();
   if (!clean) return '';
