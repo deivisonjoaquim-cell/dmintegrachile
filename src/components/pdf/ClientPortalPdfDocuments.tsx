@@ -24,6 +24,7 @@ import {
   formatStandardDocFilename,
   toIsoDate,
 } from '../../utils/formatters';
+import { getSignatureMethodLabel } from '../../utils/contractSignature';
 
 export interface PdfAiDraftSummary {
   fallback?: boolean;
@@ -104,7 +105,13 @@ export interface GeneratedOfficialDocPdfInput {
   status?: string;
   clienteNome?: string;
   assinaturaDataUrl?: string;
+  assinaturaUrl?: string;
   assinadoEm?: string;
+  assinaturaMetodo?: string;
+  assinadoPorNome?: string;
+  assinadoPorEmail?: string;
+  assinadoPorDocumento?: string;
+  assinaturaHashSha256?: string;
   confirmadoLeituraEm?: string;
   canceladoMotivo?: string;
   logoDataUrl?: string;
@@ -1821,7 +1828,13 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
   status,
   clienteNome,
   assinaturaDataUrl,
+  assinaturaUrl,
   assinadoEm,
+  assinaturaMetodo,
+  assinadoPorNome,
+  assinadoPorEmail,
+  assinadoPorDocumento,
+  assinaturaHashSha256,
   confirmadoLeituraEm,
   canceladoMotivo,
   logoDataUrl,
@@ -1886,24 +1899,67 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
           })}
         </View>
 
-        {(assinaturaDataUrl || confirmadoLeituraEm) && (
-          <View style={[s.cardBlock, { marginTop: 10 }]} wrap={false}>
+        {(assinaturaDataUrl || assinaturaUrl || assinadoEm || confirmadoLeituraEm) && (
+          <View
+            style={[
+              s.cardBlock,
+              {
+                marginTop: 12,
+                backgroundColor: '#F3FAF6',
+                borderColor: '#A7DFC1',
+                padding: 10,
+              },
+            ]}
+            wrap={false}
+          >
+            <Text style={[s.cardTitle, { color: '#065F46', marginBottom: 4 }]}>
+              CERTIFICADO DE ASSINATURA ELETRÔNICA
+            </Text>
             {assinaturaDataUrl && (
-              <>
-                <Text style={s.cardTitle}>
-                  Assinatura Eletrônica Registrada{assinadoEm ? ` (${formatDateTimeBR(assinadoEm)})` : ''}
-                </Text>
+              <View
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: '#D1FAE5',
+                  borderRadius: 4,
+                  padding: 6,
+                  marginBottom: 6,
+                }}
+              >
                 <Image
                   src={assinaturaDataUrl}
-                  style={{ height: 48, width: 180, objectFit: 'contain', marginTop: 4, marginBottom: 4 }}
+                  style={{ height: 48, width: 190, objectFit: 'contain' }}
                 />
-              </>
+              </View>
             )}
-            {confirmadoLeituraEm && (
-              <Text style={s.cardMeta}>
-                Leitura confirmada pelo cliente em {formatDateTimeBR(confirmadoLeituraEm)}.
+            <Text style={[s.cardMeta, { color: '#064E3B', marginBottom: 2 }]}>
+              Signatário: {safeStr(assinadoPorNome || clienteNome, 'Cliente titular')}
+              {assinadoPorDocumento ? ` · Doc.: ${assinadoPorDocumento}` : ''}
+              {assinadoPorEmail ? ` · ${assinadoPorEmail}` : ''}
+            </Text>
+            {assinadoEm && (
+              <Text style={[s.cardMeta, { color: '#064E3B', marginBottom: 2 }]}>
+                Modalidade: {getSignatureMethodLabel(assinaturaMetodo)} · Registrada em {formatDateTimeBR(assinadoEm)}
               </Text>
             )}
+            {assinaturaUrl && (
+              <Text style={[s.cardMeta, { color: '#064E3B', marginBottom: 2 }]}>
+                Documento assinado anexado eletronicamente ao processo.
+              </Text>
+            )}
+            {assinaturaHashSha256 && (
+              <Text style={[s.cardMeta, { color: '#047857', fontSize: 7.5, marginBottom: 2 }]}>
+                Hash SHA-256 de integridade: {assinaturaHashSha256.toUpperCase()}
+              </Text>
+            )}
+            {confirmadoLeituraEm && (
+              <Text style={[s.cardMeta, { color: '#065F46', marginBottom: 2 }]}>
+                Leitura integral confirmada em {formatDateTimeBR(confirmadoLeituraEm)}.
+              </Text>
+            )}
+            <Text style={[s.cardMeta, { color: '#334155', fontSize: 7.5, marginTop: 2 }]}>
+              Validade jurídica eletrônica conforme Lei nº 14.063/2020 e MP nº 2.200-2/2001 (art. 10, §2º).
+            </Text>
           </View>
         )}
 

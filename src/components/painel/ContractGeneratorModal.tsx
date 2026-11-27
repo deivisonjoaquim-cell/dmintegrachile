@@ -11,10 +11,18 @@ import {
   PenTool,
   Printer,
   ShieldAlert,
+  Type,
   Upload,
   X,
 } from 'lucide-react';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
+import { SignatureCertificateCard } from '../contracts/SignatureCertificateCard';
+import {
+  computeDocumentContentHash,
+  renderTypedSignatureToDataUrl,
+  TYPED_SIGNATURE_STYLES,
+  type TypedSignatureStyleId,
+} from '../../utils/contractSignature';
 import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
 import { reportAppError } from '../../services/errorService';
@@ -35,6 +43,7 @@ import type {
   EmpresaConfig,
   FinancialRecord,
   GeneratedDocument,
+  GeneratedDocumentSignatureMethod,
   UserProfile,
   UserRole,
 } from '../../types/domain';
@@ -120,6 +129,11 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
 
   // Sub-views / modais internos
   const [viewMode, setViewMode] = useState<'editor' | 'preview' | 'historico' | 'assinar'>('editor');
+  const [adminSignTab, setAdminSignTab] = useState<'desenhar' | 'digitar'>('desenhar');
+  const [adminSignerName, setAdminSignerName] = useState('');
+  const [adminSignerDoc, setAdminSignerDoc] = useState('');
+  const [adminTypedStyle, setAdminTypedStyle] = useState<TypedSignatureStyleId>('classica');
+  const [adminTypedInk, setAdminTypedInk] = useState<'#0B1F33' | '#0F3D91'>('#0B1F33');
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelBox, setShowCancelBox] = useState(false);
   const [externalSignLink, setExternalSignLink] = useState('');
@@ -383,20 +397,46 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
     }
   };
 
-  const handleSaveSignatureData = async (signatureDataUrl: string) => {
+  const handleSaveSignatureData = async (
+    signatureDataUrl: string,
+    method: GeneratedDocumentSignatureMethod = 'desenhada',
+  ) => {
     if (!currentDoc) return;
     setSaving(true);
+    setErrorMsg(null);
     try {
       const now = new Date().toISOString();
+      const targetClient = clientMap.get(currentDoc.clientId);
+      const signerName = (adminSignerName || targetClient?.nomeCompleto || userProfile.nome || '').trim();
+      const signerDoc = (
+        adminSignerDoc ||
+        targetClient?.cpf ||
+        (typeof targetClient?.passaporte?.numero === 'string' ? targetClient.passaporte.numero : '')
+      ).trim();
+      const signerEmail = (targetClient?.email || userProfile.email || '').trim().toLowerCase();
+      const contentHash = await computeDocumentContentHash({
+        conteudoHtml: currentDoc.conteudoHtml,
+        titulo: currentDoc.titulo,
+        docId: currentDoc.id,
+        versao: currentDoc.versao,
+      });
+
       const updated: GeneratedDocument = {
         ...currentDoc,
         status: 'Assinado',
         assinaturaDataUrl: signatureDataUrl,
         assinadoEm: now,
+        assinaturaMetodo: method,
+        assinadoPorNome: signerName || undefined,
+        assinadoPorEmail: signerEmail || undefined,
+        assinadoPorDocumento: signerDoc || undefined,
+        assinaturaHashSha256: contentHash,
+        assinaturaUserAgent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 240) : undefined,
+        assinaturaAceiteTermo: true,
       };
       await saveDocumentAudited('generatedDocuments', currentDoc.id, updated as unknown as Record<string, unknown>, false, role, 'assinatura_doc');
       setStatus('Assinado');
-      setFeedback('Assinatura registrada com sucesso!');
+      setFeedback('Assinatura eletrônica e certificado SHA-256 registrados com sucesso!');
       setViewMode('preview');
       await onRefresh();
     } finally {
@@ -407,18 +447,39 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
   const handleUploadSignedPdf = async (file: File) => {
     if (!currentDoc) return;
     setSaving(true);
+    setErrorMsg(null);
     try {
       const uploaded = await uploadFileToServer(file);
       const now = new Date().toISOString();
+      const targetClient = clientMap.get(currentDoc.clientId);
+      const signerName = (adminSignerName || targetClient?.nomeCompleto || userProfile.nome || '').trim();
+      const signerDoc = (
+        adminSignerDoc ||
+        targetClient?.cpf ||
+        (typeof targetClient?.passaporte?.numero === 'string' ? targetClient.passaporte.numero : '')
+      ).trim();
+      const signerEmail = (targetClient?.email || userProfile.email || '').trim().toLowerCase();
+      const contentHash = await computeDocumentContentHash({
+        conteudoHtml: currentDoc.conteudoHtml,
+        titulo: currentDoc.titulo,
+        docId: currentDoc.id,
+        versao: currentDoc.versao,
+      });
       const updated: GeneratedDocument = {
         ...currentDoc,
         status: 'Assinado',
         assinaturaUrl: uploaded.url,
         assinadoEm: now,
+        assinaturaMetodo: 'pdf_anexado',
+        assinadoPorNome: signerName || undefined,
+        assinadoPorEmail: signerEmail || undefined,
+        assinadoPorDocumento: signerDoc || undefined,
+        assinaturaHashSha256: contentHash,
+        assinaturaAceiteTermo: true,
       };
       await saveDocumentAudited('generatedDocuments', currentDoc.id, updated as unknown as Record<string, unknown>, false, role, 'upload_doc_assinado');
       setStatus('Assinado');
-      setFeedback('Documento assinado anexado!');
+      setFeedback('Documento assinado anexado com registro SHA-256!');
       await onRefresh();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Falha no upload da assinatura.');
@@ -466,7 +527,16 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
         status,
         clienteNome: selectedClient?.nomeCompleto,
         assinaturaDataUrl: currentDoc?.assinaturaDataUrl,
+        assinaturaUrl: currentDoc?.assinaturaUrl,
         assinadoEm: currentDoc?.assinadoEm,
+        assinaturaMetodo: currentDoc?.assinaturaMetodo,
+        assinadoPorNome: currentDoc?.assinadoPorNome || selectedClient?.nomeCompleto,
+        assinadoPorEmail: currentDoc?.assinadoPorEmail || selectedClient?.email,
+        assinadoPorDocumento:
+          currentDoc?.assinadoPorDocumento ||
+          selectedClient?.cpf ||
+          (typeof selectedClient?.passaporte?.numero === 'string' ? selectedClient.passaporte.numero : undefined),
+        assinaturaHashSha256: currentDoc?.assinaturaHashSha256,
         confirmadoLeituraEm: currentDoc?.confirmadoLeituraEm,
         canceladoMotivo: isCancelled ? currentDoc?.motivoCancelamento : undefined,
       });
@@ -897,28 +967,17 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
 
                 <div className="text-xs leading-relaxed whitespace-pre-wrap text-slate-800">{conteudoHtml}</div>
 
-                {(currentDoc?.assinaturaDataUrl || currentDoc?.assinaturaUrl || currentDoc?.confirmadoLeituraEm) && (
-                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 space-y-2">
-                    {currentDoc?.assinaturaDataUrl && (
-                      <div>
-                        <p className="font-semibold">Assinatura Eletrônica Registrada ({formatDateTimeBR(currentDoc.assinadoEm)}):</p>
-                        <img src={currentDoc.assinaturaDataUrl} alt="Assinatura" className="h-16 mt-1 border border-emerald-200 bg-white rounded" />
-                      </div>
-                    )}
-                    {currentDoc?.assinaturaUrl && (
-                      <p>
-                        Documento assinado anexado:{' '}
-                        <a href={currentDoc.assinaturaUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">
-                          Abrir arquivo assinado
-                        </a>
-                      </p>
-                    )}
-                    {currentDoc?.confirmadoLeituraEm && (
-                      <p className="font-medium">
-                        Leitura confirmada pelo cliente em {formatDateTimeBR(currentDoc.confirmadoLeituraEm)}.
-                      </p>
-                    )}
-                  </div>
+                {currentDoc && (
+                  <SignatureCertificateCard
+                    doc={currentDoc}
+                    fallbackSigner={{
+                      nome: selectedClient?.nomeCompleto,
+                      email: selectedClient?.email,
+                      documento:
+                        selectedClient?.cpf ||
+                        (typeof selectedClient?.passaporte?.numero === 'string' ? selectedClient.passaporte.numero : undefined),
+                    }}
+                  />
                 )}
 
                 <div className="pt-4 border-t border-slate-200 text-[10px] text-slate-500 space-y-1">
@@ -966,13 +1025,173 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
 
           {viewMode === 'assinar' && currentDoc && (
             <div className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {(currentDoc.assinaturaDataUrl || currentDoc.assinaturaUrl || currentDoc.assinadoEm) && (
+                <SignatureCertificateCard
+                  doc={currentDoc}
+                  fallbackSigner={{
+                    nome: selectedClient?.nomeCompleto,
+                    email: selectedClient?.email,
+                    documento:
+                      selectedClient?.cpf ||
+                      (typeof selectedClient?.passaporte?.numero === 'string' ? selectedClient.passaporte.numero : undefined),
+                  }}
+                />
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Nome do signatário (para o certificado)
+                  </label>
+                  <input
+                    type="text"
+                    value={adminSignerName}
+                    onChange={(e) => setAdminSignerName(e.target.value)}
+                    placeholder={selectedClient?.nomeCompleto || userProfile.nome || 'Nome completo'}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    CPF / Passaporte / RUN do signatário
+                  </label>
+                  <input
+                    type="text"
+                    value={adminSignerDoc}
+                    onChange={(e) => setAdminSignerDoc(e.target.value)}
+                    placeholder={selectedClient?.cpf || 'Opcional'}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono tabular-nums bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <div className="p-4 rounded-xl border border-slate-200 space-y-3">
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <PenTool className="w-4 h-4 text-[var(--color-primary)]" />
-                    Assinatura Desenhada no Aplicativo
-                  </h3>
-                  <DrawSignaturePad initialDataUrl={currentDoc.assinaturaDataUrl} onSave={handleSaveSignatureData} />
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      {adminSignTab === 'desenhar' ? (
+                        <PenTool className="w-4 h-4 text-[var(--color-primary)]" />
+                      ) : (
+                        <Type className="w-4 h-4 text-[var(--color-primary)]" />
+                      )}
+                      Assinatura Eletrônica no Aplicativo
+                    </h3>
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setAdminSignTab('desenhar')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                          adminSignTab === 'desenhar' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Desenhar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdminSignTab('digitar')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                          adminSignTab === 'digitar' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Digitar
+                      </button>
+                    </div>
+                  </div>
+
+                  {adminSignTab === 'desenhar' ? (
+                    <DrawSignaturePad
+                      disabled={saving}
+                      initialDataUrl={currentDoc.assinaturaDataUrl}
+                      saveLabel="Registrar Assinatura & Certificado"
+                      onSave={(dataUrl) => void handleSaveSignatureData(dataUrl, 'desenhada')}
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-slate-600">Estilo caligráfico</span>
+                        <div className="inline-flex items-center gap-1.5">
+                          {(
+                            [
+                              { id: '#0B1F33', label: 'Preto' },
+                              { id: '#0F3D91', label: 'Azul' },
+                            ] as const
+                          ).map((ink) => (
+                            <button
+                              key={ink.id}
+                              type="button"
+                              onClick={() => setAdminTypedInk(ink.id)}
+                              className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                                adminTypedInk === ink.id
+                                  ? 'border-slate-900 bg-slate-100 text-slate-900'
+                                  : 'border-slate-200 text-slate-500'
+                              }`}
+                            >
+                              {ink.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2">
+                        {TYPED_SIGNATURE_STYLES.map((st) => {
+                          const previewName = (adminSignerName || selectedClient?.nomeCompleto || userProfile.nome || 'Signatário').trim();
+                          const active = adminTypedStyle === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => setAdminTypedStyle(st.id)}
+                              className={`w-full text-left px-3.5 py-2.5 rounded-xl border transition-colors ${
+                                active ? 'border-[#0F3D91] bg-blue-50/40' : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                <span>{st.label}</span>
+                                <span>{active ? 'Selecionado' : ''}</span>
+                              </div>
+                              <p
+                                className="mt-1 truncate leading-tight"
+                                style={{
+                                  fontFamily: st.cssFontFamily,
+                                  fontStyle: st.fontStyle,
+                                  fontSize: st.id === 'classica' ? '1.65rem' : st.id === 'editorial' ? '1.35rem' : '1.15rem',
+                                  color: adminTypedInk,
+                                }}
+                              >
+                                {previewName}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-end">
+                        <UiButton
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          disabled={saving}
+                          onClick={() => {
+                            const finalName = (adminSignerName || selectedClient?.nomeCompleto || userProfile.nome || '').trim();
+                            if (finalName.length < 3) {
+                              setErrorMsg('Informe o nome do signatário para gerar a assinatura tipográfica.');
+                              return;
+                            }
+                            const dataUrl = renderTypedSignatureToDataUrl(
+                              finalName,
+                              adminTypedStyle,
+                              adminTypedInk,
+                            );
+                            if (!dataUrl) {
+                              setErrorMsg('Não foi possível renderizar a assinatura tipográfica.');
+                              return;
+                            }
+                            void handleSaveSignatureData(dataUrl, 'tipografica');
+                          }}
+                        >
+                          Registrar Assinatura Tipográfica
+                        </UiButton>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 space-y-4">
@@ -980,21 +1199,27 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                     <Upload className="w-4 h-4 text-[var(--color-primary)]" />
                     Anexar PDF Assinado ou Link Externo (Gov.br / Autentique)
                   </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Use esta opção se o contrato foi assinado no assinador Gov.br, Autentique, DocuSign ou fisicamente digitalizado.
+                  </p>
                   <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-50">
                     <Upload className="w-3.5 h-3.5" />
-                    Anexar documento já assinado (PDF/Imagem)
+                    {saving ? 'Enviando...' : 'Anexar documento já assinado (PDF/Imagem)'}
                     <input
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png"
                       className="hidden"
+                      disabled={saving}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) void handleUploadSignedPdf(f);
                       }}
                     />
                   </label>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-700">Link de assinatura externa (opcional)</label>
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Link de assinatura externa (exibido automaticamente no Portal do Cliente)
+                    </label>
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         value={externalSignLink}
@@ -1002,7 +1227,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                         placeholder="https://assinador.gov.br/..."
                         className="flex-1 min-w-0 w-full sm:w-auto px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
                       />
-                      <UiButton type="button" size="sm" onClick={() => void handleSave()}>
+                      <UiButton type="button" size="sm" disabled={saving} onClick={() => void handleSave()}>
                         Salvar Link
                       </UiButton>
                     </div>

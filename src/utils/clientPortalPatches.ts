@@ -26,6 +26,13 @@ export const GENERATED_DOC_ALLOWED_CLIENT_KEYS = [
   'assinaturaUrl',
   'assinaturaDataUrl',
   'assinadoEm',
+  'assinaturaMetodo',
+  'assinadoPorNome',
+  'assinadoPorEmail',
+  'assinadoPorDocumento',
+  'assinaturaHashSha256',
+  'assinaturaUserAgent',
+  'assinaturaAceiteTermo',
   'updatedAt',
 ] as const;
 
@@ -106,36 +113,92 @@ export function buildGeneratedDocReadConfirmPatch(
   };
 }
 
+export interface ClientSignaturePatchMeta {
+  assinaturaMetodo?: 'desenhada' | 'tipografica' | 'pdf_anexado' | 'externa';
+  assinadoPorNome?: string;
+  assinadoPorEmail?: string;
+  assinadoPorDocumento?: string;
+  assinaturaHashSha256?: string;
+  assinaturaUserAgent?: string;
+  assinaturaAceiteTermo?: boolean;
+  confirmadoLeituraEm?: string;
+  confirmadoLeituraPor?: string;
+}
+
+function appendSignatureMeta(
+  target: Record<string, unknown>,
+  meta?: ClientSignaturePatchMeta,
+  defaultMetodo?: 'desenhada' | 'tipografica' | 'pdf_anexado' | 'externa',
+): Record<string, unknown> {
+  const metodo = meta?.assinaturaMetodo ?? defaultMetodo;
+  if (metodo) target.assinaturaMetodo = metodo;
+  if (meta?.assinadoPorNome?.trim()) {
+    target.assinadoPorNome = meta.assinadoPorNome.trim().slice(0, 200);
+  }
+  if (meta?.assinadoPorEmail?.trim()) {
+    target.assinadoPorEmail = meta.assinadoPorEmail.trim().toLowerCase().slice(0, 200);
+  }
+  if (meta?.assinadoPorDocumento?.trim()) {
+    target.assinadoPorDocumento = meta.assinadoPorDocumento.trim().slice(0, 80);
+  }
+  if (meta?.assinaturaHashSha256?.trim()) {
+    target.assinaturaHashSha256 = meta.assinaturaHashSha256.trim().slice(0, 128);
+  }
+  if (meta?.assinaturaUserAgent?.trim()) {
+    target.assinaturaUserAgent = meta.assinaturaUserAgent.trim().slice(0, 300);
+  }
+  if (typeof meta?.assinaturaAceiteTermo === 'boolean') {
+    target.assinaturaAceiteTermo = meta.assinaturaAceiteTermo;
+  }
+  if (meta?.confirmadoLeituraEm?.trim()) {
+    target.confirmadoLeituraEm = meta.confirmadoLeituraEm.trim().slice(0, 64);
+  }
+  if (meta?.confirmadoLeituraPor?.trim()) {
+    target.confirmadoLeituraPor = meta.confirmadoLeituraPor.trim().slice(0, 200);
+  }
+  return target;
+}
+
 export function buildGeneratedDocCanvasSignaturePatch(
   signatureDataUrl: string,
   nowIso = new Date().toISOString(),
+  meta?: ClientSignaturePatchMeta,
 ): Record<string, unknown> {
   const clean = (signatureDataUrl || '').trim();
   if (!clean.startsWith('data:image/')) {
     throw new Error('Assinatura desenhada inválida. Desenhe sua assinatura novamente.');
   }
-  return {
-    assinaturaDataUrl: clean,
-    status: 'Assinado',
-    assinadoEm: nowIso,
-    updatedAt: nowIso,
-  };
+  return appendSignatureMeta(
+    {
+      assinaturaDataUrl: clean,
+      status: 'Assinado',
+      assinadoEm: nowIso,
+      updatedAt: nowIso,
+    },
+    meta,
+    'desenhada',
+  );
 }
 
 export function buildGeneratedDocPdfSignaturePatch(
   signedPdfUrl: string,
   nowIso = new Date().toISOString(),
+  meta?: ClientSignaturePatchMeta,
 ): Record<string, unknown> {
   const clean = (signedPdfUrl || '').trim();
   if (!clean) {
     throw new Error('Arquivo assinado inválido.');
   }
-  return {
-    assinaturaUrl: clean,
-    status: 'Assinado',
-    assinadoEm: nowIso,
-    updatedAt: nowIso,
-  };
+  return appendSignatureMeta(
+    {
+      assinaturaUrl: clean,
+      status: 'Assinado',
+      assinadoEm: nowIso,
+      updatedAt: nowIso,
+    },
+    meta,
+    'pdf_anexado',
+  );
 }
 
 export function buildBudgetDecisionPatch(

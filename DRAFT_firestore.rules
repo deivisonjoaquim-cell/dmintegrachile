@@ -687,9 +687,16 @@ service cloud.firestore {
         && isOptString(data, 'status', 60)
         && isOptString(data, 'confirmadoLeituraEm', 64)
         && isOptString(data, 'confirmadoLeituraPor', 200)
-        && isOptString(data, 'assinaturaUrl', 800000)
-        && isOptString(data, 'assinaturaDataUrl', 800000)
+        && isOptString(data, 'assinaturaUrl', 900000)
+        && isOptString(data, 'assinaturaDataUrl', 900000)
         && isOptString(data, 'assinadoEm', 64)
+        && (!('assinaturaMetodo' in data) || data.assinaturaMetodo == null || data.assinaturaMetodo in ['desenhada', 'tipografica', 'pdf_anexado', 'externa'])
+        && isOptString(data, 'assinadoPorNome', 200)
+        && isOptString(data, 'assinadoPorEmail', 200)
+        && isOptString(data, 'assinadoPorDocumento', 80)
+        && isOptString(data, 'assinaturaHashSha256', 128)
+        && isOptString(data, 'assinaturaUserAgent', 300)
+        && isOptBool(data, 'assinaturaAceiteTermo')
         && isOptString(data, 'updatedAt', 64);
     }
 
@@ -845,6 +852,13 @@ service cloud.firestore {
         && isOptString(data, 'assinaturaUrl', 900000)
         && isOptString(data, 'assinaturaDataUrl', 900000)
         && isOptString(data, 'assinadoEm', 64)
+        && (!('assinaturaMetodo' in data) || data.assinaturaMetodo == null || data.assinaturaMetodo in ['desenhada', 'tipografica', 'pdf_anexado', 'externa'])
+        && isOptString(data, 'assinadoPorNome', 200)
+        && isOptString(data, 'assinadoPorEmail', 200)
+        && isOptString(data, 'assinadoPorDocumento', 80)
+        && isOptString(data, 'assinaturaHashSha256', 128)
+        && isOptString(data, 'assinaturaUserAgent', 300)
+        && isOptBool(data, 'assinaturaAceiteTermo')
         && isOptString(data, 'updatedAt', 64);
     }
 
@@ -1375,7 +1389,7 @@ service cloud.firestore {
           && existing().liberadoAoCliente == true
           && (!('canceladoEm' in existing()) || existing().canceladoEm == null || existing().canceladoEm == '')
           && (!('motivoCancelamento' in existing()) || existing().motivoCancelamento == null || existing().motivoCancelamento == '')
-          && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt'])
+          && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'assinaturaMetodo', 'assinadoPorNome', 'assinadoPorEmail', 'assinadoPorDocumento', 'assinaturaHashSha256', 'assinaturaUserAgent', 'assinaturaAceiteTermo', 'updatedAt'])
           && isValidGeneratedDocumentClientUpdate(incoming(), existing()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(genDocId);

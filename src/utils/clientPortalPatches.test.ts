@@ -52,17 +52,48 @@ function CLIENT_ALLOWED_CLIENT_KEYS_OR_SELF() {
   return CLIENT_ALLOWED_SELF_UPDATE_KEYS;
 }
 
-test('generatedDocuments client patches (read confirm, canvas signature, PDF upload) match firestore.rules allowlist', () => {
+test('generatedDocuments client patches (read confirm, canvas/typed signature, PDF upload + SHA-256 audit meta) match firestore.rules allowlist', () => {
   const readPatch = buildGeneratedDocReadConfirmPatch('Maria Silva');
   assertOnlyAllowedKeys(readPatch, GENERATED_DOC_ALLOWED_CLIENT_KEYS);
 
-  const canvasPatch = buildGeneratedDocCanvasSignaturePatch('data:image/png;base64,iVBORw0KGgo=');
+  const canvasPatch = buildGeneratedDocCanvasSignaturePatch(
+    'data:image/png;base64,iVBORw0KGgo=',
+    '2026-11-27T12:00:00.000Z',
+    {
+      assinaturaMetodo: 'tipografica',
+      assinadoPorNome: '  Maria Silva  ',
+      assinadoPorEmail: 'MARIA@EXAMPLE.COM',
+      assinadoPorDocumento: '123.456.789-00',
+      assinaturaHashSha256: 'a'.repeat(64),
+      assinaturaUserAgent: 'Mozilla/5.0',
+      assinaturaAceiteTermo: true,
+      confirmadoLeituraEm: '2026-11-27T12:00:00.000Z',
+      confirmadoLeituraPor: 'Maria Silva',
+    },
+  );
   assertOnlyAllowedKeys(canvasPatch, GENERATED_DOC_ALLOWED_CLIENT_KEYS);
   assert.equal(canvasPatch.status, 'Assinado');
+  assert.equal(canvasPatch.assinaturaMetodo, 'tipografica');
+  assert.equal(canvasPatch.assinadoPorNome, 'Maria Silva');
+  assert.equal(canvasPatch.assinadoPorEmail, 'maria@example.com');
+  assert.equal(canvasPatch.assinaturaAceiteTermo, true);
+  assert.equal(canvasPatch.confirmadoLeituraEm, '2026-11-27T12:00:00.000Z');
+  assert.equal(canvasPatch.confirmadoLeituraPor, 'Maria Silva');
 
-  const pdfPatch = buildGeneratedDocPdfSignaturePatch('/uploads/contrato-assinado.pdf');
+  const pdfPatch = buildGeneratedDocPdfSignaturePatch(
+    '/uploads/contrato-assinado.pdf',
+    '2026-11-27T12:05:00.000Z',
+    {
+      assinaturaMetodo: 'pdf_anexado',
+      assinadoPorNome: 'Maria Silva',
+      assinadoPorEmail: 'maria@example.com',
+      assinaturaHashSha256: 'b'.repeat(64),
+      assinaturaAceiteTermo: true,
+    },
+  );
   assertOnlyAllowedKeys(pdfPatch, GENERATED_DOC_ALLOWED_CLIENT_KEYS);
   assert.equal(pdfPatch.status, 'Assinado');
+  assert.equal(pdfPatch.assinaturaMetodo, 'pdf_anexado');
 
   assert.throws(() => buildGeneratedDocCanvasSignaturePatch('invalid-url'));
 });

@@ -83,7 +83,7 @@ test('rules restrict generatedDocuments client confirmation/signature updates an
   const genBlock = rulesText.slice(rulesText.indexOf('match /generatedDocuments/{genDocId}'), rulesText.indexOf('match /fcmTokens/{tokenId}'));
   assert.match(genBlock, /isAssistente\(\) && \(!\('financeiro' in existing\(\)\) \|\| existing\(\)\.financeiro == false\)/);
   assert.match(genBlock, /isAdminOrConsultor\(\) && isValidGeneratedDocument\(incoming\(\)\)/);
-  assert.match(genBlock, /affectedKeys\(\)\.hasOnly\(\['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt'\]\)/);
+  assert.match(genBlock, /affectedKeys\(\)\.hasOnly\(\['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'assinaturaMetodo', 'assinadoPorNome', 'assinadoPorEmail', 'assinadoPorDocumento', 'assinaturaHashSha256', 'assinaturaUserAgent', 'assinaturaAceiteTermo', 'updatedAt'\]\)/);
   assert.match(genBlock, /existing\(\)\.liberadoAoCliente == true/);
 });
 

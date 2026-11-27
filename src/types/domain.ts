@@ -968,6 +968,12 @@ export interface DocumentTemplate {
   notaInterna?: string;
 }
 
+export type GeneratedDocumentSignatureMethod =
+  | 'desenhada'
+  | 'tipografica'
+  | 'pdf_anexado'
+  | 'externa';
+
 export interface GeneratedDocument {
   id: string;
   tipo: string;
@@ -989,6 +995,13 @@ export interface GeneratedDocument {
   assinaturaDataUrl?: string;
   assinaturaLinkExterno?: string;
   assinadoEm?: string;
+  assinaturaMetodo?: GeneratedDocumentSignatureMethod;
+  assinadoPorNome?: string;
+  assinadoPorEmail?: string;
+  assinadoPorDocumento?: string;
+  assinaturaHashSha256?: string;
+  assinaturaUserAgent?: string;
+  assinaturaAceiteTermo?: boolean;
   confirmadoLeituraEm?: string;
   confirmadoLeituraPor?: string;
   motivoCancelamento?: string;

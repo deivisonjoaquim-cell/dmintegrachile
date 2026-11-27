@@ -444,104 +444,293 @@ export const QrCodeSvg: React.FC<{ value: string; size?: number }> = ({ value, s
   );
 };
 
+interface SignaturePoint {
+  x: number;
+  y: number;
+}
+
+interface SignatureStroke {
+  color: string;
+  width: number;
+  points: SignaturePoint[];
+}
+
 export const DrawSignaturePad: React.FC<{
-  onSave: (dataUrl: string) => void;
+  onSave?: (dataUrl: string) => void;
+  onChange?: (dataUrl: string | null) => void;
   initialDataUrl?: string;
   disabled?: boolean;
-}> = ({ onSave, initialDataUrl, disabled = false }) => {
+  hideSaveButton?: boolean;
+  saveLabel?: string;
+}> = ({
+  onSave,
+  onChange,
+  initialDataUrl,
+  disabled = false,
+  hideSaveButton = false,
+  saveLabel = 'Confirmar assinatura desenhada',
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const strokesRef = useRef<SignatureStroke[]>([]);
+  const activeStrokeRef = useRef<SignatureStroke | null>(null);
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
   const [drawing, setDrawing] = useState(false);
-  const [hasStroke, setHasStroke] = useState(Boolean(initialDataUrl));
+  const [strokeCount, setStrokeCount] = useState(0);
+  const [hasInitialImg, setHasInitialImg] = useState(Boolean(initialDataUrl));
+  const [inkColor, setInkColor] = useState<'#0B1F33' | '#0F3D91'>('#0B1F33');
 
-  useEffect(() => {
+  const LOGICAL_W = 560;
+  const LOGICAL_H = 168;
+  const DPR = 2;
+
+  const redrawCanvas = React.useCallback((withGuide: boolean) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+    if (bgImageRef.current) {
+      ctx.drawImage(bgImageRef.current, 0, 0, LOGICAL_W, LOGICAL_H);
+    }
+
+    if (withGuide) {
+      ctx.save();
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(28, LOGICAL_H - 36);
+      ctx.lineTo(LOGICAL_W - 28, LOGICAL_H - 36);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '500 11px "Plus Jakarta Sans", "DM Sans", sans-serif';
+      ctx.fillText('Assine sobre a linha', 28, LOGICAL_H - 16);
+      ctx.restore();
+    }
+
+    const renderStroke = (stroke: SignatureStroke) => {
+      if (stroke.points.length === 0) return;
+      ctx.strokeStyle = stroke.color;
+      ctx.fillStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (stroke.points.length === 1) {
+        ctx.beginPath();
+        ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length - 1; i += 1) {
+        const curr = stroke.points[i];
+        const next = stroke.points[i + 1];
+        const midX = (curr.x + next.x) / 2;
+        const midY = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+      }
+      const last = stroke.points[stroke.points.length - 1];
+      ctx.lineTo(last.x, last.y);
+      ctx.stroke();
+    };
+
+    for (const s of strokesRef.current) {
+      renderStroke(s);
+    }
+    if (activeStrokeRef.current) {
+      renderStroke(activeStrokeRef.current);
+    }
+
+    ctx.restore();
+  }, []);
+
+  const exportCleanDataUrl = React.useCallback((): string | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    if (strokesRef.current.length === 0 && !bgImageRef.current) return null;
+    redrawCanvas(false);
+    const dataUrl = canvas.toDataURL('image/png');
+    redrawCanvas(true);
+    return dataUrl;
+  }, [redrawCanvas]);
+
+  useEffect(() => {
+    strokesRef.current = [];
+    activeStrokeRef.current = null;
+    setStrokeCount(0);
+
     if (initialDataUrl) {
       const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.onload = () => {
+        bgImageRef.current = img;
+        setHasInitialImg(true);
+        redrawCanvas(true);
+      };
       img.src = initialDataUrl;
+    } else {
+      bgImageRef.current = null;
+      setHasInitialImg(false);
+      redrawCanvas(true);
     }
-  }, [initialDataUrl]);
+  }, [initialDataUrl, redrawCanvas]);
 
-  const getCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const hasStroke = strokeCount > 0 || hasInitialImg;
+
+  const getCoords = (e: React.PointerEvent<HTMLCanvasElement>): SignaturePoint => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
     return {
-      x: ((e.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((e.clientY - rect.top) / rect.height) * canvas.height,
+      x: ((e.clientX - rect.left) / rect.width) * LOGICAL_W,
+      y: ((e.clientY - rect.top) / rect.height) * LOGICAL_H,
     };
+  };
+
+  const handleUndo = () => {
+    if (disabled || strokesRef.current.length === 0) return;
+    strokesRef.current = strokesRef.current.slice(0, -1);
+    setStrokeCount(strokesRef.current.length);
+    redrawCanvas(true);
+    onChange?.(exportCleanDataUrl());
   };
 
   const handleClear = () => {
     if (disabled) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    setHasStroke(false);
+    strokesRef.current = [];
+    activeStrokeRef.current = null;
+    bgImageRef.current = null;
+    setStrokeCount(0);
+    setHasInitialImg(false);
+    redrawCanvas(true);
+    onChange?.(null);
+  };
+
+  const finishStroke = () => {
+    if (!activeStrokeRef.current) return;
+    strokesRef.current = [...strokesRef.current, activeStrokeRef.current];
+    activeStrokeRef.current = null;
+    setDrawing(false);
+    setStrokeCount(strokesRef.current.length);
+    redrawCanvas(true);
+    onChange?.(exportCleanDataUrl());
   };
 
   return (
-    <div className="space-y-2">
-      <div className={`border border-slate-300 rounded-lg overflow-hidden bg-white ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="inline-flex items-center gap-1.5" role="group" aria-label="Cor da tinta">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Caneta:</span>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setInkColor('#0B1F33')}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors whitespace-nowrap ${
+              inkColor === '#0B1F33'
+                ? 'border-[#0B1F33] bg-[#0B1F33] text-white'
+                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C30] text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-[#0B1F33] border border-white/60" aria-hidden="true" />
+            Preto
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setInkColor('#0F3D91')}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors whitespace-nowrap ${
+              inkColor === '#0F3D91'
+                ? 'border-[#0F3D91] bg-[#0F3D91] text-white'
+                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C30] text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-[#0F3D91] border border-white/60" aria-hidden="true" />
+            Azul
+          </button>
+        </div>
+
+        <div className="inline-flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={disabled || strokeCount === 0}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C30] text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#16233B] disabled:opacity-40 whitespace-nowrap"
+          >
+            Desfazer
+          </button>
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={disabled || !hasStroke}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C30] text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#16233B] disabled:opacity-40 whitespace-nowrap"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Limpar
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={`border border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden bg-white transition-shadow focus-within:ring-2 focus-within:ring-[#0F3D91]/30 ${
+          disabled ? 'opacity-60 pointer-events-none' : ''
+        }`}
+      >
         <canvas
           ref={canvasRef}
-          width={480}
-          height={140}
-          className="w-full h-32 touch-none cursor-crosshair"
+          width={LOGICAL_W * DPR}
+          height={LOGICAL_H * DPR}
+          className="w-full h-36 sm:h-40 touch-none cursor-crosshair block"
           onPointerDown={(e) => {
             if (disabled) return;
-            const ctx = canvasRef.current?.getContext('2d');
-            if (!ctx) return;
-            const { x, y } = getCoords(e);
-            ctx.strokeStyle = '#0F2537';
-            ctx.lineWidth = 2.2;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(x, y);
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const pt = getCoords(e);
+            activeStrokeRef.current = {
+              color: inkColor,
+              width: 2.4,
+              points: [pt],
+            };
             setDrawing(true);
-            setHasStroke(true);
+            redrawCanvas(true);
           }}
           onPointerMove={(e) => {
-            if (disabled || !drawing) return;
-            const ctx = canvasRef.current?.getContext('2d');
-            if (!ctx) return;
-            const { x, y } = getCoords(e);
-            ctx.lineTo(x, y);
-            ctx.stroke();
+            if (disabled || !drawing || !activeStrokeRef.current) return;
+            const pt = getCoords(e);
+            const pts = activeStrokeRef.current.points;
+            const prev = pts[pts.length - 1];
+            if (!prev || Math.hypot(pt.x - prev.x, pt.y - prev.y) >= 1.5) {
+              pts.push(pt);
+              redrawCanvas(true);
+            }
           }}
-          onPointerUp={() => setDrawing(false)}
-          onPointerLeave={() => setDrawing(false)}
+          onPointerUp={() => finishStroke()}
+          onPointerCancel={() => finishStroke()}
         />
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={handleClear}
-          disabled={disabled}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
-          <RotateCcw className="w-3 h-3" />
-          Limpar
-        </button>
-        <UiButton
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={disabled || !hasStroke}
-          onClick={() => {
-            if (!disabled && canvasRef.current) onSave(canvasRef.current.toDataURL('image/png'));
-          }}
-        >
-          Confirmar assinatura desenhada
-        </UiButton>
-      </div>
+
+      {!hideSaveButton && onSave && (
+        <div className="flex items-center justify-end">
+          <UiButton
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={disabled || !hasStroke}
+            onClick={() => {
+              if (disabled) return;
+              const exported = exportCleanDataUrl();
+              if (exported) onSave(exported);
+            }}
+          >
+            {saveLabel}
+          </UiButton>
+        </div>
+      )}
     </div>
   );
 };

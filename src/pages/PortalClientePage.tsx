@@ -50,7 +50,9 @@ import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLega
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 import { SermigSimulator } from '../components/SermigSimulator';
-import { DrawSignaturePad, QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
+import { ContractSignatureModal } from '../components/contracts/ContractSignatureModal';
+import { SignatureCertificateCard } from '../components/contracts/SignatureCertificateCard';
+import { QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PIPELINE_STAGES } from '../data/seeds';
@@ -71,7 +73,9 @@ import {
   buildGeneratedDocCanvasSignaturePatch,
   buildGeneratedDocPdfSignaturePatch,
   buildGeneratedDocReadConfirmPatch,
+  type ClientSignaturePatchMeta,
 } from '../utils/clientPortalPatches';
+import { formatSignatureHashShort, getSignatureMethodLabel } from '../utils/contractSignature';
 import {
   deactivateUserPushTokens,
   enableClientBrowserNotifications,
@@ -1107,46 +1111,90 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     }
   };
 
-  const handleSignGenDocCanvas = async (gd: GeneratedDocument, dataUrl: string) => {
+  const exportOfficialDocToPdf = useCallback(
+    async (gd: GeneratedDocument) => {
+      try {
+        const { exportGeneratedOfficialDocPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
+        await exportGeneratedOfficialDocPdf({
+          empresa,
+          titulo: gd.titulo,
+          conteudo: gd.conteudoHtml,
+          codigoVerificacao: gd.codigoVerificacao || gd.id,
+          versao: gd.versao,
+          status: gd.status,
+          clienteNome: client?.nomeCompleto || userProfile.nome,
+          assinaturaDataUrl: gd.assinaturaDataUrl,
+          assinaturaUrl: gd.assinaturaUrl,
+          assinadoEm: gd.assinadoEm,
+          assinaturaMetodo: gd.assinaturaMetodo,
+          assinadoPorNome: gd.assinadoPorNome || client?.nomeCompleto || userProfile.nome,
+          assinadoPorEmail: gd.assinadoPorEmail || client?.email || userProfile.email,
+          assinadoPorDocumento:
+            gd.assinadoPorDocumento || client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : undefined),
+          assinaturaHashSha256: gd.assinaturaHashSha256,
+          confirmadoLeituraEm: gd.confirmadoLeituraEm,
+          canceladoMotivo: gd.canceladoEm ? gd.motivoCancelamento : undefined,
+        });
+      } catch (err) {
+        reportAppError(err, { source: 'pdf' });
+        const friendly = translateAppError(err, { source: 'pdf' });
+        setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+      }
+    },
+    [client, empresa, userProfile.email, userProfile.nome],
+  );
+
+  const handleSignGenDocCanvas = async (
+    gd: GeneratedDocument,
+    dataUrl: string,
+    meta?: ClientSignaturePatchMeta,
+    nowIsoArg?: string,
+  ) => {
     setSignBusy(true);
     try {
-      const nowIso = new Date().toISOString();
+      const nowIso = nowIsoArg || new Date().toISOString();
       await updateClientPortalDocAudited(
         'generatedDocuments',
         gd.id,
-        buildGeneratedDocCanvasSignaturePatch(dataUrl, nowIso),
+        buildGeneratedDocCanvasSignaturePatch(dataUrl, nowIso, meta),
         'assinatura_cliente',
         gd.status,
       );
-      setSigningGenDoc(null);
-      setFeedbackMsg(`Documento "${gd.titulo}" assinado com sucesso!`);
+      setFeedbackMsg(`Documento "${gd.titulo}" assinado com sucesso e certificado gerado.`);
       await loadPortal();
     } catch (err) {
       const friendly = translateAppError(err, { source: 'portal-gendoc-sign' });
       setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+      throw err;
     } finally {
       setSignBusy(false);
     }
   };
 
-  const handleUploadSignedGenDocPdf = async (gd: GeneratedDocument, file: File) => {
+  const handleUploadSignedGenDocPdf = async (
+    gd: GeneratedDocument,
+    file: File,
+    meta?: ClientSignaturePatchMeta,
+    nowIsoArg?: string,
+  ): Promise<string> => {
     setSignBusy(true);
     try {
       const uploaded = await uploadFileToServer(file);
-      const nowIso = new Date().toISOString();
+      const nowIso = nowIsoArg || new Date().toISOString();
       await updateClientPortalDocAudited(
         'generatedDocuments',
         gd.id,
-        buildGeneratedDocPdfSignaturePatch(uploaded.url, nowIso),
+        buildGeneratedDocPdfSignaturePatch(uploaded.url, nowIso, meta),
         'assinatura_pdf_cliente',
         gd.status,
       );
-      setSigningGenDoc(null);
       setFeedbackMsg(`Arquivo assinado de "${gd.titulo}" enviado com sucesso!`);
       await loadPortal();
+      return uploaded.url;
     } catch (err) {
       const friendly = translateAppError(err, { source: 'portal-gendoc-upload' });
       setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+      throw err;
     } finally {
       setSignBusy(false);
     }
@@ -1778,10 +1826,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </div>
                     {genDocs.map((gd) => {
                       const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
+                      const hashShort = formatSignatureHashShort(gd.assinaturaHashSha256);
                       return (
                         <div key={gd.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="space-y-0.5">
-                            <p className="text-sm font-bold text-[#070E1C] dark:text-white">{gd.titulo}</p>
+                          <div className="space-y-0.5 min-w-0">
+                            <p className="text-sm font-bold text-[#070E1C] dark:text-white break-words">{gd.titulo}</p>
                             <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
                               Status: <strong className="font-sans text-[#070E1C] dark:text-white">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
                               {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
@@ -1792,8 +1841,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                               </p>
                             )}
                             {gd.assinadoEm && (
-                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium tabular-nums">
                                 Assinado em {formatDateTimeBR(gd.assinadoEm)}
+                                {gd.assinaturaMetodo ? ` · ${getSignatureMethodLabel(gd.assinaturaMetodo)}` : ''}
+                                {hashShort ? ` · SHA-256 ${hashShort}` : ''}
                               </p>
                             )}
                           </div>
@@ -1801,19 +1852,19 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             <button
                               type="button"
                               onClick={() => setViewingGenDoc(gd)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B]"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B] whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              Visualizar / Imprimir A4
+                              {gd.status === 'Assinado' ? 'Ver Contrato & Certificado' : 'Visualizar A4'}
                             </button>
                             {!gd.canceladoEm && gd.status !== 'Assinado' && (
                               <button
                                 type="button"
                                 onClick={() => setSigningGenDoc(gd)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap"
                               >
-                                <FileSignature className="w-3.5 h-3.5 text-[#C9A86A]" />
-                                Assinar / Anexar Assinado
+                                <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
+                                Ler e Assinar Contrato
                               </button>
                             )}
                           </div>
@@ -1964,6 +2015,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         <div className="space-y-2.5">
                         {filteredGenDocs.map((gd) => {
                           const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
+                          const hashShort = formatSignatureHashShort(gd.assinaturaHashSha256);
                           return (
                             <div
                               key={gd.id}
@@ -1981,8 +2033,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                                   </p>
                                 )}
                                 {gd.assinadoEm && (
-                                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium tabular-nums">
                                     Assinado em {formatDateTimeBR(gd.assinadoEm)}
+                                    {gd.assinaturaMetodo ? ` · ${getSignatureMethodLabel(gd.assinaturaMetodo)}` : ''}
+                                    {hashShort ? ` · SHA-256 ${hashShort}` : ''}
                                   </p>
                                 )}
                               </div>
@@ -1990,19 +2044,19 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                                 <button
                                   type="button"
                                   onClick={() => setViewingGenDoc(gd)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842]"
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] whitespace-nowrap"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
-                                  Visualizar / Imprimir A4
+                                  {gd.status === 'Assinado' ? 'Ver Contrato & Certificado' : 'Visualizar A4'}
                                 </button>
                                 {!gd.canceladoEm && gd.status !== 'Assinado' && (
                                   <button
                                     type="button"
                                     onClick={() => setSigningGenDoc(gd)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white bg-[#0B1628] hover:bg-[#152847] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white bg-[#0B1628] hover:bg-[#152847] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] whitespace-nowrap"
                                   >
                                     <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
-                                    Assinar / Anexar Assinado
+                                    Ler e Assinar Contrato
                                   </button>
                                 )}
                               </div>
@@ -2574,7 +2628,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex items-center justify-center p-4 print-modal-backdrop" role="dialog" aria-modal="true">
           <div className="bg-white border border-[#E5DFD2] rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl print-modal-dialog">
             <BrandRibbon className="h-[3px] w-full shrink-0 no-print" />
-            <div className="px-5 py-4 bg-[#0B1F33] text-white flex items-center justify-between gap-3 no-print shrink-0">
+            <div className="px-5 py-4 bg-[#0B1F33] text-white flex flex-wrap items-center justify-between gap-3 no-print shrink-0">
               <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">Documento Oficial A4</p>
                 <p className="font-display text-base font-bold text-white truncate mt-0.5">{viewingGenDoc.titulo}</p>
@@ -2583,38 +2637,37 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {!viewingGenDoc.canceladoEm && viewingGenDoc.status !== 'Assinado' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = viewingGenDoc;
+                      setViewingGenDoc(null);
+                      setSigningGenDoc(target);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523] text-xs font-bold whitespace-nowrap"
+                  >
+                    <FileSignature className="w-3.5 h-3.5" />
+                    Assinar Contrato
+                  </button>
+                )}
                 {!viewingGenDoc.confirmadoLeituraEm && (
                   <button
                     type="button"
                     onClick={() => void handleConfirmGenDocRead(viewingGenDoc)}
-                    className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-xs font-semibold text-white hover:bg-white/20"
+                    className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-xs font-semibold text-white hover:bg-white/20 whitespace-nowrap"
                   >
                     Confirmar leitura
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={async () => {
-                    try {
-                      const { exportGeneratedOfficialDocPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
-                      await exportGeneratedOfficialDocPdf({
-                        empresa,
-                        titulo: viewingGenDoc.titulo,
-                        conteudo: viewingGenDoc.conteudoHtml,
-                        codigoVerificacao: viewingGenDoc.codigoVerificacao || viewingGenDoc.id,
-                        versao: viewingGenDoc.versao,
-                        status: viewingGenDoc.status,
-                        clienteNome: client?.nomeCompleto,
-                        assinaturaDataUrl: viewingGenDoc.assinaturaDataUrl,
-                        assinadoEm: viewingGenDoc.assinadoEm,
-                        confirmadoLeituraEm: viewingGenDoc.confirmadoLeituraEm,
-                        canceladoMotivo: viewingGenDoc.canceladoEm ? viewingGenDoc.motivoCancelamento : undefined,
-                      });
-                    } catch (err) {
-                      reportAppError(err, { source: 'pdf' });
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523] text-xs font-bold"
+                  onClick={() => void exportOfficialDocToPdf(viewingGenDoc)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${
+                    viewingGenDoc.status === 'Assinado'
+                      ? 'bg-[#C8A236] hover:bg-[#d6b145] text-[#0B1523]'
+                      : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                  }`}
                 >
                   <Download className="w-3.5 h-3.5" />
                   Baixar PDF A4
@@ -2623,7 +2676,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   <Printer className="w-3.5 h-3.5" />
                   Imprimir
                 </UiButton>
-                <button type="button" onClick={() => setViewingGenDoc(null)} className="p-1.5 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white">
+                <button
+                  type="button"
+                  aria-label="Fechar visualização"
+                  onClick={() => setViewingGenDoc(null)}
+                  className="p-1.5 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -2640,62 +2698,37 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewingGenDoc.conteudoHtml) }}
               />
-              {viewingGenDoc.assinaturaDataUrl && (
-                <div className="pt-4 border-t border-[#E5DFD2] print-avoid-break">
-                  <p className="text-[11px] font-semibold text-[#4A5A6D] mb-1">Assinatura registrada:</p>
-                  <img src={viewingGenDoc.assinaturaDataUrl} alt="Assinatura" className="h-16 border border-[#E5DFD2] rounded bg-white" />
-                </div>
-              )}
+              <SignatureCertificateCard
+                doc={viewingGenDoc}
+                fallbackSigner={{
+                  nome: client?.nomeCompleto || userProfile.nome,
+                  email: client?.email || userProfile.email,
+                  documento:
+                    client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : undefined),
+                }}
+              />
               <p className="text-[10px] text-[#4A5A6D] pt-3 border-t border-[#E5DFD2]">{empresa.avisoLegal}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Assinatura / Anexo de Documento Oficial */}
+      {/* Modal Assinatura Eletrônica de Contrato (Leitura + Assinatura + Certificado SHA-256) */}
       {signingGenDoc && (
-        <div className="fixed inset-0 z-50 bg-[#071422]/75 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-white border border-[#E5DFD2] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
-            <BrandRibbon className="h-[3px] w-full" />
-            <div className="px-6 py-4 bg-[#0B1F33] text-white flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E5C76B]">Assinatura Digital</p>
-                <h3 className="font-display text-base font-bold text-white mt-0.5">Assinar ou Anexar Documento Assinado</h3>
-              </div>
-              <button type="button" onClick={() => setSigningGenDoc(null)} className="p-1.5 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-xs text-[#4A5A6D] leading-relaxed">
-                Desenhe sua assinatura digital abaixo ou envie o PDF assinado manualmente / via Gov.br para <strong className="text-[#0B1F33]">{signingGenDoc.titulo}</strong>.
-              </p>
-              <DrawSignaturePad
-                disabled={signBusy}
-                onSave={(dataUrl) => void handleSignGenDocCanvas(signingGenDoc, dataUrl)}
-              />
-              <div className="pt-3 border-t border-[#E5DFD2] flex items-center justify-between gap-3">
-                <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-xs font-semibold text-[#0B1F33] cursor-pointer hover:bg-white">
-                  <Upload className="w-3.5 h-3.5 text-[#8C6D14]" />
-                  {signBusy ? 'Enviando...' : 'Ou enviar PDF assinado'}
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    className="hidden"
-                    disabled={signBusy}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleUploadSignedGenDocPdf(signingGenDoc, f);
-                    }}
-                  />
-                </label>
-                <button type="button" onClick={() => setSigningGenDoc(null)} className="px-3 py-2 text-xs font-semibold text-[#4A5A6D] hover:text-[#0B1F33]">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ContractSignatureModal
+          doc={signingGenDoc}
+          empresa={empresa}
+          defaultSignerName={client?.nomeCompleto || userProfile.nome || ''}
+          defaultSignerEmail={client?.email || userProfile.email || ''}
+          defaultSignerDocument={
+            client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : '')
+          }
+          busy={signBusy}
+          onClose={() => setSigningGenDoc(null)}
+          onSubmitDigitalSignature={handleSignGenDocCanvas}
+          onSubmitSignedFile={handleUploadSignedGenDocPdf}
+          onDownloadPdf={exportOfficialDocToPdf}
+        />
       )}
 
       {/* Modal obrigatório LGPD no 1º acesso */}
