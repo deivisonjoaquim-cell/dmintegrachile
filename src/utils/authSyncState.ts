@@ -136,3 +136,89 @@ export function hasAuthPermissionDelta(
     nextClientId !== current.clientId
   );
 }
+
+/**
+ * Gera uma chave determinística para impedir retentativas em loop de vínculo
+ * `users/{uid} <-> clients/{clientId}` para o mesmo estado de liberação.
+ */
+export function buildClientLinkAttemptKey(params: {
+  uid: string;
+  clientId: string;
+  portalLiberado: boolean;
+}): string {
+  return `${params.uid}::${params.clientId}::${params.portalLiberado ? '1' : '0'}`;
+}
+
+/**
+ * Determina se o listener em tempo real deve disparar o vínculo automático
+ * `linkGoogleUserToClientOrLead`, bloqueando loops infinitos caso a tentativa
+ * já tenha sido executada para o mesmo `(uid, clientId, portalLiberado)`.
+ */
+export function shouldAttemptClientAutoLink(params: {
+  userProfile: Pick<UserProfile, 'uid' | 'role' | 'status' | 'clientId'> | null | undefined;
+  client: { id: string; portalLiberado?: boolean; arquivado?: boolean; userId?: string } | null | undefined;
+  attemptedKeys: ReadonlySet<string>;
+}): { shouldAttempt: boolean; key: string | null } {
+  const { userProfile, client, attemptedKeys } = params;
+  if (!userProfile || !client) return { shouldAttempt: false, key: null };
+  if (userProfile.role !== 'cliente' || userProfile.status === 'inativo') {
+    return { shouldAttempt: false, key: null };
+  }
+  if (client.portalLiberado !== true || client.arquivado === true) {
+    return { shouldAttempt: false, key: null };
+  }
+  const needsCommit =
+    userProfile.clientId !== client.id ||
+    userProfile.status !== 'ativo' ||
+    !client.userId;
+  if (!needsCommit) {
+    return { shouldAttempt: false, key: null };
+  }
+  const key = buildClientLinkAttemptKey({
+    uid: userProfile.uid,
+    clientId: client.id,
+    portalLiberado: true,
+  });
+  if (attemptedKeys.has(key)) {
+    return { shouldAttempt: false, key };
+  }
+  return { shouldAttempt: true, key };
+}
+
+/**
+ * Resolve o estágio do Portal do Cliente sem jamais prender a interface
+ * em estado infinito de 'loading' caso o vínculo do perfil não consiga
+ * atualizar `users/{uid}.clientId` em uma tentativa anterior.
+ */
+export function resolveSafePortalStage(params: {
+  authLoading: boolean;
+  portalAccessLoading: boolean;
+  userProfile: Pick<UserProfile, 'role' | 'status' | 'clientId'> | null | undefined;
+  portalAccessKind: 'unauthenticated' | 'inactive' | 'active_paid' | 'pending_release' | 'free_diagnostic_only' | 'no_record' | null;
+  portalAccessClientId?: string | null;
+  linkAttemptExhausted: boolean;
+}): 'loading' | 'unauthenticated' | 'gratuito' | 'pendente' | 'contratado' | 'inativo' {
+  const {
+    authLoading,
+    portalAccessLoading,
+    userProfile,
+    portalAccessKind,
+    portalAccessClientId,
+    linkAttemptExhausted,
+  } = params;
+
+  if (authLoading) return 'loading';
+  if (!userProfile || userProfile.role !== 'cliente') return 'unauthenticated';
+  if (portalAccessLoading) return 'loading';
+  if (!portalAccessKind || portalAccessKind === 'unauthenticated') return 'unauthenticated';
+  if (portalAccessKind === 'inactive') return 'inativo';
+  if (portalAccessKind === 'active_paid') {
+    if (portalAccessClientId && userProfile.clientId !== portalAccessClientId) {
+      return linkAttemptExhausted ? 'pendente' : 'loading';
+    }
+    return 'contratado';
+  }
+  if (portalAccessKind === 'pending_release') return 'pendente';
+  return 'gratuito';
+}
+

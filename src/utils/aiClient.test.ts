@@ -32,6 +32,15 @@ describe('aiClient — Error Sanitization, Payload Compaction & Short-Lived Cach
     assert.equal(sanitizeClientAiError(new Error('TypeError: Cannot read properties of undefined')), CLIENT_MSG_AI_GENERIC_ERROR);
   });
 
+  it('translates proxy 502/504 and non-JSON HTML responses into actionable Portuguese messages', () => {
+    assert.match(sanitizeClientAiError('HTTP 502 Bad Gateway'), /instabilidade|tente novamente/i);
+    assert.match(sanitizeClientAiError('HTTP 504 Gateway Timeout'), /tempo limite|tente novamente/i);
+    assert.match(
+      sanitizeClientAiError(new SyntaxError('Unexpected token < in JSON at position 0')),
+      /instabilidade|tente novamente/i,
+    );
+  });
+
   it('preserves vetted Portuguese messages including HTTP/AI error explanations', () => {
     const msgs = [
       'Faça login com sua conta Google para utilizar o apoio de IA.',

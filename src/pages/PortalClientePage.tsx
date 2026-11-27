@@ -276,6 +276,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     }
   }, [portalLeads]);
 
+  const portalClientRef = useRef<Client | null>(portalClient);
+  const portalLeadsRef = useRef<Lead[]>(portalLeads);
+  portalClientRef.current = portalClient;
+  portalLeadsRef.current = portalLeads;
+
   const loadPortal = useCallback(async () => {
     // Aguarda portalStage === 'contratado' (com users/{uid}.clientId já gravado no Firestore pelo AppContext)
     // antes de consultar coleções protegidas por isCliente().
@@ -286,7 +291,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     setLoading(true);
     try {
       const data = await fetchClientPortalData(effectiveClientId);
-      const resolvedClient = data.client || portalClient;
+      const resolvedClient = data.client || portalClientRef.current;
       setClient(resolvedClient);
       setDependents(data.dependents);
       setCases(data.cases);
@@ -297,7 +302,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setBudgets(data.budgets);
       setFinancials(data.financialRecords);
       setGenDocs(data.generatedDocuments);
-      setClientLeads(data.leads.length > 0 ? data.leads : portalLeads);
+      setClientLeads(data.leads.length > 0 ? data.leads : portalLeadsRef.current);
       if (resolvedClient) {
         setEditNome(resolvedClient.nomeCompleto || '');
         setEditWhats(resolvedClient.whatsapp || '');
@@ -307,7 +312,10 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     } finally {
       setLoading(false);
     }
-  }, [portalStage, effectiveClientId, portalClient, portalLeads]);
+  }, [portalStage, effectiveClientId]);
+
+  const loadPortalRef = useRef(loadPortal);
+  loadPortalRef.current = loadPortal;
 
   useEffect(() => {
     void loadPortal();
@@ -360,7 +368,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               });
             }
           }
-          void loadPortal();
+          void loadPortalRef.current();
         }
       },
     );
@@ -369,7 +377,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       if (!active) return;
       const tipo = payload.data?.tipo;
       if (!shouldDeliverNotificationForPreferences(tipo, pushPrefsRef.current)) {
-        void loadPortal();
+        void loadPortalRef.current();
         return;
       }
       const notifId = payload.data?.notificationId;
@@ -388,7 +396,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           url: payload.data?.url || `/portal?tab=${targetTab}`,
         });
       }
-      void loadPortal();
+      void loadPortalRef.current();
     });
 
     return () => {
@@ -396,7 +404,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       unsubNotifs();
       unsubFcm();
     };
-  }, [portalStage, effectiveClientId, userProfile?.uid, loadPortal]);
+  }, [portalStage, effectiveClientId, userProfile?.uid]);
 
   const handleManualPortalRefresh = async () => {
     if (syncCheckBusy) return;

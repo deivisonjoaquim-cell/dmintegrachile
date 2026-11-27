@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildClientLinkAttemptKey,
   hasAuthPermissionDelta,
   isActiveStaffProfile,
   isStaffRole,
+  resolveSafePortalStage,
   resolveUserProfileFromFirestoreData,
+  shouldAttemptClientAutoLink,
 } from './authSyncState';
 
 test('resolveUserProfileFromFirestoreData auto-provisions admin and cliente profiles on first login', () => {
@@ -63,4 +66,67 @@ test('hasAuthPermissionDelta detects role, status, and clientId changes for real
   assert.equal(isStaffRole('cliente'), false);
   assert.equal(isActiveStaffProfile({ role: 'admin', status: 'ativo' }), true);
   assert.equal(isActiveStaffProfile({ role: 'admin', status: 'inativo' }), false);
+});
+
+test('shouldAttemptClientAutoLink prevents infinite retry loops for the same uid/client/release state', () => {
+  const attempted = new Set<string>();
+  const userProfile = { uid: 'uid_cli_1', role: 'cliente' as const, status: 'pendente' as const, clientId: undefined };
+  const client = { id: 'cli_99', portalLiberado: true, arquivado: false, userId: '' };
+
+  const first = shouldAttemptClientAutoLink({ userProfile, client, attemptedKeys: attempted });
+  assert.equal(first.shouldAttempt, true);
+  assert.equal(first.key, buildClientLinkAttemptKey({ uid: 'uid_cli_1', clientId: 'cli_99', portalLiberado: true }));
+
+  attempted.add(first.key!);
+  const second = shouldAttemptClientAutoLink({ userProfile, client, attemptedKeys: attempted });
+  assert.equal(second.shouldAttempt, false);
+
+  // Already linked and active -> never needs another commit
+  const alreadyLinked = shouldAttemptClientAutoLink({
+    userProfile: { uid: 'uid_cli_1', role: 'cliente', status: 'ativo', clientId: 'cli_99' },
+    client: { id: 'cli_99', portalLiberado: true, arquivado: false, userId: 'uid_cli_1' },
+    attemptedKeys: new Set(),
+  });
+  assert.equal(alreadyLinked.shouldAttempt, false);
+});
+
+test('resolveSafePortalStage never traps client in infinite loading when link attempt is exhausted', () => {
+  // While still linking -> loading
+  assert.equal(
+    resolveSafePortalStage({
+      authLoading: false,
+      portalAccessLoading: false,
+      userProfile: { role: 'cliente', status: 'pendente', clientId: undefined },
+      portalAccessKind: 'active_paid',
+      portalAccessClientId: 'cli_99',
+      linkAttemptExhausted: false,
+    }),
+    'loading',
+  );
+
+  // If link attempt was exhausted without updating clientId -> safely resolves to pendente instead of infinite loading
+  assert.equal(
+    resolveSafePortalStage({
+      authLoading: false,
+      portalAccessLoading: false,
+      userProfile: { role: 'cliente', status: 'pendente', clientId: undefined },
+      portalAccessKind: 'active_paid',
+      portalAccessClientId: 'cli_99',
+      linkAttemptExhausted: true,
+    }),
+    'pendente',
+  );
+
+  // Once clientId matches -> contratado
+  assert.equal(
+    resolveSafePortalStage({
+      authLoading: false,
+      portalAccessLoading: false,
+      userProfile: { role: 'cliente', status: 'ativo', clientId: 'cli_99' },
+      portalAccessKind: 'active_paid',
+      portalAccessClientId: 'cli_99',
+      linkAttemptExhausted: false,
+    }),
+    'contratado',
+  );
 });

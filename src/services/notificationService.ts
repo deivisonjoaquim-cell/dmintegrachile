@@ -317,7 +317,10 @@ export async function fetchUserPushState(uid: string): Promise<UserPushState> {
       }
     }
   } catch (err) {
-    handleFirestoreError(err, OperationType.LIST, 'fcmTokens');
+    console.warn(
+      '[Portal] Falha ao consultar fcmTokens:',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   if (hasGranted && hasActiveFcmToken) {
@@ -611,11 +614,11 @@ export function subscribeClientNotifications(
       onUpdate(list);
     },
     (err) => {
-      try {
-        handleFirestoreError(err, OperationType.LIST, 'clientNotifications');
-      } catch (handledErr) {
-        onError?.(handledErr);
-      }
+      console.warn(
+        '[Portal] Falha na assinatura de clientNotifications:',
+        err instanceof Error ? err.message : String(err),
+      );
+      onError?.(err);
     },
   );
 }

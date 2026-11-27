@@ -386,13 +386,26 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
     res.write(`${JSON.stringify(obj)}\n`);
   };
 
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let lastProgressMsg = 'Consultando IA…';
+
   try {
+    if (wantsProgressStream) {
+      writeNdjson({ type: 'progress', attempt: 1, maxAttempts: 2, modelTier: 'principal', message: lastProgressMsg });
+      heartbeatTimer = setInterval(() => {
+        if (!res.writableEnded) {
+          writeNdjson({ type: 'progress', attempt: 1, maxAttempts: 2, modelTier: 'principal', message: lastProgressMsg });
+        }
+      }, 4000);
+    }
+
     const result = await chamarGemini<T>({
       ...params,
       configOverride: deps.configOverride ?? params.configOverride,
       generateFn: deps.generateFn ?? params.generateFn,
       sleepFn: deps.sleepFn ?? params.sleepFn,
       onProgress: (ev) => {
+        if (ev.message) lastProgressMsg = ev.message;
         params.onProgress?.(ev);
         writeNdjson({ type: 'progress', ...ev });
       },
@@ -434,6 +447,7 @@ export async function runAiRouteExecution<T extends Record<string, unknown>>(
     }
     return null;
   } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     releaseUserAiLock(uid, params.route);
   }
 }
@@ -565,17 +579,43 @@ export function buildDiagnosticoSpec(body: Record<string, unknown>) {
       required: ['resumoExecutivo', 'riscos', 'perguntasConsultor', 'pontosAtencao', 'fontesCitadas', 'proximosPassos'],
     },
     validateJson: (parsed: Record<string, unknown>) => {
-      if (typeof parsed.resumoExecutivo !== 'string' || !parsed.resumoExecutivo.trim()) return null;
+      const unwrapped =
+        parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)
+          ? (parsed.data as Record<string, unknown>)
+          : parsed.diagnostico && typeof parsed.diagnostico === 'object' && !Array.isArray(parsed.diagnostico)
+            ? (parsed.diagnostico as Record<string, unknown>)
+            : parsed;
+      const rawResumo =
+        typeof unwrapped.resumoExecutivo === 'string'
+          ? unwrapped.resumoExecutivo
+          : typeof unwrapped.resumo_executivo === 'string'
+            ? unwrapped.resumo_executivo
+            : typeof unwrapped.resumo === 'string'
+              ? unwrapped.resumo
+              : '';
+      if (!rawResumo.trim()) return null;
       const fb = buildDiagnosticoFallback(body);
-      const riscos = dedupeCleanStrings(asStringArray(parsed.riscos), 6);
-      const perguntasConsultor = dedupeCleanStrings(asStringArray(parsed.perguntasConsultor), 6);
-      const pontosAtencao = dedupeCleanStrings(asStringArray(parsed.pontosAtencao), 6);
-      const proximosPassos = dedupeCleanStrings(asStringArray(parsed.proximosPassos), 6);
-      const fontesCitadas = groundDiagnosticCitations(asStringArray(parsed.fontesCitadas), sourcesBrief);
+      const riscos = dedupeCleanStrings(asStringArray(unwrapped.riscos), 6);
+      const perguntasConsultor = dedupeCleanStrings(
+        asStringArray(unwrapped.perguntasConsultor ?? unwrapped.perguntas_consultor),
+        6,
+      );
+      const pontosAtencao = dedupeCleanStrings(
+        asStringArray(unwrapped.pontosAtencao ?? unwrapped.pontos_atencao),
+        6,
+      );
+      const proximosPassos = dedupeCleanStrings(
+        asStringArray(unwrapped.proximosPassos ?? unwrapped.proximos_passos),
+        6,
+      );
+      const fontesCitadas = groundDiagnosticCitations(
+        asStringArray(unwrapped.fontesCitadas ?? unwrapped.fontes_citadas),
+        sourcesBrief,
+      );
 
       return {
         rascunho: true,
-        resumoExecutivo: parsed.resumoExecutivo.trim(),
+        resumoExecutivo: rawResumo.trim(),
         riscos: riscos.length > 0 ? riscos : fb.riscos,
         perguntasConsultor: perguntasConsultor.length > 0 ? perguntasConsultor : fb.perguntasConsultor,
         pontosAtencao: pontosAtencao.length > 0 ? pontosAtencao : fb.pontosAtencao,
@@ -715,10 +755,24 @@ export function buildParecerSpec(body: Record<string, unknown>) {
       required: ['enquadramentoLegal', 'elegibilidadeRiscos', 'fundamentacaoNormativa', 'recomendacoes'],
     },
     validateJson: (parsed: Record<string, unknown>) => {
-      const enquadramentoLegal = coerceParecerField(parsed.enquadramentoLegal);
-      const elegibilidadeRiscos = coerceParecerField(parsed.elegibilidadeRiscos);
-      const fundamentacaoNormativa = coerceParecerField(parsed.fundamentacaoNormativa);
-      const recomendacoes = coerceParecerField(parsed.recomendacoes);
+      const unwrapped =
+        parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)
+          ? (parsed.data as Record<string, unknown>)
+          : parsed.parecer && typeof parsed.parecer === 'object' && !Array.isArray(parsed.parecer)
+            ? (parsed.parecer as Record<string, unknown>)
+            : parsed;
+      const enquadramentoLegal = coerceParecerField(
+        unwrapped.enquadramentoLegal ?? unwrapped.enquadramento_legal,
+      );
+      const elegibilidadeRiscos = coerceParecerField(
+        unwrapped.elegibilidadeRiscos ?? unwrapped.elegibilidade_riscos,
+      );
+      const fundamentacaoNormativa = coerceParecerField(
+        unwrapped.fundamentacaoNormativa ?? unwrapped.fundamentacao_normativa,
+      );
+      const recomendacoes = coerceParecerField(
+        unwrapped.recomendacoes ?? unwrapped.recomendacoes_cliente,
+      );
       if (!enquadramentoLegal && !recomendacoes && !elegibilidadeRiscos) {
         return null;
       }

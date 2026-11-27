@@ -178,28 +178,39 @@ async function verifyFirebaseIdToken(idToken: string): Promise<DecodedToken> {
 }
 
 async function fetchUserRoleFromFirestore(uid: string, idToken: string): Promise<{ role: string; status: string } | null> {
-  try {
-    const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/users/${encodeURIComponent(uid)}`;
-    const resp = await fetch(url, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
-    if (!resp.ok) {
-      console.warn(`[Auth] Firestore REST lookup users/${uid} retornou HTTP ${resp.status}.`);
+  const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/users/${encodeURIComponent(uid)}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!resp.ok) {
+        console.warn(`[Auth] Firestore REST lookup users/${uid} retornou HTTP ${resp.status} (tentativa ${attempt + 1}/2).`);
+        if (resp.status >= 500 && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 250));
+          continue;
+        }
+        return null;
+      }
+      const doc = (await resp.json()) as {
+        fields?: {
+          role?: { stringValue?: string };
+          status?: { stringValue?: string };
+        };
+      };
+      return {
+        role: (doc.fields?.role?.stringValue || 'cliente').trim().toLowerCase(),
+        status: (doc.fields?.status?.stringValue || 'pendente').trim().toLowerCase(),
+      };
+    } catch {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 250));
+        continue;
+      }
       return null;
     }
-    const doc = (await resp.json()) as {
-      fields?: {
-        role?: { stringValue?: string };
-        status?: { stringValue?: string };
-      };
-    };
-    return {
-      role: (doc.fields?.role?.stringValue || 'cliente').trim().toLowerCase(),
-      status: (doc.fields?.status?.stringValue || 'pendente').trim().toLowerCase(),
-    };
-  } catch {
-    return null;
   }
+  return null;
 }
 
 interface AuthedRequest extends Request {

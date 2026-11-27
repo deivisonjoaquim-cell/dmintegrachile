@@ -1017,13 +1017,6 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
       return;
     }
 
-    if (!firebaseUser) {
-      const profile = await loginWithGoogle();
-      if (!profile) {
-        setAiError('Entre com sua conta Google para solicitar o rascunho orientativo por IA.');
-        return;
-      }
-    }
     setAiLoading(true);
     setAiProgress('Iniciando análise...');
     try {
@@ -1126,6 +1119,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
         },
         {
           allowPublic: true,
+          streamProgress: true,
           onProgress: (msg) => setAiProgress(msg),
         },
       );

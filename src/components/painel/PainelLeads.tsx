@@ -61,6 +61,7 @@ import {
   sanitizeClientAiError,
   saveAiDraftCache,
 } from '../../utils/aiClient';
+import { buildLocalDiagnosticSynthesis } from '../../utils/offlineRuleEngineStore';
 type PanelTheme = 'light' | 'dark';
 
 interface PainelLeadsProps {
@@ -234,17 +235,100 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
 
   const handleRefineInspectAi = async (forceRefresh = false) => {
     if (!inspectingLead?.respostasTriagem || !inspectedResult || aiLoading) return;
+    const rawAnswers = inspectingLead.respostasTriagem;
     setAiLoading(true);
     setAiProgress(forceRefresh ? 'Consultando IA (atualização forçada)...' : 'Verificando cache local e iniciando análise...');
     setAiError(null);
     try {
+      const sanitizedAnswersForAi = {
+        localizacao: rawAnswers.localizacao,
+        faixaEtaria: rawAnswers.faixaEtaria,
+        mesesResidenciaChile: rawAnswers.mesesResidenciaChile,
+        residenteSubcategoriaAtual: rawAnswers.residenteSubcategoriaAtual,
+        residenteVenceEmDias: rawAnswers.residenteVenceEmDias,
+        residenteMesesForaUltimoAno: rawAnswers.residenteMesesForaUltimoAno,
+        entradaRecenteChileTurista: rawAnswers.entradaRecenteChileTurista,
+        nacionalidadeBrasileira: rawAnswers.nacionalidadeBrasileira,
+        possuiSegundaNacionalidade: rawAnswers.possuiSegundaNacionalidade,
+        segundaNacionalidadeQual: rawAnswers.segundaNacionalidadeQual,
+        passaporteStatus: rawAnswers.passaporteStatus,
+        passaporteValidadeMeses: rawAnswers.passaporteValidadeMeses,
+        vinculoFamiliarChile: rawAnswers.vinculoFamiliarChile,
+        vinculoTipo: rawAnswers.vinculoTipo,
+        familiarStatusChile: rawAnswers.familiarStatusChile,
+        vinculoFormalizado: rawAnswers.vinculoFormalizado,
+        composicaoFamiliar: rawAnswers.composicaoFamiliar,
+        objetivo: rawAnswers.objetivo,
+        possuiOfertaTrabalhoFormal: rawAnswers.possuiOfertaTrabalhoFormal,
+        contratoNotariadoEmpresaChilena: rawAnswers.contratoNotariadoEmpresaChilena,
+        possuiMatriculaReconhecida: rawAnswers.possuiMatriculaReconhecida,
+        possuiRendaPassiva: rawAnswers.possuiRendaPassiva,
+        faixaRendaMensalUsd: rawAnswers.faixaRendaMensalUsd,
+        possuiCapitalComprovadoOrigem: rawAnswers.possuiCapitalComprovadoOrigem,
+        investimentoAcima500kUsd: rawAnswers.investimentoAcima500kUsd,
+        overstay: rawAnswers.overstay,
+        ordenAbandono: rawAnswers.ordenAbandono,
+        rejeicaoAnterior: rawAnswers.rejeicaoAnterior,
+        antecedentesCriminais: rawAnswers.antecedentesCriminais,
+        riscoConsultaConsultor: rawAnswers.riscoConsultaConsultor,
+        familiaAcompanhante: rawAnswers.familiaAcompanhante,
+        quantidadeDependentes: rawAnswers.quantidadeDependentes,
+        prazoPretendido: rawAnswers.prazoPretendido,
+        documentosJaPossui: rawAnswers.documentosJaPossui,
+      };
+
       const draft = await callAiEndpoint<AiDiagnosticDraft>(
         '/api/ai/diagnostico',
         {
-          answers: inspectingLead.respostasTriagem,
+          answers: sanitizedAnswersForAi,
           subcategoriaRecomendada: inspectedResult.recomendada
             ? `${inspectedResult.recomendada.visa.codigo} - ${inspectedResult.recomendada.visa.nomePortugues}`
             : '',
+          subcategoriaDetalhes: inspectedResult.recomendada
+            ? {
+                codigo: inspectedResult.recomendada.visa.codigo,
+                nomePortugues: inspectedResult.recomendada.visa.nomePortugues,
+                nomeEspanhol: inspectedResult.recomendada.visa.nomeEspanhol,
+                permiteDentroChile: inspectedResult.recomendada.visa.permiteDentroChile,
+                permiteTrabalhar: inspectedResult.recomendada.visa.permiteTrabalhar,
+                levaDefinitiva: inspectedResult.recomendada.visa.levaDefinitiva,
+                mesesDefinitiva: inspectedResult.recomendada.visa.mesesDefinitiva,
+                motivo: inspectedResult.recomendada.motivo,
+              }
+            : null,
+          radarViabilidade: {
+            total: inspectedResult.viabilidade.total,
+            veredito: inspectedResult.viabilidade.veredito,
+            confianca: inspectedResult.confianca,
+            dimensoes: inspectedResult.viabilidade.dimensoes.map((d) => ({
+              nome: d.nome,
+              pontos: d.pontos,
+              maximo: d.maximo,
+              percentual: d.maximo > 0 ? Math.round((d.pontos / d.maximo) * 100) : 0,
+              observacao: d.observacao,
+            })),
+          },
+          alternativas: inspectedResult.top3.slice(1, 3).map((alt) => ({
+            codigo: alt.visa.codigo,
+            nomePortugues: alt.visa.nomePortugues,
+            nota: alt.nota,
+            permiteDentroChile: alt.visa.permiteDentroChile,
+          })),
+          flagsRisco: inspectedResult.flagsRisco.map((f) => ({
+            campo: f.campo,
+            severidade: f.severidade,
+            orientacao: f.orientacao,
+          })),
+          flagsRevisaoConsultor: inspectedResult.flagsRevisaoConsultor.map((f) => f.label),
+          contradicoes: inspectedResult.contradicoes.map((c) => c.titulo),
+          alertas: inspectedResult.alertas.slice(0, 8),
+          prontidaoDocumental: {
+            percentualInicial: inspectedResult.checklistProntidao.percentualInicial,
+            semaforo: inspectedResult.checklistProntidao.semaforo,
+            itensValidadeCurtaPendentes: inspectedResult.checklistProntidao.itens
+              .filter((i) => i.statusInicial === 'Crítico / Validade curta')
+              .map((i) => i.nomeDocumento),
+          },
           regrasAcionadas: inspectedResult.regrasAcionadas,
           visaCategories: visaCategories.slice(0, 16).map((v) => ({
             codigo: v.codigo,
@@ -254,6 +338,8 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
           legalSources: compactLegalSourcesForAi(inspectedResult.fontesLegais),
         },
         {
+          allowPublic: true,
+          streamProgress: true,
           onProgress: (msg) => setAiProgress(msg),
           bypassCache: forceRefresh,
         },
@@ -261,7 +347,23 @@ export const PainelLeads: React.FC<PainelLeadsProps> = ({
       setAiDraft(draft);
       saveAiDraftCache(`diagnostico_lead_${inspectingLead.id}`, draft);
     } catch (err) {
-      setAiError(sanitizeClientAiError(err));
+      const msg = sanitizeClientAiError(err);
+      if (
+        (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+        msg.includes('Tempo limite excedido') ||
+        msg.includes('Falha de conexão') ||
+        msg.includes('instabilidade') ||
+        msg.includes('Não foi possível gerar o rascunho agora')
+      ) {
+        const localDraft = buildLocalDiagnosticSynthesis(
+          rawAnswers,
+          inspectedResult,
+          'Conexão com o servidor de IA indisponível no momento. Parecer estruturado automaticamente pelo motor determinístico de regras.',
+        );
+        setAiDraft(localDraft);
+      } else {
+        setAiError(msg);
+      }
     } finally {
       setAiLoading(false);
       setAiProgress(null);

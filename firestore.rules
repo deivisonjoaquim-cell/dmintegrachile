@@ -101,7 +101,11 @@ service cloud.firestore {
         && 'email' in request.auth.token
         && request.auth.token.email is string
         && email is string
-        && (email == request.auth.token.email || email.lower() == request.auth.token.email.lower());
+        && (
+          email == request.auth.token.email ||
+          email.lower() == request.auth.token.email.lower() ||
+          email.trim().lower() == request.auth.token.email.trim().lower()
+        );
     }
 
     function hasUnlockedClientRecord(clientId) {
@@ -476,12 +480,12 @@ service cloud.firestore {
     }
 
     function isValidClient(data) {
-      return data.keys().hasAll(['nomeCompleto', 'email', 'portalLiberado', 'statusAcessoPortal'])
+      return data.keys().hasAll(['nomeCompleto', 'email', 'portalLiberado'])
         && isReqString(data, 'nomeCompleto', 2, 200)
         && isReqString(data, 'email', 3, 200)
         && isOptString(data, 'whatsapp', 40)
         && data.portalLiberado is bool
-        && data.statusAcessoPortal in ['Não solicitado', 'Pendente liberação', 'Liberado']
+        && (!('statusAcessoPortal' in data) || data.statusAcessoPortal == null || data.statusAcessoPortal == '' || data.statusAcessoPortal in ['Não solicitado', 'Pendente liberação', 'Liberado'])
         && (!('modalidadeConsultoria' in data) || data.modalidadeConsultoria == null || data.modalidadeConsultoria == '' || data.modalidadeConsultoria in ['orientativa', 'completa'])
         && isOptBool(data, 'simuladorSermigLiberado')
         && isOptString(data, 'cpf', 20)
@@ -489,7 +493,7 @@ service cloud.firestore {
         && isOptString(data, 'enderecoCompleto', 300)
         && isOptString(data, 'profissao', 160)
         && isOptString(data, 'escolaridade', 120)
-        && isOptString(data, 'passaporte', 60)
+        && (!('passaporte' in data) || data.passaporte == null || (data.passaporte is string && data.passaporte.size() <= 60) || data.passaporte is map)
         && isOptBool(data, 'lgpdAceito')
         && isOptString(data, 'lgpdAceitoEm', 64)
         && isOptString(data, 'lgpdVersao', 30)
@@ -749,10 +753,17 @@ service cloud.firestore {
           isValidatedAdmin() ||
           (isConsultor() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
           (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
-          (request.auth.uid == uid && existing().role == 'cliente' && incoming().role == 'cliente' && existing().status != 'inativo' && incoming().uid == uid && incoming().email.lower() == existing().email.lower() && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'nome', 'fotoUrl', 'updatedAt']) && (
-            (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
-            incoming().status == 'pendente'
-          ))
+          (request.auth.uid == uid
+            && (!('role' in existing()) || existing().role == null || existing().role.lower() == 'cliente')
+            && incoming().role == 'cliente'
+            && (!('status' in existing()) || existing().status == null || existing().status.lower() != 'inativo')
+            && incoming().uid == uid
+            && matchesSignedInEmail(incoming().email)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'nome', 'email', 'role', 'clientId', 'status', 'fotoUrl', 'updatedAt'])
+            && (
+              (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
+              incoming().status == 'pendente'
+            ))
         ))
       );
       allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
@@ -987,13 +998,13 @@ service cloud.firestore {
             && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
             && incoming().userId == request.auth.uid
             && incoming().portalLiberado == existing().portalLiberado
-            && incoming().statusAcessoPortal == existing().statusAcessoPortal
+            && (!('statusAcessoPortal' in existing()) || incoming().statusAcessoPortal == existing().statusAcessoPortal)
             && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
             && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
           (isAuthorizedClientFor(clientId)
             && (('userId' in existing() && existing().userId == request.auth.uid) || ('email' in existing() && matchesSignedInEmail(existing().email)))
             && incoming().portalLiberado == existing().portalLiberado
-            && incoming().statusAcessoPortal == existing().statusAcessoPortal
+            && (!('statusAcessoPortal' in existing()) || incoming().statusAcessoPortal == existing().statusAcessoPortal)
             && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
             && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
         ))

@@ -97,13 +97,12 @@ export function subscribeUserIdentityDocuments(
       onData(sortIdentityDocsNewestFirst(items));
     },
     (error) => {
+      console.warn(
+        `[Portal] Falha na assinatura de ${colPath}:`,
+        error instanceof Error ? error.message : String(error),
+      );
       if (onError) {
         onError(error);
-      }
-      try {
-        handleFirestoreError(error, OperationType.LIST, colPath);
-      } catch {
-        // Already logged and reported by handleFirestoreError; avoid unhandled rejection in listener
       }
     },
   );

@@ -801,9 +801,10 @@ export async function chamarGemini<T extends Record<string, unknown>>(
   ): Promise<{ matched?: T; fatal?: ClassifiedGeminiError }> => {
     let malformedRetriesLeft = 1;
     let omitThinkingConfig = false;
+    let retriedWithoutThinking = false;
     const effectiveAttemptTimeoutCap =
       isLiveExecution && tier === 'principal' && hasDistinctBackupModel
-        ? Math.min(runtime.timeoutMs, 25000)
+        ? Math.min(runtime.timeoutMs, 12000)
         : runtime.timeoutMs;
 
     for (let attempt = 1; attempt <= maxTries; attempt++) {
@@ -978,11 +979,12 @@ export async function chamarGemini<T extends Record<string, unknown>>(
           isLiveExecution &&
           /^gemini-4-/i.test(modelName) &&
           classified.statusCode === 400 &&
-          !omitThinkingConfig &&
-          attempt < maxTries
+          !retriedWithoutThinking
         ) {
           omitThinkingConfig = true;
+          retriedWithoutThinking = true;
           console.warn(`[Gemini][${params.route}] Repetindo ${modelName} sem thinkingConfig após HTTP 400.`);
+          attempt -= 1;
           continue;
         }
 

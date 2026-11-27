@@ -117,11 +117,22 @@ export function sanitizeClientAiError(raw: unknown): string {
     return 'Falha de conexão com o servidor de IA. Verifique sua internet e tente novamente; seus dados foram mantidos.';
   }
 
-  if (lower.includes('aborterror') || lower.includes('timeout')) {
+  if (
+    lower.includes('aborterror') ||
+    lower.includes('timeout') ||
+    lower.includes('504') ||
+    lower.includes('gateway timeout')
+  ) {
     return 'Tempo limite excedido ao aguardar resposta do servidor de IA. Tente novamente em instantes.';
   }
 
-  if (lower.includes('unexpected token') && (lower.includes('<') || lower.includes('doctype'))) {
+  if (
+    lower.includes('502') ||
+    lower.includes('bad gateway') ||
+    lower.includes('unexpected token') ||
+    lower.includes('unexpected end of json') ||
+    lower.includes('json.parse')
+  ) {
     return 'Falha temporária de comunicação com o servidor de IA. Tente novamente em instantes.';
   }
 

@@ -78,12 +78,9 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
       if (profile) {
         if ((profile.role === 'admin' || profile.role === 'consultor' || profile.role === 'assistente') && profile.status === 'ativo') {
           onNavigate('/painel');
-        } else if (profile.role === 'cliente') {
-          const resolved = await refreshClientPortalAccess();
-          if (resolved?.kind === 'active_paid') {
-            onNavigate('/portal');
-          }
         }
+        // Para clientes, loginWithGoogle já sincronizou o estado do portal e o useEffect acima
+        // redireciona automaticamente para /portal assim que portalStage === 'contratado'.
       }
     } finally {
       setSigningIn(false);

@@ -2230,11 +2230,15 @@ export async function fetchSignedInClientRecord(
     await tryQuery('userId', query(collection(db, 'clients'), where('userId', '==', uid)));
   }
 
+  // Prioriza o e-mail exato do token Firebase (satisfaz estaticamente existing().email == request.auth.token.email nas Rules)
   const emailCandidates = Array.from(
-    new Set([lowerEmail, rawEmail, authLowerEmail, authEmail].filter(Boolean)),
+    new Set([authEmail, authLowerEmail, lowerEmail, rawEmail].filter(Boolean)),
   );
   for (const candidate of emailCandidates) {
     await tryQuery(`email=${candidate}`, query(collection(db, 'clients'), where('email', '==', candidate)));
+    if (found.some((c) => c.portalLiberado === true && !c.arquivado)) {
+      break;
+    }
   }
 
   if (found.length === 0) return null;
@@ -2527,10 +2531,13 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   }
 
   const clientTimeoutMs = Math.max(15000, Math.min(180000, options?.timeoutMs ?? 90000));
-  const useStream = options?.streamProgress === true && Boolean(options?.onProgress);
+  const initialUseStream = options?.streamProgress !== false && Boolean(options?.onProgress);
   const serializedBody = JSON.stringify(body);
 
-  const executeAttempt = async (forceRefreshToken: boolean): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string; retryable: boolean }> => {
+  const executeAttempt = async (
+    forceRefreshToken: boolean,
+    useStream: boolean,
+  ): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string; retryable: boolean; streamFailed?: boolean }> => {
     const token = user ? await user.getIdToken(forceRefreshToken) : null;
     const controller = new AbortController();
     let timedOut = false;
@@ -2618,7 +2625,13 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
               retryable: false,
             };
           }
-          return { ok: false, status: resp.status || 502, message: sanitizeClientAiError(readErr), retryable: true };
+          return {
+            ok: false,
+            status: resp.status || 502,
+            message: sanitizeClientAiError(readErr),
+            retryable: true,
+            streamFailed: true,
+          };
         }
         if (buffer.trim()) {
           try {
@@ -2642,13 +2655,15 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
           status: resp.status || 502,
           message: 'Resposta incompleta do servidor de IA. Tente novamente em instantes.',
           retryable: true,
+          streamFailed: true,
         };
       }
 
       let rawText = '';
       try {
         rawText = await resp.text();
-        if (rawText.trim().startsWith('<')) {
+        const trimmedRaw = rawText.trim();
+        if (trimmedRaw.startsWith('<')) {
           return {
             ok: false,
             status: resp.status || 502,
@@ -2656,19 +2671,31 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
             retryable: true,
           };
         }
-        const data = (rawText ? JSON.parse(rawText) : {}) as T & { error?: unknown };
-        if (!resp.ok) {
+        let data: (T & { error?: unknown }) | null = null;
+        if (trimmedRaw) {
+          try {
+            data = JSON.parse(trimmedRaw) as T & { error?: unknown };
+          } catch {
+            data = null;
+          }
+        } else {
+          data = {} as T & { error?: unknown };
+        }
+        if (!resp.ok || !data) {
           const isTransientHttp =
             resp.status === 408 ||
             resp.status === 429 ||
             resp.status === 500 ||
             resp.status === 502 ||
             resp.status === 503 ||
-            resp.status === 504;
+            resp.status === 504 ||
+            !data;
           return {
             ok: false,
-            status: resp.status,
-            message: sanitizeClientAiError(data.error || rawText || String(resp.status)),
+            status: resp.status || 502,
+            message: sanitizeClientAiError(
+              data?.error || (resp.status === 404 ? 'Rota de API não encontrada no servidor.' : trimmedRaw || String(resp.status)),
+            ),
             retryable: isTransientHttp,
           };
         }
@@ -2696,17 +2723,22 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   };
 
   options?.onProgress?.('Consultando IA…', 1, 3);
-  let outcome = await executeAttempt(false);
+  let useStreamNow = initialUseStream;
+  let outcome = await executeAttempt(false, useStreamNow);
 
   // Se o token Firebase expirou ou houve pequena diferença de relógio, força renovação e tenta novamente
   if (!outcome.ok && outcome.status === 401 && user) {
     options?.onProgress?.('Renovando sessão e tentando novamente…', 2, 3);
-    outcome = await executeAttempt(true);
+    outcome = await executeAttempt(true, useStreamNow);
   }
 
   // Re-tentativa automática com backoff exponencial (até 2 tentativas extras) para falhas transitórias de rede/proxy/5xx/429
   const retryDelaysMs = [700, 1600];
   for (let retryIdx = 0; retryIdx < retryDelaysMs.length && !outcome.ok && outcome.retryable; retryIdx++) {
+    // Se a leitura em streaming falhou por proxy/buffer, alterna para JSON padrão na próxima tentativa
+    if (outcome.streamFailed) {
+      useStreamNow = false;
+    }
     const attemptNum = retryIdx + 2;
     const totalAttempts = retryDelaysMs.length + 1;
     options?.onProgress?.(
@@ -2715,10 +2747,10 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
       totalAttempts,
     );
     await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[retryIdx]));
-    outcome = await executeAttempt(false);
+    outcome = await executeAttempt(false, useStreamNow);
     if (!outcome.ok && outcome.status === 401 && user) {
       options?.onProgress?.('Renovando sessão e tentando novamente…', attemptNum, totalAttempts);
-      outcome = await executeAttempt(true);
+      outcome = await executeAttempt(true, useStreamNow);
     }
   }
 
@@ -2786,44 +2818,73 @@ export async function linkGoogleUserToClientOrLead(
       }).catch(() => undefined);
     }
 
-    // 2. Sincroniza clientId e status em users/{uid} comparando contra o documento REAL salvo no Firestore
+    // 2. Sincroniza clientId e status em users/{uid} com payload completo e válido para isValidUser()
+    const normalizedEmail = (auth.currentUser?.email || persistedUserData?.email || user.email || '').trim().toLowerCase();
+    const safeNome = (
+      (typeof persistedUserData?.nome === 'string' && persistedUserData.nome.trim()) ||
+      (typeof user.nome === 'string' && user.nome.trim()) ||
+      auth.currentUser?.displayName ||
+      normalizedEmail.split('@')[0] ||
+      'Cliente'
+    ).slice(0, 200);
+    const safeFoto = (
+      (typeof persistedUserData?.fotoUrl === 'string' ? persistedUserData.fotoUrl : undefined) ??
+      user.fotoUrl ??
+      auth.currentUser?.photoURL ??
+      ''
+    ).slice(0, 1000);
+
+    const userSyncPatch = sanitizeFirestoreData({
+      uid: user.uid,
+      nome: safeNome,
+      email: normalizedEmail,
+      fotoUrl: safeFoto,
+      role: 'cliente' as const,
+      status: syncEval.targetStatus,
+      clientId: matchedClient.id,
+      updatedAt: now,
+    });
+
     if (options?.force || syncEval.needsUserDocUpdate || !persistedUserData) {
-      if (!persistedUserData) {
-        await setDoc(
-          userRef,
-          sanitizeFirestoreData({
-            uid: user.uid,
-            nome: (user.nome || user.email.split('@')[0] || 'Cliente').slice(0, 200),
-            email: (user.email || auth.currentUser?.email || '').trim().toLowerCase(),
-            fotoUrl: (user.fotoUrl || '').slice(0, 1000),
-            role: 'cliente',
-            status: syncEval.targetStatus,
-            clientId: matchedClient.id,
+      const writeUserLink = async () => {
+        if (!persistedUserData) {
+          await setDoc(userRef, {
+            ...userSyncPatch,
             createdAt: now,
-            updatedAt: now,
-          }),
-        );
-      } else {
-        await updateDoc(userRef, {
-          clientId: matchedClient.id,
-          status: syncEval.targetStatus,
-          updatedAt: now,
-        });
+          });
+        } else {
+          await updateDoc(userRef, userSyncPatch);
+        }
+      };
+
+      try {
+        await writeUserLink();
+      } catch (firstErr) {
+        if (isFirestorePermissionError(firstErr) && auth.currentUser) {
+          await auth.currentUser.getIdToken(true).catch(() => undefined);
+          await writeUserLink();
+        } else {
+          throw firstErr;
+        }
       }
     }
 
     return {
       ...user,
+      nome: safeNome,
+      email: normalizedEmail,
+      fotoUrl: safeFoto,
+      role: 'cliente',
       clientId: matchedClient.id,
       status: syncEval.targetStatus,
       updatedAt: now,
     };
   } catch (err) {
-    reportAppError(err, {
-      source: 'portal-link-client',
-      operation: OperationType.UPDATE,
-      path: `users/${user.uid}`,
-    });
+    // Log técnico silencioso para nunca disparar toast em loop de "Acesso restrito" durante sincronização de fundo
+    console.warn(
+      `[Portal] Não foi possível sincronizar vínculo users/${user.uid}:`,
+      err instanceof Error ? err.message : String(err),
+    );
   }
   return user;
 }

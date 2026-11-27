@@ -67,11 +67,11 @@ export function subscribeClientDocumentChat(
       onUpdate(sortChatMessagesChronologically(list));
     },
     (err) => {
-      try {
-        handleFirestoreError(err, OperationType.LIST, 'communicationLogs');
-      } catch (handledErr) {
-        onError?.(handledErr);
-      }
+      console.warn(
+        '[Portal] Falha na assinatura de communicationLogs (Chat Portal):',
+        err instanceof Error ? err.message : String(err),
+      );
+      onError?.(err);
     },
   );
 }
