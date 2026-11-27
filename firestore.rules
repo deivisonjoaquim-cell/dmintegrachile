@@ -53,23 +53,29 @@ service cloud.firestore {
       return role is string && role.lower() in ['admin', 'consultor', 'assistente', 'cliente'];
     }
 
+    function normalizedRoleFrom(u) {
+      return 'role' in u && isValidRoleValue(u.role) ? u.role.lower() : '';
+    }
+
     function userRole() {
-      return hasUserDoc() && 'role' in userDoc() && isValidRoleValue(userDoc().role)
-        ? userDoc().role.lower()
-        : '';
+      return hasUserDoc() ? normalizedRoleFrom(userDoc()) : '';
+    }
+
+    function isActiveUserData(u) {
+      return ('status' in u && u.status is string && u.status.lower() == 'ativo')
+        || ((!('status' in u) || u.status == null || u.status == '') && normalizedRoleFrom(u) in ['admin', 'consultor', 'assistente']);
     }
 
     function isActiveUser() {
-      return isSignedIn()
-        && hasUserDoc()
-        && (
-          ('status' in userDoc() && userDoc().status is string && userDoc().status.lower() == 'ativo')
-          || ((!('status' in userDoc()) || userDoc().status == null || userDoc().status == '') && userRole() in ['admin', 'consultor', 'assistente'])
-        );
+      return isSignedIn() && hasUserDoc() && isActiveUserData(userDoc());
+    }
+
+    function hasUserRoleFrom(u, allowedRoles) {
+      return isActiveUserData(u) && normalizedRoleFrom(u) in allowedRoles;
     }
 
     function hasUserRole(allowedRoles) {
-      return isActiveUser() && userRole() in allowedRoles;
+      return isSignedIn() && hasUserDoc() && hasUserRoleFrom(userDoc(), allowedRoles);
     }
 
     function isValidatedAdmin() {
@@ -89,11 +95,11 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      return isAdmin() || hasUserRole(['consultor', 'assistente']);
+      return isBootstrappedAdmin() || hasUserRole(['admin', 'consultor', 'assistente']);
     }
 
     function isAdminOrConsultor() {
-      return isAdmin() || isConsultor();
+      return isBootstrappedAdmin() || hasUserRole(['admin', 'consultor']);
     }
 
     function matchesSignedInEmail(email) {
@@ -108,50 +114,84 @@ service cloud.firestore {
         );
     }
 
+    function isUnlockedClientDoc(c) {
+      return 'portalLiberado' in c
+        && c.portalLiberado == true
+        && (!('arquivado' in c) || c.arquivado != true);
+    }
+
+    function isOwnedUnlockedClientDoc(c) {
+      return isUnlockedClientDoc(c)
+        && (
+          ('userId' in c && c.userId is string && c.userId == request.auth.uid) ||
+          ('email' in c && matchesSignedInEmail(c.email))
+        );
+    }
+
     function hasUnlockedClientRecord(clientId) {
       return isSignedIn()
         && clientId is string
         && isValidId(clientId)
         && exists(/databases/$(database)/documents/clients/$(clientId))
-        && get(/databases/$(database)/documents/clients/$(clientId)).data.portalLiberado == true
-        && (!('arquivado' in get(/databases/$(database)/documents/clients/$(clientId)).data) || get(/databases/$(database)/documents/clients/$(clientId)).data.arquivado != true)
-        && (
-          ('userId' in get(/databases/$(database)/documents/clients/$(clientId)).data && get(/databases/$(database)/documents/clients/$(clientId)).data.userId == request.auth.uid) ||
-          ('email' in get(/databases/$(database)/documents/clients/$(clientId)).data && matchesSignedInEmail(get(/databases/$(database)/documents/clients/$(clientId)).data.email))
-        );
+        && isOwnedUnlockedClientDoc(get(/databases/$(database)/documents/clients/$(clientId)).data);
+    }
+
+    function hasUnlockedClientPortalForId(cid) {
+      return cid is string
+        && isValidId(cid)
+        && exists(/databases/$(database)/documents/clients/$(cid))
+        && isUnlockedClientDoc(get(/databases/$(database)/documents/clients/$(cid)).data);
     }
 
     function hasUnlockedClientPortal() {
       return hasUserDoc()
         && 'clientId' in userDoc()
-        && userDoc().clientId is string
-        && isValidId(userDoc().clientId)
-        && exists(/databases/$(database)/documents/clients/$(userDoc().clientId))
-        && get(/databases/$(database)/documents/clients/$(userDoc().clientId)).data.portalLiberado == true
-        && (!('arquivado' in get(/databases/$(database)/documents/clients/$(userDoc().clientId)).data) || get(/databases/$(database)/documents/clients/$(userDoc().clientId)).data.arquivado != true);
+        && hasUnlockedClientPortalForId(userDoc().clientId);
+    }
+
+    function isNonInactiveClientUserData(u) {
+      return (!('role' in u) || u.role == null || u.role == '' || (u.role is string && u.role.lower() == 'cliente'))
+        && (!('status' in u) || u.status == null || u.status == '' || (u.status is string && u.status.lower() != 'inativo'));
+    }
+
+    function isActiveClientAccountData(u) {
+      return normalizedRoleFrom(u) == 'cliente'
+        && (!('status' in u) || u.status == null || u.status == '' || (u.status is string && u.status.lower() != 'inativo'));
     }
 
     function isActiveClientAccount() {
-      return isSignedIn()
-        && hasUserDoc()
-        && userRole() == 'cliente'
-        && (!('status' in userDoc()) || userDoc().status == null || userDoc().status.lower() != 'inativo');
+      return isSignedIn() && hasUserDoc() && isActiveClientAccountData(userDoc());
+    }
+
+    function isClienteData(u) {
+      return isActiveClientAccountData(u)
+        && 'clientId' in u
+        && hasUnlockedClientPortalForId(u.clientId);
     }
 
     function isCliente() {
-      return isActiveClientAccount()
-        && hasUnlockedClientPortal();
+      return isSignedIn() && hasUserDoc() && isClienteData(userDoc());
     }
 
     function userClientId() {
       return userDoc().clientId;
     }
 
-    function isAuthorizedClientFor(clientId) {
-      return isActiveClientAccount() && (
-        (hasUnlockedClientPortal() && userClientId() == clientId) ||
+    function isAuthorizedClientWithUser(u, clientId) {
+      return isNonInactiveClientUserData(u) && (
+        ('clientId' in u && u.clientId == clientId && hasUnlockedClientPortalForId(clientId)) ||
         hasUnlockedClientRecord(clientId)
       );
+    }
+
+    function isAuthorizedClientFor(clientId) {
+      return isSignedIn()
+        && clientId is string
+        && isValidId(clientId)
+        && (
+          (hasUserDoc() && isAuthorizedClientWithUser(userDoc(), clientId)) ||
+          (!hasUserDoc() && hasUnlockedClientRecord(clientId))
+        );
     }
 
     function isOptString(data, field, maxLen) {
@@ -730,6 +770,92 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // Strict Partial-Update Validators for Client Portal Mutations
+    // =========================================================================
+    function isValidUserClientSelfLink(data, uid) {
+      return isReqString(data, 'uid', 1, 128)
+        && data.uid == uid
+        && isReqString(data, 'nome', 1, 200)
+        && isReqString(data, 'email', 3, 200)
+        && matchesSignedInEmail(data.email)
+        && data.role == 'cliente'
+        && isOptString(data, 'fotoUrl', 2000)
+        && isOptString(data, 'clientId', 128)
+        && isOptString(data, 'updatedAt', 64)
+        && (
+          (data.status == 'ativo' && 'clientId' in data && hasUnlockedClientRecord(data.clientId)) ||
+          data.status == 'pendente'
+        );
+    }
+
+    function isValidClientSelfUpdate(data, prev) {
+      return (!('nomeCompleto' in data.diff(prev).affectedKeys()) || isReqString(data, 'nomeCompleto', 2, 200))
+        && (!('whatsapp' in data.diff(prev).affectedKeys()) || isOptString(data, 'whatsapp', 40))
+        && (!('enderecoCompleto' in data.diff(prev).affectedKeys()) || isOptString(data, 'enderecoCompleto', 300))
+        && (!('profissao' in data.diff(prev).affectedKeys()) || isOptString(data, 'profissao', 160))
+        && (!('escolaridade' in data.diff(prev).affectedKeys()) || isOptString(data, 'escolaridade', 120))
+        && (!('passaporte' in data.diff(prev).affectedKeys()) || !('passaporte' in data) || data.passaporte == null || (data.passaporte is string && data.passaporte.size() <= 60) || data.passaporte is map)
+        && (!('lgpdAceito' in data.diff(prev).affectedKeys()) || isOptBool(data, 'lgpdAceito'))
+        && (!('lgpdAceitoEm' in data.diff(prev).affectedKeys()) || isOptString(data, 'lgpdAceitoEm', 64))
+        && (!('lgpdVersao' in data.diff(prev).affectedKeys()) || isOptString(data, 'lgpdVersao', 30))
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidCaseClientNpsUpdate(data) {
+      return (!('npsNota' in data) || (data.npsNota is number && data.npsNota >= 1 && data.npsNota <= 5))
+        && isOptString(data, 'npsComentario', 1500)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidCaseDocumentClientUpdate(data) {
+      return data.status in ['Enviado', 'Pendente']
+        && (!('enviadoPorUid' in data) || data.enviadoPorUid == request.auth.uid)
+        && (!('versao' in data) || data.versao is number)
+        && isOptString(data, 'arquivoUrl', 900000)
+        && isOptString(data, 'arquivoNome', 250)
+        && isOptString(data, 'storagePath', 500)
+        && isOptString(data, 'arquivoMimeType', 100)
+        && isOptNum(data, 'arquivoTamanhoBytes')
+        && (!('storageBackend' in data) || data.storageBackend == null || data.storageBackend in ['firebase_storage', 'server_upload', 'inline_data_url'])
+        && (!('metadataTags' in data) || data.metadataTags == null || (data.metadataTags is list && data.metadataTags.size() <= 20 && (data.metadataTags.size() == 0 || data.metadataTags[0] is string)))
+        && (!('reviewMetadata' in data) || data.reviewMetadata == null || data.reviewMetadata is map)
+        && (!('historicoVersoes' in data) || data.historicoVersoes == null || (data.historicoVersoes is list && data.historicoVersoes.size() <= 50))
+        && isOptString(data, 'enviadoEm', 64)
+        && isOptString(data, 'etapaEsteira', 80)
+        && isOptString(data, 'dataEmissao', 40)
+        && isOptString(data, 'dataValidadeCalculada', 40)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidBudgetClientUpdate(data) {
+      return data.status in ['Aprovado', 'Recusado']
+        && isOptString(data, 'aprovadoEm', 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidFinancialRecordClientUpdate(data) {
+      return isOptString(data, 'comprovanteUrl', 900000)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidGeneratedDocumentClientUpdate(data, prev) {
+      return isOptString(data, 'confirmadoLeituraEm', 64)
+        && isOptString(data, 'confirmadoLeituraPor', 200)
+        && (!('status' in data.diff(prev).affectedKeys()) || data.status == 'Assinado')
+        && isOptString(data, 'assinaturaUrl', 900000)
+        && isOptString(data, 'assinaturaDataUrl', 900000)
+        && isOptString(data, 'assinadoEm', 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    function isValidClientNotificationClientUpdate(data) {
+      return 'lida' in data
+        && data.lida is bool
+        && isOptString(data, 'lidaEm', 64)
+        && isOptString(data, 'updatedAt', 64);
+    }
+
+    // =========================================================================
     // Collections
     // =========================================================================
     match /users/{uid} {
@@ -751,20 +877,14 @@ service cloud.firestore {
         isBootstrappedAdmin() ||
         (isValidUser(incoming()) && (
           isValidatedAdmin() ||
-          (isConsultor() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
-          (request.auth.uid == uid && incoming().role == existing().role && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt'])) ||
-          (request.auth.uid == uid
-            && (!('role' in existing()) || existing().role == null || existing().role.lower() == 'cliente')
-            && incoming().role == 'cliente'
-            && (!('status' in existing()) || existing().status == null || existing().status.lower() != 'inativo')
-            && incoming().uid == uid
-            && matchesSignedInEmail(incoming().email)
-            && incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'nome', 'email', 'role', 'clientId', 'status', 'fotoUrl', 'updatedAt'])
-            && (
-              (incoming().status == 'ativo' && 'clientId' in incoming() && hasUnlockedClientRecord(incoming().clientId)) ||
-              incoming().status == 'pendente'
-            ))
-        ))
+          (isConsultor() && 'role' in existing() && existing().role == 'cliente' && incoming().role == 'cliente' && incoming().uid == uid && incoming().email == existing().email && incoming().status in ['ativo', 'pendente'] && incoming().diff(existing()).affectedKeys().hasOnly(['clientId', 'status', 'updatedAt'])) ||
+          (request.auth.uid == uid && 'role' in existing() && incoming().role == existing().role && 'status' in existing() && incoming().status == existing().status && incoming().uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'fotoUrl', 'updatedAt']))
+        )) ||
+        (request.auth.uid == uid
+          && (!('role' in existing()) || existing().role == null || existing().role == '' || (existing().role is string && existing().role.lower() == 'cliente'))
+          && (!('status' in existing()) || existing().status == null || existing().status == '' || (existing().status is string && existing().status.lower() != 'inativo'))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'nome', 'email', 'role', 'clientId', 'status', 'fotoUrl', 'updatedAt'])
+          && isValidUserClientSelfLink(incoming(), uid))
       );
       allow delete: if isSignedIn() && isValidId(uid) && isValidatedAdmin() && (!('email' in existing()) || !isPrimaryAdminEmail(existing().email));
 
@@ -990,30 +1110,28 @@ service cloud.firestore {
       );
       allow update: if isValidId(clientId) && (
         isBootstrappedAdmin() ||
-        (isValidClient(incoming()) && (
-          isAdminOrConsultor() ||
-          (isSignedIn()
-            && 'email' in existing()
-            && matchesSignedInEmail(existing().email)
-            && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
-            && incoming().userId == request.auth.uid
-            && incoming().portalLiberado == existing().portalLiberado
-            && (!('statusAcessoPortal' in existing()) || incoming().statusAcessoPortal == existing().statusAcessoPortal)
-            && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
-            && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
-          (isAuthorizedClientFor(clientId)
-            && (('userId' in existing() && existing().userId == request.auth.uid) || ('email' in existing() && matchesSignedInEmail(existing().email)))
-            && incoming().portalLiberado == existing().portalLiberado
-            && (!('statusAcessoPortal' in existing()) || incoming().statusAcessoPortal == existing().statusAcessoPortal)
-            && (!('modalidadeConsultoria' in incoming()) || !('modalidadeConsultoria' in existing()) || incoming().modalidadeConsultoria == existing().modalidadeConsultoria)
-            && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt']))
-        ))
+        (isAdminOrConsultor() && isValidClient(incoming())) ||
+        (isSignedIn()
+          && 'email' in existing()
+          && matchesSignedInEmail(existing().email)
+          && (!('userId' in existing()) || existing().userId == null || existing().userId == '' || existing().userId == request.auth.uid)
+          && incoming().userId == request.auth.uid
+          && isOptString(incoming(), 'updatedAt', 64)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'updatedAt'])) ||
+        (isAuthorizedClientFor(clientId)
+          && (
+            ('userId' in existing() && existing().userId == request.auth.uid) ||
+            ('email' in existing() && matchesSignedInEmail(existing().email)) ||
+            (hasUserDoc() && 'clientId' in userDoc() && userDoc().clientId == clientId)
+          )
+          && incoming().diff(existing()).affectedKeys().hasOnly(['nomeCompleto', 'whatsapp', 'enderecoCompleto', 'profissao', 'escolaridade', 'passaporte', 'lgpdAceito', 'lgpdAceitoEm', 'lgpdVersao', 'updatedAt'])
+          && isValidClientSelfUpdate(incoming(), existing()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(clientId);
     }
 
     match /dependents/{dependentId} {
-      allow get: if isValidId(dependentId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(dependentId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create, update: if isValidId(dependentId) && (
         isBootstrappedAdmin() ||
@@ -1026,7 +1144,7 @@ service cloud.firestore {
     }
 
     match /cases/{caseId} {
-      allow get: if isValidId(caseId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(caseId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create: if isValidId(caseId) && (
         isBootstrappedAdmin() ||
@@ -1034,21 +1152,17 @@ service cloud.firestore {
       );
       allow update: if isValidId(caseId) && (
         isBootstrappedAdmin() ||
-        (isValidCase(incoming()) && (
-          isStaff() ||
-          (isAuthorizedClientFor(existing().clientId)
-            && incoming().clientId == existing().clientId
-            && incoming().diff(existing()).affectedKeys().hasOnly(['npsNota', 'npsComentario', 'updatedAt'])
-            && (!('npsNota' in incoming()) || (incoming().npsNota is number && incoming().npsNota >= 1 && incoming().npsNota <= 5))
-            && isOptString(incoming(), 'npsComentario', 1500)
-            && isOptString(incoming(), 'updatedAt', 64))
-        ))
+        (isStaff() && isValidCase(incoming())) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['npsNota', 'npsComentario', 'updatedAt'])
+          && isValidCaseClientNpsUpdate(incoming()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(caseId);
     }
 
     match /caseFinancials/{caseId} {
-      allow get: if isValidId(caseId) && (isAdminOrConsultor() || (isAuthorizedClientFor(existing().clientId) && existing().liberadoAoCliente == true));
+      allow get: if isValidId(caseId) && (isAdminOrConsultor() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'liberadoAoCliente' in existing() && existing().liberadoAoCliente == true));
       allow list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
       allow create, update: if isValidId(caseId) && (
         isBootstrappedAdmin() ||
@@ -1058,7 +1172,7 @@ service cloud.firestore {
     }
 
     match /caseDocuments/{docId} {
-      allow get: if isValidId(docId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(docId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create: if isValidId(docId) && (
         isBootstrappedAdmin() ||
@@ -1068,42 +1182,39 @@ service cloud.firestore {
       );
       allow update: if isValidId(docId) && (
         isBootstrappedAdmin() ||
-        (isValidCaseDocument(incoming()) && (
-          isStaff() ||
-          (isAuthorizedClientFor(existing().clientId)
-            && incoming().clientId == existing().clientId
-            && incoming().status in ['Enviado', 'Pendente']
-            && (!('enviadoPorUid' in incoming()) || incoming().enviadoPorUid == request.auth.uid)
-            && incoming().diff(existing()).affectedKeys().hasOnly([
-              'arquivoUrl',
-              'arquivoNome',
-              'storagePath',
-              'arquivoMimeType',
-              'arquivoTamanhoBytes',
-              'storageBackend',
-              'metadataTags',
-              'reviewMetadata',
-              'enviadoPorUid',
-              'enviadoEm',
-              'status',
-              'etapaEsteira',
-              'dataEmissao',
-              'dataValidadeCalculada',
-              'versao',
-              'historicoVersoes',
-              'updatedAt'
-            ]))
-        ))
+        (isStaff() && isValidCaseDocument(incoming())) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'arquivoUrl',
+            'arquivoNome',
+            'storagePath',
+            'arquivoMimeType',
+            'arquivoTamanhoBytes',
+            'storageBackend',
+            'metadataTags',
+            'reviewMetadata',
+            'enviadoPorUid',
+            'enviadoEm',
+            'status',
+            'etapaEsteira',
+            'dataEmissao',
+            'dataValidadeCalculada',
+            'versao',
+            'historicoVersoes',
+            'updatedAt'
+          ])
+          && isValidCaseDocumentClientUpdate(incoming()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(docId);
     }
 
     match /tasks/{taskId} {
-      allow get: if isValidId(taskId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(taskId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create: if isValidId(taskId) && (
         isBootstrappedAdmin() ||
-        (isValidTask(incoming()) && (isStaff() || isAuthorizedClientFor(incoming().clientId)))
+        (isValidTask(incoming()) && (isStaff() || ('clientId' in incoming() && isAuthorizedClientFor(incoming().clientId))))
       );
       allow update: if isValidId(taskId) && (
         isBootstrappedAdmin() ||
@@ -1113,7 +1224,7 @@ service cloud.firestore {
     }
 
     match /deadlines/{deadlineId} {
-      allow get: if isValidId(deadlineId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(deadlineId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create, update: if isValidId(deadlineId) && (
         isBootstrappedAdmin() ||
@@ -1123,11 +1234,11 @@ service cloud.firestore {
     }
 
     match /appointments/{appointmentId} {
-      allow get: if isValidId(appointmentId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(appointmentId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create: if isValidId(appointmentId) && (
         isBootstrappedAdmin() ||
-        (isValidAppointment(incoming()) && (isStaff() || isAuthorizedClientFor(incoming().clientId)))
+        (isValidAppointment(incoming()) && (isStaff() || ('clientId' in incoming() && isAuthorizedClientFor(incoming().clientId))))
       );
       allow update: if isValidId(appointmentId) && (
         isBootstrappedAdmin() ||
@@ -1137,13 +1248,14 @@ service cloud.firestore {
     }
 
     match /communicationLogs/{logId} {
-      allow get: if isValidId(logId) && (isStaff() || (isAuthorizedClientFor(existing().clientId) && existing().canal == 'Chat Portal'));
+      allow get: if isValidId(logId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'canal' in existing() && existing().canal == 'Chat Portal'));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().canal == 'Chat Portal');
       allow create: if isValidId(logId) && (
         isBootstrappedAdmin() ||
         (isValidCommunicationLog(incoming()) && (
           isStaff() ||
-          (isAuthorizedClientFor(incoming().clientId)
+          ('clientId' in incoming()
+            && isAuthorizedClientFor(incoming().clientId)
             && incoming().id == logId
             && incoming().canal == 'Chat Portal'
             && incoming().origem == 'cliente'
@@ -1155,30 +1267,26 @@ service cloud.firestore {
       );
       allow update: if isValidId(logId) && (
         isBootstrappedAdmin() ||
-        (isValidCommunicationLog(incoming()) && (
-          isAdmin() ||
-          (isStaff()
-            && existing().canal == 'Chat Portal'
-            && incoming().canal == 'Chat Portal'
-            && incoming().clientId == existing().clientId
-            && incoming().createdAt == existing().createdAt
-            && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPelaEquipe', 'updatedAt'])) ||
-          (isAuthorizedClientFor(existing().clientId)
-            && existing().canal == 'Chat Portal'
-            && incoming().canal == 'Chat Portal'
-            && incoming().clientId == existing().clientId
-            && incoming().origem == existing().origem
-            && incoming().assunto == existing().assunto
-            && incoming().mensagem == existing().mensagem
-            && incoming().createdAt == existing().createdAt
-            && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPeloCliente', 'updatedAt']))
-        ))
+        (isAdmin() && isValidCommunicationLog(incoming())) ||
+        (isStaff()
+          && 'canal' in existing()
+          && existing().canal == 'Chat Portal'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPelaEquipe', 'updatedAt'])
+          && isOptBool(incoming(), 'lidaPelaEquipe')
+          && isOptString(incoming(), 'updatedAt', 64)) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && 'canal' in existing()
+          && existing().canal == 'Chat Portal'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lidaPeloCliente', 'updatedAt'])
+          && isOptBool(incoming(), 'lidaPeloCliente')
+          && isOptString(incoming(), 'updatedAt', 64))
       );
       allow delete: if isAdminOrConsultor() && isValidId(logId);
     }
 
     match /viabilityAssessments/{assessmentId} {
-      allow get: if isValidId(assessmentId) && (isStaff() || (isAuthorizedClientFor(existing().clientId) && existing().liberadoAoCliente == true));
+      allow get: if isValidId(assessmentId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'liberadoAoCliente' in existing() && existing().liberadoAoCliente == true));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
       allow create, update: if isValidId(assessmentId) && (
         isBootstrappedAdmin() ||
@@ -1191,7 +1299,7 @@ service cloud.firestore {
     match /budgets/{budgetId} {
       allow get: if isValidId(budgetId) && (
         isAdminOrConsultor() ||
-        (isAuthorizedClientFor(existing().clientId) && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'])
+        ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'status' in existing() && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado'])
       );
       allow list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId() && existing().status in ['Enviado ao Cliente', 'Aprovado', 'Recusado', 'Parcialmente Faturado']);
       allow create: if isValidId(budgetId) && (
@@ -1200,16 +1308,19 @@ service cloud.firestore {
       );
       allow update: if isValidId(budgetId) && (
         isBootstrappedAdmin() ||
-        (isValidBudget(incoming()) && (
-          isAdminOrConsultor() ||
-          (isAuthorizedClientFor(existing().clientId) && existing().status == 'Enviado ao Cliente' && incoming().status in ['Aprovado', 'Recusado'] && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'aprovadoEm', 'updatedAt']))
-        ))
+        (isAdminOrConsultor() && isValidBudget(incoming())) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && 'status' in existing()
+          && existing().status == 'Enviado ao Cliente'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'aprovadoEm', 'updatedAt'])
+          && isValidBudgetClientUpdate(incoming()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(budgetId);
     }
 
     match /financialRecords/{recordId} {
-      allow get: if isValidId(recordId) && (isAdminOrConsultor() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(recordId) && (isAdminOrConsultor() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isAdminOrConsultor() || (isCliente() && existing().clientId == userClientId());
       allow create: if isValidId(recordId) && (
         isBootstrappedAdmin() ||
@@ -1217,10 +1328,11 @@ service cloud.firestore {
       );
       allow update: if isValidId(recordId) && (
         isBootstrappedAdmin() ||
-        (isValidFinancialRecord(incoming()) && (
-          isAdminOrConsultor() ||
-          (isAuthorizedClientFor(existing().clientId) && incoming().diff(existing()).affectedKeys().hasOnly(['comprovanteUrl', 'updatedAt']))
-        ))
+        (isAdminOrConsultor() && isValidFinancialRecord(incoming())) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['comprovanteUrl', 'updatedAt'])
+          && isValidFinancialRecordClientUpdate(incoming()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(recordId);
     }
@@ -1247,7 +1359,7 @@ service cloud.firestore {
       allow get: if isValidId(genDocId) && (
         isAdminOrConsultor() ||
         (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) ||
-        (isAuthorizedClientFor(existing().clientId) && existing().liberadoAoCliente == true)
+        ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'liberadoAoCliente' in existing() && existing().liberadoAoCliente == true)
       );
       allow list: if isAdminOrConsultor() || (isAssistente() && (!('financeiro' in existing()) || existing().financeiro == false)) || (isCliente() && existing().clientId == userClientId() && existing().liberadoAoCliente == true);
       allow create: if isValidId(genDocId) && (
@@ -1256,18 +1368,15 @@ service cloud.firestore {
       );
       allow update: if isValidId(genDocId) && (
         isBootstrappedAdmin() ||
-        (isValidGeneratedDocument(incoming()) && (
-          isAdminOrConsultor() ||
-          (isAuthorizedClientFor(existing().clientId)
-            && existing().liberadoAoCliente == true
-            && (!('canceladoEm' in existing()) || existing().canceladoEm == null || existing().canceladoEm == '')
-            && (!('motivoCancelamento' in existing()) || existing().motivoCancelamento == null || existing().motivoCancelamento == '')
-            && incoming().clientId == existing().clientId
-            && incoming().liberadoAoCliente == existing().liberadoAoCliente
-            && ((!('financeiro' in existing()) && !('financeiro' in incoming())) || ('financeiro' in existing() && 'financeiro' in incoming() && incoming().financeiro == existing().financeiro))
-            && ((!('conteudoHtml' in existing()) && !('conteudoHtml' in incoming())) || ('conteudoHtml' in existing() && 'conteudoHtml' in incoming() && incoming().conteudoHtml == existing().conteudoHtml))
-            && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt']))
-        ))
+        (isAdminOrConsultor() && isValidGeneratedDocument(incoming())) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && 'liberadoAoCliente' in existing()
+          && existing().liberadoAoCliente == true
+          && (!('canceladoEm' in existing()) || existing().canceladoEm == null || existing().canceladoEm == '')
+          && (!('motivoCancelamento' in existing()) || existing().motivoCancelamento == null || existing().motivoCancelamento == '')
+          && incoming().diff(existing()).affectedKeys().hasOnly(['confirmadoLeituraEm', 'confirmadoLeituraPor', 'status', 'assinaturaUrl', 'assinaturaDataUrl', 'assinadoEm', 'updatedAt'])
+          && isValidGeneratedDocumentClientUpdate(incoming(), existing()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(genDocId);
     }
@@ -1287,7 +1396,7 @@ service cloud.firestore {
     }
 
     match /clientNotifications/{notifId} {
-      allow get: if isValidId(notifId) && (isStaff() || isAuthorizedClientFor(existing().clientId));
+      allow get: if isValidId(notifId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId)));
       allow list: if isStaff() || (isCliente() && existing().clientId == userClientId());
       allow create: if isValidId(notifId) && (
         isBootstrappedAdmin() ||
@@ -1295,10 +1404,11 @@ service cloud.firestore {
       );
       allow update: if isValidId(notifId) && (
         isBootstrappedAdmin() ||
-        (isValidClientNotification(incoming()) && (
-          isStaff() ||
-          (isAuthorizedClientFor(existing().clientId) && incoming().clientId == existing().clientId && incoming().titulo == existing().titulo && incoming().mensagem == existing().mensagem && incoming().tipo == existing().tipo && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['lida', 'lidaEm', 'updatedAt']))
-        ))
+        (isStaff() && isValidClientNotification(incoming())) ||
+        ('clientId' in existing()
+          && isAuthorizedClientFor(existing().clientId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lida', 'lidaEm', 'updatedAt'])
+          && isValidClientNotificationClientUpdate(incoming()))
       );
       allow delete: if isAdminOrConsultor() && isValidId(notifId);
     }

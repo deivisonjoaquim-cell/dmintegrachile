@@ -8,9 +8,9 @@ import {
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import type { CommunicationLog, UserRole } from '../types/domain';
-import { makeId, saveDocumentAudited } from './firestoreService';
+import { ensureSignedInClientPortalSynced, makeId, saveDocumentAudited } from './firestoreService';
 import { notifyClientProcessUpdate } from './notificationService';
 import {
   buildClientDocumentChatPayload,
@@ -31,6 +31,15 @@ function stripUndefinedFields<T extends Record<string, unknown>>(obj: T): T {
     }
   }
   return out as T;
+}
+
+function isPermissionDeniedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return (
+    msg.includes('permission-denied') ||
+    msg.includes('missing or insufficient permissions') ||
+    msg.includes('insufficient permissions')
+  );
 }
 
 export function subscribeClientDocumentChat(
@@ -132,9 +141,20 @@ export async function sendClientDocumentQuestion(params: {
     documentNome: params.documentNome,
   });
 
+  const cleanPayload = stripUndefinedFields({ ...payload });
   try {
-    await setDoc(doc(db, 'communicationLogs', id), stripUndefinedFields({ ...payload }));
+    await setDoc(doc(db, 'communicationLogs', id), cleanPayload);
   } catch (err) {
+    if (isPermissionDeniedError(err) && auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(true);
+        await ensureSignedInClientPortalSynced();
+        await setDoc(doc(db, 'communicationLogs', id), cleanPayload);
+        return payload;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.CREATE, `communicationLogs/${id}`);
+      }
+    }
     handleFirestoreError(err, OperationType.CREATE, `communicationLogs/${id}`);
   }
   return payload;
@@ -146,8 +166,8 @@ export async function markClientChatRepliesRead(messages: CommunicationLog[]): P
   );
   if (unread.length === 0) return;
   const nowIso = new Date().toISOString();
-  try {
-    await Promise.all(
+  const performBatch = () =>
+    Promise.all(
       unread.map((m) =>
         updateDoc(doc(db, 'communicationLogs', m.id), {
           lidaPeloCliente: true,
@@ -155,7 +175,19 @@ export async function markClientChatRepliesRead(messages: CommunicationLog[]): P
         }),
       ),
     );
+  try {
+    await performBatch();
   } catch (err) {
+    if (isPermissionDeniedError(err) && auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(true);
+        await ensureSignedInClientPortalSynced();
+        await performBatch();
+        return;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.UPDATE, 'communicationLogs');
+      }
+    }
     handleFirestoreError(err, OperationType.UPDATE, 'communicationLogs');
   }
 }

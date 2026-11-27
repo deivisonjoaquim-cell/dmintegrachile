@@ -1285,7 +1285,7 @@ export async function updateClientPortalDocAudited(
       antes ?? null,
       cleanPatch,
       'cliente',
-    );
+    ).catch(() => undefined);
   };
 
   try {

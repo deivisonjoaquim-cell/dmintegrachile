@@ -164,6 +164,12 @@ export function translateAppError(
       visaRequirements: 'Requisitos documentais',
       budgets: 'Orçamentos',
       financialRecords: 'Lançamentos financeiros',
+      generatedDocuments: 'Contratos e documentos gerados',
+      clientNotifications: 'Alertas e notificações do portal',
+      communicationLogs: 'Mensagens do portal',
+      tasks: 'Solicitações e tarefas',
+      dependents: 'Dependentes do processo',
+      fcmTokens: 'Notificações push do navegador',
       diagnosticRuleVersions: 'Versões de regras de diagnóstico',
     };
     const rootCollection = effectivePath ? effectivePath.split('/')[0] : '';

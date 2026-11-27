@@ -189,6 +189,52 @@ test('rules safely guard optional userId on clients list/get and allow direct em
   assert.match(clientsBlock, /'userId' in existing\(\) && existing\(\)\.userId == request\.auth\.uid/);
   assert.match(clientsBlock, /'email' in existing\(\) && existing\(\)\.email == request\.auth\.token\.email/);
   assert.match(clientsBlock, /'clientId' in userDoc\(\) && userDoc\(\)\.clientId == clientId/);
-  assert.match(rulesText, /function isCliente\(\)[\s\S]*?userDoc\(\)\.status\.lower\(\) != 'inativo'[\s\S]*?hasUnlockedClientPortal\(\)/);
+  assert.match(rulesText, /function isActiveClientAccountData\(u\)[\s\S]*?u\.status is string && u\.status\.lower\(\) != 'inativo'/);
+  assert.match(rulesText, /function isCliente\(\)[\s\S]*?isClienteData\(userDoc\(\)\)/);
 });
+
+test('rules use dedicated strict partial-update validators for client portal mutations without full-doc legacy coupling', () => {
+  const genBlock = rulesText.slice(
+    rulesText.indexOf('match /generatedDocuments/{genDocId}'),
+    rulesText.indexOf('match /fcmTokens/{tokenId}'),
+  );
+  assert.match(genBlock, /isValidGeneratedDocumentClientUpdate\(incoming\(\), existing\(\)\)/);
+  assert.match(genBlock, /'clientId' in existing\(\)\s*&& isAuthorizedClientFor\(existing\(\)\.clientId\)/);
+  assert.match(rulesText, /function isValidGeneratedDocumentClientUpdate\(data, prev\)[\s\S]*?data\.status == 'Assinado'/);
+
+  const notifBlock = rulesText.slice(rulesText.indexOf('match /clientNotifications/{notifId}'));
+  assert.match(notifBlock, /isValidClientNotificationClientUpdate\(incoming\(\)\)/);
+  assert.match(notifBlock, /'clientId' in existing\(\)\s*&& isAuthorizedClientFor\(existing\(\)\.clientId\)/);
+  assert.doesNotMatch(notifBlock, /incoming\(\)\.titulo == existing\(\)\.titulo/);
+
+  const clientsBlock = rulesText.slice(
+    rulesText.indexOf('match /clients/{clientId}'),
+    rulesText.indexOf('match /dependents/{dependentId}'),
+  );
+  assert.match(clientsBlock, /isValidClientSelfUpdate\(incoming\(\), existing\(\)\)/);
+
+  const caseDocsBlock = rulesText.slice(
+    rulesText.indexOf('match /caseDocuments/{docId}'),
+    rulesText.indexOf('match /tasks/{taskId}'),
+  );
+  assert.match(caseDocsBlock, /isValidCaseDocumentClientUpdate\(incoming\(\)\)/);
+
+  const budgetsBlock = rulesText.slice(
+    rulesText.indexOf('match /budgets/{budgetId}'),
+    rulesText.indexOf('match /financialRecords/{recordId}'),
+  );
+  assert.match(budgetsBlock, /isValidBudgetClientUpdate\(incoming\(\)\)/);
+
+  const finBlock = rulesText.slice(
+    rulesText.indexOf('match /financialRecords/{recordId}'),
+    rulesText.indexOf('match /messageTemplates/{templateId}'),
+  );
+  assert.match(finBlock, /isValidFinancialRecordClientUpdate\(incoming\(\)\)/);
+
+  // Single-fetch role helpers keep rule evaluation well below Firestore access/expression ceilings
+  assert.match(rulesText, /function isStaff\(\) \{\s*return isBootstrappedAdmin\(\) \|\| hasUserRole\(\['admin', 'consultor', 'assistente'\]\);/);
+  assert.match(rulesText, /function isAdminOrConsultor\(\) \{\s*return isBootstrappedAdmin\(\) \|\| hasUserRole\(\['admin', 'consultor'\]\);/);
+  assert.match(rulesText, /function isAuthorizedClientFor\(clientId\)/);
+});
+
 
