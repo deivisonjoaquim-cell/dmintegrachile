@@ -16,10 +16,7 @@ import {
   isDevE2eActive,
   subscribeDevE2eChanges,
 } from '../utils/devE2eBridge';
-import {
-  SEED_PARTNERS,
-  SEED_SITE_CONTENT,
-} from '../data/seeds';
+import { SEED_SITE_CONTENT } from '../data/seeds';
 import {
   fetchRuleEngineBundleWithSync,
   fetchSignedInClientRecord,
@@ -174,7 +171,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [empresa, setEmpresa] = useState<EmpresaConfig>(initialSnapshot.empresa);
   const [siteContent, setSiteContent] = useState<SiteContent[]>(SEED_SITE_CONTENT);
-  const [partnersPublic, setPartnersPublic] = useState<PartnerPublic[]>(SEED_PARTNERS.map((p) => p.pub));
+  const [partnersPublic, setPartnersPublic] = useState<PartnerPublic[]>(
+    initialSnapshot.source === 'nuvem' || initialSnapshot.source === 'cache_local'
+      ? initialSnapshot.partnersPublic
+      : [],
+  );
   const [visaCategories, setVisaCategories] = useState<VisaCategory[]>(initialSnapshot.visaCategories);
   const [visaRequirements, setVisaRequirements] = useState<VisaRequirement[]>(initialSnapshot.visaRequirements);
   const [legalSources, setLegalSources] = useState<LegalSource[]>(initialSnapshot.legalSources);
@@ -599,9 +600,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             effectiveProfile.status !== 'ativo' ||
             !matchedClient.userId)
         ) {
-          const linked = await linkGoogleUserToClientOrLead({
-            ...effectiveProfile,
-            clientId: matchedClient.id,
+          const linked = await linkGoogleUserToClientOrLead(effectiveProfile, {
+            force: true,
+            knownClient: matchedClient,
           });
           effectiveProfile = linked;
           if (seq === portalSyncSeqRef.current) {
@@ -738,7 +739,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (needsUserLinkCommit && current) {
           setPortalAccessLoading(true);
-          void linkGoogleUserToClientOrLead({ ...current, clientId: nextClient.id })
+          void linkGoogleUserToClientOrLead(current, {
+            force: true,
+            knownClient: nextClient,
+          })
             .then((linked) => {
               setUserProfile(linked);
               setPortalClient(nextClient);

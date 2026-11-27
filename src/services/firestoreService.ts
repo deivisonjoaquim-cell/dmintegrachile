@@ -89,11 +89,18 @@ import {
 import { buildOfficialLegalCatalogDiff } from '../utils/legalSync';
 import {
   loadRuleEngineSnapshotSync,
+  removePartnerFromOfflineSnapshot,
   saveRuleEngineSnapshot,
   type CatalogSyncSource,
   type PendingOfflineDiagnostic,
   type RuleEngineDecisionLog,
 } from '../utils/offlineRuleEngineStore';
+import {
+  findOrphanOrHiddenPublicPartnerIds,
+  resolvePublicPartnersFromCloud,
+  shouldSeedInitialPartners,
+} from '../utils/partnerCatalogSync';
+import { needsUserClientLinkSync } from '../utils/clientPortalPatches';
 import { reportAppError } from './errorService';
 
 export function makeId(prefix: string): string {
@@ -296,25 +303,24 @@ export async function fetchPartnersPublic(): Promise<PartnerPublic[]> {
       where('statusHomologacao', '==', 'Ativo/Indicado'),
     );
     const snap = await getDocs(q);
-    if (snap.empty) return SEED_PARTNERS.map((p) => p.pub);
     const firestorePartners = snap.docs.map((d) => ({
       id: d.id,
       ...(d.data() as Omit<PartnerPublic, 'id'>),
     }));
-    // If Firestore holds only the initial 3 legacy seed partners (only 1 in Chile),
-    // merge missing curated Chile relocation partners by ID so the interactive map has rich coverage
-    // without ever overwriting admin-edited partners.
-    const existingIds = new Set(firestorePartners.map((p) => p.id));
-    const chileCount = firestorePartners.filter((p) => p.pais === 'Chile' || p.pais === 'Ambos').length;
-    if (chileCount < 2) {
-      const missingChileSeeds = SEED_PARTNERS.map((p) => p.pub).filter(
-        (seed) => !existingIds.has(seed.id) && (seed.pais === 'Chile' || seed.pais === 'Ambos'),
-      );
-      return [...firestorePartners, ...missingChileSeeds];
-    }
-    return firestorePartners;
+    // Confia integralmente no estado da nuvem (inclusive se vazio):
+    // nunca ressuscita parceiros excluídos ou desativados no painel administrativo.
+    return resolvePublicPartnersFromCloud({
+      firestorePartners,
+      cloudSucceeded: true,
+    });
   } catch {
-    return SEED_PARTNERS.map((p) => p.pub);
+    const cached = loadRuleEngineSnapshotSync();
+    return resolvePublicPartnersFromCloud({
+      firestorePartners: [],
+      cloudSucceeded: false,
+      cachedPartners: cached.source === 'nuvem' || cached.source === 'cache_local' ? cached.partnersPublic : null,
+      fallbackSeeds: SEED_PARTNERS.filter((p) => p.full.recomendadoAosClientes).map((p) => p.pub),
+    });
   }
 }
 
@@ -418,11 +424,24 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
   try {
     const cfgRef = doc(db, 'config', 'empresa');
     const cfgSnap = await getDoc(cfgRef);
-    if (!cfgSnap.exists()) {
-      await setDoc(cfgRef, validateEmpresaConfigPayload(DEFAULT_EMPRESA_CONFIG));
+    const configAlreadyExisted = cfgSnap.exists();
+    const existingPartnersSeededAt = configAlreadyExisted
+      ? (cfgSnap.data() as Partial<EmpresaConfig>).partnersSeededAt
+      : undefined;
+    if (!configAlreadyExisted) {
+      await setDoc(
+        cfgRef,
+        validateEmpresaConfigPayload({
+          ...DEFAULT_EMPRESA_CONFIG,
+          partnersSeededAt: new Date().toISOString(),
+        }),
+      );
     } else {
       const data = cfgSnap.data() as Partial<EmpresaConfig>;
       const cfgPatch: Record<string, unknown> = {};
+      if (!data.partnersSeededAt) {
+        cfgPatch.partnersSeededAt = new Date().toISOString();
+      }
       if (data.razao_social_cnpj_rut === LEGACY_RAZAO_SOCIAL) {
         cfgPatch.razao_social_cnpj_rut = DEFAULT_EMPRESA_CONFIG.razao_social_cnpj_rut;
       }
@@ -574,17 +593,42 @@ export async function runIdempotentSeedsIfAdmin(role: UserRole): Promise<void> {
       }
     }
 
-    const partPubSnap = await getDocs(collection(db, 'partnersPublic'));
-    const existingPartnerIds = new Set(partPubSnap.docs.map((d) => d.id));
-    const missingSeedPartners = SEED_PARTNERS.filter((p) => !existingPartnerIds.has(p.pub.id));
-    if (partPubSnap.empty || missingSeedPartners.length > 0) {
-      const targets = partPubSnap.empty ? SEED_PARTNERS : missingSeedPartners;
+    const [partSnap, partPubSnap] = await Promise.all([
+      getDocs(collection(db, 'partners')),
+      getDocs(collection(db, 'partnersPublic')),
+    ]);
+    if (
+      shouldSeedInitialPartners({
+        configAlreadyExisted,
+        partnersSeededAt: existingPartnersSeededAt,
+        existingPartnersCount: partSnap.size,
+        existingPartnersPublicCount: partPubSnap.size,
+      })
+    ) {
+      const nowIso = new Date().toISOString();
       await Promise.all(
-        targets.flatMap((p) => [
-          setDoc(doc(db, 'partners', p.full.id), { ...p.full, createdAt: new Date().toISOString() }),
-          setDoc(doc(db, 'partnersPublic', p.pub.id), { ...p.pub, updatedAt: new Date().toISOString() }),
+        SEED_PARTNERS.flatMap((p) => [
+          setDoc(doc(db, 'partners', p.full.id), { ...p.full, createdAt: nowIso }),
+          setDoc(doc(db, 'partnersPublic', p.pub.id), { ...p.pub, updatedAt: nowIso }),
         ]),
       );
+    } else if (!partPubSnap.empty) {
+      const authoritativePartners = partSnap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Partial<Partner>),
+      }));
+      const orphanOrHiddenIds = findOrphanOrHiddenPublicPartnerIds(
+        authoritativePartners,
+        partPubSnap.docs.map((d) => d.id),
+      );
+      if (orphanOrHiddenIds.length > 0) {
+        await Promise.allSettled(
+          orphanOrHiddenIds.map(async (pubId) => {
+            await deleteDoc(doc(db, 'partnersPublic', pubId));
+            removePartnerFromOfflineSnapshot(pubId);
+          }),
+        );
+      }
     }
 
     const rulesSnap = await getDocs(collection(db, 'diagnosticRuleVersions'));
@@ -1138,6 +1182,8 @@ export async function saveDocumentAudited<T extends Record<string, unknown>>(
         if (isPrimaryAdminEmail(currentUser.email)) {
           clearAdminVerificationCache();
           await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        } else {
+          await ensureSignedInClientPortalSynced();
         }
         await performWrite();
         return;
@@ -1146,6 +1192,56 @@ export async function saveDocumentAudited<T extends Record<string, unknown>>(
       }
     }
     handleFirestoreError(err, isNew ? OperationType.CREATE : OperationType.UPDATE, pathStr);
+  }
+}
+
+/**
+ * Atualização parcial estrita (`updateDoc`) para operações iniciadas pelo cliente no Portal do Cliente.
+ *
+ * Envia APENAS as chaves do `patch` (nunca faz spread do documento inteiro nem injeta `id`),
+ * garantindo aderência total às cláusulas `affectedKeys().hasOnly(...)` em `firestore.rules`.
+ * Em caso de permissão desatualizada, revalida automaticamente token + vínculo `users/{uid}.clientId`
+ * e repete a gravação sem exigir nenhum clique manual em "Sincronizar permissões".
+ */
+export async function updateClientPortalDocAudited(
+  collectionName: string,
+  id: string,
+  patch: Record<string, unknown>,
+  campoLabel = 'registro',
+  antes?: unknown,
+): Promise<void> {
+  const pathStr = `${collectionName}/${id}`;
+  const cleanPatch = sanitizeFirestoreData(patch);
+  if (Object.keys(cleanPatch).length === 0) return;
+
+  const performPatch = async () => {
+    await updateDoc(doc(db, collectionName, id), cleanPatch);
+    await registrarAuditoria(
+      'Atualizar',
+      collectionName,
+      id,
+      campoLabel,
+      antes ?? null,
+      cleanPatch,
+      'cliente',
+    );
+  };
+
+  try {
+    await performPatch();
+  } catch (err) {
+    const currentUser = auth.currentUser;
+    if (isFirestorePermissionError(err) && currentUser) {
+      try {
+        await currentUser.getIdToken(true);
+        await ensureSignedInClientPortalSynced();
+        await performPatch();
+        return;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.UPDATE, pathStr);
+      }
+    }
+    handleFirestoreError(err, OperationType.UPDATE, pathStr);
   }
 }
 
@@ -1713,9 +1809,22 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
   } else {
     try {
       await deleteDoc(pubRef);
-    } catch {
-      // ignore if didn't exist
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code || '';
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+      if (!code.includes('not-found') && !msg.includes('not-found')) {
+        const currentUser = auth.currentUser;
+        if (isFirestorePermissionError(err) && currentUser) {
+          await currentUser.getIdToken(true);
+          if (isPrimaryAdminEmail(currentUser.email)) {
+            clearAdminVerificationCache();
+            await verifyAndEnsureAdminAccess(currentUser, { force: true });
+          }
+          await deleteDoc(pubRef).catch(() => undefined);
+        }
+      }
     }
+    removePartnerFromOfflineSnapshot(partnerToSave.id);
   }
 }
 
@@ -2551,43 +2660,81 @@ export async function callAiEndpoint<T>(endpoint: string, body: unknown, options
   throw new Error(outcome.message);
 }
 
-export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<UserProfile> {
+export async function linkGoogleUserToClientOrLead(
+  user: UserProfile,
+  options?: { force?: boolean; knownClient?: Client | null },
+): Promise<UserProfile> {
   if (user.role !== 'cliente' || user.status === 'inativo') {
     return user;
   }
 
   try {
-    const matchedClient = await fetchSignedInClientRecord(user.uid, user.email, user.clientId);
+    const userRef = doc(db, 'users', user.uid);
+    const [persistedUserSnap, matchedClient] = await Promise.all([
+      getDoc(userRef).catch(() => null),
+      options?.knownClient
+        ? Promise.resolve(options.knownClient)
+        : fetchSignedInClientRecord(user.uid, user.email, user.clientId),
+    ]);
+
     if (!matchedClient) {
       // Sem cadastro de cliente: permanece pendente (pode visualizar apenas diagnóstico gratuito básico)
       return user;
     }
 
+    const persistedUserData = persistedUserSnap?.exists()
+      ? (persistedUserSnap.data() as Partial<UserProfile>)
+      : null;
+
     const now = new Date().toISOString();
-    const shouldBeActive = matchedClient.portalLiberado === true && !matchedClient.arquivado;
-    const targetStatus: UserProfile['status'] = shouldBeActive ? 'ativo' : 'pendente';
+    const syncEval = needsUserClientLinkSync({
+      persistedUserClientId: persistedUserData?.clientId,
+      persistedUserStatus: persistedUserData?.status,
+      matchedClientId: matchedClient.id,
+      matchedClientPortalLiberado: matchedClient.portalLiberado === true,
+      matchedClientArquivado: matchedClient.arquivado,
+      matchedClientUserId: matchedClient.userId,
+      authUid: user.uid,
+    });
 
     // 1. Vincula userId no documento do cliente se ainda estiver vazio
-    if (!matchedClient.userId) {
+    if (syncEval.needsClientUserIdUpdate) {
       await updateDoc(doc(db, 'clients', matchedClient.id), {
         userId: user.uid,
         updatedAt: now,
-      }).catch(() => {});
+      }).catch(() => undefined);
     }
 
-    // 2. Sincroniza clientId e status em users/{uid} (autorizado pelas regras do Firestore quando portalLiberado == true)
-    if (user.clientId !== matchedClient.id || user.status !== targetStatus) {
-      await updateDoc(doc(db, 'users', user.uid), {
-        clientId: matchedClient.id,
-        status: targetStatus,
-        updatedAt: now,
-      });
+    // 2. Sincroniza clientId e status em users/{uid} comparando contra o documento REAL salvo no Firestore
+    if (options?.force || syncEval.needsUserDocUpdate || !persistedUserData) {
+      if (!persistedUserData) {
+        await setDoc(
+          userRef,
+          sanitizeFirestoreData({
+            uid: user.uid,
+            nome: (user.nome || user.email.split('@')[0] || 'Cliente').slice(0, 200),
+            email: (user.email || auth.currentUser?.email || '').trim().toLowerCase(),
+            fotoUrl: (user.fotoUrl || '').slice(0, 1000),
+            role: 'cliente',
+            status: syncEval.targetStatus,
+            clientId: matchedClient.id,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
+      } else {
+        await updateDoc(userRef, {
+          clientId: matchedClient.id,
+          status: syncEval.targetStatus,
+          updatedAt: now,
+        });
+      }
     }
 
     return {
       ...user,
       clientId: matchedClient.id,
-      status: targetStatus,
+      status: syncEval.targetStatus,
       updatedAt: now,
     };
   } catch (err) {
@@ -2598,6 +2745,39 @@ export async function linkGoogleUserToClientOrLead(user: UserProfile): Promise<U
     });
   }
   return user;
+}
+
+/**
+ * Garante automaticamente que a conta cliente autenticada possua `users/{uid}.clientId` e `status: 'ativo'`
+ * sincronizados no Firestore antes de repetir uma operação no Portal do Cliente.
+ */
+export async function ensureSignedInClientPortalSynced(): Promise<UserProfile | null> {
+  const fbUser = auth.currentUser;
+  if (!fbUser) return null;
+  try {
+    const userRef = doc(db, 'users', fbUser.uid);
+    const snap = await getDoc(userRef).catch(() => null);
+    const existing = snap?.exists() ? (snap.data() as Partial<UserProfile>) : null;
+    const rawRole = typeof existing?.role === 'string' ? existing.role.trim().toLowerCase() : 'cliente';
+    if (rawRole !== 'cliente') return null;
+    const baseProfile: UserProfile = {
+      uid: fbUser.uid,
+      nome: existing?.nome || fbUser.displayName || (fbUser.email || 'Cliente').split('@')[0],
+      email: (existing?.email || fbUser.email || '').trim().toLowerCase(),
+      fotoUrl: existing?.fotoUrl ?? fbUser.photoURL ?? '',
+      role: 'cliente',
+      status:
+        existing?.status === 'ativo' || existing?.status === 'pendente' || existing?.status === 'inativo'
+          ? existing.status
+          : 'pendente',
+      clientId: existing?.clientId,
+      createdAt: existing?.createdAt,
+      updatedAt: existing?.updatedAt,
+    };
+    return await linkGoogleUserToClientOrLead(baseProfile, { force: true });
+  } catch {
+    return null;
+  }
 }
 
 export async function syncOfficialLegalCatalog(
@@ -2741,11 +2921,28 @@ export async function deletePartnerAndPublicAudited(
     role,
     partner,
   );
+  const pubRef = doc(db, 'partnersPublic', partner.id);
   try {
-    await deleteDoc(doc(db, 'partnersPublic', partner.id));
-  } catch {
-    // Ignore if partner was not publicly listed
+    await deleteDoc(pubRef);
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code || '';
+    const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    const isNotFound = code.includes('not-found') || msg.includes('not-found');
+    if (!isNotFound) {
+      const currentUser = auth.currentUser;
+      if (isFirestorePermissionError(err) && currentUser) {
+        await currentUser.getIdToken(true);
+        if (isPrimaryAdminEmail(currentUser.email)) {
+          clearAdminVerificationCache();
+          await verifyAndEnsureAdminAccess(currentUser, { force: true });
+        }
+        await deleteDoc(pubRef);
+      } else {
+        handleFirestoreError(err, OperationType.DELETE, `partnersPublic/${partner.id}`);
+      }
+    }
   }
+  removePartnerFromOfflineSnapshot(partner.id);
 }
 
 export async function fetchRuleEngineBundleWithSync(): Promise<{

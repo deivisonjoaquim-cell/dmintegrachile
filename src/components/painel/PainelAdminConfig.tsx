@@ -1024,26 +1024,6 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-[#A61C2B] font-medium flex flex-wrap items-center justify-between gap-3">
           <span className="leading-relaxed">{errorMsg}</span>
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <button
-              type="button"
-              disabled={promotingPrimaryAdmin}
-              onClick={() => void handlePromotePrimaryAdmin()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B1F33] text-white text-[11px] font-semibold hover:bg-[#132E4A] disabled:opacity-60 whitespace-nowrap"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#E6C55A]" />
-              {promotingPrimaryAdmin ? 'Inicializando...' : 'Inicializar Admin (deivisonjoaquim)'}
-            </button>
-            <button
-              type="button"
-              disabled={syncingPermissions}
-              onClick={() => void handleResyncAdminPermissions()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 bg-white text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-60 whitespace-nowrap"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              {syncingPermissions ? 'Sincronizando...' : 'Sincronizar permissões'}
-            </button>
-          </div>
         </div>
       )}
 

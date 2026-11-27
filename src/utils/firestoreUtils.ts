@@ -208,6 +208,7 @@ export function validateEmpresaConfigPayload(input: Partial<EmpresaConfig>): Emp
     fcmVapidPublicKey: clampOptionalString(merged.fcmVapidPublicKey, 300),
     siteVersaoAtual: clampOptionalString(merged.siteVersaoAtual, 40),
     sitePublicadoEm: clampOptionalString(merged.sitePublicadoEm, 64),
+    partnersSeededAt: clampOptionalString(merged.partnersSeededAt, 64),
     updatedAt: new Date().toISOString(),
   };
 

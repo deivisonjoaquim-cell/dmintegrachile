@@ -58,9 +58,20 @@ import {
   fetchClientPortalData,
   makeId,
   saveDocumentAudited,
+  updateClientPortalDocAudited,
   uploadFileToServer,
 } from '../services/firestoreService';
-import { reportAppError } from '../services/errorService';
+import { reportAppError, translateAppError } from '../services/errorService';
+import {
+  buildBudgetDecisionPatch,
+  buildCaseNpsPatch,
+  buildClientLgpdAcceptancePatch,
+  buildClientPersonalDataPatch,
+  buildFinancialReceiptPatch,
+  buildGeneratedDocCanvasSignaturePatch,
+  buildGeneratedDocPdfSignaturePatch,
+  buildGeneratedDocReadConfirmPatch,
+} from '../utils/clientPortalPatches';
 import {
   deactivateUserPushTokens,
   enableClientBrowserNotifications,
@@ -956,141 +967,151 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   const handleAcceptLgpd = async () => {
     if (!client) return;
-    await saveDocumentAudited(
-      'clients',
-      client.id,
-      {
-        ...client,
-        lgpdAceito: true,
-        lgpdAceitoEm: new Date().toISOString(),
-        lgpdVersao: empresa.termoLgpdVersao || '1.0',
-      },
-      false,
-      'cliente',
-      'lgpdAceito',
-      client.lgpdAceito,
-    );
-    await loadPortal();
+    try {
+      await updateClientPortalDocAudited(
+        'clients',
+        client.id,
+        buildClientLgpdAcceptancePatch(empresa.termoLgpdVersao || '1.0'),
+        'lgpdAceito',
+        client.lgpdAceito,
+      );
+      await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-lgpd' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
   };
 
   const handleBudgetDecision = async (b: Budget, decision: 'Aprovado' | 'Recusado') => {
-    await saveDocumentAudited(
-      'budgets',
-      b.id,
-      { ...b, status: decision, aprovadoEm: new Date().toISOString() },
-      false,
-      'cliente',
-      'status',
-      b.status,
-    );
-    setFeedbackMsg(`Orçamento ${b.numeroOrcamento} marcado como ${decision}.`);
-    await loadPortal();
+    try {
+      await updateClientPortalDocAudited(
+        'budgets',
+        b.id,
+        buildBudgetDecisionPatch(decision),
+        'status',
+        b.status,
+      );
+      setFeedbackMsg(`Orçamento ${b.numeroOrcamento} marcado como ${decision}.`);
+      await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-budget' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
   };
 
   const handleUploadComprovante = async (fin: FinancialRecord, file: File) => {
     try {
       const uploaded = await uploadFileToServer(file);
-      await saveDocumentAudited(
+      await updateClientPortalDocAudited(
         'financialRecords',
         fin.id,
-        { ...fin, comprovanteUrl: uploaded.url },
-        false,
-        'cliente',
+        buildFinancialReceiptPatch(uploaded.url),
         'comprovanteUrl',
         fin.comprovanteUrl,
       );
       setFeedbackMsg('Comprovante enviado para conferência da consultoria.');
       await loadPortal();
     } catch (err) {
-      setFeedbackMsg(err instanceof Error ? err.message : 'Erro ao enviar comprovante.');
+      const friendly = translateAppError(err, { source: 'portal-comprovante' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
     }
   };
 
   const handleSavePersonalData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!client) return;
-    await saveDocumentAudited(
-      'clients',
-      client.id,
-      {
-        ...client,
+    try {
+      const patch = buildClientPersonalDataPatch({
         nomeCompleto: editNome,
         whatsapp: editWhats,
         enderecoCompleto: editEndereco,
         profissao: editProfissao,
-      },
-      false,
-      'cliente',
-      'dados_pessoais',
-    );
-    setFeedbackMsg('Seus dados foram atualizados.');
-    await loadPortal();
+      });
+      await updateClientPortalDocAudited(
+        'clients',
+        client.id,
+        patch,
+        'dados_pessoais',
+        {
+          nomeCompleto: client.nomeCompleto,
+          whatsapp: client.whatsapp,
+          enderecoCompleto: client.enderecoCompleto,
+          profissao: client.profissao,
+        },
+      );
+      setFeedbackMsg('Seus dados foram atualizados com sucesso.');
+      await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-personal-data' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
   };
 
   const handleLgpdRequest = async (tipo: 'exportação' | 'exclusão') => {
     if (!client) return;
-    const taskId = makeId('task');
-    await saveDocumentAudited(
-      'tasks',
-      taskId,
-      {
-        id: taskId,
-        titulo: `Solicitação LGPD de ${tipo} de dados — ${client.nomeCompleto}`,
-        descricao: `Titular solicitou ${tipo} dos dados pelo Portal do Cliente em ${formatDateTimeBR(new Date())}.`,
-        clientId: client.id,
-        caseId: activeCase?.id || '',
-        prioridade: 'Alta',
-        status: 'Pendente',
-        createdAt: new Date().toISOString(),
-      },
-      true,
-      'cliente',
-      `lgpd_${tipo}`,
-    );
-    setFeedbackMsg(`Solicitação de ${tipo} LGPD registrada com sucesso.`);
+    try {
+      const taskId = makeId('task');
+      await saveDocumentAudited(
+        'tasks',
+        taskId,
+        {
+          id: taskId,
+          titulo: `Solicitação LGPD de ${tipo} de dados — ${client.nomeCompleto}`,
+          descricao: `Titular solicitou ${tipo} dos dados pelo Portal do Cliente em ${formatDateTimeBR(new Date())}.`,
+          clientId: client.id,
+          caseId: activeCase?.id || '',
+          prioridade: 'Alta',
+          status: 'Pendente',
+          createdAt: new Date().toISOString(),
+        },
+        true,
+        'cliente',
+        `lgpd_${tipo}`,
+      );
+      setFeedbackMsg(`Solicitação de ${tipo} LGPD registrada com sucesso.`);
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-lgpd-request' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
   };
 
   const handleConfirmGenDocRead = async (gd: GeneratedDocument) => {
-    const nowIso = new Date().toISOString();
-    await saveDocumentAudited(
-      'generatedDocuments',
-      gd.id,
-      {
-        ...gd,
-        confirmadoLeituraEm: nowIso,
-        confirmadoLeituraPor: client?.nomeCompleto || userProfile?.nome || userProfile?.email || 'Cliente',
-        updatedAt: nowIso,
-      },
-      false,
-      'cliente',
-      'confirmadoLeituraEm',
-    );
-    setViewingGenDoc((prev) => (prev && prev.id === gd.id ? { ...prev, confirmadoLeituraEm: nowIso } : prev));
-    setFeedbackMsg(`Leitura de "${gd.titulo}" confirmada.`);
-    await loadPortal();
+    try {
+      const nowIso = new Date().toISOString();
+      const confirmedBy = client?.nomeCompleto || userProfile?.nome || userProfile?.email || 'Cliente';
+      await updateClientPortalDocAudited(
+        'generatedDocuments',
+        gd.id,
+        buildGeneratedDocReadConfirmPatch(confirmedBy, nowIso),
+        'confirmadoLeituraEm',
+        gd.confirmadoLeituraEm,
+      );
+      setViewingGenDoc((prev) => (prev && prev.id === gd.id ? { ...prev, confirmadoLeituraEm: nowIso } : prev));
+      setFeedbackMsg(`Leitura de "${gd.titulo}" confirmada.`);
+      await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-gendoc-read' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
   };
 
   const handleSignGenDocCanvas = async (gd: GeneratedDocument, dataUrl: string) => {
     setSignBusy(true);
     try {
       const nowIso = new Date().toISOString();
-      await saveDocumentAudited(
+      await updateClientPortalDocAudited(
         'generatedDocuments',
         gd.id,
-        {
-          ...gd,
-          assinaturaDataUrl: dataUrl,
-          status: 'Assinado',
-          assinadoEm: nowIso,
-          updatedAt: nowIso,
-        },
-        false,
-        'cliente',
+        buildGeneratedDocCanvasSignaturePatch(dataUrl, nowIso),
         'assinatura_cliente',
+        gd.status,
       );
       setSigningGenDoc(null);
       setFeedbackMsg(`Documento "${gd.titulo}" assinado com sucesso!`);
       await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-gendoc-sign' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
     } finally {
       setSignBusy(false);
     }
@@ -1101,23 +1122,19 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     try {
       const uploaded = await uploadFileToServer(file);
       const nowIso = new Date().toISOString();
-      await saveDocumentAudited(
+      await updateClientPortalDocAudited(
         'generatedDocuments',
         gd.id,
-        {
-          ...gd,
-          assinaturaUrl: uploaded.url,
-          status: 'Assinado',
-          assinadoEm: nowIso,
-          updatedAt: nowIso,
-        },
-        false,
-        'cliente',
+        buildGeneratedDocPdfSignaturePatch(uploaded.url, nowIso),
         'assinatura_pdf_cliente',
+        gd.status,
       );
       setSigningGenDoc(null);
       setFeedbackMsg(`Arquivo assinado de "${gd.titulo}" enviado com sucesso!`);
       await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-gendoc-upload' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
     } finally {
       setSignBusy(false);
     }
@@ -1125,16 +1142,45 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
   const handleSendNps = async () => {
     if (!activeCase) return;
-    await saveDocumentAudited(
-      'cases',
-      activeCase.id,
-      { ...activeCase, npsNota, npsComentario: npsComent },
-      false,
-      'cliente',
-      'nps',
-    );
-    setFeedbackMsg('Obrigado pela sua avaliação!');
-    await loadPortal();
+    try {
+      await updateClientPortalDocAudited(
+        'cases',
+        activeCase.id,
+        buildCaseNpsPatch(npsNota, npsComent),
+        'nps',
+        { npsNota: activeCase.npsNota, npsComentario: activeCase.npsComentario },
+      );
+      setFeedbackMsg('Obrigado pela sua avaliação!');
+      await loadPortal();
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-nps' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
+  };
+
+  const handleMarkNotificationRead = async (notifId: string) => {
+    try {
+      await markClientNotificationRead(notifId);
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === notifId ? { ...item, lida: true, lidaEm: new Date().toISOString() } : item,
+        ),
+      );
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-notifications' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await markAllClientNotificationsRead(notifications);
+      const nowIso = new Date().toISOString();
+      setNotifications((prev) => prev.map((item) => ({ ...item, lida: true, lidaEm: item.lidaEm || nowIso })));
+    } catch (err) {
+      const friendly = translateAppError(err, { source: 'portal-notifications' });
+      setFeedbackMsg(`${friendly.title}: ${friendly.message}`);
+    }
   };
 
   return (
@@ -2709,7 +2755,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 {unreadNotifCount > 0 && (
                   <button
                     type="button"
-                    onClick={() => void markAllClientNotificationsRead(notifications)}
+                    onClick={() => void handleMarkAllNotificationsRead()}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/20 bg-white/10 text-xs font-semibold text-white hover:bg-white/20"
                   >
                     <Check className="w-3.5 h-3.5 text-[#E5C76B]" />
@@ -2767,7 +2813,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         {!notif.lida && (
                           <button
                             type="button"
-                            onClick={() => void markClientNotificationRead(notif.id)}
+                            onClick={() => void handleMarkNotificationRead(notif.id)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#DDD6C7] bg-[#FAF9F6] text-[11px] font-semibold text-[#0B1F33] hover:bg-white whitespace-nowrap"
                           >
                             <Check className="w-3 h-3" />

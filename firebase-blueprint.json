@@ -76,6 +76,7 @@
         "sitePublicadoEm": { "type": "string", "format": "date-time" },
         "siteVersaoAtual": { "type": "string", "maxLength": 40 },
         "fcmVapidPublicKey": { "type": "string", "maxLength": 300 },
+        "partnersSeededAt": { "type": "string", "maxLength": 64 },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["nome_empresa", "foro_comarca", "corPrimaria", "corDestaque", "corFundo", "fontePrincipal"]

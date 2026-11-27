@@ -107,7 +107,9 @@ export function loadRuleEngineSnapshotSync(): RuleEngineCatalogSnapshot {
           return {
             empresa: parsed.empresa,
             siteContent: parsed.siteContent || SEED_SITE_CONTENT,
-            partnersPublic: parsed.partnersPublic || buildSeedPartnersPublic(),
+            partnersPublic: Array.isArray(parsed.partnersPublic)
+              ? parsed.partnersPublic
+              : buildSeedPartnersPublic(),
             visaCategories: parsed.visaCategories,
             visaRequirements: parsed.visaRequirements || SEED_VISA_REQUIREMENTS,
             legalSources: parsed.legalSources || SEED_LEGAL_SOURCES,
@@ -148,6 +150,28 @@ export function saveRuleEngineSnapshot(snapshot: Omit<RuleEngineCatalogSnapshot,
   }
   emitOfflineChange();
   return savedAt;
+}
+
+export function removePartnerFromOfflineSnapshot(partnerId: string): void {
+  if (!partnerId || typeof window === 'undefined') return;
+  try {
+    const current = loadRuleEngineSnapshotSync();
+    const nextPartners = current.partnersPublic.filter((p) => p.id !== partnerId);
+    if (nextPartners.length !== current.partnersPublic.length) {
+      saveRuleEngineSnapshot({
+        empresa: current.empresa,
+        siteContent: current.siteContent,
+        partnersPublic: nextPartners,
+        visaCategories: current.visaCategories,
+        visaRequirements: current.visaRequirements,
+        legalSources: current.legalSources,
+        activeDiagnosticRules: current.activeDiagnosticRules,
+        source: current.source,
+      });
+    }
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export function listPendingOfflineDiagnostics(): PendingOfflineDiagnostic[] {

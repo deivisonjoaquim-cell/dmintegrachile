@@ -118,6 +118,7 @@ export interface EmpresaConfig {
   diasExpiracaoLinkDiagnostico?: number;
   honorariosPadraoMinBrl?: number;
   honorariosPadraoMaxBrl?: number;
+  partnersSeededAt?: string;
   taxaCambioBrlClp?: number;
   taxaCambioUsdBrl?: number;
   custosPadrao?: CustosPadrao;

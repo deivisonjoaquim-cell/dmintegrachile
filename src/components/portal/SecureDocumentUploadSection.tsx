@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
 import {
   AlertTriangle,
   BookOpen,
@@ -20,8 +19,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import { CameraDocumentScannerModal } from '../CameraDocumentScannerModal';
-import { db, handleFirestoreError, OperationType } from '../../firebase';
+import { auth, OperationType } from '../../firebase';
 import { translateAppError } from '../../services/errorService';
+import { updateClientPortalDocAudited } from '../../services/firestoreService';
 import { uploadClientDocumentSecure } from '../../services/storageService';
 import type {
   Case,
@@ -278,6 +278,8 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
           ? addDaysIso(resolvedIssueDate, targetDoc.validadeDias)
           : targetDoc.dataValidadeCalculada;
 
+      const signedInUid = auth.currentUser?.uid || userProfile?.uid || undefined;
+
       const firestorePatch = sanitizeFirestoreData({
         arquivoUrl: uploadRes.downloadUrl,
         arquivoNome: uploadRes.arquivoNome,
@@ -287,7 +289,7 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
         storageBackend: uploadRes.storageBackend,
         metadataTags: uploadRes.metadataTags,
         reviewMetadata: uploadRes.reviewMetadata,
-        enviadoPorUid: userProfile?.uid || client?.userId || undefined,
+        enviadoPorUid: signedInUid,
         enviadoEm: uploadRes.uploadedAt,
         status: 'Enviado' as const,
         etapaEsteira: '2 Recebido/Triagem' as const,
@@ -298,11 +300,13 @@ export const SecureDocumentUploadSection: React.FC<SecureDocumentUploadSectionPr
         updatedAt: uploadRes.uploadedAt,
       });
 
-      try {
-        await updateDoc(doc(db, 'caseDocuments', targetDoc.id), firestorePatch);
-      } catch (fsErr) {
-        handleFirestoreError(fsErr, OperationType.UPDATE, `caseDocuments/${targetDoc.id}`);
-      }
+      await updateClientPortalDocAudited(
+        'caseDocuments',
+        targetDoc.id,
+        firestorePatch,
+        'upload_documento_cliente',
+        { status: targetDoc.status, versao: targetDoc.versao },
+      );
 
       setIssueDate('');
       setUploadFeedback({

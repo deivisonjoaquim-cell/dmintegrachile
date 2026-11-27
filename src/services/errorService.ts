@@ -179,6 +179,20 @@ export function translateAppError(
         : `Conta ativa: ${activeEmail}.`
       : 'Nenhuma conta Google ativa detectada na sessão.';
 
+    const sourceLower = (context?.source || '').toLowerCase();
+    const isClientPortalContext =
+      sourceLower.includes('portal') ||
+      sourceLower.includes('client') ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/portal'));
+
+    const actionHint = isClientPortalContext
+      ? activeEmail
+        ? `${accountDetail} Suas permissões são sincronizadas automaticamente. Se o erro persistir, aguarde alguns segundos e tente novamente ou contate a consultoria.`
+        : 'Entre novamente com sua conta Google vinculada ao Portal do Cliente e tente de novo.'
+      : activeEmail
+        ? `${accountDetail} Suas permissões são validadas automaticamente pela sua conta. Confirme se seu perfil está ativo e tente novamente.`
+        : `${accountDetail} Entre novamente com sua conta Google autorizada e tente de novo.`;
+
     return {
       category: 'firebase-permission',
       level: 'warning',
@@ -186,9 +200,7 @@ export function translateAppError(
       message: resourceLabel
         ? `Sua conta atual não tem permissão para concluir esta ação em "${resourceLabel}".`
         : 'Sua conta atual não tem permissão para concluir esta ação ou acessar este recurso.',
-      actionHint: activeEmail
-        ? `${accountDetail} Confirme que está logado como administrador principal (deivisonjoaquim@gmail.com) ou com um perfil ativo, e clique em "Sincronizar permissões".`
-        : `${accountDetail} Entre com a conta de administrador (deivisonjoaquim@gmail.com) e tente novamente.`,
+      actionHint,
       path: effectivePath,
       operation: effectiveOp,
       rawError: effectiveRaw,

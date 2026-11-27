@@ -31,7 +31,8 @@ import {
   validateVapidPublicKey,
   type ResolvedVapidConfig,
 } from '../utils/pushNotifications';
-import { makeId } from './firestoreService';
+import { buildClientNotificationReadPatch } from '../utils/clientPortalPatches';
+import { ensureSignedInClientPortalSynced, makeId } from './firestoreService';
 
 export interface BrowserPushSupport {
   supported: boolean;
@@ -619,16 +620,32 @@ export function subscribeClientNotifications(
   );
 }
 
+function isPermissionDeniedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return (
+    msg.includes('permission-denied') ||
+    msg.includes('missing or insufficient permissions') ||
+    msg.includes('insufficient permissions')
+  );
+}
+
 export async function markClientNotificationRead(notificationId: string): Promise<void> {
   if (!notificationId) return;
-  const nowIso = new Date().toISOString();
+  const patch = buildClientNotificationReadPatch();
+  const notifRef = doc(db, 'clientNotifications', notificationId);
   try {
-    await updateDoc(doc(db, 'clientNotifications', notificationId), {
-      lida: true,
-      lidaEm: nowIso,
-      updatedAt: nowIso,
-    });
+    await updateDoc(notifRef, patch);
   } catch (err) {
+    if (isPermissionDeniedError(err) && auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(true);
+        await ensureSignedInClientPortalSynced();
+        await updateDoc(notifRef, patch);
+        return;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.UPDATE, `clientNotifications/${notificationId}`);
+      }
+    }
     handleFirestoreError(err, OperationType.UPDATE, `clientNotifications/${notificationId}`);
   }
 }
@@ -638,18 +655,22 @@ export async function markAllClientNotificationsRead(
 ): Promise<void> {
   const unread = notifications.filter((n) => !n.lida);
   if (unread.length === 0) return;
-  const nowIso = new Date().toISOString();
+  const patch = buildClientNotificationReadPatch();
+  const performBatch = () =>
+    Promise.all(unread.map((n) => updateDoc(doc(db, 'clientNotifications', n.id), patch)));
   try {
-    await Promise.all(
-      unread.map((n) =>
-        updateDoc(doc(db, 'clientNotifications', n.id), {
-          lida: true,
-          lidaEm: nowIso,
-          updatedAt: nowIso,
-        }),
-      ),
-    );
+    await performBatch();
   } catch (err) {
+    if (isPermissionDeniedError(err) && auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(true);
+        await ensureSignedInClientPortalSynced();
+        await performBatch();
+        return;
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.UPDATE, 'clientNotifications');
+      }
+    }
     handleFirestoreError(err, OperationType.UPDATE, 'clientNotifications');
   }
 }
