@@ -174,6 +174,25 @@ export function removePartnerFromOfflineSnapshot(partnerId: string): void {
   }
 }
 
+export function updatePartnersInOfflineSnapshot(partnersPublic: PartnerPublic[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = loadRuleEngineSnapshotSync();
+    saveRuleEngineSnapshot({
+      empresa: current.empresa,
+      siteContent: current.siteContent,
+      partnersPublic,
+      visaCategories: current.visaCategories,
+      visaRequirements: current.visaRequirements,
+      legalSources: current.legalSources,
+      activeDiagnosticRules: current.activeDiagnosticRules,
+      source: 'nuvem',
+    });
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function listPendingOfflineDiagnostics(): PendingOfflineDiagnostic[] {
   if (typeof window === 'undefined') return [];
   try {

@@ -28,13 +28,7 @@ import { auth, firebaseConfigSummary } from '../../firebase';
 import { BrandLogo } from '../BrandLogo';
 import { BrandLogoDownloadKit } from '../BrandLogoDownloadKit';
 import { isCompleteHorizontalBrandLogo } from '../../constants/brandAssets';
-import {
-  clearAdminVerificationCache,
-  isPrimaryAdminEmail,
-  PRIMARY_ADMIN_EMAIL,
-  promotePrimaryAdminRoleInFirestore,
-  verifyAndEnsureAdminAccess,
-} from '../../services/adminSecurityService';
+import { isPrimaryAdminEmail } from '../../services/adminSecurityService';
 import { subscribeRoleChangeEvents } from '../../utils/audit';
 import { translateAppError } from '../../services/errorService';
 import { getEffectiveVapidConfig } from '../../services/notificationService';
@@ -247,7 +241,6 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savingEmpresa, setSavingEmpresa] = useState(false);
-  const [syncingPermissions, setSyncingPermissions] = useState(false);
   const [fcmHealthMsg, setFcmHealthMsg] = useState<string | null>(null);
   const [fcmChecking, setFcmChecking] = useState(false);
   const [aiCacheSummary, setAiCacheSummary] = useState<AiCacheSummary | null>(null);
@@ -318,7 +311,6 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const [auditOpFilter, setAuditOpFilter] = useState<'all' | AdminLogOperationType | 'sensitive_all' | 'role_changes'>('all');
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
   const [refreshingAudit, setRefreshingAudit] = useState(false);
-  const [promotingPrimaryAdmin, setPromotingPrimaryAdmin] = useState(false);
   const [roleChangeEvents, setRoleChangeEvents] = useState<RoleChangeAuditEvent[]>([]);
   const [roleMonitorLoaded, setRoleMonitorLoaded] = useState(false);
 
@@ -578,57 +570,6 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
   const formatActionError = (err: unknown, fallback: string) => {
     const friendly = translateAppError(err);
     return friendly.actionHint ? `${friendly.title}: ${friendly.message} ${friendly.actionHint}` : friendly.message || fallback;
-  };
-
-  const handleResyncAdminPermissions = async () => {
-    setSyncingPermissions(true);
-    setErrorMsg(null);
-    setFeedback(null);
-    try {
-      const fbUser = auth.currentUser;
-      if (!fbUser) {
-        setErrorMsg('Nenhuma conta Google autenticada no momento. Faça login novamente na Área da Equipe.');
-        return;
-      }
-      await fbUser.getIdToken(true);
-      clearAdminVerificationCache();
-      const check = await verifyAndEnsureAdminAccess(fbUser, { force: true });
-      if (check.authorized) {
-        setFeedback(
-          `Permissões validadas com sucesso para ${check.email} (papel: ${check.role}, status: ${check.status}). Tente salvar novamente agora.`,
-        );
-      } else {
-        setErrorMsg(
-          `Conta autenticada: ${check.email || fbUser.email || 'não identificada'} · Papel no Firestore: ${check.role || 'não definido'} · Status: ${check.status || 'não definido'}. ${check.reason || ''}`,
-        );
-      }
-    } catch (err) {
-      setErrorMsg(formatActionError(err, 'Não foi possível sincronizar suas permissões agora.'));
-    } finally {
-      setSyncingPermissions(false);
-    }
-  };
-
-  const handlePromotePrimaryAdmin = async () => {
-    setPromotingPrimaryAdmin(true);
-    setErrorMsg(null);
-    setFeedback(null);
-    try {
-      const res = await promotePrimaryAdminRoleInFirestore(auth.currentUser);
-      if (res.success) {
-        await loadUsers();
-        await onRefresh();
-        setFeedback(
-          `${res.message}${res.roleChangesLogged > 0 ? ` (${res.roleChangesLogged} alteração registrada em logs).` : ''}`,
-        );
-      } else {
-        setErrorMsg(res.message);
-      }
-    } catch (err) {
-      setErrorMsg(formatActionError(err, `Não foi possível atualizar o documento de ${PRIMARY_ADMIN_EMAIL}.`));
-    } finally {
-      setPromotingPrimaryAdmin(false);
-    }
   };
 
   const handleSaveEmpresa = async (e: React.FormEvent) => {
@@ -2396,25 +2337,9 @@ export const PainelAdminConfig: React.FC<PainelAdminConfigProps> = ({
                 {' · '}Status: <strong className="text-emerald-300">{userProfile.status}</strong>
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={promotingPrimaryAdmin}
-                onClick={() => void handlePromotePrimaryAdmin()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#C8A236] text-[#0B1523] text-xs font-bold hover:bg-[#d6b145] disabled:opacity-60 transition-colors"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {promotingPrimaryAdmin ? 'Gravando & Validando...' : 'Definir role="admin" & Validar Rules'}
-              </button>
-              <button
-                type="button"
-                disabled={syncingPermissions}
-                onClick={() => void handleResyncAdminPermissions()}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/20 bg-white/10 text-xs font-semibold text-white hover:bg-white/15 disabled:opacity-60 transition-colors"
-              >
-                <Shield className="w-3.5 h-3.5 text-[#E6C55A]" />
-                {syncingPermissions ? 'Sincronizando...' : 'Revalidar Sessão'}
-              </button>
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 text-xs font-semibold text-emerald-200">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+              Permissões sincronizadas automaticamente no login
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">

@@ -189,7 +189,9 @@
         "condicoesParceria": { "type": "string", "maxLength": 2000 },
         "recomendadoAosClientes": { "type": "boolean" },
         "avaliacao": { "type": "number" },
-        "statusHomologacao": { "type": "string", "enum": ["Ativo/Indicado", "Em Análise", "Não Indicado/Suspenso"] }
+        "statusHomologacao": { "type": "string", "enum": ["Ativo/Indicado", "Em Análise", "Não Indicado/Suspenso"] },
+        "deleted": { "type": "boolean" },
+        "deletedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["nome", "categoria", "pais", "recomendadoAosClientes", "statusHomologacao"]
     },

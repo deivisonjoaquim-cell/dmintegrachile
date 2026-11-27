@@ -23,9 +23,15 @@ import {
   fetchSignedInUserDiagnosticLeads,
   linkGoogleUserToClientOrLead,
   runIdempotentSeedsIfAdmin,
+  subscribePartnersPublicLive,
   syncPendingOfflineDiagnosticToFirestore,
   syncRuleEngineDecisionLogToFirestore,
 } from '../services/firestoreService';
+import {
+  hasAuthPermissionDelta,
+  isStaffRole,
+  resolveUserProfileFromFirestoreData,
+} from '../utils/authSyncState';
 import {
   mapPortalResolutionToStage,
   resolveClientPortalAccess,
@@ -43,6 +49,7 @@ import {
   markRuleEngineDecisionSynced,
   removePendingOfflineDiagnostic,
   subscribeOfflineEngineChanges,
+  updatePartnersInOfflineSnapshot,
   type CatalogSyncSource,
 } from '../utils/offlineRuleEngineStore';
 import {
@@ -347,12 +354,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void Promise.all([hydrateRuleEngineLogsFromIdb(), hydratePendingDiagnosticsFromIdb()]).then(() => {
       setPendingOfflineCounts(countPendingOfflineItems());
     });
-    return subscribeOfflineEngineChanges(() => {
+    const unsubOffline = subscribeOfflineEngineChanges(() => {
       const notice = getLocalAiRuntimeNotice();
       setAiRuntimeMode(notice.mode);
       setAiRuntimeReason(notice.reason || null);
       setPendingOfflineCounts(countPendingOfflineItems());
     });
+    const unsubPartnersPublic =
+      import.meta.env.DEV && isDevE2eActive()
+        ? () => undefined
+        : subscribePartnersPublicLive(
+            (livePartners) => {
+              setPartnersPublic(livePartners);
+              updatePartnersInOfflineSnapshot(livePartners);
+            },
+            () => {
+              // Fallback silencioso caso o cliente esteja offline
+            },
+          );
+    return () => {
+      unsubOffline();
+      unsubPartnersPublic();
+    };
   }, [refreshPublicData]);
 
   const forceSyncOfflineData = useCallback(async (): Promise<OfflineSyncResultSummary> => {
@@ -454,12 +477,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [forceSyncOfflineData]);
 
   const inFlightSyncRef = React.useRef<Map<string, Promise<UserProfile>>>(new Map());
+  const authSyncSeqRef = React.useRef(0);
 
   const runUserDocumentSync = useCallback(async (fbUser: User): Promise<UserProfile> => {
     const normalizedEmail = (fbUser.email || '').trim().toLowerCase();
+
+    // Garante token JWT atualizado no SDK antes de qualquer leitura/gravação no Firestore,
+    // eliminando erros de permissão pós-login e a necessidade de "Sincronizar permissões".
+    await fbUser.getIdToken(true).catch(() => undefined);
+
     let isAdminEmail = isPrimaryAdminEmail(normalizedEmail);
 
     if (isAdminEmail) {
+      clearAdminVerificationCache();
       const adminCheck = await verifyAndEnsureAdminAccess(fbUser, { force: true });
       if (adminCheck.authorized && adminCheck.profile) {
         await runIdempotentSeedsIfAdmin('admin');
@@ -489,67 +519,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const snap = await getDoc(userRef);
     const now = new Date().toISOString();
 
-    let profile: UserProfile;
-    if (!snap.exists()) {
-      profile = {
-        uid: fbUser.uid,
-        nome: (fbUser.displayName || normalizedEmail.split('@')[0] || 'Usuário').slice(0, 200),
-        email: normalizedEmail,
-        fotoUrl: (fbUser.photoURL || '').slice(0, 1000),
-        role: isAdminEmail ? 'admin' : 'cliente',
-        status: isAdminEmail ? 'ativo' : 'pendente',
-        createdAt: now,
-        updatedAt: now,
-      };
+    const resolved = resolveUserProfileFromFirestoreData({
+      uid: fbUser.uid,
+      email: normalizedEmail,
+      displayName: fbUser.displayName,
+      photoURL: fbUser.photoURL,
+      isAdminEmail,
+      existingData: snap.exists() ? (snap.data() as Partial<UserProfile>) : null,
+      nowIso: now,
+    });
+
+    let profile = resolved.profile;
+    if (resolved.needsCreate) {
       await setDoc(userRef, sanitizeFirestoreData(profile));
-    } else {
-      const existingData = snap.data() as Partial<UserProfile>;
-      const rawRole = typeof existingData.role === 'string' ? existingData.role.trim().toLowerCase() : '';
-      const resolvedRole: UserRole =
-        rawRole === 'admin' || rawRole === 'consultor' || rawRole === 'assistente' || rawRole === 'cliente'
-          ? rawRole
-          : isAdminEmail
-            ? 'admin'
-            : 'cliente';
-      const rawStatus = typeof existingData.status === 'string' ? existingData.status.trim().toLowerCase() : '';
-      const resolvedStatus: UserProfile['status'] =
-        rawStatus === 'ativo' || rawStatus === 'pendente' || rawStatus === 'inativo'
-          ? rawStatus
-          : resolvedRole === 'admin' || resolvedRole === 'consultor' || resolvedRole === 'assistente' || isAdminEmail
-            ? 'ativo'
-            : 'pendente';
-
-      profile = {
-        ...existingData,
-        uid: existingData.uid || fbUser.uid,
-        nome: existingData.nome || fbUser.displayName || normalizedEmail.split('@')[0] || 'Usuário',
-        email: (existingData.email || normalizedEmail).toLowerCase(),
-        fotoUrl: existingData.fotoUrl ?? fbUser.photoURL ?? '',
-        role: resolvedRole,
-        status: resolvedStatus,
-        createdAt: existingData.createdAt || now,
-        updatedAt: existingData.updatedAt || now,
-      } as UserProfile;
-
-      if (isAdminEmail && (profile.role !== 'admin' || profile.status !== 'ativo' || !existingData.uid)) {
-        profile = {
-          ...profile,
-          uid: fbUser.uid,
-          nome: (profile.nome || fbUser.displayName || 'Administrador').slice(0, 200),
-          email: normalizedEmail || profile.email,
-          role: 'admin',
-          status: 'ativo',
-          updatedAt: now,
-        };
-        await setDoc(userRef, sanitizeFirestoreData(profile), { merge: true });
-      }
+    } else if (resolved.needsAdminRepair) {
+      await setDoc(userRef, sanitizeFirestoreData(profile), { merge: true });
     }
 
-    if (profile.role === 'admin') {
+    if (profile.role === 'admin' && profile.status === 'ativo') {
       await runIdempotentSeedsIfAdmin('admin');
       await refreshPublicData();
     } else if (profile.role === 'cliente') {
-      profile = await linkGoogleUserToClientOrLead(profile);
+      // Força sincronização completa de users/{uid}.clientId, status='ativo' e clients/{id}.userId
+      // durante o próprio login antes de liberar o Portal do Cliente.
+      profile = await linkGoogleUserToClientOrLead(profile, { force: true });
     }
     return profile;
   }, [refreshPublicData]);
@@ -668,10 +661,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return syncClientPortalState(userProfileRef.current);
   }, [syncUserDocument, syncClientPortalState]);
 
-  // Sincronização inicial + listeners em tempo real (users/{uid} e clients/{clientId})
-  // para transição instantânea Gratuito/Pendente ↔ Contratado sem recarregar a página.
+  // Sincronização em tempo real de `users/{uid}` para TODOS os perfis autenticados
+  // (administradores, consultores, assistentes e clientes), garantindo atualização automática
+  // de permissões sem necessidade de clicar em "Sincronizar permissões".
+  const activeAuthUid = userProfile?.uid || null;
   const activeClientUid = userProfile?.role === 'cliente' ? userProfile.uid : null;
   const activeClientId = userProfile?.role === 'cliente' ? portalClient?.id || userProfile.clientId || null : null;
+
+  useEffect(() => {
+    if (!activeAuthUid) return;
+    if (import.meta.env.DEV && isDevE2eActive()) return;
+
+    const unsubUser = onSnapshot(
+      doc(db, 'users', activeAuthUid),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as Partial<UserProfile>;
+        const current = userProfileRef.current;
+        if (!current || current.uid !== activeAuthUid) return;
+        if (!hasAuthPermissionDelta(current, data)) return;
+
+        const nextRole: UserRole =
+          data.role === 'admin' ||
+          data.role === 'consultor' ||
+          data.role === 'assistente' ||
+          data.role === 'cliente'
+            ? data.role
+            : current.role;
+        const nextStatus: UserProfile['status'] =
+          data.status === 'ativo' || data.status === 'pendente' || data.status === 'inativo'
+            ? data.status
+            : current.status;
+        const nextClientId =
+          typeof data.clientId === 'string' ? data.clientId : current.clientId;
+
+        const updated: UserProfile = {
+          ...current,
+          ...data,
+          uid: activeAuthUid,
+          role: nextRole,
+          status: nextStatus,
+          clientId: nextClientId,
+        };
+
+        void auth.currentUser?.getIdToken(true).catch(() => undefined);
+        if (isStaffRole(nextRole) || isStaffRole(current.role)) {
+          clearAdminVerificationCache();
+        }
+        setUserProfile(updated);
+        if (nextRole === 'cliente') {
+          void syncClientPortalState(updated);
+        } else {
+          setPortalClient(null);
+          setPortalLeads([]);
+          setPortalAccessLoading(false);
+        }
+      },
+      (err) => {
+        reportAppError(err, { source: 'auth-user-permission-snapshot', path: `users/${activeAuthUid}` });
+      },
+    );
+
+    return () => unsubUser();
+  }, [activeAuthUid, syncClientPortalState]);
 
   useEffect(() => {
     if (!activeClientUid || !userProfileRef.current) {
@@ -682,41 +734,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     void syncClientPortalState(userProfileRef.current);
-
-    if (import.meta.env.DEV && isDevE2eActive()) {
-      return;
-    }
-
-    const unsubUser = onSnapshot(
-      doc(db, 'users', activeClientUid),
-      (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data() as Partial<UserProfile>;
-        const current = userProfileRef.current;
-        if (!current || current.uid !== activeClientUid) return;
-        const nextClientId = typeof data.clientId === 'string' ? data.clientId : current.clientId;
-        const nextStatus =
-          data.status === 'ativo' || data.status === 'pendente' || data.status === 'inativo'
-            ? data.status
-            : current.status;
-        if (nextClientId !== current.clientId || nextStatus !== current.status) {
-          const updated: UserProfile = {
-            ...current,
-            ...data,
-            uid: activeClientUid,
-            clientId: nextClientId,
-            status: nextStatus,
-          };
-          setUserProfile(updated);
-          void syncClientPortalState(updated);
-        }
-      },
-      (err) => {
-        reportAppError(err, { source: 'portal-user-snapshot', path: `users/${activeClientUid}` });
-      },
-    );
-
-    return () => unsubUser();
   }, [activeClientUid, syncClientPortalState]);
 
   useEffect(() => {
@@ -796,26 +813,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
     const unsub = onAuthStateChanged(auth, async (user) => {
+      const seq = ++authSyncSeqRef.current;
       setFirebaseUser(user);
       if (!user) {
+        clearAdminVerificationCache();
+        portalSyncSeqRef.current += 1;
         setUserProfile(null);
+        setPortalClient(null);
+        setPortalLeads([]);
+        setPortalAccessLoading(false);
         setAuthLoading(false);
         return;
       }
+      setAuthLoading(true);
       try {
         const p = await syncUserDocument(user);
+        if (seq !== authSyncSeqRef.current) return;
         setUserProfile(p);
-        setAuthError(null);
+        if (p.role === 'cliente') {
+          await syncClientPortalState(p);
+        }
+        if (seq === authSyncSeqRef.current) {
+          setAuthError(null);
+        }
       } catch (err) {
+        if (seq !== authSyncSeqRef.current) return;
         const msg = mapFirebaseAuthErrorPT(err);
         setAuthError(msg);
         reportAppError(err, { source: 'auth-state-sync', path: `users/${user.uid}` });
       } finally {
-        setAuthLoading(false);
+        if (seq === authSyncSeqRef.current) {
+          setAuthLoading(false);
+        }
       }
     });
     return () => unsub();
-  }, [syncUserDocument, refreshPublicData]);
+  }, [syncUserDocument, syncClientPortalState, refreshPublicData]);
 
   const loginWithGoogle = useCallback(async (): Promise<UserProfile | null> => {
     setAuthError(null);
@@ -827,16 +860,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      setAuthLoading(true);
       const profile = await syncUserDocument(result.user);
       setUserProfile(profile);
+      if (profile.role === 'cliente') {
+        await syncClientPortalState(profile);
+      }
+      setAuthLoading(false);
       return profile;
     } catch (err) {
+      setAuthLoading(false);
       const msg = mapFirebaseAuthErrorPT(err);
       setAuthError(msg);
       reportAppError(err, { source: 'auth-google-login' });
       return null;
     }
-  }, [syncUserDocument]);
+  }, [syncUserDocument, syncClientPortalState]);
 
   const logout = useCallback(async () => {
     if (import.meta.env.DEV && isDevE2eActive()) {

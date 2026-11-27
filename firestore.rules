@@ -379,7 +379,9 @@ service cloud.firestore {
         && isOptString(data, 'logoUrl', 800000)
         && isOptString(data, 'tabelaValoresComissao', 2000)
         && isOptString(data, 'condicoesParceria', 2000)
-        && isOptString(data, 'observacoes', 3000);
+        && isOptString(data, 'observacoes', 3000)
+        && isOptBool(data, 'deleted')
+        && isOptString(data, 'deletedAt', 64);
     }
 
     function isValidPartnerPublic(data) {
@@ -873,17 +875,17 @@ service cloud.firestore {
         isBootstrappedAdmin() ||
         (isAdminOrConsultor() && isValidPartner(incoming()))
       );
-      allow delete: if isAdminOrConsultor() && isValidId(partnerId);
+      allow delete: if (isBootstrappedAdmin() || isAdminOrConsultor()) && isValidId(partnerId);
     }
 
     match /partnersPublic/{partnerId} {
-      allow get: if isValidId(partnerId) && ((existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado') || isAdminOrConsultor());
-      allow list: if (existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado') || isAdminOrConsultor();
+      allow get: if isValidId(partnerId) && ((existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado' && (!('deleted' in existing()) || existing().deleted != true)) || isAdminOrConsultor());
+      allow list: if (existing().recomendadoAosClientes == true && existing().statusHomologacao == 'Ativo/Indicado' && (!('deleted' in existing()) || existing().deleted != true)) || isAdminOrConsultor();
       allow create, update: if isValidId(partnerId) && (
         isBootstrappedAdmin() ||
         (isAdminOrConsultor() && isValidPartnerPublic(incoming()))
       );
-      allow delete: if isAdminOrConsultor() && isValidId(partnerId);
+      allow delete: if (isBootstrappedAdmin() || isAdminOrConsultor()) && isValidId(partnerId);
     }
 
     match /legalSources/{sourceId} {

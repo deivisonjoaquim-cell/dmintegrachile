@@ -262,6 +262,8 @@ export interface PartnerProposal {
   parecerIa?: string;
   decisaoConsultor?: string;
   textoIndicacao?: string;
+  partnerIdVinculado?: string;
+  observacoesInternas?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -286,6 +288,8 @@ export interface Partner {
   statusHomologacao: 'Ativo/Indicado' | 'Em Análise' | 'Não Indicado/Suspenso';
   descricaoPublica?: string;
   observacoes: string;
+  deleted?: boolean;
+  deletedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

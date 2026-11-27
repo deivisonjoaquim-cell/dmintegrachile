@@ -5,11 +5,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import {
@@ -96,7 +98,10 @@ import {
   type RuleEngineDecisionLog,
 } from '../utils/offlineRuleEngineStore';
 import {
+  buildLinkedProposalUnlinkPatches,
+  filterActivePartners,
   findOrphanOrHiddenPublicPartnerIds,
+  isPartnerPubliclyVisible,
   resolvePublicPartnersFromCloud,
   shouldSeedInitialPartners,
 } from '../utils/partnerCatalogSync';
@@ -322,6 +327,62 @@ export async function fetchPartnersPublic(): Promise<PartnerPublic[]> {
       fallbackSeeds: SEED_PARTNERS.filter((p) => p.full.recomendadoAosClientes).map((p) => p.pub),
     });
   }
+}
+
+/**
+ * Escuta em tempo real a coleção `partnersPublic` para refletir imediatamente
+ * exclusões, suspensões ou ocultações de parceiros em todas as vitrines públicas e dashboards.
+ */
+export function subscribePartnersPublicLive(
+  onData: (partners: PartnerPublic[]) => void,
+  onError?: (err: unknown) => void,
+): () => void {
+  const q = query(
+    collection(db, 'partnersPublic'),
+    where('recomendadoAosClientes', '==', true),
+    where('statusHomologacao', '==', 'Ativo/Indicado'),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const firestorePartners = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<PartnerPublic, 'id'> & { deleted?: boolean; deletedAt?: string | null }),
+      }));
+      onData(
+        resolvePublicPartnersFromCloud({
+          firestorePartners,
+          cloudSucceeded: true,
+        }),
+      );
+    },
+    (err) => {
+      onError?.(err);
+    },
+  );
+}
+
+/**
+ * Escuta em tempo real a coleção interna `partners` para dashboards administrativos ativos,
+ * filtrando automaticamente qualquer registro marcado como excluído (`deleted` / `deletedAt`).
+ */
+export function subscribeActivePartnersStaffLive(
+  onData: (partners: Partner[]) => void,
+  onError?: (err: unknown) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, 'partners'),
+    (snap) => {
+      const raw = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Partner, 'id'>),
+      }));
+      onData(filterActivePartners(raw));
+    },
+    (err) => {
+      onError?.(err);
+    },
+  );
 }
 
 export async function fetchVisaCatalogPublic(): Promise<{
@@ -1783,13 +1844,24 @@ export async function saveEmpresaConfigAdmin(data: EmpresaConfig, antes: Empresa
 
 export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, role: UserRole): Promise<void> {
   const cleanLogoUrl = (partner.logoUrl || '').trim().slice(0, 800000);
+  const nowIso = new Date().toISOString();
+  const isMarkedDeleted = partner.deleted === true || Boolean(partner.deletedAt);
   const partnerToSave: Partner = {
     ...partner,
     logoUrl: cleanLogoUrl,
+    ...(isMarkedDeleted
+      ? {
+          deleted: true,
+          deletedAt: partner.deletedAt || nowIso,
+          recomendadoAosClientes: false,
+          statusHomologacao: 'Não Indicado/Suspenso' as const,
+        }
+      : {}),
   };
+
   await saveDocumentAudited('partners', partnerToSave.id, partnerToSave as unknown as Record<string, unknown>, isNew, role);
   const pubRef = doc(db, 'partnersPublic', partnerToSave.id);
-  if (partnerToSave.recomendadoAosClientes && partnerToSave.statusHomologacao === 'Ativo/Indicado') {
+  if (isPartnerPubliclyVisible(partnerToSave)) {
     const pubPayload: PartnerPublic = sanitizeFirestoreData({
       id: partnerToSave.id,
       nome: partnerToSave.nome,
@@ -1803,12 +1875,15 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
       descricaoPublica: partnerToSave.descricaoPublica || partnerToSave.condicoesParceria || '',
       recomendadoAosClientes: true,
       statusHomologacao: 'Ativo/Indicado',
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
     });
     await setDoc(pubRef, pubPayload);
   } else {
-    try {
+    const performUnpublish = async () => {
       await deleteDoc(pubRef);
+    };
+    try {
+      await performUnpublish();
     } catch (err) {
       const code = (err as { code?: string } | null)?.code || '';
       const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
@@ -1820,9 +1895,15 @@ export async function syncPartnerAndPublic(partner: Partner, isNew: boolean, rol
             clearAdminVerificationCache();
             await verifyAndEnsureAdminAccess(currentUser, { force: true });
           }
-          await deleteDoc(pubRef).catch(() => undefined);
+          await performUnpublish();
+        } else {
+          handleFirestoreError(err, OperationType.DELETE, `partnersPublic/${partnerToSave.id}`);
         }
       }
+    }
+
+    if (isMarkedDeleted) {
+      await cascadeUnlinkProposalsForPartner(partnerToSave, [], nowIso).catch(() => undefined);
     }
     removePartnerFromOfflineSnapshot(partnerToSave.id);
   }
@@ -1957,7 +2038,7 @@ export async function fetchStaffWorkspaceData(role: UserRole): Promise<{
     viabilityAssessments,
     budgets,
     financialRecords,
-    partners,
+    partners: filterActivePartners(partners),
     partnerProposals,
     messageTemplates: messageTemplates.length > 0 ? messageTemplates : SEED_MESSAGE_TEMPLATES,
     documentTemplates: documentTemplates.length > 0 ? normalizeDocumentTemplates(documentTemplates) : SEED_DOCUMENT_TEMPLATES,
@@ -2910,39 +2991,99 @@ export async function deletePartnerProposalAudited(
   );
 }
 
+async function fetchLinkedProposalsForPartner(
+  partnerId: string,
+  knownProposals: PartnerProposal[] = [],
+): Promise<Array<Pick<PartnerProposal, 'id' | 'partnerIdVinculado' | 'observacoesInternas'>>> {
+  const merged = new Map<string, Pick<PartnerProposal, 'id' | 'partnerIdVinculado' | 'observacoesInternas'>>();
+  for (const prop of knownProposals) {
+    if (prop?.id && prop.partnerIdVinculado === partnerId) {
+      merged.set(prop.id, prop);
+    }
+  }
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'partnerProposals'), where('partnerIdVinculado', '==', partnerId)),
+    );
+    for (const d of snap.docs) {
+      const data = d.data() as Partial<PartnerProposal>;
+      merged.set(d.id, {
+        id: d.id,
+        partnerIdVinculado: data.partnerIdVinculado,
+        observacoesInternas: data.observacoesInternas,
+      });
+    }
+  } catch {
+    // fallback para a lista já carregada no painel caso a consulta falhe
+  }
+  return Array.from(merged.values());
+}
+
+async function cascadeUnlinkProposalsForPartner(
+  partner: Pick<Partner, 'id' | 'nome'>,
+  knownProposals: PartnerProposal[],
+  nowIso: string,
+): Promise<number> {
+  const linked = await fetchLinkedProposalsForPartner(partner.id, knownProposals);
+  const updates = buildLinkedProposalUnlinkPatches(linked, partner, nowIso);
+  if (updates.length === 0) return 0;
+  const batch = writeBatch(db);
+  for (const item of updates) {
+    batch.update(doc(db, 'partnerProposals', item.proposalId), item.patch);
+  }
+  await batch.commit();
+  return updates.length;
+}
+
 export async function deletePartnerAndPublicAudited(
   partner: Partner,
   role: UserRole,
-  _proposals?: PartnerProposal[],
+  proposals: PartnerProposal[] = [],
 ): Promise<void> {
-  await deleteDocumentAudited(
-    'partners',
-    partner.id,
-    role,
-    partner,
-  );
-  const pubRef = doc(db, 'partnersPublic', partner.id);
+  const nowIso = new Date().toISOString();
+  const linkedProposals = await fetchLinkedProposalsForPartner(partner.id, proposals);
+  const cascadeUpdates = buildLinkedProposalUnlinkPatches(linkedProposals, partner, nowIso);
+
+  const commitAtomicCascadeDelete = async () => {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'partners', partner.id));
+    batch.delete(doc(db, 'partnersPublic', partner.id));
+    for (const item of cascadeUpdates) {
+      batch.update(doc(db, 'partnerProposals', item.proposalId), item.patch);
+    }
+    await batch.commit();
+  };
+
   try {
-    await deleteDoc(pubRef);
+    await commitAtomicCascadeDelete();
   } catch (err) {
-    const code = (err as { code?: string } | null)?.code || '';
-    const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-    const isNotFound = code.includes('not-found') || msg.includes('not-found');
-    if (!isNotFound) {
-      const currentUser = auth.currentUser;
-      if (isFirestorePermissionError(err) && currentUser) {
-        await currentUser.getIdToken(true);
-        if (isPrimaryAdminEmail(currentUser.email)) {
-          clearAdminVerificationCache();
-          await verifyAndEnsureAdminAccess(currentUser, { force: true });
-        }
-        await deleteDoc(pubRef);
-      } else {
-        handleFirestoreError(err, OperationType.DELETE, `partnersPublic/${partner.id}`);
+    const currentUser = auth.currentUser;
+    if (isFirestorePermissionError(err) && currentUser) {
+      await currentUser.getIdToken(true);
+      if (isPrimaryAdminEmail(currentUser.email)) {
+        clearAdminVerificationCache();
+        await verifyAndEnsureAdminAccess(currentUser, { force: true });
       }
+      try {
+        await commitAtomicCascadeDelete();
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.DELETE, `partners/${partner.id}`);
+      }
+    } else {
+      handleFirestoreError(err, OperationType.DELETE, `partners/${partner.id}`);
     }
   }
+
   removePartnerFromOfflineSnapshot(partner.id);
+  await registrarAuditoria(
+    'Excluir',
+    'partners',
+    partner.id,
+    'exclusao_cascata_parceiro',
+    partner,
+    { deleted: true, removedFromPublic: true, unlinkedProposals: cascadeUpdates.length },
+    role,
+  );
 }
 
 export async function fetchRuleEngineBundleWithSync(): Promise<{

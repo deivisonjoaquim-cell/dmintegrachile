@@ -275,10 +275,13 @@ export function computePartnerNetworkMetrics(
     avaliacao: number;
     recomendadoAosClientes: boolean;
     statusHomologacao: string;
+    deleted?: boolean;
+    deletedAt?: string;
   }>,
   proposals: Array<Pick<PartnerProposal, 'status'>> = [],
 ): PartnerNetworkMetrics {
-  const totalPartners = partners.length;
+  const activePartners = partners.filter((p) => !p.deleted && !p.deletedAt);
+  const totalPartners = activePartners.length;
   let publishedCount = 0;
   let brazilCount = 0;
   let chileCount = 0;
@@ -286,7 +289,7 @@ export function computePartnerNetworkMetrics(
   let ratingSum = 0;
   const categories = new Set<string>();
 
-  for (const p of partners) {
+  for (const p of activePartners) {
     if (p.recomendadoAosClientes && p.statusHomologacao === 'Ativo/Indicado') {
       publishedCount++;
     }
@@ -323,9 +326,14 @@ export function computePartnerNetworkMetrics(
 }
 
 export function isPartnerPublishedPublicly(
-  partner: Pick<Partner, 'recomendadoAosClientes' | 'statusHomologacao'>,
+  partner: Pick<Partner, 'recomendadoAosClientes' | 'statusHomologacao' | 'deleted' | 'deletedAt'>,
 ): boolean {
-  return Boolean(partner.recomendadoAosClientes && partner.statusHomologacao === 'Ativo/Indicado');
+  return Boolean(
+    !partner.deleted &&
+      !partner.deletedAt &&
+      partner.recomendadoAosClientes &&
+      partner.statusHomologacao === 'Ativo/Indicado',
+  );
 }
 
 export function formatPhoneByCountry(raw: string, country: 'Brasil' | 'Chile' | 'Ambos'): string {

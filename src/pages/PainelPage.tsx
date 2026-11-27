@@ -49,8 +49,9 @@ import {
   fetchStaffWorkspaceData,
   makeId,
   saveDocumentAudited,
+  subscribeActivePartnersStaffLive,
 } from '../services/firestoreService';
-import type { CommunicationLog, SiteContent, Task, UserRole } from '../types/domain';
+import type { CommunicationLog, Partner, SiteContent, Task, UserRole } from '../types/domain';
 import { countUnreadChatForStaff, getPendingClientChatThreads } from '../utils/documentChat';
 import { daysUntilDate, formatDateBR } from '../utils/formatters';
 import type { MacroFunnelStageId } from '../utils/funnelModel';
@@ -190,6 +191,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<typeof fetchStaffWorkspaceData>> | null>(null);
   const [liveChatLogs, setLiveChatLogs] = useState<CommunicationLog[]>([]);
+  const [livePartners, setLivePartners] = useState<Partner[] | null>(null);
   const firestore = useFirestore();
 
   const role = userProfile?.role;
@@ -197,9 +199,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     Boolean(userProfile) &&
     userProfile?.status === 'ativo' &&
     (role === 'admin' || role === 'consultor' || role === 'assistente');
+  const canManagePartners = isStaff && (role === 'admin' || role === 'consultor');
 
   const loadWorkspace = useCallback(
     async (options?: { silent?: boolean }) => {
+      if (authLoading) return;
       if (!userProfile || !isStaff) {
         setLoading(false);
         return;
@@ -222,7 +226,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         }
       }
     },
-    [userProfile, isStaff, siteContent],
+    [authLoading, userProfile, isStaff, siteContent],
   );
 
   useEffect(() => {
@@ -230,7 +234,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   }, [loadWorkspace]);
 
   useEffect(() => {
-    if (!isStaff) {
+    if (authLoading || !isStaff) {
       setLiveChatLogs([]);
       return;
     }
@@ -239,7 +243,19 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       () => undefined,
     );
     return () => unsub();
-  }, [isStaff]);
+  }, [authLoading, isStaff]);
+
+  useEffect(() => {
+    if (authLoading || !canManagePartners) {
+      setLivePartners(null);
+      return;
+    }
+    const unsub = subscribeActivePartnersStaffLive(
+      (activePartners) => setLivePartners(activePartners),
+      () => undefined,
+    );
+    return () => unsub();
+  }, [authLoading, canManagePartners]);
 
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true);
@@ -266,11 +282,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
       ...workspace,
       clients: !firestore.loadingClients ? firestore.clients : workspace.clients,
       leads: !firestore.loadingDiagnostics ? firestore.diagnostics : workspace.leads,
+      partners: livePartners !== null ? livePartners : workspace.partners,
       communicationLogs: mergedCommunicationLogs,
     };
   }, [
     workspace,
     liveChatLogs,
+    livePartners,
     firestore.clients,
     firestore.diagnostics,
     firestore.loadingClients,

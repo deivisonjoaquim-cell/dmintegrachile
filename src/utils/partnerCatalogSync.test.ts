@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { PartnerPublic } from '../types/domain';
 import {
+  buildLinkedProposalUnlinkPatches,
+  filterActivePartners,
   findOrphanOrHiddenPublicPartnerIds,
+  isPartnerPubliclyVisible,
   removePartnerById,
   resolvePublicPartnersFromCloud,
   shouldSeedInitialPartners,
@@ -128,8 +131,53 @@ test('findOrphanOrHiddenPublicPartnerIds catches deleted, hidden, and non-active
       { id: 'part_active', recomendadoAosClientes: true, statusHomologacao: 'Ativo/Indicado' },
       { id: 'part_hidden', recomendadoAosClientes: false, statusHomologacao: 'Ativo/Indicado' },
       { id: 'part_paused', recomendadoAosClientes: true, statusHomologacao: 'Suspenso' },
+      { id: 'part_soft_deleted', recomendadoAosClientes: true, statusHomologacao: 'Ativo/Indicado', deleted: true },
     ],
-    ['part_active', 'part_hidden', 'part_paused', 'part_deleted_orphan'],
+    ['part_active', 'part_hidden', 'part_paused', 'part_soft_deleted', 'part_deleted_orphan'],
   );
-  assert.deepEqual(toDelete, ['part_hidden', 'part_paused', 'part_deleted_orphan']);
+  assert.deepEqual(toDelete, ['part_hidden', 'part_paused', 'part_soft_deleted', 'part_deleted_orphan']);
+});
+
+test('filterActivePartners and isPartnerPubliclyVisible exclude soft-deleted partners everywhere', () => {
+  const active = filterActivePartners([
+    { id: 'p1', deleted: false },
+    { id: 'p2', deleted: true },
+    { id: 'p3', deletedAt: '2026-11-27T10:00:00.000Z' },
+    { id: 'p4' },
+  ]);
+  assert.deepEqual(active.map((p) => p.id), ['p1', 'p4']);
+  assert.equal(
+    isPartnerPubliclyVisible({
+      recomendadoAosClientes: true,
+      statusHomologacao: 'Ativo/Indicado',
+      deleted: true,
+    }),
+    false,
+  );
+  assert.equal(
+    isPartnerPubliclyVisible({
+      recomendadoAosClientes: true,
+      statusHomologacao: 'Ativo/Indicado',
+    }),
+    true,
+  );
+});
+
+test('buildLinkedProposalUnlinkPatches clears partnerIdVinculado on proposals referencing a deleted partner', () => {
+  const updates = buildLinkedProposalUnlinkPatches(
+    [
+      { id: 'prop_1', partnerIdVinculado: 'part_cl_1', observacoesInternas: 'Aprovada em 2026' },
+      { id: 'prop_2', partnerIdVinculado: 'part_other', observacoesInternas: '' },
+      { id: 'prop_3', partnerIdVinculado: 'part_cl_1', observacoesInternas: '' },
+    ],
+    { id: 'part_cl_1', nome: 'Corretora Santiago' },
+    '2026-11-27T11:30:00.000Z',
+  );
+  assert.equal(updates.length, 2);
+  assert.equal(updates[0].proposalId, 'prop_1');
+  assert.equal(updates[0].patch.partnerIdVinculado, '');
+  assert.match(updates[0].patch.observacoesInternas, /Aprovada em 2026/);
+  assert.match(updates[0].patch.observacoesInternas, /Corretora Santiago/);
+  assert.equal(updates[1].proposalId, 'prop_3');
+  assert.equal(updates[1].patch.partnerIdVinculado, '');
 });
