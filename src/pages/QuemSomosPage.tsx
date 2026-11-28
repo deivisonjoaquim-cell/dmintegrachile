@@ -225,7 +225,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                   Precisão jurídica para proteger seu projeto. Escuta humana para acolher sua história.
                 </h2>
                 <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                  Mudar de país envolve carreira, patrimônio e a tranquilidade de quem você ama. Unimos método documental de escritório corporativo com acompanhamento próximo do Brasil até a entrega das chaves no Chile.
+                  Mudar de país envolve carreira, patrimônio e a tranquilidade de quem você ama. Unimos método documental de escritório corporativo com acompanhamento próximo do Brasil até a aprovação do seu visto, registro na PDI e emissão do RUT no Chile.
                 </p>
               </div>
 
@@ -239,10 +239,10 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                 </div>
 
                 <div className="pt-5 border-t border-white/10 space-y-1.5">
-                  <p className="font-mono text-[11px] text-[#C9A86A]">02. Do Brasil ao Arriendo</p>
-                  <p className="text-sm font-semibold text-white">Zero Improviso Antes de Embarcar</p>
+                  <p className="font-mono text-[11px] text-[#C9A86A]">02. Do Brasil ao Visto, PDI e RUT</p>
+                  <p className="text-sm font-semibold text-white">Escopo Claro + Rede de Parceiros</p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Sincronizamos certidões, Apostila de Haia, PDI, RUT e o apoio para moradia sem fiador local para você chegar tranquilo.
+                    Sincronizamos certidões, Apostila de Haia, protocolo SERMIG, PDI e RUT — e indicamos parceiros independentes para imóveis, traduções, contabilidade e outras demandas.
                   </p>
                 </div>
 
@@ -329,7 +329,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </h2>
             </div>
             <p className="text-sm text-[#4B5563] dark:text-slate-400 max-w-sm">
-              Relatos objetivos de brasileiros que superaram a burocracia migratória e o desafio do primeiro contrato de moradia no Chile.
+              Relatos objetivos de brasileiros que superaram a burocracia migratória (Vistos, PDI e RUT) e contaram com nossas indicações de parceiros no Chile.
             </p>
           </div>
 

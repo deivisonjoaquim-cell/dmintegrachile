@@ -84,7 +84,7 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     mostrarBotaoWhatsappFlutuante: true,
     mostrarBarraCtaMobile: true,
     rodapeSubtitulo:
-      'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.',
+      'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
     rodapeCopyright: 'Todos os direitos reservados.',
     linksNavegacao: [
       { path: '/', label: 'Início', visivel: true },
@@ -134,9 +134,9 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   textoReciboVigencia: '2026-11-17',
   termoLgpdVigencia: '2026-11-17',
   retencaoDadosDias: 1825,
-  seoTituloPadrao: 'D&M Integra Chile – Relocation & Assessoria Migratória',
+  seoTituloPadrao: 'D&M Integra Chile – Assessoria Migratória Brasil–Chile (Vistos, PDI & RUT)',
   seoDescricaoPadrao:
-    'Assessoria especializada em imigração, Acordo Mercosul, Residência Temporal, Residência Definitiva e relocation completo para brasileiros no Chile.',
+    'Assessoria especializada em vistos (SERMIG), Acordo Mercosul, Residência Temporal, Definitiva, registro na PDI e emissão do RUT, além de rede de parceiros indicados no Brasil e no Chile.',
   depoimentosAutorizados: [],
   quemSomosMarcoHistorico: [
     {
@@ -161,11 +161,11 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'hero',
     secao: 'hero',
-    titulo: 'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.',
+    titulo: 'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.',
     subtitulo:
-      'Do planejamento documental no Brasil (Vistos, PDI e RUT) à assinatura do seu contrato de arriendo sem fiador local: conduzimos cada etapa da sua mudança com rigor técnico e acolhimento.',
+      'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT): conduzimos sua regularização migratória com rigor técnico e indicamos parceiros selecionados para outras demandas.',
     conteudoHtml:
-      'Protegemos sua família contra golpes, exigências inesperadas no SERMIG e contratos abusivos — com acompanhamento transparente do Brasil até você receber as chaves no Chile.',
+      'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — acompanhando cada etapa do Brasil até seu visto aprovado, PDI e RUT, com indicação de profissionais parceiros para moradia e outras etapas.',
     imagemUrl: '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
     ordem: 1,
     ativo: true,
@@ -174,17 +174,17 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       ctaSecundario: 'Falar com um Especialista',
       destaques: [
         'Atendimento humano e direto em português',
-        'Proteção contra golpes e erros no SERMIG',
-        'Apoio do visto ao arriendo sem fiador local',
+        'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
+        'Rede de parceiros indicados para demandas complementares',
       ],
     },
   },
   {
     id: 'servicos',
     secao: 'servicos',
-    titulo: 'Entregas claras de tranquilidade para cada etapa da sua mudança',
+    titulo: 'Escopo claro: do visto no Brasil ao registro na PDI e emissão do RUT',
     subtitulo:
-      'Cuidamos da burocracia migratória e da sua instalação no Chile para você chegar com tudo legalizado, moradia segura e zero sustos.',
+      'Cuidamos de toda a sua jornada migratória — do visto no Brasil ao registro na PDI e emissão do RUT — e conectamos você a parceiros indicados para as demais necessidades no Chile.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
     ordem: 2,
@@ -211,9 +211,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         },
         {
           numero: '04',
-          titulo: 'Chegada Segura, RUT e Moradia Sem Fiador Local',
+          titulo: 'Estampado Electrónico, Registro PDI, RUT e Indicação de Parceiros',
           descricao:
-            'Acompanhamos sua chegada na PDI, emissão da Cédula (RUT), ClaveÚnica, conta bancária e a negociação segura do seu contrato de arriendo em UF sem avalista chileno.',
+            'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Para moradia, contabilidade, traduções ou saúde, indicamos profissionais parceiros independentes.',
         },
       ],
     },
@@ -221,9 +221,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'diferenciais',
     secao: 'diferenciais',
-    titulo: 'Por que brasileiros confiam sua mudança à D&M Integra Chile',
+    titulo: 'Por que brasileiros confiam sua regularização à D&M Integra Chile',
     subtitulo:
-      'Você não precisa enfrentar a burocracia chilena sozinho nem arriscar seu patrimônio com informações desencontradas de grupos na internet.',
+      'Você não precisa enfrentar a burocracia do SERMIG sozinho nem arriscar seu processo com informações desencontradas de grupos na internet.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/relocation_lifestyle_chile_1795635433413.jpg',
     ordem: 3,
@@ -241,9 +241,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
             'Validamos cada documento, prazo e tradução antes do envio oficial, blindando seu pedido contra atrasos de meses por falhas fáceis de evitar.',
         },
         {
-          titulo: 'Transparência total e parceiros testados no Brasil e no Chile',
+          titulo: 'Portal transparente e rede de parceiros indicados',
           descricao:
-            'Acompanhe cada etapa pelo Portal do Cliente e conte com corretores, cartórios e tradutores validados pela D&M para fugir de golpes e contratos abusivos.',
+            'Acompanhe cada marco de Visto, PDI e RUT pelo Portal do Cliente e acesse nossa rede de profissionais parceiros indicados (imobiliárias, tradutores, cartórios, contadores e advogados) para outras situações.',
         },
       ],
     },
@@ -251,9 +251,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'como_funciona',
     secao: 'como_funciona',
-    titulo: 'Da decisão no Brasil às chaves da sua casa no Chile, em 4 fases claras',
+    titulo: 'Da decisão no Brasil ao visto aprovado, PDI e RUT no Chile, em 4 fases claras',
     subtitulo:
-      'Um roteiro previsível para você saber exatamente o que fazer hoje, o que pagar e quando embarcar com tranquilidade.',
+      'Um roteiro previsível do Brasil até o visto aprovado, registro na PDI e emissão do seu RUT.',
     conteudoHtml: '',
     imagemUrl: '',
     ordem: 4,
@@ -280,9 +280,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         },
         {
           passo: '04',
-          titulo: 'Visto Aprovado, PDI, RUT e Moradia',
+          titulo: 'Visto Aprovado, Registro na PDI e Emissão do RUT',
           descricao:
-            'Acompanhamos o protocolo até o Estampado Electrónico, orientamos sua chegada na PDI, emissão do RUT e assinatura segura do seu arriendo.',
+            'Acompanhamos o protocolo até o Estampado Electrónico, orientamos seu registro obrigatório na PDI e a emissão do RUT, além de indicar parceiros confiáveis para moradia e outras demandas.',
         },
       ],
     },
@@ -292,9 +292,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     secao: 'quem_somos',
     titulo: 'Rigor técnico no processo, acolhimento real com a sua família',
     subtitulo:
-      'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada caso como um projeto de vida único.',
+      'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada etapa migratória com transparência e proximidade.',
     conteudoHtml:
-      'A D&M Integra Chile nasceu para proteger brasileiros do medo de cair em golpes, travar na burocracia do SERMIG ou não conseguir alugar um imóvel no Chile. Unimos precisão jurídica na legislação chilena a um atendimento próximo, transparente e 100% em português.',
+      'A D&M Integra Chile nasceu para dar segurança a brasileiros em toda a regularização migratória — do enquadramento legal no Brasil ao visto no SERMIG, registro na PDI e emissão do RUT — além de conectar você a profissionais parceiros confiáveis para outras etapas da vida no Chile.',
     imagemUrl: '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
     ordem: 5,
     ativo: true,
@@ -305,28 +305,28 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.',
       experienciaTitulo: 'Especialização e Escopo de Atuação',
       experiencia:
-        'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.',
-      missao: 'Transformar uma mudança internacional complexa em uma travessia segura, ética e tranquila para você e sua família.',
+        'Com base e atendimento no Brasil, prestamos assessoria especializada e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT) em qualquer região do Chile.\nPara necessidades complementares (imóveis, traduções, cartórios, contabilidade, advocacia ou saúde), indicamos profissionais parceiros independentes com contratação direta.',
+      missao: 'Transformar a regularização migratória em uma travessia segura, ética e transparente — do Brasil ao visto, PDI e RUT no Chile.',
       credenciais: 'Atuação alinhada à legislação chilena (Ley Nº 21.325 e Decreto Nº 177/2022), ao Acordo de Residência Mercosul e à legislação brasileira (LGPD – Lei Nº 13.709/2018).',
     },
   },
   {
     id: 'parceiros',
     secao: 'parceiros',
-    titulo: 'Rede de Parceiros Homologados Brasil–Chile',
+    titulo: 'Rede de Parceiros Indicados Brasil–Chile',
     subtitulo:
-      'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.',
+      'Nossa assessoria acompanha até Vistos, PDI e RUT. Para outras necessidades no Brasil e no Chile, indicamos profissionais parceiros independentes em imobiliária, tradução, cartório, contabilidade, advocacia e saúde.',
     conteudoHtml:
-      'Corretores preparados para arriendo em UF sem avalista local, tradutores juramentados, cartórios e contadores selecionados a dedo para proteger seu patrimônio.',
+      'Profissionais independentes indicados pela D&M para apoiar você em imóveis, traduções juramentadas, cartórios, abertura de empresa (SpA), seguros e educação — com contratação direta e transparente.',
     imagemUrl: '',
-    ctaTexto: 'Conhecer parceiros validados',
+    ctaTexto: 'Explorar rede de parceiros',
     ctaDestino: '/parceiros',
     ordem: 6,
     ativo: true,
     metadados: {
-      eyebrow: 'Curadoria & Proteção Contra Riscos',
+      eyebrow: 'Indicação de Profissionais Parceiros',
       temaSecao: 'claro',
-      maxItens: 3,
+      maxItens: 6,
     },
   },
   {
@@ -376,7 +376,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'contato',
     secao: 'contato',
-    titulo: 'Vamos planejar a sua mudança para o Chile com segurança e zero improviso?',
+    titulo: 'Vamos planejar seu visto, PDI e RUT no Chile com segurança e zero improviso?',
     subtitulo:
       'Faça seu diagnóstico gratuito em 2 minutos ou chame nossa equipe no WhatsApp para tirar suas dúvidas sem compromisso.',
     conteudoHtml:
@@ -388,9 +388,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'rodape',
     secao: 'rodape',
-    titulo: 'D&M Integra Chile – Relocation & Assessoria',
+    titulo: 'D&M Integra Chile – Assessoria Migratória',
     subtitulo:
-      'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.',
+      'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
     conteudoHtml: DEFAULT_AVISO_LEGAL,
     imagemUrl: '',
     ordem: 10,

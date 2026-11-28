@@ -195,15 +195,15 @@ const JOURNEY_PT: JourneyPhaseItem[] = [
   },
   {
     code: '04',
-    title: 'Chegada, PDI, RUT & Arriendo Seguro',
-    subtitle: 'Acolhimento completo nos primeiros 30 dias para você trabalhar, morar e viver tranquilo.',
+    title: 'Chegada ao Chile, Registro PDI e Cédula (RUT)',
+    subtitle: 'Encerramos sua regularização migratória nos primeiros 30 dias e indicamos parceiros confiáveis para outras demandas.',
     timeframe: 'Primeiros 30 dias no Chile',
-    deadlineGuard: 'Cuidamos da janela obrigatória de 30 dias após a chegada para registro na PDI e Cédula (RUT).',
-    portalView: 'Roteiro passo a passo pós-chegada + acesso direto à rede homologada no Chile',
+    deadlineGuard: 'Cuidamos da janela obrigatória de 30 dias após a chegada para registro na PDI e solicitação da Cédula (RUT).',
+    portalView: 'Roteiro pós-chegada (PDI e RUT) + acesso direto à Rede de Parceiros Indicados',
     deliverables: [
-      'Registro obrigatório na PDI e agendamento da Cédula de Identidade (RUT) no Registro Civil',
-      'Ativação da ClaveÚnica, abertura de conta bancária e escolha de plano de saúde (Fonasa/Isapre)',
-      'Apoio com imobiliárias homologadas para assinar seu arriendo em UF sem fiador local e sem golpes',
+      'Orientação completa para registro obrigatório na PDI (Polícia de Investigaciones)',
+      'Agendamento e conferência documental para emissão da Cédula de Identidade (RUT) no Registro Civil',
+      'Indicação de profissionais parceiros independentes para moradia/imóveis, contabilidade, traduções, seguros e escolas',
     ],
   },
 ];

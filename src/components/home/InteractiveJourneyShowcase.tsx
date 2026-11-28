@@ -48,16 +48,16 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
             <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.12] text-[#0B1628] dark:text-white text-balance">
               {title ||
                 (isEs
-                  ? 'De Brasil a tu Cédula chilena, en cuatro fases estructuradas'
-                  : 'Da decisão no Brasil às chaves da sua casa no Chile, em 4 fases claras')}
+                  ? 'De Brasil a tu visa aprobada, PDI y RUT en Chile, en 4 fases claras'
+                  : 'Da decisão no Brasil ao visto aprovado, PDI e RUT no Chile, em 4 fases claras')}
             </h2>
           </div>
           <div className="lg:col-span-5 lg:text-right space-y-4">
             <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed lg:text-left">
               {subtitle ||
                 (isEs
-                  ? 'Cada fase cuenta con entregables verificables, control legal de plazos (30, 60 y 90 días) y seguimiento en tu Portal del Cliente.'
-                  : 'Um roteiro previsível com entregas claras, proteção de prazos e acompanhamento direto pelo Portal do Cliente.')}
+                  ? 'Cada fase cuenta con entregables verificables hasta tu PDI y RUT, con seguimiento en línea en tu Portal del Cliente.'
+                  : 'Um roteiro previsível até o visto aprovado, registro na PDI e emissão do RUT, com acompanhamento direto no Portal do Cliente.')}
             </p>
           </div>
         </div>
@@ -164,30 +164,41 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
               </motion.div>
             </AnimatePresence>
 
-            <div className="flex flex-wrap items-center gap-5 pt-2">
-              <button
-                type="button"
-                onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
-                onClick={() => onNavigateAction('/diagnostico')}
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:bg-[#16233B] dark:hover:bg-slate-200 transition-colors whitespace-nowrap"
-              >
-                {isEs ? 'Iniciar por el Diagnóstico' : 'Simular Meu Plano de Mudança'}
-                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onMouseEnter={() => prefetchRouteChunk('/acompanhar')}
-                onClick={() => onNavigateAction('/acompanhar')}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap"
-              >
-                {isEs ? 'Conocer el Portal del Cliente' : 'Conhecer o Portal do Cliente'}
-                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
+            <div className="space-y-5 pt-2">
+              <div className="flex flex-wrap items-center gap-5">
+                <button
+                  type="button"
+                  onMouseEnter={() => prefetchRouteChunk('/diagnostico')}
+                  onClick={() => onNavigateAction('/diagnostico')}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white hover:bg-[#16233B] dark:hover:bg-slate-200 transition-colors whitespace-nowrap"
+                >
+                  {isEs ? 'Iniciar por el Diagnóstico' : 'Simular Meu Plano Migratório'}
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onMouseEnter={() => prefetchRouteChunk('/acompanhar')}
+                  onClick={() => onNavigateAction('/acompanhar')}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap"
+                >
+                  {isEs ? 'Conocer el Portal del Cliente' : 'Conhecer o Portal do Cliente'}
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                  onClick={() => onNavigateAction('/parceiros')}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white transition-colors whitespace-nowrap"
+                >
+                  {isEs ? 'Ver Red de Aliados Indicados' : 'Ver Parceiros Indicados'}
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="lg:col-span-5">
-            <div className="h-72 lg:h-full min-h-[320px] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32]">
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className="flex-1 min-h-[280px] rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#151F32]">
               <OptimizedImage
                 src={resolvedPhoto}
                 alt={isEs ? 'Sala ejecutiva de asesoría migratoria en Santiago' : 'Sala executiva de assessoria migratória em Santiago'}
@@ -195,6 +206,16 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
                 containerClassName="w-full h-full"
                 className="w-full h-full object-cover"
               />
+            </div>
+            <div className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111A2B] p-4 space-y-1">
+              <p className="text-[11px] font-mono font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
+                {isEs ? 'TRANSPARENCIA EN CADA ETAPA' : 'TRANSPARÊNCIA DE ESCOPO'}
+              </p>
+              <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                {isEs
+                  ? 'Nuestro servicio directo llega hasta Visa (SERMIG), registro PDI y Cédula (RUT). Para vivienda, contabilidad o traducciones, conectamos con aliados independientes.'
+                  : 'Nossa condução direta vai até Visto (SERMIG), registro na PDI e emissão do RUT. Para imóveis, contabilidade, traduções ou saúde, indicamos parceiros independentes.'}
+              </p>
             </div>
           </div>
         </div>

@@ -1,3 +1,5 @@
+import { normalizePublicScopeText } from './publicScopeCopy';
+
 export type SiteLocale = 'pt-BR' | 'es-CL';
 
 export interface LocalizedPlanCopy {
@@ -244,50 +246,50 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       linkedinLabel: 'Conectar no LinkedIn',
       lastLegalReview: 'Base normativa revisada em:',
       defaultSubtitle:
-        'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.',
+        'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
       defaultCopyright: 'Todos os direitos reservados.',
       defaultLegalNotice:
-        'As informações e ferramentas desta plataforma auxiliam no planejamento da sua mudança e não substituem a avaliação individualizada do seu caso. Normas e prazos são definidos pelo SERMIG e acompanhados de perto pela nossa equipe.',
+        'As informações e ferramentas desta plataforma auxiliam no planejamento da sua regularização migratória (Vistos, PDI e RUT) e não substituem a avaliação individualizada do seu caso. Normas e prazos são definidos pelo SERMIG; serviços complementares são prestados por profissionais parceiros independentes indicados.',
     },
     mobileBar: {
       diagnosticCta: 'Iniciar Diagnóstico Gratuito',
       whatsappCta: 'Falar com Especialista',
       waGreeting: (brand) =>
-        `Olá! Estava no site da ${brand} e gostaria de tirar uma dúvida sem compromisso sobre a minha mudança para o Chile.`,
+        `Olá! Estava no site da ${brand} e gostaria de tirar uma dúvida sem compromisso sobre visto, PDI e RUT no Chile.`,
     },
     seo: {
-      homeTitle: (brand) => `${brand} — Mude-se para o Chile com Segurança Jurídica e Moradia Garantida`,
+      homeTitle: (brand) => `${brand} — Vistos, PDI e RUT no Chile com Segurança Jurídica`,
       homeDescription:
-        'Do planejamento documental no Brasil (Vistos, PDI e RUT) à assinatura do seu contrato de arriendo sem fiador local: conduzimos cada etapa da sua mudança ao Chile.',
+        'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT), além de indicação de profissionais parceiros para outras demandas no Chile.',
       legalModalTitle: 'Leis do Chile e Acordo Mercosul — explicados sem juridiquês',
     },
     hero: {
-      defaultEyebrow: 'Assessoria Migratória & Relocation Brasil–Chile · Vistos, PDI, RUT e Moradia',
+      defaultEyebrow: 'Assessoria Migratória Brasil–Chile · Vistos (SERMIG), PDI & RUT',
       defaultPrimaryCta: 'Iniciar Diagnóstico Gratuito',
       defaultSecondaryCta: 'Falar com um Especialista',
-      defaultBadgeTitle: 'Apoio Real no Brasil e em Santiago',
-      defaultBadgeSubtitle: 'Do visto no Brasil ao seu contrato de arriendo em UF sem fiador local',
+      defaultBadgeTitle: 'Condução Especializada Brasil–Chile',
+      defaultBadgeSubtitle: 'Do planejamento no Brasil até Visto, PDI e RUT + Rede de Parceiros',
       waGreeting:
-        'Olá! Quero conversar sem compromisso com um especialista da D&M sobre minha mudança para o Chile.',
+        'Olá! Quero conversar sem compromisso com um especialista da D&M sobre visto, PDI e RUT no Chile.',
       metric1Value: '2 Min',
       metric1Label: 'Diagnóstico consultivo gratuito',
       metric2Value: '7 Pilares',
       metric2Label: 'Análise de riscos e custos',
       metric3Value: 'PDF 2 Págs',
-      metric3Label: 'Plano de mudança pronto',
+      metric3Label: 'Plano migratório pronto',
       crestLabel: 'Plataforma D&M Integra Chile',
-      crestTagline: 'Segurança jurídica, moradia garantida e acolhimento familiar',
+      crestTagline: 'Segurança jurídica em Vistos, PDI e RUT + parceiros indicados',
       intelModules: [
         { code: '01', label: 'Visto Certo', value: 'Mercosul · Ley 21.325' },
         { code: '02', label: 'Zero Prazos Perdidos', value: 'Alertas 30, 60 e 90 dias' },
-        { code: '03', label: 'Pós-Chegada', value: 'PDI, RUT e Arriendo Seguro' },
+        { code: '03', label: 'Regularização Final', value: 'Estampado, PDI e RUT' },
       ],
     },
     techBento: {
       eyebrow: 'Planejamento Sem Achismos',
-      heading: 'Segurança jurídica, controle de prazos e tranquilidade em cada passo da mudança',
+      heading: 'Segurança jurídica, controle de prazos e tranquilidade até seu RUT no Chile',
       subheading:
-        'Unimos domínio prático das exigências do SERMIG a um método transparente que protege você de indeferimentos, golpes e imprevistos com documentação ou moradia.',
+        'Unimos domínio prático das exigências do SERMIG a um método transparente que protege você de indeferimentos, documentos vencidos e imprevistos na sua regularização migratória.',
       radarCard: {
         kicker: 'Simulador do Seu Plano de Mudança',
         title: 'Descubra em 2 minutos a rota mais segura e econômica para viver no Chile',
@@ -328,28 +330,28 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
         kicker: 'Portal do Cliente D&M',
         title: 'Acompanhe sua mudança em 15 etapas claras — sem ficar no escuro esperando respostas',
         description:
-          'Veja exatamente o que já foi aprovado, quais documentos faltam, converse com seu consultor e acompanhe cada avanço até estar com seu RUT e contrato de moradia em mãos.',
+          'Veja exatamente o que já foi aprovado, quais documentos faltam, converse com seu consultor e acompanhe cada avanço até estar com seu visto, registro na PDI e Cédula (RUT) em mãos.',
         milestones: [
           'Estratégia & Visto Ideal',
           'Certidões, Apostila & Tradução',
           'Protocolo Seguro SERMIG',
-          'PDI · RUT · Arriendo Seguro',
+          'Estampado · PDI · RUT',
         ],
         primaryCta: 'Acessar Portal do Cliente',
         secondaryCta: 'Iniciar Diagnóstico Gratuito',
       },
     },
     services: {
-      defaultEyebrow: 'Entregas de Tranquilidade',
+      defaultEyebrow: 'Escopo Claro e Transparente',
       solutionPrefix: 'Entrega D&M',
       learnMore: 'Ver o que está incluído',
       plansKicker: 'Formatos de Assessoria',
-      plansTitle: 'Escolha o nível de apoio ideal para a sua mudança ao Chile',
+      plansTitle: 'Escolha o nível de apoio ideal para regularizar seu visto, PDI e RUT no Chile',
       plansSubtitlePrefix: 'Comece descobrindo seu caminho gratuitamente e escolha entre a ',
       plansOrientativaBold: 'Consultoria Orientativa',
       plansOrientativaDesc: ' (você conduz o envio com nossa estratégia e revisão rigorosa) ou a ',
       plansCompletaBold: 'Consultoria Completa',
-      plansCompletaDesc: ' (cuidamos de cada detalhe do visto, PDI, RUT e chegada para você).',
+      plansCompletaDesc: ' (conduzimos cada etapa até Visto, PDI e RUT + indicamos parceiros para outras demandas).',
       plans: {
         diagnostico_gratuito: {
           kicker: 'Primeiro passo · Gratuito · Resultado imediato',
@@ -361,7 +363,7 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
             'Indicação clara da rota mais segura (Mercosul, Trabalho, Família, Estudo ou Renda)',
             'Alerta imediato contra erros comuns que causam rejeição no SERMIG',
             'Simulação de prazos, documentos prioritários e custos oficiais',
-            'Plano de Mudança em PDF pronto para salvar e compartilhar com sua família',
+            'Plano Migratório em PDF pronto para salvar e compartilhar com sua família',
           ],
           cta: 'Iniciar Diagnóstico Gratuito',
         },
@@ -375,39 +377,39 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
             'Reunião individual com especialista para definir seu plano e cronograma reverso',
             'Checklist sob medida e conferência de cada certidão antes de gastar com cartório',
             'Orientação segura sobre Apostila de Haia e tradução juramentada sem pagar a mais',
-            'Passo a passo guiado para o envio no SERMIG, PDI e emissão do seu RUT',
+            'Passo a passo guiado para o envio no SERMIG, registro na PDI e emissão do RUT',
           ],
           cta: 'Quero a Consultoria Orientativa',
           waMessage:
-            'Olá! Quero tirar uma dúvida sem compromisso sobre a Consultoria Orientativa para planejar minha mudança ao Chile.',
+            'Olá! Quero tirar uma dúvida sem compromisso sobre a Consultoria Orientativa para planejar meu visto, PDI e RUT no Chile.',
         },
         completa: {
-          kicker: 'Modalidade 02 · Tranquilidade ponta a ponta',
+          kicker: 'Modalidade 02 · Condução ponta a ponta até o RUT',
           nome: 'Consultoria Completa',
-          subtitulo: 'Cuidamos de toda a burocracia no Brasil e na chegada ao Chile — do visto ao arriendo seguro.',
+          subtitulo: 'Conduzimos toda a burocracia migratória no Brasil e no Chile — do visto no SERMIG à PDI e ao RUT.',
           escopoPrefix: 'Como funciona:',
-          responsavelProtocolo: 'Nossa equipe conduz cada etapa com você até você estar estabelecido',
+          responsavelProtocolo: 'Nossa equipe conduz cada etapa até seu Visto, PDI e Cédula (RUT)',
           inclui: [
             'Tudo da Consultoria Orientativa + gestão ativa de prazos e exigências do SERMIG',
-            'Coordenação direta com cartórios, tradutores e parceiros homologados (sem risco de golpes)',
-            'Montagem completa do dossiê, protocolo oficial e suporte até o Estampado Electrónico',
-            'Apoio na chegada: PDI, Cédula (RUT), ClaveÚnica, conta bancária e orientação de arriendo sem avalista local',
+            'Montagem completa do dossiê, protocolo oficial e acompanhamento até o Estampado Electrónico',
+            'Orientação completa de chegada: registro obrigatório na PDI e emissão da Cédula de Identidade (RUT)',
+            'Acesso à nossa Rede de Parceiros Indicados (imóveis, traduções, cartórios, contadores e saúde) para outras situações',
           ],
           cta: 'Falar com um Especialista',
           waMessage:
-            'Olá! Quero conversar sem compromisso sobre a Consultoria Completa para organizar minha mudança para o Chile com segurança.',
+            'Olá! Quero conversar sem compromisso sobre a Consultoria Completa para regularizar meu visto, PDI e RUT no Chile.',
         },
       },
       drawer: {
-        headerPrefix: 'Entrega de Tranquilidade',
+        headerPrefix: 'Escopo de Assessoria',
         closeLabel: 'Fechar detalhes',
         whoFor: 'Para quem resolve',
         framework: 'Como conduzimos esta etapa',
         timeline: 'Prazo médio de referência',
         defaultWhoFor: 'Adaptado ao seu perfil familiar e profissional no diagnóstico.',
-        defaultFramework: 'Seguindo todas as exigências atuais do SERMIG e da prática local no Chile.',
+        defaultFramework: 'Seguindo todas as exigências atuais do SERMIG, PDI e Registro Civil do Chile.',
         defaultTimeline: 'Planejado de acordo com a sua data ideal de embarque.',
-        ctaDiagnostic: 'Simular Meu Plano de Mudança',
+        ctaDiagnostic: 'Simular Meu Plano Migratório',
         ctaWhatsapp: 'Tirar Dúvida no WhatsApp',
         waGreeting: (title) => `Olá! Gostaria de tirar uma dúvida sem compromisso sobre: ${title}.`,
       },
@@ -428,9 +430,9 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
           faixaPrazo: 'Cronograma reverso montado exatamente para a sua data de protocolo',
         },
         '04': {
-          paraQuem: 'Recém-chegados que precisam regularizar PDI, tirar o RUT e alugar imóvel em UF sem fiador local.',
-          subcategoriaTipica: 'Estampado Electrónico, PDI, Cédula (RUT), ClaveÚnica, banco e arriendo seguro',
-          faixaPrazo: 'Primeiros 30 dias após a chegada ao Chile com acompanhamento próximo',
+          paraQuem: 'Recém-chegados que precisam finalizar o Estampado, registrar-se na PDI, tirar o RUT e receber indicações confiáveis para outras demandas.',
+          subcategoriaTipica: 'Estampado Electrónico, Registro na PDI, Cédula (RUT) e indicação de parceiros independentes',
+          faixaPrazo: 'Primeiros 30 dias após a chegada ao Chile com acompanhamento direto na regularização',
         },
       },
     },
@@ -535,10 +537,10 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       understandLawCta: 'Entender as regras do Chile em linguagem simples',
       quemSomosEyebrow: 'Quem Cuida da Sua Mudança',
       quemSomosCta: 'Conhecer nossa história e como trabalhamos',
-      partnersFallbackTitle: 'Rede de Parceiros Homologados Brasil–Chile',
+      partnersFallbackTitle: 'Rede de Parceiros Indicados Brasil–Chile',
       partnersFallbackSubtitle:
-        'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.',
-      partnersDefaultCta: 'Ver parceiros validados',
+        'Nossa consultoria atua até Vistos, PDI e RUT. Para outras situações — imóveis, traduções, cartórios, contabilidade, advocacia e saúde — indicamos profissionais parceiros independentes.',
+      partnersDefaultCta: 'Explorar rede de parceiros',
       contatoKicker: 'Converse Sem Compromisso',
       contatoDefaultCta: 'Iniciar Diagnóstico Gratuito',
       contatoWhatsappCta: 'Falar com um Especialista',
@@ -913,9 +915,12 @@ const SEED_ES_CL_MAP: Record<string, string> = {
     'Preparación Documental, Apostilla de La Haya y Traducciones',
   'Cronograma reverso que preserva o prazo de 60 dias dos Antecedentes da Polícia Federal, coordenando cartórios, Apostila de Haia e tradutores juramentados.':
     'Cronograma inverso que protege la vigencia de 60 días de los Antecedentes Penales, coordinando notarías, Apostilla de La Haya y traductores validados.',
-  'Relocation e Integração Pós-Chegada': 'Relocation e Integración Post-Llegada a Chile',
+  'Estampado Electrónico, Registro PDI, RUT e Indicação de Parceiros':
+    'Estampado Electrónico, Registro PDI, RUT y Red de Aliados',
+  'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Para moradia, contabilidade, traduções ou saúde, indicamos profissionais parceiros independentes.':
+    'Acompañamiento en Estampado Electrónico, registro obligatorio en PDI y obtención de tu Cédula (RUT). Para vivienda, contabilidad, traducciones o salud, derivamos a aliados independientes verificados.',
   'Suporte completo no Estampado Electrónico, registro na PDI, Cédula de Identidade no Registro Civil, ClaveÚnica, RUT, abertura de conta bancária e busca de moradia.':
-    'Acompañamiento completo en Estampado Electrónico, registro ante PDI, Cédula de Identidad en el Registro Civil, ClaveÚnica, RUT, apertura bancaria y búsqueda de vivienda.',
+    'Acompañamiento en Estampado Electrónico, registro en PDI y Cédula de Identidad (RUT), más derivación a aliados independientes para vivienda y otros servicios.',
 
   // Diferenciais
   'Por que conduzir sua mudança com a D&M Integra Chile':
@@ -928,15 +933,15 @@ const SEED_ES_CL_MAP: Record<string, string> = {
   'Termômetro de Prontidão Documental': 'Termómetro de Preparación Documental',
   'Cada certidão é verificada por critérios técnicos e pesos de obrigatoriedade, impedindo protocolos incompletos que comprometeriam o prazo de aprovação.':
     'Cada certificado es validado por criterios técnicos y nivel de obligatoriedad, impidiendo postulaciones incompletas que retrasan la resolución.',
-  'Portal do Cliente e Rede Homologada': 'Portal del Cliente y Red Validada Brasil–Chile',
+  'Portal do Cliente e Rede Homologada': 'Portal del Cliente y Red de Aliados Brasil–Chile',
   'Envio seguro de documentos, cronograma personalizado de emissões, aprovação transparente de orçamentos e acesso direto a parceiros homologados no Brasil e no Chile.':
-    'Carga segura de documentos, calendario personalizado de emisiones, presupuestos claros y acceso directo a aliados verificados en Brasil y Chile.',
+    'Carga segura de documentos, calendario personalizado de emisiones, presupuestos claros y acceso directo a aliados independientes verificados en Brasil y Chile.',
 
   // Como Funciona
   'Como funciona a jornada até sua residência no Chile':
-    'Cómo funciona el camino hacia tu residencia en Chile',
+    'Cómo funciona el camino hacia tu visto, PDI y RUT en Chile',
   'Um processo estruturado em quatro etapas claras, do enquadramento inicial à emissão da Cédula.':
-    'Un proceso ordenado en cuatro etapas claras, desde el encuadre legal hasta la obtención de tu Cédula de Identidad.',
+    'Un proceso ordenado en cuatro etapas claras, desde el encuadre legal hasta la obtención de tu Cédula de Identidad (RUT).',
   'Diagnóstico Orientativo': 'Diagnóstico Orientativo',
   'Você preenche o questionário em 6 etapas e recebe uma pré-análise estruturada com as subcategorias elegíveis e o pré-checklist documental.':
     'Completas el cuestionario en 6 etapas y recibes un preanálisis técnico con subcategorías aplicables, radar de 7 pilares y pre-checklist documental.',
@@ -946,24 +951,25 @@ const SEED_ES_CL_MAP: Record<string, string> = {
   'Esteira Documental e Apostilamento': 'Carpeta Documental y Apostillas',
   'Definimos a ordem exata de emissão das certidões, conferimos cada arquivo e coordenamos apostilamentos e traduções juramentadas.':
     'Definimos el orden exacto de emisión de certificados, validamos cada archivo y coordinamos apostillas y traducciones certificadas.',
-  'Protocolo SERMIG, Estampado e Cédula': 'Postulación SERMIG, Estampado y Cédula',
+  'Protocolo SERMIG, Estampado e Cédula': 'Postulación SERMIG, Estampado, PDI y RUT',
   'Acompanhamos toda a tramitação até o Estampado Electrónico, orientamos o ingresso no Chile dentro do prazo de 90 dias e apoiamos a emissão da Cédula.':
-    'Hacemos seguimiento hasta el Estampado Electrónico, guiamos tu ingreso a Chile dentro de los 90 días y apoyamos la tramitación de tu Cédula.',
+    'Hacemos seguimiento hasta el Estampado Electrónico, guiamos tu ingreso a Chile dentro de los 90 días, registro en PDI y obtención de tu Cédula (RUT).',
 
   // Quem Somos
   'Especialistas dedicados à jornada Brasil–Chile': 'Especialistas dedicados a la ruta Brasil–Chile',
   'Assessoria personalizada com foco em segurança operacional, clareza jurídica e atendimento próximo.':
     'Asesoría personalizada enfocada en seguridad operativa, claridad normativa y cercanía en cada paso.',
   'A D&M Integra Chile nasceu para eliminar a insegurança de brasileiros que desejam trabalhar, empreender, estudar ou viver no Chile. Atuamos com metodologia própria de análise normativa, controle de prazos do SERMIG e rede de parceiros verificados nos dois países.':
-    'D&M Integra Chile nació para dar certeza a personas y familias que desean trabajar, emprender, estudiar o establecerse en Chile. Trabajamos con metodología normativa propia, control de plazos SERMIG y una red verificada de aliados en ambos países.',
+    'D&M Integra Chile nació para dar certeza en todo el proceso migratorio (Visas, PDI y RUT) y conectar a nuestros clientes con aliados independientes verificados para otras necesidades en Chile.',
 
   // Parceiros
-  'Ecossistema Verificado': 'Ecosistema Verificado',
-  'Rede de Parceiros Homologados Brasil–Chile': 'Red de Aliados Validados Brasil–Chile',
+  'Ecossistema Verificado': 'Red de Aliados Indicados',
+  'Rede de Parceiros Homologados Brasil–Chile': 'Red de Aliados Indicados Brasil–Chile',
+  'Rede de Parceiros Indicados Brasil–Chile': 'Red de Aliados Indicados Brasil–Chile',
   'Profissionais e empresas verificados pela consultoria para apoiar cada etapa da sua mudança.':
-    'Profesionales y empresas verificadas por nuestra consultora para apoyar cada fase de tu llegada a Chile.',
+    'Nuestra asesoría cubre Visas, PDI y RUT; para vivienda, traducciones, notarías, contabilidad, asesoría legal y salud, recomendamos profesionales independientes verificados.',
   'Cartórios, tradutores juramentados, seguradoras, contabilidades e assessoria imobiliária avaliados por qualidade técnica e atendimento em português.':
-    'Notarías, traductores certificados, seguros, contabilidad y corretaje inmobiliario evaluados por su calidad técnica y trato cercano.',
+    'Notarías, traductores certificados, seguros, contabilidad y corretaje inmobiliario recomendados con contratación directa y transparente.',
   'Explorar rede de parceiros': 'Explorar red de aliados',
 
   // FAQ
@@ -989,17 +995,17 @@ const SEED_ES_CL_MAP: Record<string, string> = {
 
   // Depoimentos & Contato & Rodapé
   'Histórias reais de quem realizou a mudança com segurança':
-    'Experiencias reales de quienes concretaron su traslado con seguridad',
+    'Experiencias reales de quienes concretaron su trámite con seguridad',
   'Depoimentos publicados somente mediante autorização expressa dos clientes atendidos.':
     'Testimonios publicados únicamente con autorización expresa de nuestros clientes.',
   'Pronto para planejar sua mudança para o Chile com segurança?':
-    '¿Listo para planificar tu llegada y residencia en Chile con seguridad?',
+    '¿Listo para planificar tu visa, PDI y RUT en Chile con seguridad?',
   'Comece pelo diagnóstico gratuito ou converse diretamente com nossa consultoria especializada.':
     'Comienza con el diagnóstico inteligente gratuito o conversa directamente con nuestra consultora especializada.',
   'Atendemos clientes em todo o Brasil e em Santiago, Valparaíso, Viña del Mar e demais regiões do Chile.':
     'Atendemos clientes en todo Brasil y en Santiago, Valparaíso, Viña del Mar y demás regiones de Chile.',
   'Consultoria especializada em imigração e relocation Brasil–Chile.':
-    'Consultoría especializada en migración y relocation Brasil–Chile.',
+    'Consultoría migratoria especializada Brasil–Chile hasta Visas, PDI y RUT, con red de aliados independientes.',
   'Todos os direitos reservados.': 'Todos los derechos reservados.',
   'Brasil · Atendimento para todo o Chile': 'Brasil · Atención para todo Chile',
   'Atuação como Pessoa Física · Marca própria D&M Integra Chile':
@@ -1012,35 +1018,25 @@ const SEED_ES_CL_MAP: Record<string, string> = {
 
 /**
  * Upgrades previously-seeded Portuguese default strings (including existing Firestore snapshots)
- * to the updated consultative brand voice without touching database records or overriding custom edits.
+ * to the accurate consultative brand voice (Visas, PDI & RUT + independent partner referrals)
+ * without touching database records or overriding custom edits.
  */
 const LEGACY_PT_BR_COPY_UPGRADE_MAP: Record<string, string> = {
   // Hero
-  'Imigração e relocation para o Chile com segurança jurídica e previsibilidade':
-    'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.',
-  'Conquiste sua residência no Chile com segurança, estratégia e tranquilidade.':
-    'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.',
-  'Da análise de elegibilidade pelo Acordo Mercosul e pela legislação chilena (Ley Nº 21.325) até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.':
-    'Do planejamento documental no Brasil (Vistos, PDI e RUT) à assinatura do seu contrato de arriendo sem fiador local: conduzimos cada etapa da sua mudança com rigor técnico e acolhimento.',
-  'Da análise de elegibilidade pelo Acordo Mercosul e pela Lei 21.325 até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.':
-    'Do planejamento documental no Brasil (Vistos, PDI e RUT) à assinatura do seu contrato de arriendo sem fiador local: conduzimos cada etapa da sua mudança com rigor técnico e acolhimento.',
-  'Conduzimos cada fase com conferência documental criteriosa, controle rigoroso de prazos e acompanhamento transparente pelo Portal do Cliente.':
-    'Protegemos sua família contra golpes, exigências inesperadas no SERMIG e contratos abusivos — com acompanhamento transparente do Brasil até você receber as chaves no Chile.',
   'Fazer Diagnóstico Gratuito': 'Iniciar Diagnóstico Gratuito',
   'Falar no WhatsApp': 'Falar com um Especialista',
   'Atendimento integral em português do Brasil': 'Atendimento humano e direto em português',
   'Atendimento 100% em português do Brasil': 'Atendimento humano e direto em português',
   'Base normativa alinhada à legislação chilena (Ley Nº 21.325) e ao SERMIG':
-    'Proteção contra golpes e erros no SERMIG',
-  'Base normativa alinhada à Lei 21.325 e ao SERMIG': 'Proteção contra golpes e erros no SERMIG',
-  'Base normativa alinhada à Ley 21.325 e SERMIG': 'Proteção contra golpes e erros no SERMIG',
-  'Acompanhamento transparente em 15 etapas': 'Apoio do visto ao arriendo sem fiador local',
+    'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
+  'Base normativa alinhada à Lei 21.325 e ao SERMIG': 'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
+  'Base normativa alinhada à Ley 21.325 e SERMIG': 'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
 
   // Serviços
   'Soluções completas para imigração e estabelecimento no Chile':
-    'Entregas claras de tranquilidade para cada etapa da sua mudança',
-  'Assessoria estruturada para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.':
-    'Cuidamos da burocracia migratória e da sua instalação no Chile para você chegar com tudo legalizado, moradia segura e zero sustos.',
+    'Escopo claro: do visto no Brasil ao registro na PDI e emissão do RUT',
+  'Entregas claras de tranquilidade para cada etapa da sua mudança':
+    'Escopo claro: do visto no Brasil ao registro na PDI e emissão do RUT',
   'Residência Temporal — Acordo Mercosul e Subcategorias': 'Regularização Migratória Completa',
   'Enquadramento técnico conforme a legislação chilena (Ley Nº 21.325, Art. 70, nº 13) e o Acordo Mercosul, abrangendo trabalho com oferta formal, rentistas, investidores, estudantes e reunificação familiar.':
     'Cuidamos do seu visto, PDI e RUT para você viver e trabalhar legalmente desde o primeiro dia — escolhendo a rota certa entre Mercosul, trabalho, estudo, família ou renda.',
@@ -1054,15 +1050,12 @@ const LEGACY_PT_BR_COPY_UPGRADE_MAP: Record<string, string> = {
     'Dossiê Blindado, Apostila e Traduções Sem Retrabalho',
   'Cronograma reverso que preserva o prazo de 60 dias dos Antecedentes da Polícia Federal, coordenando cartórios, Apostila de Haia e tradutores juramentados.':
     'Montamos a ordem exata das certidões para seus Antecedentes da PF não vencerem em 60 dias, evitando gastar duas vezes com cartórios ou travar o pedido por erro simples.',
-  'Relocation e Integração Pós-Chegada': 'Chegada Segura, RUT e Moradia Sem Fiador Local',
-  'Suporte completo no Estampado Electrónico, registro na PDI, Cédula de Identidade no Registro Civil, ClaveÚnica, RUT, abertura de conta bancária e busca de moradia.':
-    'Acompanhamos sua chegada na PDI, emissão da Cédula (RUT), ClaveÚnica, conta bancária e a negociação segura do seu contrato de arriendo em UF sem avalista chileno.',
 
   // Diferenciais
   'Por que conduzir sua mudança com a D&M Integra Chile':
-    'Por que brasileiros confiam sua mudança à D&M Integra Chile',
+    'Por que brasileiros confiam sua regularização à D&M Integra Chile',
   'Rigor técnico e planejamento preventivo para evitar exigências do SERMIG, perda de validade de certidões e indeferimentos.':
-    'Você não precisa enfrentar a burocracia chilena sozinho nem arriscar seu patrimônio com informações desencontradas de grupos na internet.',
+    'Você não precisa enfrentar a burocracia do SERMIG sozinho nem arriscar seu processo com informações desencontradas de grupos na internet.',
   'Diagnóstico fundamentado na legislação vigente':
     'Estratégia certa antes de comprar passagem ou gastar em cartório',
   'Avaliamos se o pedido deve ser protocolado a partir do exterior ou se há hipótese legal de solicitação no Chile, prevenindo exigências administrativas e notificações de saída.':
@@ -1070,42 +1063,40 @@ const LEGACY_PT_BR_COPY_UPGRADE_MAP: Record<string, string> = {
   'Termômetro de Prontidão Documental': 'Conferência rigorosa antes do protocolo no SERMIG',
   'Cada certidão é verificada por critérios técnicos e pesos de obrigatoriedade, impedindo protocolos incompletos que comprometeriam o prazo de aprovação.':
     'Validamos cada documento, prazo e tradução antes do envio oficial, blindando seu pedido contra atrasos de meses por falhas fáceis de evitar.',
-  'Portal do Cliente e Rede Homologada': 'Transparência total e parceiros testados no Brasil e no Chile',
-  'Envio seguro de documentos, cronograma personalizado de emissões, aprovação transparente de orçamentos e acesso direto a parceiros homologados no Brasil e no Chile.':
-    'Acompanhe cada etapa pelo Portal do Cliente e conte com corretores, cartórios e tradutores validados pela D&M para fugir de golpes e contratos abusivos.',
+  'Portal do Cliente e Rede Homologada': 'Portal transparente e rede de parceiros indicados',
 
   // Como Funciona
-  'Como funciona a jornada até sua residência no Chile':
-    'Da decisão no Brasil às chaves da sua casa no Chile, em 4 fases claras',
   'Um processo estruturado em quatro etapas claras, do enquadramento inicial à emissão da Cédula.':
-    'Um roteiro previsível para você saber exatamente o que fazer hoje, o que pagar e quando embarcar com tranquilidade.',
+    'Um roteiro previsível do Brasil até o visto aprovado, registro na PDI e emissão do seu RUT.',
 
   // Quem Somos
   'Especialistas dedicados à jornada Brasil–Chile':
     'Rigor técnico no processo, acolhimento real com a sua família',
   'Assessoria personalizada com foco em segurança operacional, clareza jurídica e atendimento próximo.':
-    'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada caso como um projeto de vida único.',
+    'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada etapa migratória com transparência e proximidade.',
   'A D&M Integra Chile nasceu para eliminar a insegurança de brasileiros que desejam trabalhar, empreender, estudar ou viver no Chile. Atuamos com metodologia própria de análise normativa, controle de prazos do SERMIG e rede de parceiros verificados nos dois países.':
-    'A D&M Integra Chile nasceu para proteger brasileiros do medo de cair em golpes, travar na burocracia do SERMIG ou não conseguir alugar um imóvel no Chile. Unimos precisão jurídica na legislação chilena a um atendimento próximo, transparente e 100% em português.',
+    'A D&M Integra Chile nasceu para dar segurança a brasileiros em toda a regularização migratória — do enquadramento legal no Brasil ao visto no SERMIG, registro na PDI e emissão do RUT — além de conectar você a profissionais parceiros confiáveis para outras etapas da vida no Chile.',
 
   // Parceiros
-  'Ecossistema Verificado': 'Curadoria & Proteção Contra Riscos',
-  'Parceiros recomendados': 'Rede de Parceiros Homologados Brasil–Chile',
-  'Rede de Parceiros Homologados Brasil–Chile': 'Rede de Parceiros Homologados Brasil–Chile',
+  'Ecossistema Verificado': 'Indicação de Profissionais Parceiros',
+  'Curadoria & Proteção Contra Riscos': 'Indicação de Profissionais Parceiros',
+  'Parceiros recomendados': 'Rede de Parceiros Indicados Brasil–Chile',
+  'Rede de Parceiros Homologados Brasil–Chile': 'Rede de Parceiros Indicados Brasil–Chile',
   'Rede homologada no Brasil e no Chile para apostilamentos, traduções juramentadas e relocation.':
-    'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.',
+    'Nossa assessoria acompanha até Vistos, PDI e RUT. Para outras necessidades no Brasil e no Chile, indicamos profissionais parceiros independentes em imobiliária, tradução, cartório, contabilidade, advocacia e saúde.',
   'Profissionais e empresas verificados pela consultoria para apoiar cada etapa da sua mudança.':
-    'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.',
+    'Nossa assessoria acompanha até Vistos, PDI e RUT. Para outras necessidades no Brasil e no Chile, indicamos profissionais parceiros independentes em imobiliária, tradução, cartório, contabilidade, advocacia e saúde.',
   'Cartórios, tradutores juramentados, seguradoras, contabilidades e assessoria imobiliária avaliados por qualidade técnica e atendimento em português.':
-    'Corretores preparados para arriendo em UF sem avalista local, tradutores juramentados, cartórios e contadores selecionados a dedo para proteger seu patrimônio.',
-  'Explorar rede de parceiros': 'Conhecer parceiros validados',
-  'Ver todos e Seja um Parceiro': 'Conhecer parceiros validados',
+    'Profissionais independentes indicados pela D&M para apoiar você em imóveis, traduções juramentadas, cartórios, abertura de empresa (SpA), seguros e educação — com contratação direta e transparente.',
+  'Explorar rede de parceiros': 'Explorar rede de parceiros',
+  'Ver todos e Seja um Parceiro': 'Explorar rede de parceiros',
+  'Conhecer parceiros validados': 'Explorar rede de parceiros',
 
   // FAQ
   'Perguntas frequentes sobre imigração para o Chile':
     'Dúvidas reais de quem está planejando viver no Chile',
   'Esclareça os pontos que mais geram dúvidas antes de iniciar o seu processo.':
-    'Respostas diretas e sem juridiquês sobre vistos, trabalho, prazos e chegada ao Chile.',
+    'Respostas diretas e sem juridiquês sobre vistos, trabalho, prazos, PDI e RUT no Chile.',
   'Brasileiros podem solicitar a Residência Mercosul estando como turistas no Chile?':
     'Posso viajar como turista para o Chile e pedir o Visto Mercosul lá dentro?',
   'Pela regra geral da legislação chilena (Ley Nº 21.325 e Decreto Supremo Nº 177/2022), a primeira Residência Temporal por Reciprocidade Internacional (Acordo Mercosul) deve ser solicitada a partir do exterior. Quem se encontra no Chile como turista, sem vínculo familiar formalizado ou hipótese humanitária prevista em lei chilena, precisa sair do território chileno para protocolar o pedido.':
@@ -1127,18 +1118,20 @@ const LEGACY_PT_BR_COPY_UPGRADE_MAP: Record<string, string> = {
 
   // Contato & Rodapé
   'Pronto para planejar sua mudança para o Chile com segurança?':
-    'Vamos planejar a sua mudança para o Chile com segurança e zero improviso?',
+    'Vamos planejar seu visto, PDI e RUT no Chile com segurança e zero improviso?',
   'Comece pelo diagnóstico gratuito ou converse diretamente com nossa consultoria especializada.':
     'Faça seu diagnóstico gratuito em 2 minutos ou chame nossa equipe no WhatsApp para tirar suas dúvidas sem compromisso.',
   'Consultoria especializada em imigração e relocation Brasil–Chile.':
-    'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.',
+    'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
 };
 
 export function translateSeedText(text: string | undefined, locale: SiteLocale): string {
   if (!text) return '';
   const trimmed = text.trim();
   if (locale === 'pt-BR') {
-    return LEGACY_PT_BR_COPY_UPGRADE_MAP[trimmed] ?? text;
+    const scopeNormalized = normalizePublicScopeText(trimmed);
+    return LEGACY_PT_BR_COPY_UPGRADE_MAP[scopeNormalized] ?? scopeNormalized;
   }
-  return SEED_ES_CL_MAP[trimmed] ?? text;
+  const normalizedPt = normalizePublicScopeText(trimmed);
+  return SEED_ES_CL_MAP[trimmed] ?? SEED_ES_CL_MAP[normalizedPt] ?? normalizedPt;
 }

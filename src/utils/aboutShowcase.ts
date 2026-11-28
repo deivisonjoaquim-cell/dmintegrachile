@@ -50,14 +50,14 @@ export const OFFICE_OPERATIONS_SLIDES: OfficeOperationSlide[] = [
     locationLabel: 'Operação Diária',
   },
   {
-    id: 'planejamento-moradia',
+    id: 'rede-parceiros-indicados',
     imageUrl: '/src/assets/images/advisory_boardroom_minimal_1795699453098.jpg',
-    alt: 'Sala executiva utilizada para reuniões de planejamento de relocation e moradia no Chile',
-    title: 'Estratégia de moradia segura e rede homologada',
+    alt: 'Sala executiva utilizada para curadoria e conexão com profissionais parceiros no Brasil e no Chile',
+    title: 'Curadoria e indicação de profissionais parceiros',
     description:
-      'Coordenação com corretores e parceiros validados para estruturar contratos de arriendo em UF com segurança jurídica — inclusive para quem chega sem fiador local.',
-    routineTag: 'Relocation & Arriendo',
-    locationLabel: 'Santiago & Regiões',
+      'Nossa atuação direta vai até Vistos, PDI e RUT. Para imóveis, traduções juramentadas, cartórios, contabilidade ou seguros, conectamos você a parceiros independentes avaliados.',
+    routineTag: 'Rede de Parceiros Indicados',
+    locationLabel: 'Brasil & Chile',
   },
   {
     id: 'dossie-lgpd',
@@ -65,7 +65,7 @@ export const OFFICE_OPERATIONS_SLIDES: OfficeOperationSlide[] = [
     alt: 'Mesa de trabalho com organização de dossiês físicos e digitais de clientes em mudança ao Chile',
     title: 'Dossiês organizados e sigilo absoluto em cada etapa',
     description:
-      'Centralização dos documentos aprovados no Portal do Cliente sob rigorosa proteção de dados (LGPD), garantindo clareza do planejamento no Brasil à instalação no Chile.',
+      'Centralização dos documentos aprovados no Portal do Cliente sob rigorosa proteção de dados (LGPD), garantindo clareza do planejamento no Brasil à emissão do seu RUT no Chile.',
     routineTag: 'Portal do Cliente · LGPD',
     locationLabel: 'Governança',
   },
@@ -76,9 +76,9 @@ export const CURATED_ABOUT_TESTIMONIALS: AboutTestimonial[] = [
     id: 'curated-camila-rafael',
     nome: 'Camila & Rafael Nogueira',
     origemDestino: 'Curitiba → Providencia, Santiago',
-    rotaServico: 'Residência Mercosul · Relocation Familiar',
+    rotaServico: 'Residência Mercosul · PDI & RUT',
     depoimento:
-      'Chegamos ao Chile com duas crianças e muito receio de travar na papelada ou cair em golpe no aluguel. A D&M organizou cada apostila ainda no Brasil e, na primeira semana em Santiago, já tínhamos contrato seguro e protocolo no SERMIG.',
+      'Chegamos ao Chile com duas crianças e muito receio de errar na papelada do SERMIG. A D&M organizou cada apostila ainda no Brasil, conduziu nosso visto, PDI e RUT com precisão e ainda nos indicou parceiros sérios para as demais etapas.',
   },
   {
     id: 'curated-eduardo-vasconcelos',
@@ -92,9 +92,9 @@ export const CURATED_ABOUT_TESTIMONIALS: AboutTestimonial[] = [
     id: 'curated-fernanda-alencar',
     nome: 'Fernanda Alencar',
     origemDestino: 'Belo Horizonte → Viña del Mar',
-    rotaServico: 'Planejamento Migratório · Arriendo',
+    rotaServico: 'Planejamento Migratório · Indicação de Parceiros',
     depoimento:
-      'Tentei pesquisar tudo sozinha e quase desisti diante de tantas informações desencontradas sobre UF, visto e fiador local. O acolhimento da equipe transformou uma mudança cheia de insegurança em um plano leve e bem conduzido.',
+      'Tentei pesquisar tudo sozinha e quase desisti com tantas informações desencontradas sobre SERMIG e prazos de certidões. A clareza da equipe sobre o que eles conduzem e os profissionais parceiros que indicam trouxe total segurança.',
   },
 ];
 

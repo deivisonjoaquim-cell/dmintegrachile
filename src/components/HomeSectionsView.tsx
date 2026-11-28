@@ -2,11 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   BookOpen,
+  Building2,
   Calendar,
   Check,
   ChevronDown,
+  FileCheck2,
+  GraduationCap,
+  Handshake,
+  HeartPulse,
+  Landmark,
+  Languages,
   MapPin,
   MessageCircle,
+  Scale,
+  ShieldCheck,
   Star,
   X,
 } from 'lucide-react';
@@ -21,9 +30,12 @@ import type {
 } from '../types/domain';
 import { buildWhatsAppUrl, openExternalSafe, sanitizeHtml } from '../utils/formatters';
 import {
+  matchesPartnerMacroGroup,
+  PARTNER_MACRO_GROUPS,
   sanitizePartnerImageUrl,
   translatePartnerCategory,
   translatePartnerCountry,
+  type PartnerMacroGroupId,
 } from '../utils/partnerHelpers';
 import { prefetchRouteChunk } from '../utils/routePrefetch';
 import { OptimizedImage } from './OptimizedImage';
@@ -67,6 +79,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
   const { locale, t, translateText } = useLanguage();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [serviceDrawer, setServiceDrawer] = useState<ServiceItemMeta | null>(null);
+  const [homePartnerGroup, setHomePartnerGroup] = useState<PartnerMacroGroupId>('Todos');
 
   useEffect(() => {
     if (!serviceDrawer) return;
@@ -107,110 +120,387 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     }
   };
 
+  const getPartnerCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'Escritório de Advocacia':
+        return Scale;
+      case 'Cartório / Apostilamento':
+        return FileCheck2;
+      case 'Tradutor Juramentado':
+        return Languages;
+      case 'Seguradora / Saúde':
+        return HeartPulse;
+      case 'Imobiliária':
+        return Building2;
+      case 'Escola / Universidade':
+        return GraduationCap;
+      case 'Contabilidade / Abertura Empresa':
+        return Landmark;
+      default:
+        return Handshake;
+    }
+  };
+
   const renderPartnersGrid = (
     sec: { titulo: string; subtitulo: string; conteudoHtml?: string; ctaTexto?: string; ctaDestino?: string; metadados?: Record<string, unknown> },
     keyId: string,
   ) => {
-    if (partnersPublic.length === 0) return null;
+    const isEs = locale === 'es-CL';
     const meta = (sec.metadados || {}) as Record<string, unknown>;
-    const maxItens = Math.max(1, Number(meta.maxItens || 3));
+    const maxItens = Math.max(6, Number(meta.maxItens || 6));
+
+    const filteredHomePartners =
+      homePartnerGroup === 'Todos'
+        ? partnersPublic
+        : partnersPublic.filter((p) => matchesPartnerMacroGroup(p.categoria, homePartnerGroup));
+
+    const visiblePartners = filteredHomePartners.slice(0, maxItens);
+
+    const buildPartnerWaGreeting = (partner: PartnerPublic) =>
+      isEs
+        ? `¡Hola! Recibí la recomendación oficial de D&M Integra Chile para contactar a ${partner.nome}. Me gustaría consultar por sus servicios.`
+        : `Olá! Recebi a indicação oficial da D&M Integra Chile para falar com ${partner.nome}. Gostaria de solicitar informações sobre atendimento.`;
+
+    const referralSpecialties = [
+      {
+        id: 'imoveis',
+        icon: Building2,
+        kicker: isEs ? 'Vivienda · Indicación' : 'Moradia · Indicação',
+        title: isEs ? 'Corredores e Inmobiliarias' : 'Imóveis & Moradia no Chile',
+        desc: isEs
+          ? 'Derivación a corredores locales en Santiago y regiones para arriendo o compra, con contratación directa.'
+          : 'Indicação de corretores e imobiliárias locais em Santiago e regiões para busca de imóvel, com contratação direta.',
+        waArea: 'imóveis e moradia no Chile',
+      },
+      {
+        id: 'traducoes',
+        icon: Languages,
+        kicker: isEs ? 'Documentación · Indicación' : 'Documentação · Indicação',
+        title: isEs ? 'Traductores Jurados' : 'Traduções Juramentadas',
+        desc: isEs
+          ? 'Especialistas para traducciones oficiales PT-ES de certificados, diplomas, contratos y documentos exigidos.'
+          : 'Profissionais indicados para tradução oficial PT–ES de certidões, diplomas, contratos e documentos técnicos.',
+        waArea: 'tradução juramentada',
+      },
+      {
+        id: 'cartorios',
+        icon: FileCheck2,
+        kicker: isEs ? 'Brasil · Indicación' : 'Brasil · Indicação',
+        title: isEs ? 'Notarías y Apostilla' : 'Cartórios & Apostilamento',
+        desc: isEs
+          ? 'Contacto con despachantes y notarías aliadas para emisión de certificados y Apostilla de La Haya sin demoras.'
+          : 'Indicação de cartórios e despachantes parceiros para 2ª via de certidões e Apostila de Haia com agilidade.',
+        waArea: 'cartórios e apostilamento',
+      },
+      {
+        id: 'contabilidade',
+        icon: Landmark,
+        kicker: isEs ? 'Empresas · Indicación' : 'Empresas · Indicação',
+        title: isEs ? 'Contabilidad y Apertura SpA' : 'Contabilidade & Empresas (SpA)',
+        desc: isEs
+          ? 'Contadores en Chile para constitución de SpA, inicio de actividades ante el SII y planificación tributaria.'
+          : 'Contadores indicados no Chile para abertura de SpA, início de atividades no SII e planejamento fiscal.',
+        waArea: 'contabilidade e abertura de empresa SpA',
+      },
+      {
+        id: 'advocacia',
+        icon: Scale,
+        kicker: isEs ? 'Jurídico · Indicación' : 'Jurídico · Indicação',
+        title: isEs ? 'Abogacía Complementaria' : 'Advocacia Complementar',
+        desc: isEs
+          ? 'Abogados chilenos y brasileños indicados para asuntos civiles, contractuales, laborales o patrimoniales.'
+          : 'Escritórios parceiros indicados para demandas cíveis, trabalhistas, contratuais ou patrimoniais fora do visto.',
+        waArea: 'advocacia complementar',
+      },
+      {
+        id: 'protecao',
+        icon: HeartPulse,
+        kicker: isEs ? 'Familia · Indicación' : 'Família · Indicação',
+        title: isEs ? 'Seguros, Salud y Colegios' : 'Seguros, Saúde & Escolas',
+        desc: isEs
+          ? 'Corredores independientes para seguro de viaje, planes de salud (Isapre/Fonasa) y orientación escolar.'
+          : 'Profissionais indicados para seguro viagem, planos de saúde (Isapre/Fonasa) e orientação escolar para filhos.',
+        waArea: 'seguros, saúde ou escolas no Chile',
+      },
+    ];
+
     return (
       <section
         key={keyId}
+        data-testid="home-partners-section"
         className={`cv-auto ${sectionPad} bg-[#F7F8FA] dark:bg-[#070B12] border-t border-[#E5E7EB] dark:border-[#1E293B]`}
       >
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-12">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 space-y-10">
+          {/* Editorial Header */}
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            <div className="max-w-2xl space-y-2.5">
-              {Boolean(meta.eyebrow) && (
-                <p className="text-xs font-semibold tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
-                  {translateText(String(meta.eyebrow))}
+            <div className="max-w-2xl space-y-3">
+              <div className="flex items-center gap-2.5">
+                <span aria-hidden="true" className="h-px w-6 bg-[#B08D57]" />
+                <p className="text-xs font-semibold tracking-[0.08em] uppercase text-[#0F3D91] dark:text-[#C9A86A]">
+                  {translateText(String(meta.eyebrow || '')) ||
+                    (isEs ? 'Red de Aliados Indicados' : 'Indicação de Profissionais Parceiros')}
                 </p>
-              )}
-              <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance">
+              </div>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1628] dark:text-white text-balance leading-[1.1]">
                 {translateText(sec.titulo)}
               </h2>
               <p className="text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
                 {translateText(sec.subtitulo)}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-5 shrink-0">
+            <div className="flex flex-wrap items-center gap-3.5 shrink-0">
               <button
                 type="button"
                 onMouseEnter={() => prefetchRouteChunk('/parceiros')}
                 onClick={() => navigateAction('/parceiros?secao=mapa')}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#4B5563] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white transition-colors whitespace-nowrap"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#334155] bg-white dark:bg-[#0D1422] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:border-[#0B1628] dark:hover:border-white transition-colors whitespace-nowrap"
               >
-                <MapPin className="w-4 h-4" />
-                {locale === 'es-CL' ? 'Mapa en Chile' : 'Mapa no Chile'}
+                <MapPin className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                {isEs ? 'Mapa en Chile' : 'Ver no Mapa do Chile'}
               </button>
               <button
                 type="button"
                 onMouseEnter={() => prefetchRouteChunk('/parceiros')}
                 onClick={() => navigateAction(sec.ctaDestino || '/parceiros')}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628] text-xs font-semibold hover:opacity-90 transition-opacity whitespace-nowrap"
               >
                 {translateText(sec.ctaTexto) || t.sections.partnersDefaultCta}
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {partnersPublic.slice(0, maxItens).map((p) => {
-              const safeLogo = sanitizePartnerImageUrl(p.logoUrl);
-              return (
-                <article
-                  key={p.id}
-                  className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#0B1628]/35 dark:hover:border-[#334155] rounded-xl p-7 flex flex-col justify-between gap-6 transition-colors"
+          {/* Transparent Scope Strip: What D&M handles vs. What Independent Partners handle */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 rounded-2xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B]">
+            <div className="bg-[#0B1628] text-white p-6 sm:p-7 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-mono font-semibold text-[#C9A86A]">
+                <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>{isEs ? '01 · ASESORÍA DIRECTA D&M INTEGRA CHILE' : '01 · ATUAÇÃO DIRETA DA D&M INTEGRA CHILE'}</span>
+              </div>
+              <p className="font-display text-lg font-bold text-white">
+                {isEs ? 'Etapas migratorias hasta Visa, PDI y RUT' : 'Condução completa até Vistos, PDI e RUT'}
+              </p>
+              <p className="text-xs sm:text-[13px] text-slate-300 leading-relaxed">
+                {isEs
+                  ? 'Enquadre legal, preparación documental en Brasil, postulación SERMIG, Estampado Electrónico, registro obligatorio en PDI y emisión de tu Cédula (RUT).'
+                  : 'Enquadramento legal, cronograma documental no Brasil, protocolo no SERMIG, Estampado Electrónico, registro obrigatório na PDI e emissão da Cédula (RUT).'}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#0D1422] p-6 sm:p-7 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-mono font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
+                <Handshake className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>{isEs ? '02 · RED DE ALIADOS INDEPENDIENTES INDICADOS' : '02 · INDICAÇÃO DE PROFISSIONAIS PARCEIROS'}</span>
+              </div>
+              <p className="font-display text-lg font-bold text-[#0B1628] dark:text-white">
+                {isEs ? 'Especialistas para otras situaciones en Brasil y Chile' : 'Para outras demandas fora da etapa migratória'}
+              </p>
+              <p className="text-xs sm:text-[13px] text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                {isEs
+                  ? 'Para vivienda/arriendo, traducciones juradas, notarías, contabilidad/SpA, asesoría jurídica complementaria, seguros y colegios, derivamos a aliados independientes con contratación directa.'
+                  : 'Para imóveis/moradia, traduções juramentadas, cartórios, contabilidade/SpA, advocacia complementar, seguros e escolas, indicamos profissionais independentes com contratação direta.'}
+              </p>
+            </div>
+          </div>
+
+          {partnersPublic.length > 0 ? (
+            <>
+              {/* Interactive Macro-Group Filter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div
+                  role="group"
+                  aria-label={isEs ? 'Filtrar aliados por especialidad' : 'Filtrar parceiros por necessidade'}
+                  className="flex flex-wrap items-center gap-2"
                 >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3 text-xs text-[#6B7280] dark:text-slate-400">
-                      <span className="truncate font-medium">
-                        {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
-                      </span>
-                      <span className="inline-flex items-center gap-1 font-mono font-medium text-[#0B1628] dark:text-slate-200 tabular-nums shrink-0">
-                        <Star className="w-3.5 h-3.5 fill-[#B08D57] text-[#B08D57]" />
-                        {Number(p.avaliacao || 5).toFixed(1)}
-                      </span>
-                    </div>
+                  {PARTNER_MACRO_GROUPS.map((group) => {
+                    const count =
+                      group.id === 'Todos'
+                        ? partnersPublic.length
+                        : partnersPublic.filter((p) => matchesPartnerMacroGroup(p.categoria, group.id)).length;
+                    if (group.id !== 'Todos' && count === 0) return null;
+                    const active = homePartnerGroup === group.id;
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setHomePartnerGroup(group.id)}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap tabular-nums border ${
+                          active
+                            ? 'bg-[#0B1628] dark:bg-white text-white dark:text-[#0B1628] border-[#0B1628] dark:border-white'
+                            : 'bg-white dark:bg-[#0D1422] text-[#4B5563] dark:text-slate-300 border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#0B1628]/40 dark:hover:border-slate-500 hover:text-[#0B1628] dark:hover:text-white'
+                        }`}
+                      >
+                        {isEs ? group.labelEs : group.labelPt} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-[#6B7280] dark:text-slate-400 font-mono tabular-nums">
+                  {isEs
+                    ? `Mostrando ${visiblePartners.length} de ${filteredHomePartners.length} aliados`
+                    : `Exibindo ${visiblePartners.length} de ${filteredHomePartners.length} parceiros`}
+                </p>
+              </div>
 
-                    <div className="flex items-center gap-3">
-                      {safeLogo && (
-                        <div className="h-10 w-14 rounded-lg bg-white border border-[#E5E7EB] flex items-center justify-center overflow-hidden shrink-0">
-                          <OptimizedImage
-                            src={safeLogo}
-                            alt={p.nome}
-                            sizes="56px"
-                            containerClassName="relative w-full h-full flex items-center justify-center bg-white"
-                            className="max-w-full max-h-full object-contain p-1"
-                          />
-                        </div>
-                      )}
-                      <h3 className="font-display text-base font-bold text-[#0B1628] dark:text-white leading-snug">
-                        {p.nome}
-                      </h3>
-                    </div>
-
-                    <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                      {p.descricaoPublica}
-                    </p>
-                  </div>
-
-                  <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B] flex items-center justify-between gap-3 text-xs">
-                    <span className="text-[#6B7280] dark:text-slate-400 truncate">{p.cidadeRegiao}</span>
-                    <button
-                      type="button"
-                      onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-                      onClick={() => navigateAction('/parceiros?secao=mapa')}
-                      className="font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline whitespace-nowrap shrink-0"
+              {/* Partner Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {visiblePartners.map((p) => {
+                  const safeLogo = sanitizePartnerImageUrl(p.logoUrl);
+                  const CatIcon = getPartnerCategoryIcon(p.categoria);
+                  return (
+                    <article
+                      key={p.id}
+                      className="group bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#0F3D91]/50 dark:hover:border-[#60A5FA]/50 rounded-xl p-6 flex flex-col justify-between gap-5 transition-all hover:shadow-[0_12px_32px_rgba(11,22,40,0.06)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.35)]"
                     >
-                      {locale === 'es-CL' ? 'Ver en mapa →' : 'Ver no mapa →'}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-3 text-xs text-[#6B7280] dark:text-slate-400">
+                          <span className="truncate font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
+                            {translatePartnerCategory(p.categoria, locale)} · {translatePartnerCountry(p.pais, locale)}
+                          </span>
+                          <span className="inline-flex items-center gap-1 font-mono font-semibold text-[#0B1628] dark:text-slate-200 tabular-nums shrink-0">
+                            <Star className="w-3.5 h-3.5 fill-[#B08D57] text-[#B08D57]" />
+                            {Number(p.avaliacao || 5).toFixed(1)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3.5">
+                          <div className="h-12 w-14 rounded-lg bg-[#F7F8FA] dark:bg-[#151F32] border border-[#E5E7EB] dark:border-[#1E293B] flex items-center justify-center overflow-hidden shrink-0">
+                            {safeLogo ? (
+                              <OptimizedImage
+                                src={safeLogo}
+                                alt={p.nome}
+                                sizes="56px"
+                                containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                                className="max-w-full max-h-full object-contain p-1.5"
+                              />
+                            ) : (
+                              <CatIcon className="w-5 h-5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-display text-base font-bold text-[#0B1628] dark:text-white leading-snug line-clamp-2">
+                              {p.nome}
+                            </h3>
+                            <p className="text-xs text-[#6B7280] dark:text-slate-400 truncate mt-0.5">
+                              {p.cidadeRegiao}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed line-clamp-3">
+                          {p.descricaoPublica}
+                        </p>
+                      </div>
+
+                      <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B] flex items-center justify-between gap-3 text-xs">
+                        {p.whatsapp ? (
+                          <a
+                            href={buildWhatsAppUrl(p.whatsapp, buildPartnerWaGreeting(p))}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 font-semibold text-[#047857] dark:text-emerald-400 hover:underline whitespace-nowrap"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            {isEs ? 'Indicación WhatsApp' : 'Falar via indicação'}
+                          </a>
+                        ) : (
+                          <span className="text-[#6B7280] dark:text-slate-400 truncate">
+                            {isEs ? 'Aliado indicado' : 'Parceiro indicado'}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                          onClick={() => navigateAction(`/parceiros?macro=${encodeURIComponent(homePartnerGroup)}`)}
+                          className="font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline whitespace-nowrap shrink-0"
+                        >
+                          {isEs ? 'Ver directorio →' : 'Ver na rede →'}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            /* Curated 6-Specialty Referral Areas Grid (shown cleanly while directory is being populated) */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {referralSpecialties.map((area) => {
+                const AreaIcon = area.icon;
+                return (
+                  <article
+                    key={area.id}
+                    className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#0F3D91]/45 dark:hover:border-[#60A5FA]/45 rounded-xl p-6 flex flex-col justify-between gap-5 transition-all hover:shadow-[0_10px_28px_rgba(11,22,40,0.05)]"
+                  >
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#0F3D91] dark:text-[#C9A86A]">
+                          {area.kicker}
+                        </span>
+                        <div className="w-9 h-9 rounded-lg bg-[#F7F8FA] dark:bg-[#151F32] border border-[#E5E7EB] dark:border-[#1E293B] flex items-center justify-center text-[#0F3D91] dark:text-[#60A5FA] shrink-0">
+                          <AreaIcon className="w-4 h-4" aria-hidden="true" />
+                        </div>
+                      </div>
+                      <h3 className="font-display text-base font-bold text-[#0B1628] dark:text-white leading-snug">
+                        {area.title}
+                      </h3>
+                      <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
+                        {area.desc}
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B] flex items-center justify-between gap-3 text-xs">
+                      <a
+                        href={buildWhatsAppUrl(
+                          empresa.whatsapp,
+                          isEs
+                            ? `¡Hola! Me gustaría solicitar la indicación de un aliado independiente para ${area.waArea}.`
+                            : `Olá! Gostaria de solicitar a indicação de um profissional parceiro para ${area.waArea}.`,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 font-semibold text-[#047857] dark:text-emerald-400 hover:underline whitespace-nowrap"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        {isEs ? 'Solicitar indicación' : 'Solicitar indicação'}
+                      </a>
+                      <button
+                        type="button"
+                        onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+                        onClick={() => navigateAction('/parceiros')}
+                        className="font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline whitespace-nowrap"
+                      >
+                        {isEs ? 'Cómo funciona →' : 'Ver detalhes →'}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Executive Partner B2B Callout Bar */}
+          <div className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#0D1422] p-6 sm:px-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="space-y-1 max-w-2xl">
+              <p className="text-sm font-bold text-[#0B1628] dark:text-white">
+                {isEs
+                  ? '¿Ofreces servicios profesionales en Brasil o Chile y quieres ser recomendado?'
+                  : 'Atua no Brasil ou no Chile e deseja fazer parte da nossa rede de indicações?'}
+              </p>
+              <p className="text-xs sm:text-sm text-[#4B5563] dark:text-slate-300">
+                {isEs
+                  ? 'Credencia tu oficina o empresa sin cuota mensual: evaluamos cada postulación en hasta 48h.'
+                  : 'Cadastre sua empresa sem mensalidade fixa para receber indicações qualificadas de clientes D&M.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onMouseEnter={() => prefetchRouteChunk('/parceiros')}
+              onClick={() => navigateAction('/parceiros?secao=seja-parceiro')}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#0B1628] dark:border-white text-xs font-semibold text-[#0B1628] dark:text-white hover:bg-[#0B1628] hover:text-white dark:hover:bg-white dark:hover:text-[#0B1628] transition-colors whitespace-nowrap shrink-0"
+            >
+              {isEs ? 'Postular como Aliado B2B' : 'Quero ser Parceiro'}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </section>
@@ -224,9 +514,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
 
     if (key === 'hero') {
       const rawDestaques = (meta.destaques as string[] | undefined) || [
-        'Atendimento 100% em português do Brasil',
-        'Base normativa alinhada à Ley 21.325 e SERMIG',
-        'Acompanhamento transparente em 15 etapas',
+        'Atendimento humano e direto em português',
+        'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
+        'Rede de parceiros indicados para demandas complementares',
       ];
       const heroDestaques = rawDestaques.map((d) => translateText(d));
       const eyebrow = translateText(meta.eyebrow as string | undefined) || t.hero.defaultEyebrow;
@@ -236,7 +526,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         translateText(meta.ctaSecundario as string | undefined) || t.hero.defaultSecondaryCta;
 
       const DEFAULT_HERO_TITLE =
-        'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.';
+        'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.';
       const rawHeroTitle = !sec.titulo ? DEFAULT_HERO_TITLE : sec.titulo;
 
       return (
@@ -434,10 +724,10 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 </div>
 
                 {/* Tier 3: Consultoria Completa (Destaque Executivo) */}
-                <div className="bg-[#0B1628] dark:bg-[#111E33] border border-[#0B1628] dark:border-[#2A3B58] text-white rounded-xl p-8 flex flex-col justify-between gap-8">
+                <div className="bg-[#070E1C] dark:bg-[#111E33] border border-[#C9A86A]/45 text-white rounded-xl p-8 flex flex-col justify-between gap-8 shadow-[0_16px_40px_rgba(7,14,28,0.16)]">
                   <div className="space-y-5">
                     <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-[#C9A86A]">
+                      <p className="text-xs font-semibold tracking-[0.04em] text-[#E5C77B]">
                         {plans.completa.kicker}
                       </p>
                       <h4 className="font-display text-xl font-bold text-white">
@@ -453,7 +743,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     <ul className="space-y-3 text-xs sm:text-[13px] text-slate-200">
                       {plans.completa.inclui.map((item) => (
                         <li key={item} className="flex items-start gap-2.5">
-                          <Check className="w-4 h-4 text-[#C9A86A] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#E5C77B] shrink-0 mt-0.5" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -463,7 +753,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     href={buildWhatsAppUrl(empresa.whatsapp, plans.completa.waMessage || '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-xs font-semibold text-[#0B1628] bg-white hover:bg-slate-100 transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-xs font-semibold text-[#070E1C] bg-[#E5C77B] hover:bg-[#F0D692] transition-colors"
                   >
                     {plans.completa.cta}
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -599,8 +889,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               : 'Conversas individuais em português',
           caption:
             locale === 'es-CL'
-              ? 'Acompañamiento directo para ti y tu familia.'
-              : 'Atendimento direto para alinhar trabalho, família e moradia.',
+              ? 'Acompañamiento directo para alinear visa, familia y plazos.'
+              : 'Atendimento direto para alinhar visto, documentos, prazos e indicações.',
           span: 'lg:col-span-6',
           pos: 'object-[55%_20%]',
         },
@@ -964,7 +1254,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
               <button
                 type="button"
                 onClick={() => navigateAction(sec.ctaDestino || '/diagnostico')}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold text-[#0B1628] bg-white hover:bg-slate-100 transition-colors whitespace-nowrap"
+                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold text-[#070E1C] bg-[#E5C77B] hover:bg-[#F0D692] transition-colors whitespace-nowrap shadow-[0_8px_24px_rgba(201,168,106,0.2)]"
               >
                 {translateText(sec.ctaTexto) || t.sections.contatoDefaultCta}
                 <ArrowRight className="w-4 h-4" />
@@ -973,9 +1263,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                 <button
                   type="button"
                   onClick={onOpenCalendly}
-                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-medium border border-white/25 text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-medium border border-white/25 bg-white/[0.04] text-white hover:bg-white/10 transition-colors whitespace-nowrap"
                 >
-                  <Calendar className="w-4 h-4 text-slate-300" />
+                  <Calendar className="w-4 h-4 text-[#E5C77B]" />
                   {t.sections.contatoScheduleCta}
                 </button>
               ) : (
@@ -983,9 +1273,9 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                   href={whatsappHeroUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-medium border border-white/25 text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-medium border border-white/25 bg-white/[0.04] text-white hover:bg-white/10 transition-colors whitespace-nowrap"
                 >
-                  <MessageCircle className="w-4 h-4 text-slate-300" />
+                  <MessageCircle className="w-4 h-4 text-[#E5C77B]" />
                   {t.sections.contatoWhatsappCta}
                 </a>
               )}
