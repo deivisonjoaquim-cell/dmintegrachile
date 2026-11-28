@@ -14,10 +14,11 @@ import {
 } from 'lucide-react';
 import type { EmpresaConfig, GeneratedDocument, GeneratedDocumentSignatureMethod } from '../../types/domain';
 import { BrandRibbon } from '../BrandLogo';
-import { QrCodeSvg, UiButton } from '../ui/DesignSystem';
+import { UiButton } from '../ui/DesignSystem';
+import { ContractDocumentSheet } from './ContractDocumentSheet';
 import { SignaturePadCanvas } from './SignaturePadCanvas';
 import { SignatureCertificateCard } from './SignatureCertificateCard';
-import { formatDateTimeBR, sanitizeHtml } from '../../utils/formatters';
+import { formatDateTimeBR } from '../../utils/formatters';
 import {
   computeDocumentContentHash,
   formatSignatureHashShort,
@@ -148,7 +149,6 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
     }
   };
 
-  const sanitizedHtml = useMemo(() => sanitizeHtml(doc.conteudoHtml), [doc.conteudoHtml]);
   const selectedTypedStyleObj = useMemo(
     () => TYPED_SIGNATURE_STYLES.find((s) => s.id === typedStyle) || TYPED_SIGNATURE_STYLES[0],
     [typedStyle],
@@ -478,33 +478,24 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                   </div>
                 </div>
 
-                {/* Folha A4 rolável */}
+                {/* Folha A4 rolável com enquadramento editorial */}
                 <div
                   ref={contractScrollRef}
                   onScroll={handleContractScroll}
                   className="flex-1 overflow-y-auto p-4 sm:p-6"
                 >
-                  <div className="bg-white border border-[#E5DFD2] rounded-xl p-5 sm:p-8 text-[#0B1F33] space-y-5 shadow-xs">
-                    <div className="flex items-start justify-between gap-4 border-b border-[#E5DFD2] pb-4">
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#0B1F33]">{empresa.nome_empresa}</p>
-                        <p className="text-[11px] font-mono text-[#4A5A6D] mt-0.5">{empresa.razao_social_cnpj_rut}</p>
-                        <p className="text-[11px] text-[#4A5A6D] mt-0.5">
-                          {empresa.endereco_cidade} · {empresa.email}
-                        </p>
-                      </div>
-                      <QrCodeSvg value={doc.codigoVerificacao || doc.id} size={52} />
-                    </div>
-
-                    <div
-                      className="prose prose-sm max-w-none text-xs sm:text-[13px] text-[#0B1F33] whitespace-pre-wrap leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-                    />
-
-                    <div className="pt-4 border-t border-[#E5DFD2] text-[10px] text-[#4A5A6D] space-y-1">
-                      <p>{empresa.avisoLegal}</p>
-                    </div>
-                  </div>
+                  <ContractDocumentSheet
+                    doc={doc}
+                    empresa={empresa}
+                    fallbackSigner={{
+                      nome: signerName || defaultSignerName,
+                      email: defaultSignerEmail,
+                      documento: signerDocument || defaultSignerDocument,
+                    }}
+                    showClauseNav
+                    showCertificate={false}
+                    compactHeader
+                  />
                 </div>
 
                 {/* Ação rápida no mobile para avançar para assinatura */}

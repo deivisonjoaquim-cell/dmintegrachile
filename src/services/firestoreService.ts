@@ -154,10 +154,13 @@ const CURRENT_TERMO_LGPD_LINE =
   '1. Controlador: D&M Integra Chile – Relocation & Assessoria (atuação autônoma como Pessoa Física sob marca própria).';
 
 function normalizeEmpresaConfig(data: Partial<EmpresaConfig>): EmpresaConfig {
-  const textoContratoPadrao =
-    typeof data.textoContratoPadrao === 'string' && data.textoContratoPadrao.includes('inscrita sob CNPJ/RUT {{empresa_doc}}')
-      ? DEFAULT_CONTRATO_TEMPLATE
-      : data.textoContratoPadrao || DEFAULT_EMPRESA_CONFIG.textoContratoPadrao;
+  const isLegacyDefaultContract =
+    typeof data.textoContratoPadrao === 'string' &&
+    (data.textoContratoPadrao.includes('inscrita sob CNPJ/RUT {{empresa_doc}}') ||
+      data.textoContratoPadrao.includes('Nota interna de conformidade: Revisar com advogado antes do uso.'));
+  const textoContratoPadrao = isLegacyDefaultContract
+    ? DEFAULT_CONTRATO_TEMPLATE
+    : data.textoContratoPadrao || DEFAULT_EMPRESA_CONFIG.textoContratoPadrao;
 
   const termoLgpd =
     typeof data.termoLgpd === 'string' && data.termoLgpd.includes(LEGACY_TERMO_LGPD_LINE)
@@ -203,7 +206,11 @@ function getUpgradedDocumentTemplateHtml(tpl: Partial<DocumentTemplate>): string
 
   const seedMatch = (id: string) => SEED_DOCUMENT_TEMPLATES.find((s) => s.id === id)?.conteudoHtml || null;
 
-  if ((tpl.id === 'doc_contrato' || tpl.codigo === 'contrato_consultoria') && html.includes('inscrita sob CNPJ/RUT {{empresa_doc}}')) {
+  if (
+    (tpl.id === 'doc_contrato' || tpl.codigo === 'contrato_consultoria') &&
+    (html.includes('inscrita sob CNPJ/RUT {{empresa_doc}}') ||
+      html.includes('Nota interna de conformidade: Revisar com advogado antes do uso.'))
+  ) {
     return seedMatch('doc_contrato');
   }
   if ((tpl.id === 'doc_recibo' || tpl.codigo === 'recibo_oficial') && html.includes('CNPJ/RUT: {{empresa_doc}}')) {

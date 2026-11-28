@@ -40,6 +40,7 @@ export interface ProcessTimelineProps {
   initialDocs: CaseDocument[];
   initialDeadlines: Deadline[];
   initialNotifications?: ClientNotification[];
+  externalPhaseKey?: string;
   onNavigateTab: (tab: 'documentos' | 'suporte' | 'financeiro') => void;
 }
 
@@ -114,6 +115,7 @@ export const ProcessTimeline: React.FC<ProcessTimelineProps> = ({
   initialDocs,
   initialDeadlines,
   initialNotifications,
+  externalPhaseKey,
   onNavigateTab,
 }) => {
   const [liveCase, setLiveCase] = useState<Case | null>(activeCase);
@@ -123,6 +125,12 @@ export const ProcessTimeline: React.FC<ProcessTimelineProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | ProcessStepStatus>('all');
   const [selectedPhaseKey, setSelectedPhaseKey] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (externalPhaseKey) {
+      setSelectedPhaseKey(externalPhaseKey);
+    }
+  }, [externalPhaseKey]);
 
   useEffect(() => {
     setLiveCase(activeCase);
@@ -532,11 +540,25 @@ export const ProcessTimeline: React.FC<ProcessTimelineProps> = ({
               (expandedId === null && (m.status === 'current' || m.status === 'attention'));
             const isLast = idx === visibleMilestones.length - 1;
 
+            const isVisaMilestone =
+              modality === 'orientativa'
+                ? m.numero === 5
+                : m.numero === 7 || m.numero === 10 || m.numero === 11;
+            const isRutMilestone =
+              modality === 'orientativa'
+                ? m.numero === 6
+                : m.numero === 12 || m.numero === 13 || m.numero === 14;
+            const featuredAccentClass =
+              isVisaMilestone || isRutMilestone
+                ? 'border-[#C9A86A]/75 dark:border-[#C9A86A]/55'
+                : '';
+
             return (
               <li
                 key={m.id}
                 data-testid={`timeline-step-${m.numero}`}
                 data-process-status={mappedStatus}
+                data-milestone-focus={isVisaMilestone ? 'visto' : isRutMilestone ? 'rut' : undefined}
                 className="relative pl-11"
               >
                 {/* Linha conectora vertical */}
@@ -556,7 +578,7 @@ export const ProcessTimeline: React.FC<ProcessTimelineProps> = ({
                 </span>
 
                 {/* Cartão do marco */}
-                <div className={`rounded-xl border transition-colors ${style.cardClass}`}>
+                <div className={`rounded-xl border transition-colors ${style.cardClass} ${featuredAccentClass}`}>
                   <button
                     type="button"
                     aria-expanded={isExpanded}
@@ -577,6 +599,11 @@ export const ProcessTimeline: React.FC<ProcessTimelineProps> = ({
                           <StatusIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
                           {displayLabel}
                         </span>
+                        {(isVisaMilestone || isRutMilestone) && (
+                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#C9A86A]">
+                            {isVisaMilestone ? '· Marco Visto (SERMIG)' : '· Marco Emissão do RUT'}
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[#475569] dark:text-slate-400">
                         <span>{m.phaseLabel}</span>

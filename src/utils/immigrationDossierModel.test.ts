@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildImmigrationDossierHighlights } from './immigrationDossierModel';
+import {
+  buildDossierConsultantValidation,
+  buildImmigrationDossierHighlights,
+} from './immigrationDossierModel';
 import type { BasicDiagnosticSummary } from './portalAccess';
 
 const SAMPLE_SUMMARY: BasicDiagnosticSummary = {
@@ -51,4 +54,67 @@ test('buildImmigrationDossierHighlights includes unmistakable housing non-guaran
   assert.match(es.housingDisclaimer.body, /NO es un servicio garantizado/i);
   assert.match(es.housingDisclaimer.body, /Visa/i);
   assert.match(es.housingDisclaimer.body, /\bRUT\b/);
+});
+
+test('buildDossierConsultantValidation builds deterministic verification code, fingerprint, and custom consultant notes', () => {
+  const first = buildDossierConsultantValidation({
+    protocolo: 'DM-2026-44',
+    clientName: 'Marina Costa',
+    subcategoriaNome: 'Residência Temporal — Acordo Mercosul',
+    empresaResponsavel: 'Daniela Mendes',
+    consultantNotes: {
+      text: 'Revisar validade do passaporte e emitir Antecedentes PF na semana do protocolo.',
+      recommendation: 'Agendar conferência final antes do envio ao SERMIG.',
+    },
+    digitalSignature: {
+      signerName: 'Daniela Mendes',
+      signedAt: '2026-11-28T14:30:00.000Z',
+    },
+  });
+
+  const second = buildDossierConsultantValidation({
+    protocolo: 'DM-2026-44',
+    clientName: 'Marina Costa',
+    subcategoriaNome: 'Residência Temporal — Acordo Mercosul',
+    empresaResponsavel: 'Daniela Mendes',
+    consultantNotes: {
+      text: 'Revisar validade do passaporte e emitir Antecedentes PF na semana do protocolo.',
+      recommendation: 'Agendar conferência final antes do envio ao SERMIG.',
+    },
+    digitalSignature: {
+      signerName: 'Daniela Mendes',
+      signedAt: '2026-11-28T14:30:00.000Z',
+    },
+  });
+
+  assert.equal(first.hasCustomNotes, true);
+  assert.match(first.notesBody, /Antecedentes PF/i);
+  assert.match(first.notesBody, /SERMIG/i);
+  assert.equal(first.verificationCode, second.verificationCode);
+  assert.equal(first.integrityFingerprint, second.integrityFingerprint);
+  assert.match(first.integrityFingerprint, /^[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/);
+  assert.match(first.legalBasisNote, /Visto SERMIG e RUT/i);
+  assert.doesNotMatch(`${first.notesBody} ${first.legalBasisNote}`, /\bPDI\b/i);
+});
+
+test('buildDossierConsultantValidation provides guided fallback notes in PT-BR and ES-CL when empty', () => {
+  const ptFallback = buildDossierConsultantValidation({
+    protocolo: 'DM-EMPTY-1',
+    clientName: 'Lucas Almeida',
+    subcategoriaNome: 'Acordo Mercosul',
+    locale: 'pt-BR',
+  });
+  assert.equal(ptFallback.hasCustomNotes, false);
+  assert.match(ptFallback.notesBody, /RUT/);
+  assert.doesNotMatch(ptFallback.notesBody, /\bPDI\b/i);
+
+  const esFallback = buildDossierConsultantValidation({
+    protocolo: 'CL-EMPTY-2',
+    clientName: 'Sofía Martínez',
+    subcategoriaNome: 'Acuerdo Mercosur',
+    locale: 'es-CL',
+  });
+  assert.equal(esFallback.hasCustomNotes, false);
+  assert.match(esFallback.signatureSectionTitle, /FIRMA DIGITAL/i);
+  assert.match(esFallback.notesBody, /RUT/);
 });

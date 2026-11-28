@@ -118,3 +118,131 @@ export function buildImmigrationDossierHighlights(params: {
     },
   };
 }
+
+export interface DossierConsultantNotesInput {
+  text?: string;
+  authorName?: string;
+  authorRole?: string;
+  updatedAt?: string;
+  recommendation?: string;
+  legalFoundation?: string;
+}
+
+export interface DossierDigitalSignatureInput {
+  signerName?: string;
+  signerRole?: string;
+  signedAt?: string;
+  verificationCode?: string;
+  signatureDataUrl?: string;
+  hashPreview?: string;
+}
+
+export interface ResolvedDossierValidationBlock {
+  notesTitle: string;
+  notesAuthor: string;
+  notesUpdatedLabel: string;
+  notesBody: string;
+  hasCustomNotes: boolean;
+  signatureSectionTitle: string;
+  signerName: string;
+  signerRole: string;
+  signedAtIso: string;
+  verificationCode: string;
+  integrityFingerprint: string;
+  signatureDataUrl?: string;
+  legalBasisNote: string;
+}
+
+function computeDeterministicFingerprint(seed: string): string {
+  let h1 = 0xdeadbeef ^ seed.length;
+  let h2 = 0x41c6ce57 ^ seed.length;
+  for (let i = 0; i < seed.length; i++) {
+    const ch = seed.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const partA = (h1 >>> 0).toString(16).padStart(8, '0');
+  const partB = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `${partA}${partB}`.toUpperCase();
+}
+
+export function buildDossierConsultantValidation(params: {
+  protocolo: string;
+  clientName: string;
+  subcategoriaNome: string;
+  empresaResponsavel?: string;
+  empresaNome?: string;
+  locale?: 'pt-BR' | 'es-CL';
+  consultantNotes?: DossierConsultantNotesInput | null;
+  digitalSignature?: DossierDigitalSignatureInput | null;
+}): ResolvedDossierValidationBlock {
+  const {
+    protocolo,
+    clientName,
+    subcategoriaNome,
+    empresaResponsavel,
+    empresaNome = 'D&M Integra Chile',
+    locale = 'pt-BR',
+    consultantNotes,
+    digitalSignature,
+  } = params;
+
+  const isEs = locale === 'es-CL';
+  const signedAtIso = digitalSignature?.signedAt || consultantNotes?.updatedAt || new Date().toISOString();
+
+  const noteParts = [
+    consultantNotes?.text?.trim(),
+    consultantNotes?.recommendation?.trim(),
+    consultantNotes?.legalFoundation?.trim(),
+  ].filter(Boolean) as string[];
+  const hasCustomNotes = noteParts.length > 0;
+
+  const fallbackNotes = isEs
+    ? `Expediente preliminar estructurado para ${subcategoriaNome}. Durante la sesión de consultoría, el especialista registrará ajustes documentales, fechas recomendadas para Antecedentes PF (60 días) y el cronograma de ingreso para emisión del RUT.`
+    : `Dossiê preliminar estruturado para ${subcategoriaNome}. Durante o atendimento individual, o consultor responsável registra observações específicas de documentos, janela ideal dos Antecedentes PF (60 dias) e cronograma de emissão do RUT.`;
+
+  const signerName =
+    (digitalSignature?.signerName || consultantNotes?.authorName || empresaResponsavel || '').trim() ||
+    `${empresaNome} — Consultoria Migratória`;
+  const signerRole =
+    (digitalSignature?.signerRole || consultantNotes?.authorRole || '').trim() ||
+    (isEs
+      ? 'Responsable Técnico · Consultoría de Inmigración (Visa y RUT)'
+      : 'Responsável Técnico · Consultoria de Imigração (Visto e RUT)');
+
+  const seed = `${protocolo}|${clientName}|${subcategoriaNome}|${signerName}|${noteParts.join('|')}`;
+  const fp = digitalSignature?.hashPreview?.trim() || computeDeterministicFingerprint(seed);
+  const cleanProto = protocolo.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8) || 'DMCL';
+  const verificationCode = digitalSignature?.verificationCode?.trim() || `DM-${cleanProto}-${fp.slice(0, 6)}`;
+
+  return {
+    notesTitle: isEs
+      ? 'NOTAS Y OBSERVACIONES TÉCNICAS DEL CONSULTOR'
+      : 'NOTAS E OBSERVAÇÕES TÉCNICAS DO CONSULTOR',
+    notesAuthor: (consultantNotes?.authorName || signerName).trim(),
+    notesUpdatedLabel: hasCustomNotes
+      ? isEs
+        ? 'Registro técnico personalizado'
+        : 'Parecer / registro técnico personalizado'
+      : isEs
+        ? 'Espacio técnico reservado para anotaciones del consultor'
+        : 'Campo técnico reservado para anotações do consultor',
+    notesBody: hasCustomNotes ? noteParts.join(' · ') : fallbackNotes,
+    hasCustomNotes,
+    signatureSectionTitle: isEs
+      ? 'FIRMA DIGITAL Y VALIDACIÓN DEL DOSSIER DE INMIGRACIÓN'
+      : 'ASSINATURA DIGITAL E VALIDAÇÃO DO DOSSIÊ DE IMIGRAÇÃO',
+    signerName,
+    signerRole,
+    signedAtIso,
+    verificationCode,
+    integrityFingerprint: `${fp.slice(0, 4)}-${fp.slice(4, 8)}-${fp.slice(8, 12)}-${fp.slice(12, 16)}`,
+    signatureDataUrl: digitalSignature?.signatureDataUrl,
+    legalBasisNote: isEs
+      ? 'Validación electrónica emitida por D&M Integra Chile (alcance exclusivo de inmigración: Visa SERMIG y RUT). Documento informativo conforme Ley Nº 14.063/2020.'
+      : 'Validação eletrônica emitida pela D&M Integra Chile (escopo exclusivo de imigração: Visto SERMIG e RUT). Autenticidade eletrônica nos termos da Lei nº 14.063/2020.',
+  };
+}
+

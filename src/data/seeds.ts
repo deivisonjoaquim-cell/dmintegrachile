@@ -23,38 +23,41 @@ export const DEFAULT_TERMO_LGPD = `TERMO DE CIÊNCIA E CONSENTIMENTO PARA TRATAM
 4. Compartilhamento: Ocorre somente quando estritamente necessário à execução dos serviços contratados ou por obrigação legal/regulatória.
 5. Direitos do Titular: Você pode solicitar a confirmação, acesso, correção, exportação ou eliminação de seus dados a qualquer momento diretamente pelo Portal do Cliente ou pelos canais oficiais.`;
 
-export const DEFAULT_CONTRATO_TEMPLATE = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE CONSULTORIA MIGRATÓRIA E RELOCATION
+export const DEFAULT_CONTRATO_TEMPLATE = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE CONSULTORIA DE IMIGRAÇÃO (VISTO E RUT)
 
-Pelo presente instrumento particular, de um lado:
+Pelo presente instrumento particular, firmam as partes abaixo qualificadas:
+
 CONTRATADO(A): {{empresa_responsavel}}, atuando como Pessoa Física sob a marca própria {{empresa_nome}} ({{empresa_doc}}), com atendimento em {{empresa_endereco}}.
 CONTRATANTE: {{cliente_nome}}, nacionalidade {{cliente_nacionalidade}}, estado civil {{cliente_estado_civil}}, profissão {{cliente_profissao}}, portador(a) do CPF nº {{cliente_cpf}} e Passaporte nº {{cliente_passaporte}}, residente e domiciliado(a) em {{cliente_endereco}}, e-mail {{cliente_email}}, WhatsApp {{cliente_whatsapp}}.
 
-CLÁUSULA 1ª – DO OBJETO
-1.1. O presente contrato tem por objeto a prestação de serviços de consultoria e assessoria operacional para {{objeto_servico}}, compreendendo análise documental, organização do processo, orientação sobre apostilamento e tradução, acompanhamento de prazos e protocolo perante o Servicio Nacional de Migraciones (SERMIG) do Chile.
+CLÁUSULA 1ª – DO OBJETO E ESCOPO EXCLUSIVO DE IMIGRAÇÃO
+1.1. O presente contrato tem por objeto a prestação de serviços especializados de consultoria e assessoria operacional migratória para {{objeto_servico}}, compreendendo análise documental, enquadramento normativo, orientação de apostilamento de Haia e traduções, acompanhamento do pedido de Visto perante o Servicio Nacional de Migraciones (SERMIG) e orientações até o processo de emissão da Cédula de Identidade para Estrangeiros (RUT) no Registro Civil do Chile.
+1.2. Todas as etapas operacionais, checklists e comunicações serão centralizadas no Portal do Cliente, garantindo rastreabilidade e transparência em cada fase.
 
-CLÁUSULA 2ª – OBRIGAÇÃO DE MEIO E AUTONOMIA DO SERMIG
-2.1. O(A) CONTRATADO(A) assume obrigação de meio, comprometendo-se a empregar diligência técnica e normativa na condução operacional do processo. A decisão final de deferimento, exigência de documentos ou prazo de tramitação compete exclusivamente às autoridades migratórias chilenas (SERMIG).
+CLÁUSULA 2ª – TRANSPARÊNCIA SOBRE SERVIÇOS TERCEIRIZADOS E MORADIA
+2.1. A atuação da {{empresa_nome}} é exclusiva em assessoria de imigração (Visto SERMIG e processo de emissão do RUT). A moradia/locação de imóveis no Chile NÃO é um serviço garantido nem executado diretamente pelo(a) CONTRATADO(A).
+2.2. Para demandas complementares de terceiros — tais como corretores imobiliários, advogados especializados em áreas não migratórias, serviços de câmbio/remessas internacionais, contabilidade ou tradutores — o(a) CONTRATADO(A) atua exclusivamente como ponte de indicação curada de parceiros independentes, sendo toda negociação, contrato e responsabilidade técnica firmados diretamente entre o(a) CONTRATANTE e o prestador escolhido.
 
-CLÁUSULA 3ª – HONORÁRIOS E CUSTOS DE TERCEIROS
-3.1. Pelos serviços contratados, o(a) CONTRATANTE pagará ao(à) CONTRATADO(A) o valor total de {{valor_contrato}}, na forma {{forma_pagamento}}.
-3.2. Taxas governamentais (SERMIG, Registro Civil), emolumentos de cartório, Apostila de Haia, traduções juramentadas e despesas de terceiros NÃO estão incluídas nos honorários, salvo especificação expressa em orçamento aprovado.
+CLÁUSULA 3ª – OBRIGAÇÃO DE MEIO E AUTONOMIA DO SERMIG
+3.1. O(A) CONTRATADO(A) assume obrigação de meio, comprometendo-se a empregar diligência técnica e normativa na condução operacional do processo. A decisão final de deferimento, eventuais requerimentos complementares e o prazo de tramitação competem exclusivamente às autoridades migratórias chilenas (SERMIG) e ao Registro Civil.
 
-CLÁUSULA 4ª – DEVERES DO CONTRATANTE E VERACIDADE
-4.1. O(A) CONTRATANTE responsabiliza-se pela veracidade, integridade e envio tempestivo dos documentos solicitados, ciente de que certidões como o Certificado de Antecedentes da Polícia Federal possuem prazo de validade limitado (60 dias para fins migratórios no Chile).
+CLÁUSULA 4ª – HONORÁRIOS E DESPESAS OFICIAIS
+4.1. Pelos serviços contratados, o(a) CONTRATANTE pagará ao(à) CONTRATADO(A) o valor total de {{valor_contrato}}, na forma {{forma_pagamento}}.
+4.2. Taxas governamentais (SERMIG e Registro Civil), emolumentos de cartório, Apostila de Haia (CNJ), traduções juramentadas e despesas com prestadores independentes NÃO estão incluídas nos honorários, salvo discriminação expressa em orçamento aprovado.
 
-CLÁUSULA 5ª – PROTEÇÃO DE DADOS (LGPD BRASILEIRA) E RESCISÃO
-5.1. Os dados serão tratados conforme a Lei brasileira nº 13.709/2018 (LGPD), exclusivamente para a execução deste contrato.
-5.2. Em caso de rescisão imotivada após o início dos trabalhos, serão devidos os honorários proporcionais às etapas já concluídas, observados o Código Civil brasileiro (Lei nº 10.406/2002) e o Código de Defesa do Consumidor brasileiro (Lei nº 8.078/1990).
+CLÁUSULA 5ª – DEVERES DO CONTRATANTE E PRAZOS DOCUMENTAIS
+5.1. O(A) CONTRATANTE responsabiliza-se pela veracidade, integridade e envio tempestivo dos documentos solicitados, ciente de que certidões como o Certificado de Antecedentes Criminais da Polícia Federal possuem prazo estrito de validade (60 dias para protocolo no SERMIG).
+5.2. Após a aprovação do Visto e emissão do Estampado Electrónico, caberá ao(à) CONTRATANTE observar a janela legal de ingresso no Chile e o prazo oficial para solicitação presencial da Cédula de Identidade (RUT).
 
-CLÁUSULA 6ª – DO FORO
-6.1. As partes elegem o foro da {{foro_comarca}} para dirimir quaisquer controvérsias oriundas deste instrumento.
+CLÁUSULA 6ª – PROTEÇÃO DE DADOS (LGPD), CONFIDENCIALIDADE E RESCISÃO
+6.1. Os dados pessoais e documentos civis serão tratados em sigilo conforme a Lei brasileira nº 13.709/2018 (LGPD), exclusivamente para a execução deste contrato.
+6.2. Em caso de rescisão imotivada após o início dos trabalhos, serão devidos os honorários proporcionais às etapas já concluídas, observados o Código Civil brasileiro (Lei nº 10.406/2002) e o Código de Defesa do Consumidor (Lei nº 8.078/1990).
 
-{{empresa_endereco}}, {{data_atual}}.
+CLÁUSULA 7ª – DA ASSINATURA ELETRÔNICA E DO FORO
+7.1. As partes reconhecem a plena validade jurídica da assinatura eletrônica realizada no Portal do Cliente, com registro de data, hora, conta autenticada e selo criptográfico SHA-256 (Lei nº 14.063/2020 e MP nº 2.200-2/2001).
+7.2. As partes elegem o foro da {{foro_comarca}} para dirimir quaisquer controvérsias oriundas deste instrumento.
 
-________________________________________          ________________________________________
-{{empresa_responsavel}} · {{empresa_nome}} (CONTRATADO/A)   {{cliente_nome}} (CONTRATANTE)
-
-Nota interna de conformidade: Revisar com advogado antes do uso.`;
+{{empresa_endereco}}, {{data_atual}}.`;
 
 export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   nome_empresa: 'D&M Integra Chile – Relocation & Assessoria',

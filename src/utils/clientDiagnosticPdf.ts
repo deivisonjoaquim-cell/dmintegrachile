@@ -9,7 +9,12 @@ import {
   type BasicDiagnosticDimension,
   type BasicDiagnosticSummary,
 } from './portalAccess';
-import { buildImmigrationDossierHighlights } from './immigrationDossierModel';
+import {
+  buildDossierConsultantValidation,
+  buildImmigrationDossierHighlights,
+  type DossierConsultantNotesInput,
+  type DossierDigitalSignatureInput,
+} from './immigrationDossierModel';
 
 export type DiagnosticPdfLocale = 'pt-BR' | 'es-CL';
 
@@ -31,6 +36,8 @@ export interface ClientDiagnosticPdfInput {
   hideCosts?: boolean;
   locale?: DiagnosticPdfLocale;
   aiDraft?: { resumoExecutivo?: string } | null;
+  consultantNotes?: DossierConsultantNotesInput | null;
+  digitalSignature?: DossierDigitalSignatureInput | null;
 }
 
 const NAVY: [number, number, number] = [11, 31, 51];
@@ -674,6 +681,8 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
     hideCosts = false,
     locale = 'pt-BR',
     aiDraft,
+    consultantNotes,
+    digitalSignature,
   } = input;
 
   const copy = getPdfCopy(locale);
@@ -1214,7 +1223,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
     doc.text(synthLines, margin + 4, bottomBoxY + 9.4);
   }
 
-  drawFooter(doc, empresa, 1, 2, copy);
+  drawFooter(doc, empresa, 1, 3, copy);
 
   // =========================================================================
   // PÁGINA 2: ESTRATÉGIA, 4 FASES, PLANO DE AÇÃO, CHECKLIST, CUSTOS & BASE LEGAL
@@ -1815,7 +1824,350 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
     .slice(0, 4);
   doc.text(disclaimerBodyLines, margin + 3.6, disclaimerY + 12.8);
 
-  drawFooter(doc, empresa, 2, 2, copy);
+  drawFooter(doc, empresa, 2, 3, copy);
+
+  // =========================================================================
+  // PÁGINA 3: NOTAS DO CONSULTOR, TRANSPARÊNCIA DE TERCEIROS & ASSINATURA DIGITAL
+  // =========================================================================
+  const validation = buildDossierConsultantValidation({
+    protocolo: protocoloRef,
+    clientName: titularNome,
+    subcategoriaNome: safeText(summary.subcategoriaNome),
+    empresaResponsavel: empresa.responsavel_tecnico,
+    empresaNome: empresa.nome_empresa,
+    locale,
+    consultantNotes,
+    digitalSignature,
+  });
+
+  doc.addPage('a4', 'portrait');
+  drawTricolorRibbon(doc, 0, 2.2);
+
+  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.rect(0, 2.2, pageW, 14.2, 'F');
+  doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.rect(0, 16.4, pageW, 0.6, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.4);
+  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+  doc.text(
+    safeText(
+      locale === 'es-CL'
+        ? `${safeText(empresa.nome_empresa, 'D&M Integra Chile')}  ·  NOTAS DEL CONSULTOR & FIRMA DIGITAL`
+        : `${safeText(empresa.nome_empresa, 'D&M Integra Chile')}  ·  NOTAS DO CONSULTOR & ASSINATURA DIGITAL`,
+    ),
+    margin,
+    10.6,
+  );
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.4);
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.text(`${copy.protocolPrefix}${protocoloRef}  ·  ${titularNome}`, pageW - margin, 10.6, { align: 'right' });
+
+  let y3 = 23.0;
+
+  // 1. Campo de Notas e Observações Técnicas do Consultor
+  y3 = drawSectionEyebrow(
+    doc,
+    margin,
+    y3,
+    locale === 'es-CL' ? 'PARECER Y SEGUIMIENTO INDIVIDUAL' : 'PARECER & ACOMPANHAMENTO INDIVIDUAL',
+    validation.notesTitle,
+  );
+
+  const notesCardTop = y3 + 1.0;
+  const notesCardH = 88.0;
+  doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(margin, notesCardTop, contentW, notesCardH, 2.2, 2.2, 'FD');
+
+  doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
+  doc.roundedRect(margin + 0.2, notesCardTop + 0.2, contentW - 0.4, 8.2, 2.0, 2.0, 'F');
+  doc.rect(margin + 0.2, notesCardTop + 5.0, contentW - 0.4, 3.4, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.6);
+  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(safeText(validation.notesUpdatedLabel).toUpperCase(), margin + 4.0, notesCardTop + 5.6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text(
+    safeText(`${locale === 'es-CL' ? 'Consultor' : 'Responsável'}: ${validation.notesAuthor}`),
+    pageW - margin - 4.0,
+    notesCardTop + 5.6,
+    { align: 'right' },
+  );
+
+  // Texto principal das notas do consultor
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  doc.setTextColor(INK[0], INK[1], INK[2]);
+  const noteLines = doc.splitTextToSize(safeText(validation.notesBody), contentW - 9.0).slice(0, 7);
+  doc.text(noteLines, margin + 4.5, notesCardTop + 15.0);
+
+  // Sub-bloco estruturado com linhas guiadas para anotações de revisão (Visto & RUT)
+  const guideStartY = notesCardTop + Math.max(40.0, 18.0 + noteLines.length * 4.2);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.setLineWidth(0.25);
+  doc.line(margin + 4.0, guideStartY - 3.0, margin + contentW - 4.0, guideStartY - 3.0);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.4);
+  doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+  doc.text(
+    locale === 'es-CL'
+      ? 'ANOTACIONES DE SESIÓN · HITOS DE VISA (SERMIG) Y EMISIÓN DEL RUT'
+      : 'ANOTAÇÕES COMPLEMENTARES DA CONSULTORIA · MARCOS DE VISTO (SERMIG) E RUT',
+    margin + 4.5,
+    guideStartY + 1.5,
+  );
+
+  const notePrompts =
+    locale === 'es-CL'
+      ? [
+          '1. Ajustes de documentos y Apostilla de La Haya:',
+          '2. Fecha sugerida para Antecedentes PF (60 días) y postulación SERMIG:',
+          '3. Planificación de ingreso y solicitud de Cédula (RUT) en Registro Civil:',
+        ]
+      : [
+          '1. Ajustes documentais e Apostila de Haia (CNJ):',
+          '2. Janela ideal para Antecedentes PF (60 dias) e protocolo SERMIG:',
+          '3. Planejamento de ingresso no Chile e emissão da Cédula (RUT):',
+        ];
+
+  let lineCursorY = guideStartY + 7.5;
+  notePrompts.forEach((promptLabel) => {
+    if (lineCursorY > notesCardTop + notesCardH - 5.5) return;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(safeText(promptLabel), margin + 4.5, lineCursorY);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.22);
+    doc.line(margin + 4.5, lineCursorY + 4.2, margin + contentW - 4.5, lineCursorY + 4.2);
+    lineCursorY += 10.2;
+  });
+
+  // 2. Termo de Transparência de Escopo — Imigração (Visto & RUT) vs. Serviços de Terceiros
+  y3 = notesCardTop + notesCardH + 7.0;
+  y3 = drawSectionEyebrow(
+    doc,
+    margin,
+    y3,
+    locale === 'es-CL' ? 'TRANSPARENCIA CONTRACTUAL Y ALCANCE' : 'TRANSPARÊNCIA DE ESCOPO & SERVIÇOS DE TERCEIROS',
+    dossierHighlights.housingDisclaimer.title,
+  );
+
+  const transTop = y3 + 1.0;
+  const transH = 54.0;
+  doc.setFillColor(255, 250, 238);
+  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(margin, transTop, contentW, transH, 2.2, 2.2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.6);
+  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  const scopeLeadLines = doc
+    .splitTextToSize(safeText(dossierHighlights.housingDisclaimer.scopeSummary), contentW - 9.0)
+    .slice(0, 2);
+  doc.text(scopeLeadLines, margin + 4.5, transTop + 7.2);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.4);
+  doc.setTextColor(INK[0], INK[1], INK[2]);
+  const transBodyLines = doc
+    .splitTextToSize(safeText(dossierHighlights.housingDisclaimer.body), contentW - 9.0)
+    .slice(0, 5);
+  doc.text(transBodyLines, margin + 4.5, transTop + 16.0);
+
+  // Matriz comparativa rápida: Nossa Consultoria vs. Serviços Terceirizados Independentes
+  const splitBoxY = transTop + 34.5;
+  const splitBoxH = 16.0;
+  const splitColW = (contentW - 12.0) / 2;
+
+  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.roundedRect(margin + 4.5, splitBoxY, splitColW, splitBoxH, 1.5, 1.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.text(
+    locale === 'es-CL' ? 'ASESORÍA DIRECTA D&M INTEGRA' : 'ASSESSORIA DIRETA D&M INTEGRA',
+    margin + 7.5,
+    splitBoxY + 5.2,
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.4);
+  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+  const directTxt = doc
+    .splitTextToSize(
+      locale === 'es-CL'
+        ? 'Diagnóstico migratorio, postulación de Visa (SERMIG), Estampado Electrónico y proceso de RUT.'
+        : 'Diagnóstico migratório, protocolo de Visto (SERMIG), Estampado Electrónico e processo de RUT.',
+      splitColW - 6.0,
+    )
+    .slice(0, 2);
+  doc.text(directTxt, margin + 7.5, splitBoxY + 9.4);
+
+  const rightSplitX = margin + 4.5 + splitColW + 3.0;
+  doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(rightSplitX, splitBoxY, splitColW, splitBoxH, 1.5, 1.5, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+  doc.text(
+    locale === 'es-CL' ? 'TERCEROS INDEPENDIENTES (SOLO INDICACIÓN)' : 'SERVIÇOS TERCEIRIZADOS (APENAS INDICAÇÃO)',
+    rightSplitX + 3.0,
+    splitBoxY + 5.2,
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.4);
+  doc.setTextColor(INK[0], INK[1], INK[2]);
+  const extTxt = doc
+    .splitTextToSize(
+      locale === 'es-CL'
+        ? 'Inmobiliario/vivienda (no garantizada), jurídico general y cambio de divisas: contratación 100% directa.'
+        : 'Imobiliário/moradia (não garantida), jurídico complementar e câmbio: contratação 100% direta.',
+      splitColW - 6.0,
+    )
+    .slice(0, 2);
+  doc.text(extTxt, rightSplitX + 3.0, splitBoxY + 9.4);
+
+  // 3. Bloco de Assinatura Digital e Selo de Autenticidade
+  y3 = transTop + transH + 7.0;
+  y3 = drawSectionEyebrow(
+    doc,
+    margin,
+    y3,
+    locale === 'es-CL' ? 'AUTENTICIDAD ELECTRÓNICA' : 'AUTENTICIDADE ELETRÔNICA & RESPONSABILIDADE TÉCNICA',
+    validation.signatureSectionTitle,
+  );
+
+  const sigTop = y3 + 1.0;
+  const sigH = Math.min(60.0, 278.0 - sigTop);
+  const sigLeftW = 98.0;
+  const sigRightX = margin + sigLeftW + 4.0;
+  const sigRightW = contentW - sigLeftW - 4.0;
+
+  // Esquerda: Quadro de Assinatura Digital do Consultor
+  doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(margin, sigTop, sigLeftW, sigH, 2.2, 2.2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+  doc.text(
+    locale === 'es-CL' ? 'FIRMA DIGITAL DEL CONSULTOR RESPONSABLE' : 'ASSINATURA DIGITAL DO CONSULTOR RESPONSÁVEL',
+    margin + 4.5,
+    sigTop + 6.0,
+  );
+
+  let renderedCustomSig = false;
+  if (validation.signatureDataUrl && /^data:image\/(png|jpeg|jpg);base64,/i.test(validation.signatureDataUrl)) {
+    try {
+      doc.addImage(validation.signatureDataUrl, 'PNG', margin + 6.0, sigTop + 9.5, 58.0, 17.5, undefined, 'FAST');
+      renderedCustomSig = true;
+    } catch {
+      renderedCustomSig = false;
+    }
+  }
+  if (!renderedCustomSig) {
+    // Rubrica vetorial institucional elegante + monograma caligráfico em Times Italic
+    doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.setLineWidth(0.45);
+    doc.line(margin + 6.0, sigTop + 21.5, margin + 20.0, sigTop + 16.5);
+    doc.line(margin + 20.0, sigTop + 16.5, margin + 32.0, sigTop + 22.0);
+    doc.line(margin + 32.0, sigTop + 22.0, margin + 52.0, sigTop + 17.8);
+    doc.setFont('times', 'italic');
+    doc.setFontSize(14.5);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    const shortSigner = safeText(validation.signerName.split('—')[0].trim(), 'D&M Integra Chile');
+    const signerSigLine = doc.splitTextToSize(shortSigner, sigLeftW - 14.0)[0];
+    doc.text(signerSigLine, margin + 6.0, sigTop + 20.2);
+  }
+
+  // Linha de assinatura e identificação
+  doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.setLineWidth(0.3);
+  doc.line(margin + 4.5, sigTop + 29.0, margin + sigLeftW - 4.5, sigTop + 29.0);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.0);
+  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  const signerNameLine = doc.splitTextToSize(safeText(validation.signerName), sigLeftW - 9.0)[0];
+  doc.text(signerNameLine, margin + 4.5, sigTop + 34.0);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  const signerRoleLine = doc.splitTextToSize(safeText(validation.signerRole), sigLeftW - 9.0)[0];
+  doc.text(signerRoleLine, margin + 4.5, sigTop + 38.4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(INK[0], INK[1], INK[2]);
+  const legalSigLines = doc.splitTextToSize(safeText(validation.legalBasisNote), sigLeftW - 9.0).slice(0, 3);
+  doc.text(legalSigLines, margin + 4.5, sigTop + 44.0);
+
+  // Direita: Selo Eletrônico de Autenticidade (Azul Marinho + Ouro)
+  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.roundedRect(sigRightX, sigTop, sigRightW, sigH, 2.2, 2.2, 'F');
+  doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.rect(sigRightX, sigTop, sigRightW, 1.3, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.4);
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.text(
+    locale === 'es-CL' ? 'SELLO DE AUTENTICIDAD DIGITAL' : 'SELO DE AUTENTICIDADE DIGITAL',
+    sigRightX + 4.5,
+    sigTop + 7.2,
+  );
+
+  const sealRows = [
+    {
+      k: locale === 'es-CL' ? 'CÓDIGO DE VERIFICACIÓN' : 'CÓDIGO DE VERIFICAÇÃO',
+      v: validation.verificationCode,
+    },
+    {
+      k: locale === 'es-CL' ? 'HUELLA DE INTEGRIDAD' : 'CÓDIGO DE INTEGRIDADE',
+      v: validation.integrityFingerprint,
+    },
+    {
+      k: locale === 'es-CL' ? 'FECHA DE EMISIÓN' : 'CARIMBO DE DATA',
+      v: formatDateBR(validation.signedAtIso),
+    },
+    {
+      k: locale === 'es-CL' ? 'PROTOCOLO VINCULADO' : 'PROTOCOLO VINCULADO',
+      v: protocoloRef,
+    },
+  ];
+
+  let sealY = sigTop + 14.2;
+  sealRows.forEach((sr) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(sr.k, sigRightX + 4.5, sealY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.4);
+    doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
+    const valTrunc = doc.splitTextToSize(safeText(sr.v), sigRightW - 9.0)[0];
+    doc.text(valTrunc, sigRightX + 4.5, sealY + 4.0);
+    sealY += 10.6;
+  });
+
+  drawFooter(doc, empresa, 3, 3, copy);
 
   return { doc, filename };
 }

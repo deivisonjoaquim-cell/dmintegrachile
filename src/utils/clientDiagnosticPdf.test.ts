@@ -48,7 +48,7 @@ function createBaseAnswers(overrides: Partial<DiagnosticAnswers> = {}): Diagnost
   };
 }
 
-test('buildClientDiagnosticDossierDoc gera PDF vetorial de 2 páginas com nome sanitizado a partir do resultado completo', () => {
+test('buildClientDiagnosticDossierDoc gera PDF vetorial de 3 páginas com nome sanitizado, notas do consultor e assinatura digital', () => {
   const answers = createBaseAnswers({ nome: 'João Álvares Mendes' });
   const result = runDiagnosticEngine(
     answers,
@@ -63,22 +63,33 @@ test('buildClientDiagnosticDossierDoc gera PDF vetorial de 2 páginas com nome s
     result,
     answers,
     protocolo: 'DM-TEST-001',
+    consultantNotes: {
+      text: 'Antecedentes da Polícia Federal devem ser emitidos após confirmação da janela de protocolo no SERMIG.',
+      recommendation: 'Priorizar Apostila de Haia em cartório habilitado e conferência do passaporte.',
+      authorName: 'Daniela Mendes',
+      authorRole: 'Consultora de Imigração · Visto e RUT',
+    },
+    digitalSignature: {
+      signerName: 'Daniela Mendes',
+      signerRole: 'Responsável Técnica · D&M Integra Chile',
+      signedAt: '2026-11-28T12:00:00.000Z',
+    },
   });
 
-  assert.equal(doc.getNumberOfPages(), 2, 'O dossiê oficial do cliente deve conter exatamente 2 páginas');
+  assert.equal(doc.getNumberOfPages(), 3, 'O Dossiê de Imigração oficial deve conter exatamente 3 páginas (incluindo Notas do Consultor e Assinatura Digital)');
   assert.match(
     filename,
-    /^Dossie-Diagnostico-DM-Integra-Joao-Alvares-Mendes-DM-TEST-001\.pdf$/,
+    /^Dossie-Imigracao-DM-Integra-Joao-Alvares-Mendes-DM-TEST-001\.pdf$/,
     'O nome do arquivo PDF deve incluir a marca, nome sanitizado e protocolo',
   );
 
   const rawPdf = doc.output('datauristring');
   assert.ok(rawPdf.startsWith('data:application/pdf'), 'A saída deve ser um documento PDF válido');
   const bytes = doc.output('arraybuffer');
-  assert.ok(bytes.byteLength > 2000, 'O PDF gerado deve possuir conteúdo vetorial completo');
+  assert.ok(bytes.byteLength > 3000, 'O PDF gerado deve possuir conteúdo vetorial completo nas 3 páginas');
 });
 
-test('buildClientDiagnosticDossierDoc funciona em modo resumo básico (sem result bruto) gerando 2 páginas válidas', () => {
+test('buildClientDiagnosticDossierDoc funciona em modo resumo básico (sem result bruto) gerando 3 páginas válidas', () => {
   const answers = createBaseAnswers({
     localizacao: 'No Chile como turista',
     familiaAcompanhante: true,
@@ -100,7 +111,7 @@ test('buildClientDiagnosticDossierDoc funciona em modo resumo básico (sem resul
     protocolo: 'DM-RESUMO-02',
   });
 
-  assert.equal(doc.getNumberOfPages(), 2);
+  assert.equal(doc.getNumberOfPages(), 3);
   assert.ok(filename.endsWith('.pdf'));
 });
 
@@ -165,12 +176,12 @@ test('buildSimulatedPublicAnswers aplica cenários E-se sem mutar o perfil base 
     simulatedDimensions: simSummary.dimensoes || null,
   });
 
-  assert.equal(simPdfDoc.getNumberOfPages(), 2, 'O dossiê com gráfico radar e simulação deve manter 2 páginas A4');
+  assert.equal(simPdfDoc.getNumberOfPages(), 3, 'O dossiê com gráfico radar, simulação, notas e assinatura digital deve manter 3 páginas A4');
   assert.match(simFilename, /DM-RADAR-SIM\.pdf$/);
-  assert.ok(simPdfDoc.output('arraybuffer').byteLength > 2500, 'O PDF com radar vetorial e 4 fases deve conter geometria completa');
+  assert.ok(simPdfDoc.output('arraybuffer').byteLength > 3200, 'O PDF com radar vetorial, 4 fases, notas e assinatura deve conter geometria completa');
 });
 
-test('buildClientDiagnosticDossierDoc mantém exatamente 2 páginas com perfil complexo (família, riscos, custos e resumo IA)', () => {
+test('buildClientDiagnosticDossierDoc mantém exatamente 3 páginas com perfil complexo (família, riscos, custos, resumo IA e notas)', () => {
   const complexAnswers = createBaseAnswers({
     nome: 'Carlos Eduardo Pereira & Família',
     localizacao: 'No Chile como turista',
@@ -201,14 +212,17 @@ test('buildClientDiagnosticDossierDoc mantém exatamente 2 páginas com perfil c
       resumoExecutivo:
         'Perfil com demanda de regularização prévia antes do protocolo oficial no SERMIG e emissão coordenada de certidões familiares.',
     },
+    consultantNotes: {
+      text: 'Caso familiar com necessidade de renovação do passaporte antes do pedido no SERMIG e acompanhamento coordenado da emissão dos RUTs.',
+    },
   });
 
-  assert.equal(doc.getNumberOfPages(), 2, 'Mesmo com alertas críticos, riscos e família, o PDF deve permanecer em 2 páginas');
-  assert.match(filename, /^Dossie-Diagnostico-DM-Integra-Carlos-Eduardo-Pereira-Familia-DM-COMPLEX-99\.pdf$/);
-  assert.ok(doc.output('arraybuffer').byteLength > 2800);
+  assert.equal(doc.getNumberOfPages(), 3, 'Mesmo com alertas críticos, riscos, família e notas, o PDF deve permanecer em 3 páginas');
+  assert.match(filename, /^Dossie-Imigracao-DM-Integra-Carlos-Eduardo-Pereira-Familia-DM-COMPLEX-99\.pdf$/);
+  assert.ok(doc.output('arraybuffer').byteLength > 3400);
 });
 
-test('buildClientDiagnosticDossierDoc suporta idioma es-CL e opção hideCosts preservando 2 páginas', () => {
+test('buildClientDiagnosticDossierDoc suporta idioma es-CL e opção hideCosts preservando 3 páginas', () => {
   const answers = createBaseAnswers({ nome: 'Sofía Martínez' });
   const result = runDiagnosticEngine(
     answers,
@@ -227,8 +241,8 @@ test('buildClientDiagnosticDossierDoc suporta idioma es-CL e opção hideCosts p
     hideCosts: true,
   });
 
-  assert.equal(doc.getNumberOfPages(), 2, 'A versão es-CL sem exibição de custos deve manter exatamente 2 páginas');
-  assert.match(filename, /^Dossier-Diagnostico-DM-Integra-Sofia-Martinez-CL-2026-01\.pdf$/);
+  assert.equal(doc.getNumberOfPages(), 3, 'A versão es-CL sem exibição de custos deve manter exatamente 3 páginas');
+  assert.match(filename, /^Dossier-Inmigracion-DM-Integra-Sofia-Martinez-CL-2026-01\.pdf$/);
   assert.ok(doc.output('datauristring').startsWith('data:application/pdf'));
 });
 

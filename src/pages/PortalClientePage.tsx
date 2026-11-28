@@ -45,15 +45,17 @@ import { LegalBaseModal } from '../components/LegalBaseModal';
 import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
 import { ClientActionCenterCard } from '../components/portal/ClientActionCenterCard';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
+import { ImmigrationJourneyStepper } from '../components/portal/ImmigrationJourneyStepper';
 import { ProcessTimeline } from '../components/portal/ProcessTimeline';
 import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 import { SermigSimulator } from '../components/SermigSimulator';
 import { CuratedPartnerNetwork } from '../components/partners/CuratedPartnerNetwork';
+import { ContractDocumentSheet } from '../components/contracts/ContractDocumentSheet';
 import { ContractSignatureModal } from '../components/contracts/ContractSignatureModal';
 import { SignatureCertificateCard } from '../components/contracts/SignatureCertificateCard';
-import { QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
+import { UiButton } from '../components/ui/DesignSystem';
 import { buildImmigrationDossierHighlights } from '../utils/immigrationDossierModel';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -170,6 +172,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   } = useApp();
   const { isDark, toggleTheme } = useTheme();
   const [tab, setTab] = useState<PortalTab>(readInitialPortalTab);
+  const [timelinePhaseFocus, setTimelinePhaseFocus] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<Client | null>(portalClient);
   const [dependents, setDependents] = useState<Dependent[]>([]);
@@ -511,6 +514,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     const freePrimaryLead = clientLeads[0] || null;
 
     const buildFreeDossierInput = () => {
+      const consultantNotes = {
+        text: freePrimaryLead?.notas?.trim() || undefined,
+        authorName: empresa.responsavel_tecnico || empresa.nome_empresa,
+        authorRole: 'Responsável Técnico · Consultoria de Imigração (Visto e RUT)',
+        updatedAt: freePrimaryLead?.updatedAt || freePrimaryLead?.createdAt,
+      };
+      const digitalSignature = {
+        signerName: empresa.responsavel_tecnico || empresa.nome_empresa,
+        signerRole: 'Responsável Técnico · Consultoria de Imigração (Visto e RUT)',
+        signedAt: new Date().toISOString(),
+      };
       if (freePrimaryLead?.respostasTriagem) {
         const fullResult = runDiagnosticEngine(
           freePrimaryLead.respostasTriagem,
@@ -525,12 +539,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           answers: freePrimaryLead.respostasTriagem,
           summary: buildBasicDiagnosticSummary(fullResult, freePrimaryLead.respostasTriagem),
           protocolo: freePrimaryLead.id,
+          consultantNotes,
+          digitalSignature,
         };
       }
       return {
         empresa,
         summary: basicSummary || undefined,
         protocolo: freePrimaryLead?.id || portalClient?.id || 'DIAGNOSTICO',
+        consultantNotes,
+        digitalSignature,
       };
     };
 
@@ -686,6 +704,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               {syncCheckMsg}
             </div>
           )}
+
+          {/* Indicador visual de progresso da jornada migratória (Visto SERMIG e RUT em destaque) */}
+          <ImmigrationJourneyStepper
+            mode={isPending ? 'pendente' : 'gratuito'}
+            subcategoriaNome={basicSummary?.subcategoriaNome}
+            onActionCta={basicSummary ? () => void handleExportFreeDossierPdf() : undefined}
+            actionCtaLabel={basicSummary ? 'Baixar Dossiê (PDF)' : undefined}
+          />
 
           {basicSummary && (
             <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl overflow-hidden">
@@ -982,6 +1008,28 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   };
 
   const buildPortalClientDiagnosticPdfInput = () => {
+    const latestAssessment = releasedAssessments[0];
+    const consultantNoteParts = [
+      activeCase?.parecerConsultor?.trim(),
+      latestAssessment?.enquadramentoLegal?.trim(),
+      primaryLead?.notas?.trim(),
+    ].filter(Boolean) as string[];
+
+    const consultantNotes = {
+      text: consultantNoteParts.join(' · ') || undefined,
+      recommendation: latestAssessment?.recomendacoes?.trim() || undefined,
+      legalFoundation: latestAssessment?.fundamentacaoNormativa?.trim() || undefined,
+      authorName: latestAssessment?.autorNome || empresa.responsavel_tecnico || empresa.nome_empresa,
+      authorRole: 'Responsável Técnico · Consultoria de Imigração (Visto e RUT)',
+      updatedAt: latestAssessment?.createdAt || activeCase?.updatedAt || primaryLead?.updatedAt,
+    };
+
+    const digitalSignature = {
+      signerName: latestAssessment?.autorNome || empresa.responsavel_tecnico || empresa.nome_empresa,
+      signerRole: 'Responsável Técnico · Consultoria de Imigração (Visto e RUT)',
+      signedAt: latestAssessment?.createdAt || new Date().toISOString(),
+    };
+
     if (primaryLead?.respostasTriagem) {
       const fullResult = runDiagnosticEngine(
         primaryLead.respostasTriagem,
@@ -996,6 +1044,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         answers: primaryLead.respostasTriagem,
         summary: buildBasicDiagnosticSummary(fullResult, primaryLead.respostasTriagem),
         protocolo: primaryLead.id,
+        consultantNotes,
+        digitalSignature,
       };
     }
 
@@ -1004,10 +1054,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         empresa,
         summary: buildBasicLeadSummary(primaryLead),
         protocolo: primaryLead.id,
+        consultantNotes,
+        digitalSignature,
       };
     }
 
-    const latestAssessment = releasedAssessments[0];
     const fallbackScore = latestAssessment ? Math.round(latestAssessment.notaGeral || 0) : thermo.notaGeral;
     const fallbackSummary: BasicDiagnosticSummary = {
       nome: client?.nomeCompleto || userProfile?.nome,
@@ -1034,6 +1085,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       empresa,
       summary: fallbackSummary,
       protocolo: activeCase?.id,
+      consultantNotes,
+      digitalSignature,
     };
   };
 
@@ -1823,6 +1876,24 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     </div>
                   )}
 
+                  {/* Indicador Visual de Progresso (Timeline Macro com Visto SERMIG e RUT em destaque) */}
+                  <div className="mb-5">
+                    <ImmigrationJourneyStepper
+                      mode="contratado"
+                      activeCase={activeCase}
+                      modality={paidModality}
+                      caseDocuments={activeDocs}
+                      subcategoriaNome={
+                        activeCase?.subcategoriaIa ||
+                        primaryLead?.subcategoriaSugerida ||
+                        activeCase?.titulo
+                      }
+                      onSelectPhase={(phaseKey) => setTimelinePhaseFocus(phaseKey)}
+                      onActionCta={() => setTab('documentos')}
+                      actionCtaLabel="Ver checklist documental"
+                    />
+                  </div>
+
                   {/* Linha do Tempo de Processo conectada ao Firestore em tempo real */}
                   <ProcessTimeline
                     clientId={client?.id}
@@ -1831,6 +1902,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     initialDocs={activeDocs}
                     initialDeadlines={deadlines}
                     initialNotifications={notifications}
+                    externalPhaseKey={timelinePhaseFocus}
                     onNavigateTab={(target) => setTab(target)}
                   />
                   </div>
@@ -1848,7 +1920,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         Dossiê de Imigração em PDF &amp; Parecer Técnico
                       </h2>
                       <p className="text-xs text-[#475569] dark:text-slate-400">
-                        Documento executivo gerado a partir do seu diagnóstico destacando vistos, prazos SERMIG, processo do RUT e escopo legal
+                        Documento executivo em 3 páginas A4 com rota de Visto e RUT, campo de notas do consultor, assinatura digital autenticada e termo de transparência sobre terceiros
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 no-print">
@@ -2887,28 +2959,20 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 </button>
               </div>
             </div>
-            <div className="p-6 sm:p-8 overflow-y-auto space-y-5 text-xs text-[#0B1F33] print-modal-scroll">
-              <div className="flex items-center justify-between border-b border-[#E5DFD2] pb-4">
-                <div>
-                  <p className="text-sm font-bold text-[#0B1F33]">{empresa.nome_empresa}</p>
-                  <p className="text-[11px] font-mono text-[#4A5A6D]">{empresa.razao_social_cnpj_rut}</p>
-                </div>
-                <QrCodeSvg value={viewingGenDoc.codigoVerificacao || viewingGenDoc.id} size={56} />
-              </div>
-              <div
-                className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewingGenDoc.conteudoHtml) }}
-              />
-              <SignatureCertificateCard
+            <div className="p-4 sm:p-6 overflow-y-auto bg-[#F4F1EA] print-modal-scroll">
+              <ContractDocumentSheet
                 doc={viewingGenDoc}
+                empresa={empresa}
                 fallbackSigner={{
                   nome: client?.nomeCompleto || userProfile.nome,
                   email: client?.email || userProfile.email,
                   documento:
-                    client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : undefined),
+                    client?.cpf ||
+                    (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : undefined),
                 }}
+                showClauseNav
+                showCertificate
               />
-              <p className="text-[10px] text-[#4A5A6D] pt-3 border-t border-[#E5DFD2]">{empresa.avisoLegal}</p>
             </div>
           </div>
         </div>

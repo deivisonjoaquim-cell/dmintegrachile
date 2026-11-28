@@ -17,12 +17,14 @@ import {
 } from 'lucide-react';
 import { DrawSignaturePad, QrCodeSvg, UiButton } from '../ui/DesignSystem';
 import { SignatureCertificateCard } from '../contracts/SignatureCertificateCard';
+import { ContractDocumentSheet } from '../contracts/ContractDocumentSheet';
 import {
   computeDocumentContentHash,
   renderTypedSignatureToDataUrl,
   TYPED_SIGNATURE_STYLES,
   type TypedSignatureStyleId,
 } from '../../utils/contractSignature';
+import { insertContractClausesBeforeClosing } from '../../utils/contractDocumentLayout';
 import { exportGeneratedOfficialDocPdf } from '../pdf/ClientPortalPdfDocuments';
 import { SEED_DOCUMENT_TEMPLATES } from '../../data/seeds';
 import { reportAppError } from '../../services/errorService';
@@ -237,7 +239,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
         );
       }
       if (extras.length > 0) {
-        filled += '\n\n' + extras.join('\n\n');
+        filled = insertContractClausesBeforeClosing(filled, extras);
       }
     }
 
@@ -918,72 +920,32 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
                 </div>
               </div>
 
-              {/* A4 Sheet */}
-              <div className="bg-white border border-slate-300 rounded-xl p-4 sm:p-8 lg:p-10 max-w-full sm:max-w-3xl mx-auto shadow-xs space-y-6 text-slate-900 print-sheet">
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {shouldUseInstitutionalMark(empresa.logoUrl) ? (
-                      <BrandLogo
-                        src={BRAND_ASSETS.emblemLightSvg}
-                        alt={empresa.nome_empresa}
-                        variant="emblem"
-                        imgClassName="h-12 w-12 object-contain shrink-0"
-                      />
-                    ) : empresa.logoUrl ? (
-                      <img src={empresa.logoUrl} alt={empresa.nome_empresa} className="h-12 w-auto object-contain shrink-0" />
-                    ) : (
-                      <BrandLogo
-                        src={BRAND_ASSETS.emblemLightSvg}
-                        alt={empresa.nome_empresa}
-                        variant="emblem"
-                        imgClassName="h-12 w-12 object-contain shrink-0"
-                      />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900 break-words">{empresa.nome_empresa}</p>
-                      <p className="text-[11px] text-slate-500 break-words">{empresa.razao_social_cnpj_rut}</p>
-                      <p className="text-[11px] text-slate-500 break-words">
-                        {empresa.endereco_cidade} · {empresa.email} · {empresa.whatsapp}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-right shrink-0">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Verificação</p>
-                      <p className="text-xs font-mono font-bold text-slate-900">{verCode}</p>
-                      <p className="text-[10px] text-slate-500">v{currentDoc?.versao || 1} · {status}</p>
-                    </div>
-                    <QrCodeSvg value={verCode} size={56} />
-                  </div>
-                </div>
-
-                {isCancelled && (
-                  <div className="p-2 border-2 border-[#C82333] text-center text-xs font-bold text-[#C82333] uppercase">
-                    DOCUMENTO CANCELADO — SEM VALIDADE ({currentDoc?.motivoCancelamento})
-                  </div>
-                )}
-
-                <h3 className="text-base font-bold text-center text-slate-900 uppercase">{titulo}</h3>
-
-                <div className="text-xs leading-relaxed whitespace-pre-wrap text-slate-800">{conteudoHtml}</div>
-
-                {currentDoc && (
-                  <SignatureCertificateCard
-                    doc={currentDoc}
-                    fallbackSigner={{
-                      nome: selectedClient?.nomeCompleto,
-                      email: selectedClient?.email,
-                      documento:
-                        selectedClient?.cpf ||
-                        (typeof selectedClient?.passaporte?.numero === 'string' ? selectedClient.passaporte.numero : undefined),
-                    }}
-                  />
-                )}
-
-                <div className="pt-4 border-t border-slate-200 text-[10px] text-slate-500 space-y-1">
-                  <p>{empresa.avisoLegal}</p>
-                  <p className="italic">Nota interna de controle: Revisar com advogado antes do uso.</p>
-                </div>
+              {/* A4 Sheet — Enquadramento editorial estruturado */}
+              <div className="max-w-full sm:max-w-3xl mx-auto print-sheet">
+                <ContractDocumentSheet
+                  doc={{
+                    ...(currentDoc || {}),
+                    titulo,
+                    conteudoHtml,
+                    codigoVerificacao: verCode,
+                    versao: currentDoc?.versao || 1,
+                    status,
+                    canceladoEm: isCancelled ? currentDoc?.canceladoEm || new Date().toISOString() : undefined,
+                    motivoCancelamento: currentDoc?.motivoCancelamento,
+                  }}
+                  empresa={empresa}
+                  fallbackSigner={{
+                    nome: selectedClient?.nomeCompleto,
+                    email: selectedClient?.email,
+                    documento:
+                      selectedClient?.cpf ||
+                      (typeof selectedClient?.passaporte?.numero === 'string'
+                        ? selectedClient.passaporte.numero
+                        : undefined),
+                  }}
+                  showClauseNav
+                  showCertificate={Boolean(currentDoc)}
+                />
               </div>
             </div>
           )}

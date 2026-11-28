@@ -25,6 +25,7 @@ import {
   toIsoDate,
 } from '../../utils/formatters';
 import { getSignatureMethodLabel } from '../../utils/contractSignature';
+import { parseContractDocumentLayout } from '../../utils/contractDocumentLayout';
 
 export interface PdfAiDraftSummary {
   fallback?: boolean;
@@ -1815,9 +1816,12 @@ function htmlToParagraphLines(raw: string): string[] {
     .map((line) => line.replace(/[ \t]+/g, ' ').trimEnd());
 }
 
+
+
 /**
  * Documento oficial multi-páginas A4 (Contratos, Recibos, Termos LGPD, Procurações e Aditivos)
- * com quebra automática ilimitada de folhas, cabeçalho institucional e numeração Pág. X / Y.
+ * com enquadramento editorial, qualificação de partes em duas colunas, cláusulas bem distribuídas,
+ * destaque de transparência de escopo e bloco bilateral de assinaturas.
  */
 export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfInput> = ({
   empresa,
@@ -1839,20 +1843,51 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
   canceladoMotivo,
   logoDataUrl,
 }) => {
-  const primary = safeHex(empresa.corPrimaria, '#0F2537');
-  const accent = safeHex(empresa.corDestaque, '#C5A059');
+  const primary = safeHex(empresa.corPrimaria, '#0B1F33');
+  const accent = safeHex(empresa.corDestaque, '#C8A236');
   const s = createStyles(primary, accent);
   const generatedAt = formatDateTimeBR(new Date());
-  const lines = htmlToParagraphLines(conteudo);
+  const parsed = parseContractDocumentLayout(conteudo, safeStr(titulo, 'Documento Oficial'));
+  const hasStructured = parsed.clauses.length > 0 || parsed.parties.length > 0;
+  const fallbackLines = htmlToParagraphLines(conteudo);
 
   return (
     <Document title={safeStr(titulo, 'Documento Oficial')} author={empresa.nome_empresa}>
-      <Page size="A4" style={s.page} wrap>
+      <Page
+        size="A4"
+        style={[
+          s.page,
+          {
+            paddingTop: 34,
+            paddingBottom: 60,
+            paddingHorizontal: 40,
+          },
+        ]}
+        wrap
+      >
+        {/* Fita institucional tricolor no topo */}
+        <View
+          fixed
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            flexDirection: 'row',
+          }}
+        >
+          <View style={{ flex: 1, backgroundColor: '#146B43' }} />
+          <View style={{ flex: 1, backgroundColor: '#C8A236' }} />
+          <View style={{ flex: 1, backgroundColor: '#0B1F33' }} />
+          <View style={{ flex: 1, backgroundColor: '#A61C2B' }} />
+        </View>
+
         {renderBrandHeader(
           s,
           empresa,
           codigoVerificacao ? `Verificação ${codigoVerificacao} · v${versao}` : `Versão ${versao}`,
-          safeStr(titulo, 'Documento Oficial'),
+          safeStr(parsed.title || titulo, 'Documento Oficial'),
           `${status ? `${status} · ` : ''}Emitido em ${generatedAt}`,
           logoDataUrl,
         )}
@@ -1865,39 +1900,239 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
           </View>
         ) : null}
 
-        {clienteNome ? (
-          <View style={[s.cardBlock, { marginBottom: 10 }]} wrap={false}>
-            <Text style={s.cardMeta}>
-              Titular / Destinatário: {clienteNome}
-              {codigoVerificacao ? ` · Código de verificação: ${codigoVerificacao}` : ''}
+        {/* Quadro Resumo Executivo do Instrumento */}
+        <View
+          style={{
+            flexDirection: 'row',
+            borderWidth: 1,
+            borderColor: '#E5DFD2',
+            borderRadius: 4,
+            backgroundColor: '#FAF8F3',
+            padding: 8,
+            marginBottom: 14,
+            gap: 10,
+          }}
+          wrap={false}
+        >
+          <View style={{ flex: 1.4 }}>
+            <Text style={{ fontSize: 7, color: '#64748B', marginBottom: 2 }}>TITULAR / CONTRATANTE</Text>
+            <Text style={{ fontSize: 8.8, fontFamily: 'Helvetica-Bold', color: '#0B1F33' }}>
+              {safeStr(assinadoPorNome || clienteNome, 'Titular do Processo')}
             </Text>
           </View>
-        ) : null}
+          <View style={{ flex: 1.1 }}>
+            <Text style={{ fontSize: 7, color: '#64748B', marginBottom: 2 }}>ESCOPO DIRETO</Text>
+            <Text style={{ fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: primary }}>
+              Visto (SERMIG) &amp; RUT
+            </Text>
+          </View>
+          <View style={{ flex: 0.9 }}>
+            <Text style={{ fontSize: 7, color: '#64748B', marginBottom: 2 }}>VERIFICAÇÃO</Text>
+            <Text style={{ fontSize: 8.2, fontFamily: 'Helvetica-Bold', color: '#0B1F33' }}>
+              {safeStr(codigoVerificacao, `v${versao}`)}
+            </Text>
+          </View>
+          <View style={{ flex: 0.7 }}>
+            <Text style={{ fontSize: 7, color: '#64748B', marginBottom: 2 }}>SITUAÇÃO</Text>
+            <Text style={{ fontSize: 8.2, fontFamily: 'Helvetica-Bold', color: '#0F3D91' }}>
+              {safeStr(status, 'Disponível')}
+            </Text>
+          </View>
+        </View>
 
-        <View style={s.section}>
-          {lines.map((line, idx) => {
-            if (!line.trim()) {
-              return <View key={idx} style={{ height: 6 }} />;
-            }
-            const isClauseHeading =
-              /^(CLÁUSULA|CLAUSULA|RECIBO|TERMO|CONTRATO|ADITIVO|PROCURAÇÃO|PROCURACAO|\d+\.\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,})/.test(
-                line.trim(),
-              );
-            return (
-              <Text
-                key={idx}
-                style={
-                  isClauseHeading
-                    ? [s.cardTitle, { marginTop: 6, marginBottom: 3, color: primary }]
-                    : [s.paragraph, { lineHeight: 1.5, marginBottom: 3 }]
-                }
-                minPresenceAhead={isClauseHeading ? 36 : undefined}
-              >
+        {hasStructured ? (
+          <View style={s.section}>
+            {parsed.preamble.map((line, i) => (
+              <Text key={`pre-${i}`} style={[s.paragraph, { fontSize: 9, lineHeight: 1.55, marginBottom: 6 }]}>
                 {line}
               </Text>
-            );
-          })}
-        </View>
+            ))}
+
+            {/* Qualificação das Partes em duas colunas equilibradas */}
+            {parsed.parties.length > 0 && (
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }} wrap={false}>
+                {parsed.parties.map((party) => (
+                  <View
+                    key={party.role}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: '#E5DFD2',
+                      borderRadius: 4,
+                      backgroundColor: '#FCFBF8',
+                      padding: 9,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 7.5,
+                        fontFamily: 'Helvetica-Bold',
+                        color: '#8C6D14',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {party.role}
+                    </Text>
+                    <Text style={{ fontSize: 8.4, lineHeight: 1.48, color: '#0F172A' }}>{party.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Cláusulas Numeradas bem distribuídas e sem títulos órfãos */}
+            {parsed.clauses.map((clause) => (
+              <View
+                key={clause.id}
+                style={
+                  clause.isScopeTransparency
+                    ? {
+                        borderWidth: 1,
+                        borderColor: '#D8C592',
+                        borderRadius: 4,
+                        backgroundColor: '#FDF9EE',
+                        padding: 10,
+                        marginBottom: 11,
+                      }
+                    : {
+                        marginBottom: 10,
+                        paddingBottom: 8,
+                        borderBottomWidth: 0.6,
+                        borderBottomColor: '#ECE7DC',
+                      }
+                }
+              >
+                <Text
+                  style={{
+                    fontSize: 9.4,
+                    fontFamily: 'Helvetica-Bold',
+                    color: primary,
+                    marginBottom: 4,
+                  }}
+                  minPresenceAhead={48}
+                >
+                  {clause.heading}
+                </Text>
+                {clause.paragraphs.map((p, pIdx) => (
+                  <Text
+                    key={`${clause.id}-p-${pIdx}`}
+                    style={{
+                      fontSize: 8.9,
+                      lineHeight: 1.55,
+                      color: '#1E293B',
+                      marginBottom: pIdx === clause.paragraphs.length - 1 ? 0 : 4,
+                      textAlign: 'justify',
+                    }}
+                  >
+                    {p}
+                  </Text>
+                ))}
+              </View>
+            ))}
+
+            {parsed.closingDateLine ? (
+              <Text style={{ fontSize: 8.8, fontFamily: 'Helvetica-Bold', color: '#0B1F33', marginTop: 6, marginBottom: 10 }}>
+                {parsed.closingDateLine}
+              </Text>
+            ) : null}
+
+            {/* Bloco Bilateral de Assinaturas Enquadrado 50/50 */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }} wrap={false}>
+              <View
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: '#E5DFD2',
+                  borderRadius: 4,
+                  backgroundColor: '#FAF8F4',
+                  padding: 10,
+                  minHeight: 82,
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Text style={{ fontSize: 7.2, fontFamily: 'Helvetica-Bold', color: '#8C6D14' }}>
+                  CONTRATADO(A) · CONSULTORIA
+                </Text>
+                <View>
+                  <Text style={{ fontSize: 11, fontFamily: 'Times-Italic', color: primary, marginBottom: 4 }}>
+                    {safeStr(empresa.responsavel_tecnico.split('—')[0], empresa.nome_empresa)}
+                  </Text>
+                  <View style={{ borderTopWidth: 0.8, borderTopColor: '#94A3B8', paddingTop: 4 }}>
+                    <Text style={{ fontSize: 8.2, fontFamily: 'Helvetica-Bold', color: '#0B1F33' }}>
+                      {safeStr(empresa.nome_empresa)}
+                    </Text>
+                    <Text style={{ fontSize: 7.2, color: '#4A5A6D', marginTop: 1 }}>
+                      {safeStr(empresa.razao_social_cnpj_rut)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: '#E5DFD2',
+                  borderRadius: 4,
+                  backgroundColor: '#FAF8F4',
+                  padding: 10,
+                  minHeight: 82,
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Text style={{ fontSize: 7.2, fontFamily: 'Helvetica-Bold', color: '#0F3D91' }}>
+                  CONTRATANTE · TITULAR
+                </Text>
+                <View>
+                  {assinaturaDataUrl ? (
+                    <Image
+                      src={assinaturaDataUrl}
+                      style={{ height: 32, width: 140, objectFit: 'contain', marginBottom: 3 }}
+                    />
+                  ) : (
+                    <View style={{ height: 22 }} />
+                  )}
+                  <View style={{ borderTopWidth: 0.8, borderTopColor: '#94A3B8', paddingTop: 4 }}>
+                    <Text style={{ fontSize: 8.2, fontFamily: 'Helvetica-Bold', color: '#0B1F33' }}>
+                      {safeStr(assinadoPorNome || clienteNome, 'Contratante')}
+                    </Text>
+                    <Text style={{ fontSize: 7.2, color: '#4A5A6D', marginTop: 1 }}>
+                      {assinadoPorDocumento
+                        ? `Doc.: ${assinadoPorDocumento}`
+                        : assinadoEm
+                          ? `Assinado em ${formatDateTimeBR(assinadoEm)}`
+                          : 'Formalização eletrônica via Portal do Cliente'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={s.section}>
+            {fallbackLines.map((line, idx) => {
+              if (!line.trim()) {
+                return <View key={idx} style={{ height: 6 }} />;
+              }
+              const isClauseHeading =
+                /^(CLÁUSULA|CLAUSULA|RECIBO|TERMO|CONTRATO|ADITIVO|PROCURAÇÃO|PROCURACAO|\d+\.\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,})/.test(
+                  line.trim(),
+                );
+              return (
+                <Text
+                  key={idx}
+                  style={
+                    isClauseHeading
+                      ? [s.cardTitle, { marginTop: 8, marginBottom: 4, color: primary }]
+                      : [s.paragraph, { lineHeight: 1.55, marginBottom: 4, textAlign: 'justify' }]
+                  }
+                  minPresenceAhead={isClauseHeading ? 42 : undefined}
+                >
+                  {line}
+                </Text>
+              );
+            })}
+          </View>
+        )}
 
         {(assinaturaDataUrl || assinaturaUrl || assinadoEm || confirmadoLeituraEm) && (
           <View
@@ -1907,7 +2142,7 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
                 marginTop: 12,
                 backgroundColor: '#F3FAF6',
                 borderColor: '#A7DFC1',
-                padding: 10,
+                padding: 11,
               },
             ]}
             wrap={false}
@@ -1915,23 +2150,6 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
             <Text style={[s.cardTitle, { color: '#065F46', marginBottom: 4 }]}>
               CERTIFICADO DE ASSINATURA ELETRÔNICA
             </Text>
-            {assinaturaDataUrl && (
-              <View
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderWidth: 1,
-                  borderColor: '#D1FAE5',
-                  borderRadius: 4,
-                  padding: 6,
-                  marginBottom: 6,
-                }}
-              >
-                <Image
-                  src={assinaturaDataUrl}
-                  style={{ height: 48, width: 190, objectFit: 'contain' }}
-                />
-              </View>
-            )}
             <Text style={[s.cardMeta, { color: '#064E3B', marginBottom: 2 }]}>
               Signatário: {safeStr(assinadoPorNome || clienteNome, 'Cliente titular')}
               {assinadoPorDocumento ? ` · Doc.: ${assinadoPorDocumento}` : ''}
@@ -1963,7 +2181,7 @@ export const GeneratedOfficialDocPdfDocument: React.FC<GeneratedOfficialDocPdfIn
           </View>
         )}
 
-        <View style={s.footer} fixed>
+        <View style={[s.footer, { left: 40, right: 40 }]} fixed>
           <Text style={s.footerLegal}>
             {safeStr(empresa.avisoLegal)}
             {codigoVerificacao ? ` · Cód. ${codigoVerificacao}` : ''}
