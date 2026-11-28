@@ -821,9 +821,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 </div>
                 <div className="p-4 space-y-1">
                   <p className="font-mono text-base font-bold tabular-nums text-[#146B43]">30 dias</p>
-                  <p className="text-xs font-bold text-[#0B1F33]">Registro PDI &amp; Cédula</p>
+                  <p className="text-xs font-bold text-[#0B1F33]">Emissão da Cédula (RUT)</p>
                   <p className="text-[11px] text-[#4A5A6D] leading-relaxed">
-                    Prazo legal após o ingresso no Chile para registrar a residência na PDI e solicitar Cédula/RUT.
+                    Prazo legal após o ingresso no Chile para agendar e solicitar sua Cédula de Identidade / RUT.
                   </p>
                 </div>
               </div>
@@ -1698,7 +1698,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <span className="text-[11px] font-semibold text-amber-800">Proposta sob medida</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                A D&amp;M Integra Chile atua exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é um serviço garantido — atuamos apenas como ponte de indicação curada para parceiros imobiliários de confiança. Envie seu resultado para receber proposta fechada considerando:
+                A D&amp;M Integra Chile atua exclusivamente na assessoria de imigração (Visto SERMIG e RUT). Moradia não é um serviço garantido — atuamos apenas como ponte de indicação curada para parceiros imobiliários de confiança. Envie seu resultado para receber proposta fechada considerando:
               </p>
               <ul className="text-[11px] text-slate-600 space-y-0.5">
                 {result.custosEstimados.honorariosMotivosVariacao.map((m, i) => (

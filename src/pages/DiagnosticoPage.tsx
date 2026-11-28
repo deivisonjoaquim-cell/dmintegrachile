@@ -1316,7 +1316,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   Descubra em 2 minutos qual o caminho mais seguro e econômico para a sua mudança ao Chile.
                 </h1>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT): analisamos seu perfil, evitamos erros caros no protocolo e entregamos seu Plano Migratório em PDF. Moradia não é um serviço garantido — quando precisar, conectamos você a parceiros imobiliários de confiança.
+                  Atuamos exclusivamente na assessoria de imigração (Visto SERMIG e RUT): analisamos seu perfil, evitamos erros caros no protocolo e entregamos seu Plano Migratório em PDF. Moradia não é um serviço garantido — quando precisar, conectamos você a parceiros imobiliários de confiança.
                 </p>
               </div>
 
@@ -1874,7 +1874,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                     value={answers.entradaRecenteChileTurista ?? false}
                     onChange={(val) => updateAnswers({ entradaRecenteChileTurista: val })}
                     helpTitle="Como isso afeta?"
-                    helpText="Caso tenha havido permanência irregular recente ou saída sem registro na PDI (polícia de fronteira chilena), avaliamos essa situação antes de realizar um novo protocolo."
+                    helpText="Caso tenha havido permanência irregular recente ou saída sem registro migratório regular na fronteira chilena, avaliamos essa situação antes de realizar um novo protocolo."
                     sourceLabel={legalSourceText('leg_ley_21325')}
                   />
                 )}

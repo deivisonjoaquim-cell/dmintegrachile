@@ -56,9 +56,9 @@ const DEADLINE_RULES: {
   },
   {
     key: 'pdi_cedula_30d',
-    titulo: 'Registro PDI & Cédula de Identidade (30 dias)',
+    titulo: 'Emissão da Cédula de Identidade / RUT (30 dias)',
     tipo: 'Vencimento Cédula',
-    descricao: 'Prazo corrido após entrada no Chile ou obtenção do Estampado para agendar Registro Civil e registrar PDI.',
+    descricao: 'Prazo corrido após entrada no Chile ou obtenção do Estampado para agendar a emissão da Cédula (RUT) no Registro Civil.',
     dias: 30,
     modo: 'adicionar',
   },

@@ -334,7 +334,7 @@ export function getStepLiveRecommendation(
           (answers.mesesResidenciaChile ?? 0) >= 24
             ? 'Seu tempo de residência permite avaliar Residência Definitiva dentro do Chile, verificando eventuais ausências do país.'
             : 'Como residente vigente, o pedido de prorrogação ou mudança de subcategoria deve respeitar a janela de 90 a 10 dias antes do vencimento.',
-        acaoPratica: 'Mantenha o certificado de vigência e histórico de entradas/saídas da PDI atualizados.',
+        acaoPratica: 'Mantenha o certificado de vigência e histórico de entradas e saídas migratórias atualizados.',
         tom: 'positivo',
       };
     }

@@ -1052,10 +1052,10 @@ export function buildSermigSimulatedReceipt(
       },
       {
         ordem: 4,
-        titulo: 'Registro PDI e Solicitud de Cédula de Identidad (RUN)',
+        titulo: 'Emissão da Cédula de Identidade (RUT)',
         prazoReferencia: 'Até 30 dias corridos após chegada/estampado',
         detalhe:
-          'Ao entrar no Chile com o Estampado, registra-se o visto na PDI (online) e agenda-se a emissão da Cédula de Identidade para Estrangeiros no Registro Civil.',
+          'Ao entrar no Chile com o Estampado, agenda-se a emissão da Cédula de Identidade para Estrangeiros (RUT) no Registro Civil.',
       },
     ],
   };

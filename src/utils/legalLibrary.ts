@@ -488,7 +488,7 @@ export function buildProceduralGuideSteps(selectedVisa?: VisaCategory | null): P
       titulo: 'Ingresso no Chile, Cédula de Identidade e Continuidade',
       prazoReferencia: 'Entrada: até 90 dias (pedidos do exterior)',
       resumo: `Realize a entrada regular no Chile dentro do prazo do Estampado e agende a emissão da Cédula de Identidade para Estrangeiros no Registro Civil. ${postApprovalRule}`,
-      checklistDica: 'Mantenha cópia do Estampado, comprovante de ingresso (PDI) e Cédula no seu dossiê.',
+      checklistDica: 'Mantenha cópia do Estampado, comprovante de ingresso no Chile e Cédula no seu dossiê.',
       linkOficial: 'https://www.registrocivil.cl',
       linkLabel: 'Registro Civil Chile',
     },

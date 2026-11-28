@@ -33,11 +33,11 @@ CLÁUSULA 1ª – DO OBJETO
 1.1. O presente contrato tem por objeto a prestação de serviços de consultoria e assessoria operacional para {{objeto_servico}}, compreendendo análise documental, organização do processo, orientação sobre apostilamento e tradução, acompanhamento de prazos e protocolo perante o Servicio Nacional de Migraciones (SERMIG) do Chile.
 
 CLÁUSULA 2ª – OBRIGAÇÃO DE MEIO E AUTONOMIA DO SERMIG
-2.1. O(A) CONTRATADO(A) assume obrigação de meio, comprometendo-se a empregar diligência técnica e normativa na condução operacional do processo. A decisão final de deferimento, exigência de documentos ou prazo de tramitação compete exclusivamente às autoridades migratórias chilenas (SERMIG / PDI).
+2.1. O(A) CONTRATADO(A) assume obrigação de meio, comprometendo-se a empregar diligência técnica e normativa na condução operacional do processo. A decisão final de deferimento, exigência de documentos ou prazo de tramitação compete exclusivamente às autoridades migratórias chilenas (SERMIG).
 
 CLÁUSULA 3ª – HONORÁRIOS E CUSTOS DE TERCEIROS
 3.1. Pelos serviços contratados, o(a) CONTRATANTE pagará ao(à) CONTRATADO(A) o valor total de {{valor_contrato}}, na forma {{forma_pagamento}}.
-3.2. Taxas governamentais (SERMIG, PDI, Registro Civil), emolumentos de cartório, Apostila de Haia, traduções juramentadas e despesas de terceiros NÃO estão incluídas nos honorários, salvo especificação expressa em orçamento aprovado.
+3.2. Taxas governamentais (SERMIG, Registro Civil), emolumentos de cartório, Apostila de Haia, traduções juramentadas e despesas de terceiros NÃO estão incluídas nos honorários, salvo especificação expressa em orçamento aprovado.
 
 CLÁUSULA 4ª – DEVERES DO CONTRATANTE E VERACIDADE
 4.1. O(A) CONTRATANTE responsabiliza-se pela veracidade, integridade e envio tempestivo dos documentos solicitados, ciente de que certidões como o Certificado de Antecedentes da Polícia Federal possuem prazo de validade limitado (60 dias para fins migratórios no Chile).
@@ -84,7 +84,7 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     mostrarBotaoWhatsappFlutuante: true,
     mostrarBarraCtaMobile: true,
     rodapeSubtitulo:
-      'Atuação exclusiva em assessoria de imigração Brasil–Chile (Vistos SERMIG, registro na PDI e emissão do RUT). Moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários e especialistas de confiança.',
+      'Atuação exclusiva em assessoria de imigração Brasil–Chile (Visto SERMIG e emissão do RUT). Moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários e especialistas de confiança.',
     rodapeCopyright: 'Todos os direitos reservados.',
     linksNavegacao: [
       { path: '/', label: 'Início', visivel: true },
@@ -134,9 +134,9 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   textoReciboVigencia: '2026-11-17',
   termoLgpdVigencia: '2026-11-17',
   retencaoDadosDias: 1825,
-  seoTituloPadrao: 'D&M Integra Chile – Assessoria Exclusiva de Imigração Brasil–Chile (Vistos, PDI & RUT)',
+  seoTituloPadrao: 'D&M Integra Chile – Assessoria Exclusiva de Imigração Brasil–Chile (Visto e RUT)',
   seoDescricaoPadrao:
-    'Atuamos exclusivamente na assessoria de imigração para o Chile (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
+    'Atuamos exclusivamente na assessoria de imigração para o Chile (Visto SERMIG e RUT). Moradia não é serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
   depoimentosAutorizados: [],
   quemSomosMarcoHistorico: [
     {
@@ -161,11 +161,11 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'hero',
     secao: 'hero',
-    titulo: 'Assessoria exclusiva de imigração para o Chile: seu visto, PDI e RUT com segurança jurídica.',
+    titulo: 'Assessoria exclusiva de imigração para o Chile: seu visto e RUT com segurança jurídica.',
     subtitulo:
-      'Atuamos exclusivamente na regularização migratória — do protocolo no SERMIG ao registro na PDI e emissão do RUT. A moradia não é um serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
+      'Atuamos exclusivamente na regularização migratória — do protocolo no SERMIG à emissão do RUT. A moradia não é um serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
     conteudoHtml:
-      'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — conduzindo exclusivamente sua assessoria de imigração (Vistos, PDI e RUT) e servindo como ponte transparente para parceiros de confiança.',
+      'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — conduzindo exclusivamente sua assessoria de imigração (Visto e RUT) e servindo como ponte transparente para parceiros de confiança.',
     imagemUrl: '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
     ordem: 1,
     ativo: true,
@@ -173,7 +173,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       ctaPrimario: 'Iniciar Diagnóstico Gratuito',
       ctaSecundario: 'Falar com um Especialista',
       destaques: [
-        'Atuação exclusiva em imigração: Vistos, PDI e RUT',
+        'Atuação exclusiva em imigração: Visto e RUT',
         'Atendimento humano e direto em português',
         'Indicação curada de parceiros imobiliários de confiança',
       ],
@@ -182,9 +182,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'servicos',
     secao: 'servicos',
-    titulo: 'Atuação exclusiva em imigração: do visto no Brasil ao registro na PDI e emissão do RUT',
+    titulo: 'Atuação exclusiva em imigração: do visto no Brasil à emissão do RUT',
     subtitulo:
-      'Nosso serviço contratado é 100% dedicado à assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido — conectamos você a parceiros imobiliários e especialistas de confiança.',
+      'Nosso serviço contratado é 100% dedicado à assessoria de imigração (Visto SERMIG e RUT). Moradia não é serviço garantido — conectamos você a parceiros imobiliários e especialistas de confiança.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
     ordem: 2,
@@ -195,7 +195,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
           numero: '01',
           titulo: 'Regularização Migratória Completa',
           descricao:
-            'Cuidamos do seu visto, PDI e RUT para você viver e trabalhar legalmente desde o primeiro dia — escolhendo a rota certa entre Mercosul, trabalho, estudo, família ou renda.',
+            'Cuidamos do seu visto e RUT para você viver e trabalhar legalmente desde o primeiro dia — escolhendo a rota certa entre Mercosul, trabalho, estudo, família ou renda.',
         },
         {
           numero: '02',
@@ -211,9 +211,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         },
         {
           numero: '04',
-          titulo: 'Estampado Electrónico, Registro PDI, RUT e Ponte de Indicação',
+          titulo: 'Estampado Electrónico, Emissão do RUT e Ponte de Indicação',
           descricao:
-            'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Moradia não é serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas independentes.',
+            'Orientamos o Estampado Electrónico e a emissão da Cédula (RUT). Moradia não é serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas independentes.',
         },
       ],
     },
@@ -243,7 +243,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         {
           titulo: 'Portal transparente e rede de parceiros indicados',
           descricao:
-            'Acompanhe cada marco de Visto, PDI e RUT pelo Portal do Cliente e acesse nossa rede de profissionais parceiros indicados (imobiliárias, tradutores, cartórios, contadores e advogados) para outras situações.',
+            'Acompanhe cada marco de Visto e RUT pelo Portal do Cliente e acesse nossa rede de profissionais parceiros indicados (imobiliárias, tradutores, cartórios, contadores e advogados) para outras situações.',
         },
       ],
     },
@@ -251,9 +251,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'como_funciona',
     secao: 'como_funciona',
-    titulo: 'Da decisão no Brasil ao visto aprovado, PDI e RUT no Chile, em 4 fases claras',
+    titulo: 'Da decisão no Brasil ao visto aprovado e RUT no Chile, em 4 fases claras',
     subtitulo:
-      'Um roteiro previsível do Brasil até o visto aprovado, registro na PDI e emissão do seu RUT.',
+      'Um roteiro previsível do Brasil até o visto aprovado, trâmite migratório e emissão do seu RUT.',
     conteudoHtml: '',
     imagemUrl: '',
     ordem: 4,
@@ -280,9 +280,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         },
         {
           passo: '04',
-          titulo: 'Visto Aprovado, Registro na PDI e Emissão do RUT',
+          titulo: 'Visto Aprovado e Emissão do RUT',
           descricao:
-            'Acompanhamos o protocolo até o Estampado Electrónico, orientamos seu registro obrigatório na PDI e a emissão do RUT, além de indicar parceiros confiáveis para moradia e outras demandas.',
+            'Acompanhamos o protocolo até o Estampado Electrónico, orientamos a emissão do seu RUT, além de indicar parceiros confiáveis para moradia e outras demandas.',
         },
       ],
     },
@@ -294,7 +294,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     subtitulo:
       'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada etapa migratória com transparência e proximidade.',
     conteudoHtml:
-      'A D&M Integra Chile atua exclusivamente na assessoria de imigração do Brasil ao Chile — conduzindo Vistos (SERMIG), registro na PDI e emissão do RUT com rigor jurídico. Moradia não é um serviço garantido: para imóveis e demandas complementares, oferecemos indicação curada de parceiros de confiança.',
+      'A D&M Integra Chile atua exclusivamente na assessoria de imigração do Brasil ao Chile — conduzindo Visto (SERMIG) e emissão do RUT com rigor jurídico. Moradia não é um serviço garantido: para imóveis e demandas complementares, oferecemos indicação curada de parceiros de confiança.',
     imagemUrl: '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
     ordem: 5,
     ativo: true,
@@ -305,8 +305,8 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.',
       experienciaTitulo: 'Atuação Exclusiva em Assessoria de Imigração',
       experiencia:
-        'Atuamos exclusivamente na assessoria de imigração fundamentada na legislação chilena vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT) em qualquer região do Chile.\nA moradia não é um serviço garantido pela D&M Integra Chile: atuamos apenas como ponte de indicação curada para parceiros imobiliários, tradutores, cartórios, contadores e advogados independentes.',
-      missao: 'Transformar a regularização migratória em uma travessia segura, ética e transparente — exclusivamente dedicada ao seu visto, PDI e RUT no Chile.',
+        'Atuamos exclusivamente na assessoria de imigração fundamentada na legislação chilena vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico e emissão da Cédula (RUT) em qualquer região do Chile.\nA moradia não é um serviço garantido pela D&M Integra Chile: atuamos apenas como ponte de indicação curada para parceiros imobiliários, tradutores, cartórios, contadores e advogados independentes.',
+      missao: 'Transformar a regularização migratória em uma travessia segura, ética e transparente — exclusivamente dedicada ao seu visto e RUT no Chile.',
       credenciais: 'Atuação alinhada à legislação chilena (Ley Nº 21.325 e Decreto Nº 177/2022), ao Acordo de Residência Mercosul e à legislação brasileira (LGPD – Lei Nº 13.709/2018).',
     },
   },
@@ -315,7 +315,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     secao: 'parceiros',
     titulo: 'Parceiros de Confiança',
     subtitulo:
-      'Atuamos exclusivamente na assessoria de imigração (Vistos, PDI e RUT). Moradia não é serviço garantido — servimos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.',
+      'Atuamos exclusivamente na assessoria de imigração (Visto e RUT). Moradia não é serviço garantido — servimos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.',
     conteudoHtml:
       'Profissionais validados pela nossa curadoria para apoiar você em imóveis, traduções juramentadas, contabilidade SpA e contratos — sempre com contratação direta, transparente e independente.',
     imagemUrl: '',
@@ -376,7 +376,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'contato',
     secao: 'contato',
-    titulo: 'Vamos planejar seu visto, PDI e RUT no Chile com segurança e zero improviso?',
+    titulo: 'Vamos planejar seu visto e RUT no Chile com segurança e zero improviso?',
     subtitulo:
       'Faça seu diagnóstico gratuito em 2 minutos ou chame nossa equipe no WhatsApp para tirar suas dúvidas sem compromisso.',
     conteudoHtml:
@@ -390,7 +390,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     secao: 'rodape',
     titulo: 'D&M Integra Chile – Assessoria Migratória',
     subtitulo:
-      'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
+      'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG) e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
     conteudoHtml: DEFAULT_AVISO_LEGAL,
     imagemUrl: '',
     ordem: 10,
@@ -1737,7 +1737,7 @@ export const SEED_MESSAGE_TEMPLATES: MessageTemplate[] = [
     titulo: 'Orientações Pós-Chegada no Chile',
     canal: 'WhatsApp',
     corpo:
-      'Bem-vindo(a) ao Chile, {{nome_cliente}}! Vamos iniciar os passos pós-chegada: registro no SERMIG/PDI, agendamento de Cédula de Identidade no Registro Civil e ativação da ClaveÚnica.',
+      'Bem-vindo(a) ao Chile, {{nome_cliente}}! Vamos iniciar os passos pós-chegada: validação no SERMIG, agendamento de Cédula de Identidade (RUT) no Registro Civil e ativação da ClaveÚnica.',
   },
 ];
 
@@ -1898,7 +1898,7 @@ export const CASE_TEMPLATES: CaseTemplateOption[] = [
     prioridade: 'Alta',
     descricao: 'Transição da Residência Temporal para Residência Definitiva dentro da janela legal.',
     tarefasIniciais: [
-      'Conferir Certificado de Viajes PDI e tempo efetivo no Chile',
+      'Conferir histórico de viagens e tempo efetivo de residência no Chile',
       'Verificar comprovante de meios de vida / cotizaciones AFP e Salud',
       'Conferir janela de protocolo (90 a 10 dias antes do vencimento)',
     ],
@@ -1953,10 +1953,10 @@ export const CASE_TEMPLATES: CaseTemplateOption[] = [
     visaCategoryId: 'visa_15_mercosul',
     etapaInicial: 10,
     prioridade: 'Média',
-    descricao: 'Coordenação completa após aprovação: Estampado, entrada 90d, PDI, Cédula, ClaveÚnica, banco e moradia.',
+    descricao: 'Coordenação completa após aprovação: Estampado Electrónico, entrada no Chile e emissão da Cédula (RUT).',
     tarefasIniciais: [
       'Confirmar janela de 90 dias para ingresso após Estampado',
-      'Agendar Registro PDI e Cédula no Registro Civil',
+      'Agendar emissão da Cédula (RUT) no Registro Civil',
       'Conectar com parceiros homologados de moradia/imóveis',
     ],
     prazoSugeridoDias: 60,
@@ -2292,7 +2292,7 @@ export const PIPELINE_STAGES: { numero: number; nome: string; tarefasPadrao: str
   { numero: 8, nome: 'Acompanhamento', tarefasPadrao: ['Monitorar notificações SERMIG', 'Responder eventuais requerimentos'] },
   { numero: 9, nome: 'Resultado', tarefasPadrao: ['Baixar resolução de aprovação', 'Enviar orientação de taxas finais'] },
   { numero: 10, nome: 'Estampado e entrada no Chile', tarefasPadrao: ['Emitir Estampado Electrónico', 'Monitorar janela de 90 dias de entrada'] },
-  { numero: 11, nome: 'Cédula de identidade', tarefasPadrao: ['Registrar entrada na PDI', 'Agendar emissão da Cédula no Registro Civil'] },
+  { numero: 11, nome: 'Cédula de identidade', tarefasPadrao: ['Conferir Estampado Electrónico e entrada no Chile', 'Agendar emissão da Cédula no Registro Civil'] },
   { numero: 12, nome: 'Relocation', tarefasPadrao: ['Ativar ClaveÚnica', 'Apoiar abertura bancária / RUT / moradia'] },
   { numero: 13, nome: 'Prorrogação', tarefasPadrao: ['Monitorar janela de 90 a 10 dias antes do vencimento'] },
   { numero: 14, nome: 'Residência Definitiva', tarefasPadrao: ['Verificar tempo mínimo e ausências', 'Protocolar Residência Definitiva'] },

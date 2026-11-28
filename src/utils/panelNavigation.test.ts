@@ -91,7 +91,10 @@ describe('panelNavigation — Simplified 6-Hub Panel Architecture & RBAC', () =>
   it('enforces RBAC cleanly across Processos, Financeiro and Config sub-tabs', () => {
     assert.equal(getVisibleProcessosSubTabs('assistente').length, 4);
     assert.equal(getVisibleFinanceiroSubTabs('assistente').length, 0);
-    assert.equal(getVisibleFinanceiroSubTabs('consultor').length, 2);
+    assert.deepEqual(
+      getVisibleFinanceiroSubTabs('consultor').map((t) => t.id),
+      ['financeiro', 'assinaturas', 'contratos'],
+    );
 
     assert.deepEqual(
       getVisibleConfigSubTabs('assistente').map((t) => t.id),

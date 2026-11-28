@@ -387,7 +387,7 @@ export const PainelFinanceiro: React.FC<PainelFinanceiroProps> = ({
       },
       {
         id: makeId('bi'),
-        descricao: `Etapa 2 — Protocolo SERMIG (${input.pessoas}x · ${formatCurrency(estimate.sermigUsd, 'USD')})${input.incluirCedulaRut ? ' + Orientação PDI e Cédula RUT' : ''}`,
+        descricao: `Etapa 2 — Protocolo SERMIG (${input.pessoas}x · ${formatCurrency(estimate.sermigUsd, 'USD')})${input.incluirCedulaRut ? ' + Orientação para Emissão da Cédula (RUT)' : ''}`,
         etapaVinculada: 'Etapa 5–13',
         valorHonorarios: honEtapa2,
         taxasEstimadasTerceiros: Math.round(estimate.sermigBrl + estimate.cedulaBrl),

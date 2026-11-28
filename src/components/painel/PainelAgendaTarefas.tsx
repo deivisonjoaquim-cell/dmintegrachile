@@ -286,7 +286,7 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Agenda, Tarefas &amp; Prazos</h1>
           <p className="text-xs text-slate-500">
-            Controle centralizado de prazos SERMIG/PDI, entregas da equipe e agendamentos com clientes
+            Controle centralizado de prazos SERMIG, entregas da equipe e agendamentos com clientes
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -674,7 +674,7 @@ export const PainelAgendaTarefas: React.FC<PainelAgendaTarefasProps> = ({
               <EmptyState
                 icon={<Clock className="w-5 h-5" />}
                 title="Nenhum prazo pendente"
-                description="Use o botão Novo Prazo ou a Calculadora de Prazos Migratórios para registrar datas SERMIG/PDI."
+                description="Use o botão Novo Prazo ou a Calculadora de Prazos Migratórios para registrar datas SERMIG."
                 actionLabel="Registrar Prazo"
                 onAction={() => setCreateType('deadline')}
               />

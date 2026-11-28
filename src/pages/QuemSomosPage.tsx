@@ -37,7 +37,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
     description:
       quemSomos?.seoDescricao ||
       quemSomos?.subtitulo ||
-      'Conheça nossa equipe e como atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT), com indicação curada de parceiros imobiliários e especialistas de confiança no Chile.',
+      'Conheça nossa equipe e como atuamos exclusivamente na assessoria de imigração (Visto SERMIG e RUT), com indicação curada de parceiros imobiliários e especialistas de confiança no Chile.',
     orgName: empresa.nome_empresa,
     email: empresa.email,
     whatsapp: empresa.whatsapp,
@@ -53,7 +53,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
 
   const experienciaLines = translateText(
     meta.experiencia ||
-      'Atuamos exclusivamente na assessoria de imigração do Brasil para o Chile — conduzindo trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT).\nA moradia não é um serviço garantido pela D&M Integra Chile: para imóveis, traduções juramentadas, contabilidade ou advocacia complementar, atuamos apenas como ponte de indicação curada para parceiros independentes de confiança.',
+      'Atuamos exclusivamente na assessoria de imigração do Brasil para o Chile — conduzindo trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico e emissão da Cédula (RUT).\nA moradia não é um serviço garantido pela D&M Integra Chile: para imóveis, traduções juramentadas, contabilidade ou advocacia complementar, atuamos apenas como ponte de indicação curada para parceiros independentes de confiança.',
   )
     .split('\n')
     .map((line) => line.trim())
@@ -83,7 +83,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
       title: 'Domínio das Normas Migratórias do Chile',
       lines: [
         meta.credenciais ||
-          'Atuação fundamentada na Ley chilena Nº 21.325, no Decreto Nº 177/2022, no Acordo Mercosul e nas diretrizes oficiais do SERMIG e da PDI.',
+          'Atuação fundamentada na Ley chilena Nº 21.325, no Decreto Nº 177/2022, no Acordo Mercosul e nas diretrizes oficiais do SERMIG.',
       ],
     },
   ];
@@ -132,7 +132,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                   Ley Nº 21.325
                 </p>
                 <p className="text-xs text-[#6B7280] dark:text-slate-400">
-                  SERMIG · Acordo Mercosul · PDI
+                  SERMIG · Acordo Mercosul · RUT
                 </p>
               </div>
               <div className="space-y-1">
@@ -225,14 +225,14 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                   Precisão jurídica para proteger seu projeto. Escuta humana para acolher sua história.
                 </h2>
                 <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                  Mudar de país envolve carreira, patrimônio e a tranquilidade de quem você ama. Atuamos exclusivamente na assessoria de imigração — do Brasil até a aprovação do seu visto no SERMIG, registro na PDI e emissão do RUT no Chile — com transparência total sobre nosso escopo.
+                  Mudar de país envolve carreira, patrimônio e a tranquilidade de quem você ama. Atuamos exclusivamente na assessoria de imigração — do Brasil até a aprovação do seu visto no SERMIG e emissão do RUT no Chile — com transparência total sobre nosso escopo.
                 </p>
               </div>
 
               <div className="rounded-2xl bg-[#070E1C] text-white p-7 sm:p-8 space-y-6 border border-white/10">
                 <div className="space-y-1.5">
                   <p className="font-mono text-[11px] text-[#C9A86A]">01. Escopo Exclusivo · Imigração</p>
-                  <p className="text-sm font-semibold text-white">Vistos SERMIG, Registro na PDI e RUT</p>
+                  <p className="text-sm font-semibold text-white">Visto SERMIG e RUT</p>
                   <p className="text-xs text-slate-300 leading-relaxed">
                     Pedidos estruturados segundo a Ley Nº 21.325 e o Acordo Mercosul para blindar você contra rejeições, certidões vencidas e atrasos no SERMIG.
                   </p>
@@ -337,7 +337,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </h2>
             </div>
             <p className="text-sm text-[#4B5563] dark:text-slate-400 max-w-sm">
-              Relatos objetivos de brasileiros que regularizaram seus Vistos, PDI e RUT com nossa assessoria exclusiva de imigração e contaram com nossas indicações curadas de parceiros no Chile.
+              Relatos objetivos de brasileiros que regularizaram seu Visto e RUT com nossa assessoria exclusiva de imigração e contaram com nossas indicações curadas de parceiros no Chile.
             </p>
           </div>
 

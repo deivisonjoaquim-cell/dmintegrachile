@@ -44,13 +44,13 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
   const credentials = isEs
     ? [
         { value: '16 Rotas', label: 'Subcategorías migratorias', note: 'Decreto Supremo Nº 177/2022' },
-        { value: 'Visto → RUT', label: 'Alcance directo claro', note: 'SERMIG, Estampado, PDI y Cédula' },
+        { value: 'Visto → RUT', label: 'Alcance directo claro', note: 'SERMIG, Estampado y Cédula (RUT)' },
         { value: 'Red Aliada', label: 'Especialistas indicados', note: 'Vivienda, traducciones y SII' },
         { value: 'Ley 21.325', label: 'Base jurídica chilena', note: 'Protocolo oficial SERMIG' },
       ]
     : [
         { value: '16 Rotas', label: 'Subcategorias analisadas', note: 'Mercosul, Trabalho, Família e Renda' },
-        { value: 'Visto → RUT', label: 'Escopo direto transparente', note: 'SERMIG, Estampado, PDI e Cédula' },
+        { value: 'Visto → RUT', label: 'Escopo direto transparente', note: 'SERMIG, Estampado e Cédula (RUT)' },
         { value: 'Rede Indicada', label: 'Parceiros independentes', note: 'Imóveis, traduções, cartório e SpA' },
         { value: 'Ley 21.325', label: 'Segurança jurídica real', note: 'Conformidade total com o SERMIG' },
       ];
@@ -59,12 +59,12 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
     ? [
         { step: '01', title: 'Diagnóstico & Estrategia Legal', desc: 'Definimos tu visa ideal y cronograma documental en Brasil.' },
         { step: '02', title: 'Protocolo SERMIG & Estampado', desc: 'Revisión rigurosa, seguimiento de plazos y aprobación.' },
-        { step: '03', title: 'Registro PDI & Cédula (RUT)', desc: 'Guía completa de ingreso, registro PDI y emisión del RUT.' },
+        { step: '03', title: 'Emisión de Cédula (RUT)', desc: 'Orientación completa para el agendamiento y emisión de tu RUT.' },
       ]
     : [
         { step: '01', title: 'Diagnóstico & Rota Legal', desc: 'Definimos o visto ideal e o cronograma documental no Brasil.' },
         { step: '02', title: 'Protocolo SERMIG & Estampado', desc: 'Conferência técnica rigorosa e acompanhamento até a aprovação.' },
-        { step: '03', title: 'Registro na PDI & Cédula (RUT)', desc: 'Orientação completa até o registro obrigatório na PDI e seu RUT.' },
+        { step: '03', title: 'Emissão da Cédula (RUT)', desc: 'Orientação completa para agendamento no Registro Civil e emissão do seu RUT.' },
       ];
 
   return (
@@ -171,8 +171,8 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
                   </p>
                   <h2 className="font-display text-lg font-bold text-white leading-snug">
                     {isEs
-                      ? 'Asesoría exclusiva hasta Visa, PDI y RUT'
-                      : 'Assessoria exclusiva até Visto, PDI e RUT'}
+                      ? 'Asesoría exclusiva hasta Visa y RUT'
+                      : 'Assessoria exclusiva até Visto e RUT'}
                   </h2>
                 </div>
                 <ShieldCheck className="w-5 h-5 text-[#C9A86A] shrink-0 mt-0.5" aria-hidden="true" />
@@ -200,8 +200,8 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
                       {isEs ? 'La vivienda no es un servicio garantizado:' : 'Moradia não é um serviço garantido:'}
                     </strong>{' '}
                     {isEs
-                      ? 'actuamos exclusivamente en inmigración (Visas, PDI y RUT) y ofrecemos derivación curada a aliados inmobiliarios de confianza.'
-                      : 'atuamos exclusivamente na assessoria de imigração (Vistos, PDI e RUT) e oferecemos indicação curada de parceiros imobiliários de confiança.'}
+                      ? 'actuamos exclusivamente en inmigración (Visa y RUT) y ofrecemos derivación curada a aliados inmobiliarios de confianza.'
+                      : 'atuamos exclusivamente na assessoria de imigração (Visto e RUT) e oferecemos indicação curada de parceiros imobiliários de confiança.'}
                   </p>
                 </div>
                 <button

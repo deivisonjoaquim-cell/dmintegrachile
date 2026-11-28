@@ -28,8 +28,9 @@ test('REFERRAL_BRIDGE_PILLARS covers exclusive immigration scope, non-guaranteed
   assert.equal(REFERRAL_BRIDGE_PILLARS.length, 4);
   const combined = REFERRAL_BRIDGE_PILLARS.map((p) => `${p.titlePt} ${p.descPt}`).join(' ').toLowerCase();
   assert.ok(combined.includes('exclusivamente'));
-  assert.ok(combined.includes('pdi'));
+  assert.ok(combined.includes('visto'));
   assert.ok(combined.includes('rut'));
+  assert.equal(combined.includes('pdi'), false);
   assert.ok(combined.includes('moradia não é'));
   assert.ok(combined.includes('ponte de'));
 });

@@ -75,7 +75,7 @@ export const BUDGET_PRESET_TEMPLATES: BudgetPresetTemplate[] = [
           statusEtapa: 'Aguardando',
         },
         {
-          descricao: 'Etapa 3 — Orientação PDI, Registro Civil e Emissão da Cédula de Identidade (RUT)',
+          descricao: 'Etapa 3 — Orientação Registro Civil e Emissão da Cédula de Identidade (RUT)',
           etapaVinculada: 'Etapa 10–13',
           valorHonorarios: 600,
           taxasEstimadasTerceiros: 80,
@@ -116,7 +116,7 @@ export const BUDGET_PRESET_TEMPLATES: BudgetPresetTemplate[] = [
           statusEtapa: 'Aguardando',
         },
         {
-          descricao: 'Etapa 3 — Pós-Aprovação (PDI, RUT e Integração Inicial no Chile)',
+          descricao: 'Etapa 3 — Pós-Aprovação (Emissão do RUT e Integração Inicial no Chile)',
           etapaVinculada: 'Etapa 11–14',
           valorHonorarios: 900,
           taxasEstimadasTerceiros: 90,
@@ -128,8 +128,8 @@ export const BUDGET_PRESET_TEMPLATES: BudgetPresetTemplate[] = [
   },
   {
     id: 'relocation_arriendo',
-    label: 'Pacote Executivo Visto + PDI & RUT',
-    titulo: 'Pacote Executivo — Regularização Migratória Completa (Visto, PDI & RUT)',
+    label: 'Pacote Executivo Visto + RUT',
+    titulo: 'Pacote Executivo — Regularização Migratória Completa (Visto e RUT)',
     modalidadeConsultoria: 'completa',
     tipoCobranca: 'Pacote Completo',
     moedaPrincipal: 'BRL',
@@ -148,7 +148,7 @@ export const BUDGET_PRESET_TEMPLATES: BudgetPresetTemplate[] = [
           statusEtapa: 'Concluída/Faturável',
         },
         {
-          descricao: 'Acompanhamento de Chegada: Registro na PDI e Emissão da Cédula de Identidade (RUT)',
+          descricao: 'Acompanhamento de Chegada e Emissão da Cédula de Identidade (RUT)',
           etapaVinculada: 'Etapa 10–12',
           valorHonorarios: 1450,
           taxasEstimadasTerceiros: 0,

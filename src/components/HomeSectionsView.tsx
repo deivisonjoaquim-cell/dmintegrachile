@@ -139,7 +139,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
     if (key === 'hero') {
       const rawDestaques = (meta.destaques as string[] | undefined) || [
         'Atendimento humano e direto em português',
-        'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
+        'Rigor técnico no SERMIG e Cédula (RUT)',
         'Rede de parceiros indicados para demandas complementares',
       ];
       const heroDestaques = rawDestaques.map((d) => translateText(d));
@@ -150,7 +150,7 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
         translateText(meta.ctaSecundario as string | undefined) || t.hero.defaultSecondaryCta;
 
       const DEFAULT_HERO_TITLE =
-        'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.';
+        'Conquiste seu visto e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.';
       const rawHeroTitle = !sec.titulo ? DEFAULT_HERO_TITLE : sec.titulo;
 
       return (
@@ -539,8 +539,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
           num: '04.',
           title:
             locale === 'es-CL'
-              ? 'Seguimiento continuo en SERMIG, PDI y RUT'
-              : 'Controle ativo de prazos no SERMIG, PDI e RUT',
+              ? 'Seguimiento continuo en SERMIG y RUT'
+              : 'Controle ativo de prazos no SERMIG e RUT',
           caption:
             locale === 'es-CL'
               ? 'Monitoreo hasta tu Estampado Electrónico y residencia.'
@@ -590,8 +590,8 @@ export const HomeSectionsView: React.FC<HomeSectionsViewProps> = ({
                     </p>
                     <p className="text-xs text-[#6B7280] dark:text-slate-400 mt-0.5">
                       {locale === 'es-CL'
-                        ? 'SERMIG, Mercosur, PDI y RUT'
-                        : 'SERMIG, Mercosul, PDI e RUT'}
+                        ? 'SERMIG, Mercosur y RUT'
+                        : 'SERMIG, Mercosul e RUT'}
                     </p>
                   </div>
                   <div>

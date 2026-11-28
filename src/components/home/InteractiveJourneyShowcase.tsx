@@ -48,16 +48,16 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
             <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.12] text-[#0B1628] dark:text-white text-balance">
               {title ||
                 (isEs
-                  ? 'De Brasil a tu visa aprobada, PDI y RUT en Chile, en 4 fases claras'
-                  : 'Da decisão no Brasil ao visto aprovado, PDI e RUT no Chile, em 4 fases claras')}
+                  ? 'De Brasil a tu visa aprobada y RUT en Chile, en 4 fases claras'
+                  : 'Da decisão no Brasil ao visto aprovado e RUT no Chile, em 4 fases claras')}
             </h2>
           </div>
           <div className="lg:col-span-5 lg:text-right space-y-4">
             <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed lg:text-left">
               {subtitle ||
                 (isEs
-                  ? 'Cada fase cuenta con entregables verificables hasta tu PDI y RUT, con seguimiento en línea en tu Portal del Cliente.'
-                  : 'Um roteiro previsível até o visto aprovado, registro na PDI e emissão do RUT, com acompanhamento direto no Portal do Cliente.')}
+                  ? 'Cada fase cuenta con entregables verificables hasta tu visa y RUT, con seguimiento en línea en tu Portal del Cliente.'
+                  : 'Um roteiro previsível até o visto aprovado e emissão do RUT, com acompanhamento direto no Portal do Cliente.')}
             </p>
           </div>
         </div>
@@ -213,8 +213,8 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
               </p>
               <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
                 {isEs
-                  ? 'Actuamos exclusivamente en asesoría migratoria (Visas SERMIG, PDI y RUT). La vivienda no es un servicio garantizado: ofrecemos indicación curada a aliados inmobiliarios de confianza.'
-                  : 'Atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). A moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança.'}
+                  ? 'Actuamos exclusivamente en asesoría migratoria (Visa SERMIG y RUT). La vivienda no es un servicio garantizado: ofrecemos indicación curada a aliados inmobiliarios de confianza.'
+                  : 'Atuamos exclusivamente na assessoria de imigração (Visto SERMIG e RUT). A moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança.'}
               </p>
             </div>
           </div>

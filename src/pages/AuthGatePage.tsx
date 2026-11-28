@@ -337,7 +337,7 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
                     <p className="text-sm text-slate-300 leading-relaxed">
                       {mode === 'equipe'
                         ? 'Acesso exclusivo para consultores e administradores autorizados da D&M Integra Chile.'
-                        : 'Acompanhe exclusivamente sua assessoria de imigração (Vistos SERMIG, PDI e RUT), envie documentos e acesse indicações curadas de parceiros de confiança.'}
+                        : 'Acompanhe exclusivamente sua assessoria de imigração (Visto SERMIG e RUT), envie documentos e acesse indicações curadas de parceiros de confiança.'}
                     </p>
                   </div>
                 </div>

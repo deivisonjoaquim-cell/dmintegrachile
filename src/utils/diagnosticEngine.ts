@@ -400,7 +400,7 @@ export function detectDiagnosticContradictions(answers: DiagnosticAnswers): Cont
       titulo: 'Localização no Brasil e pendência de saída recente como turista',
       descricao:
         'Você informou estar no Brasil neste momento, mas também sinalizou entrada recente no Chile como turista com saída ou pendência em aberto.',
-      perguntaEsclarecimento: 'Você já retornou fisicamente ao Brasil com saída registrada na PDI ou ainda está no Chile?',
+      perguntaEsclarecimento: 'Você já retornou fisicamente ao Brasil com saída migratória regular registrada ou ainda está no Chile?',
       fixLabel: 'Marcar que não há pendência de saída',
       fixPatch: { entradaRecenteChileTurista: false },
     });
@@ -645,7 +645,7 @@ export function runDiagnosticEngine(
       campo: 'overstay',
       pergunta: riskLabels.overstay,
       severidade: 'Alta',
-      orientacao: 'Necessária regularização prévia ou cálculo de multa migratória junto ao SERMIG/PDI antes do novo protocolo.',
+      orientacao: 'Necessária regularização prévia ou cálculo de multa migratória junto ao SERMIG antes do novo protocolo.',
     });
   }
   if (isYes(answers.ordenAbandono)) {
@@ -1776,7 +1776,7 @@ export function runDiagnosticEngine(
       detalhe: 'Como turista sem vínculo formalizado, o pedido deve ser protocolado fora do território chileno.',
       prioridade: 2,
       validadeDias: 0,
-      orgao: 'SERMIG / PDI',
+      orgao: 'SERMIG',
       bloco: 'facaAgora',
     });
   }
@@ -2164,7 +2164,7 @@ export function runDiagnosticEngine(
     perguntasComplementares.push('Qual a data prevista para saída do Chile visando o protocolo eletrônico do exterior?');
   }
   if (flagsRisco.length > 0 || flagsRevisaoConsultor.length > 0) {
-    perguntasComplementares.push('Você possui cópia das notificações anteriores do SERMIG/PDI para análise técnica na reunião?');
+    perguntasComplementares.push('Você possui cópia das notificações anteriores do SERMIG para análise técnica na reunião?');
   }
   for (const c of contradicoes) {
     perguntasComplementares.push(c.perguntaEsclarecimento);

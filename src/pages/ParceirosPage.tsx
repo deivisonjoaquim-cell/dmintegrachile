@@ -498,7 +498,7 @@ export const ParceirosPage: React.FC = () => {
               <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight leading-[1.08] text-white text-balance">
                 {isEs
                   ? 'Actuamos exclusivamente en inmigración; conectamos con aliados inmobiliarios y especialistas de confianza'
-                  : 'Assessoria exclusiva em imigração (Vistos, PDI e RUT) e ponte curada para parceiros de confiança'}
+                  : 'Assessoria exclusiva em imigração (Visto e RUT) e ponte curada para parceiros de confiança'}
               </h1>
               <p className="text-base sm:text-lg text-slate-200 leading-relaxed max-w-2xl">
                 {isEs

@@ -374,8 +374,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ currentPath, onNavig
                 <p className="text-slate-400 tabular-nums">{empresa.whatsapp}</p>
                 <p className="text-xs text-slate-400 pt-1 leading-relaxed">
                   {locale === 'es-CL'
-                    ? '¿Tienes dudas sobre tu visa, PDI, RUT o aliados indicados en Chile? Escríbenos sin compromiso.'
-                    : 'Tem dúvidas sobre visto, PDI, RUT ou indicação de parceiros no Chile? Chame nossa equipe sem compromisso.'}
+                    ? '¿Tienes dudas sobre tu visa, RUT o aliados indicados en Chile? Escríbenos sin compromiso.'
+                    : 'Tem dúvidas sobre visto, RUT ou indicação de parceiros no Chile? Chame nossa equipe sem compromisso.'}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-5 text-xs">

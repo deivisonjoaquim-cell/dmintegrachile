@@ -4,11 +4,13 @@ import {
   Calculator,
   CalendarClock,
   Camera,
+  Check,
   CheckSquare,
   ChevronLeft,
   ChevronRight,
   Clock,
   Columns3,
+  CornerDownLeft,
   DollarSign,
   LayoutDashboard,
   LogOut,
@@ -59,6 +61,11 @@ import { daysUntilDate, formatDateBR } from '../utils/formatters';
 import type { MacroFunnelStageId } from '../utils/funnelModel';
 import { countLegalReviewPending } from '../utils/legalSync';
 import {
+  buildCommandPaletteItems,
+  formatSyncTimeBR,
+  type CommandPaletteItem,
+} from '../utils/panelInsights';
+import {
   getVisibleConfigSubTabs,
   getVisibleFinanceiroSubTabs,
   getVisiblePanelHubs,
@@ -77,12 +84,21 @@ import {
 
 type PanelTheme = 'light' | 'dark';
 const PANEL_THEME_STORAGE_KEY = 'dm_painel_theme';
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dm_painel_sidebar_collapsed';
 
-function loadPanelTheme(): PanelTheme {
+function loadSidebarCollapsed(): boolean {
   try {
-    return window.localStorage.getItem(PANEL_THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
   } catch {
-    return 'light';
+    return false;
+  }
+}
+
+function saveSidebarCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0');
+  } catch {
+    // ignore storage errors
   }
 }
 
@@ -159,16 +175,27 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
   } | null>(null);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => loadSidebarCollapsed());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [justSynced, setJustSynced] = useState(false);
   const [staffSiteContent, setStaffSiteContent] = useState<SiteContent[]>(siteContent);
 
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalQuery, setGlobalQuery] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [profileIdModalOpen, setProfileIdModalOpen] = useState(false);
   const [recents, setRecents] = useState<RecentCaseItem[]>([]);
+
+  const handleToggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      saveSidebarCollapsed(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!profileIdModalOpen) return;
@@ -220,6 +247,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         ]);
         setWorkspace(ws);
         setStaffSiteContent(cms);
+        setLastSyncedAt(new Date());
       } catch (err) {
         reportAppError(err, { source: 'painel-workspace-load' });
       } finally {
@@ -263,6 +291,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     setRefreshing(true);
     try {
       await Promise.all([loadWorkspace({ silent: Boolean(workspace) }), firestore.refresh()]);
+      setLastSyncedAt(new Date());
+      setJustSynced(true);
+      setTimeout(() => setJustSynced(false), 1800);
     } finally {
       setRefreshing(false);
     }
@@ -330,11 +361,17 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     if (globalSearchOpen) {
+      setSelectedCommandIndex(0);
       setTimeout(() => searchInputRef.current?.focus(), 40);
     } else {
       setGlobalQuery('');
+      setSelectedCommandIndex(0);
     }
   }, [globalSearchOpen]);
+
+  useEffect(() => {
+    setSelectedCommandIndex(0);
+  }, [globalQuery]);
 
   const handleLogWhatsApp = async (
     clientId: string | undefined,
@@ -602,123 +639,79 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
     etapa_6_financeiro: <DollarSign className="w-4 h-4 shrink-0" />,
   };
 
-  const searchResults = useMemo(() => {
-    if (!effectiveWorkspace || !globalQuery.trim()) return [];
-    const q = globalQuery.toLowerCase();
-    const out: { id: string; category: string; title: string; subtitle: string; onSelect: () => void }[] = [];
+  const commandItems = useMemo<CommandPaletteItem[]>(() => {
+    if (!effectiveWorkspace) return [];
+    return buildCommandPaletteItems({
+      query: globalQuery,
+      role,
+      isDark,
+      visibleHubs,
+      visibleStages: visibleWorkflowStages,
+      cases: effectiveWorkspace.cases,
+      clients: effectiveWorkspace.clients,
+      leads: effectiveWorkspace.leads,
+      tasks: effectiveWorkspace.tasks,
+      docs: effectiveWorkspace.caseDocuments,
+      legalSources,
+      maxResults: 14,
+    });
+  }, [effectiveWorkspace, globalQuery, role, isDark, visibleHubs, visibleWorkflowStages, legalSources]);
 
-    if (q.includes('calc') || q.includes('cambi') || q.includes('câmb') || q.includes('simula')) {
-      out.push({
-        id: 'tool_ferramentas',
-        category: 'Ferramenta',
-        title: 'Calculadoras de Prazos, Câmbio BRL/CLP & Simulador',
-        subtitle: 'Abrir em Recursos & Config.',
-        onSelect: () => {
-          handleNavigateLegacySection('ferramentas');
-          setGlobalSearchOpen(false);
-        },
-      });
-    }
+  const executeCommandItem = useCallback(
+    (item: CommandPaletteItem) => {
+      setGlobalSearchOpen(false);
+      switch (item.action.type) {
+        case 'hub':
+          handleSelectHub(item.action.hubId);
+          break;
+        case 'stage':
+          handleSelectWorkflowStage(item.action.stage);
+          break;
+        case 'quick_create':
+          triggerQuickCreate(item.action.action);
+          break;
+        case 'legacy':
+          handleNavigateLegacySection(item.action.section);
+          break;
+        case 'case':
+          handleOpenCase(item.action.caseId);
+          break;
+        case 'toggle_theme':
+          handleTogglePanelTheme();
+          break;
+        case 'refresh':
+          void handleRefreshAll();
+          break;
+      }
+    },
+    [
+      handleSelectHub,
+      handleSelectWorkflowStage,
+      triggerQuickCreate,
+      handleNavigateLegacySection,
+      handleOpenCase,
+      handleTogglePanelTheme,
+      handleRefreshAll,
+    ],
+  );
 
-    for (const c of effectiveWorkspace.cases) {
-      if (c.titulo.toLowerCase().includes(q) || (c.numeroPedidoSermig || '').toLowerCase().includes(q)) {
-        out.push({
-          id: `case_${c.id}`,
-          category: 'Processo',
-          title: c.titulo,
-          subtitle: `Etapa ${c.etapaPipeline} · SERMIG ${c.statusSermig}`,
-          onSelect: () => {
-            handleOpenCase(c.id);
-            setGlobalSearchOpen(false);
-          },
-        });
+  const handleCommandPaletteKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (commandItems.length === 0) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => (prev + 1) % commandItems.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => (prev - 1 + commandItems.length) % commandItems.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const activeItem = commandItems[selectedCommandIndex] || commandItems[0];
+        if (activeItem) executeCommandItem(activeItem);
       }
-    }
-    for (const cli of effectiveWorkspace.clients) {
-      if (
-        cli.nomeCompleto.toLowerCase().includes(q) ||
-        (cli.cpf || '').toLowerCase().includes(q) ||
-        cli.email.toLowerCase().includes(q)
-      ) {
-        const linkedCase = effectiveWorkspace.cases.find((c) => c.clientId === cli.id);
-        out.push({
-          id: `cli_${cli.id}`,
-          category: 'Cliente',
-          title: cli.nomeCompleto,
-          subtitle: `${cli.email} · ${cli.whatsapp}`,
-          onSelect: () => {
-            if (linkedCase) handleOpenCase(linkedCase.id);
-            else handleNavigateLegacySection('clientes');
-            setGlobalSearchOpen(false);
-          },
-        });
-      }
-    }
-    for (const l of effectiveWorkspace.leads) {
-      if (
-        l.nome.toLowerCase().includes(q) ||
-        l.email.toLowerCase().includes(q) ||
-        (l.subcategoriaSugerida || '').toLowerCase().includes(q)
-      ) {
-        out.push({
-          id: `lead_${l.id}`,
-          category: 'Lead',
-          title: l.nome,
-          subtitle: `${l.statusFunil} · ${l.subcategoriaSugerida || l.interesse}`,
-          onSelect: () => {
-            handleSelectHub('leads');
-            setGlobalSearchOpen(false);
-          },
-        });
-      }
-    }
-    for (const t of effectiveWorkspace.tasks) {
-      if (t.titulo.toLowerCase().includes(q)) {
-        out.push({
-          id: `task_${t.id}`,
-          category: 'Tarefa',
-          title: t.titulo,
-          subtitle: `${t.status} · ${t.prioridade}${t.prazo ? ` · Até ${formatDateBR(t.prazo)}` : ''}`,
-          onSelect: () => {
-            if (t.caseId) handleOpenCase(t.caseId);
-            else handleSelectHub('agenda');
-            setGlobalSearchOpen(false);
-          },
-        });
-      }
-    }
-    for (const d of effectiveWorkspace.caseDocuments) {
-      if (d.nomeDocumento.toLowerCase().includes(q) || d.pessoa.toLowerCase().includes(q)) {
-        out.push({
-          id: `doc_${d.id}`,
-          category: 'Documento',
-          title: d.nomeDocumento,
-          subtitle: `${d.pessoa} · ${d.status}`,
-          onSelect: () => {
-            handleOpenCase(d.caseId);
-            setGlobalSearchOpen(false);
-          },
-        });
-      }
-    }
-    if (role === 'admin' || role === 'consultor') {
-      for (const s of legalSources) {
-        if (s.titulo.toLowerCase().includes(q) || s.numeroAno.toLowerCase().includes(q)) {
-          out.push({
-            id: `leg_${s.id}`,
-            category: 'Base Legal',
-            title: s.titulo,
-            subtitle: `${s.pais} · ${s.tipo} · ${s.statusVigencia}`,
-            onSelect: () => {
-              handleNavigateLegacySection('legal');
-              setGlobalSearchOpen(false);
-            },
-          });
-        }
-      }
-    }
-    return out.slice(0, 12);
-  }, [effectiveWorkspace, globalQuery, legalSources, role, handleNavigateLegacySection, handleOpenCase, handleSelectHub]);
+    },
+    [commandItems, selectedCommandIndex, executeCommandItem],
+  );
 
   if (authLoading) {
     return (
@@ -831,7 +824,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </button>
           <button
             type="button"
-            onClick={() => setSidebarCollapsed((v) => !v)}
+            onClick={handleToggleSidebarCollapsed}
             aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
             className="p-1.5 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] shrink-0"
           >
@@ -1116,6 +1109,31 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 max-w-full">
+            <button
+              type="button"
+              onClick={() => void handleRefreshAll()}
+              disabled={refreshing}
+              title={
+                lastSyncedAt
+                  ? `Última sincronização às ${formatSyncTimeBR(lastSyncedAt)}. Clique para atualizar.`
+                  : 'Sincronizar dados do painel agora'
+              }
+              aria-label="Sincronizar dados do painel"
+              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#11263D] text-[11px] font-medium text-[#4A5A6D] dark:text-slate-300 hover:bg-[#FAF9F6] dark:hover:bg-[#16304C] disabled:opacity-60 whitespace-nowrap tabular-nums transition-colors"
+            >
+              {justSynced && !refreshing ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#1E7E34] dark:text-emerald-400 shrink-0" />
+                  <span className="text-[#1E7E34] dark:text-emerald-400 font-semibold">Sincronizado</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${refreshing ? 'animate-spin text-[#8C6D14] dark:text-[#E5C76B]' : ''}`} />
+                  <span>{lastSyncedAt ? formatSyncTimeBR(lastSyncedAt) : 'Atualizar'}</span>
+                </>
+              )}
+            </button>
+
             {unreadChatCount > 0 && (
               <button
                 type="button"
@@ -1139,12 +1157,12 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               type="button"
               onClick={() => setGlobalSearchOpen(true)}
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-xs text-[#4A5A6D] dark:text-slate-300 hover:bg-white dark:hover:bg-[#16304C] whitespace-nowrap"
-              aria-label="Busca rápida (pressione barra ou Ctrl+K)"
+              aria-label="Paleta de comandos e busca rápida (pressione barra ou Ctrl+K)"
             >
               <Search className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" />
-              <span className="hidden sm:inline">Buscar...</span>
+              <span className="hidden sm:inline">Buscar ou executar...</span>
               <kbd className="hidden md:inline px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-[#0D1E31] border border-[#DDD6C7] dark:border-[#1C324B] rounded">
-                /
+                Ctrl+K
               </kbd>
             </button>
 
@@ -1186,6 +1204,16 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   {(role === 'admin' || role === 'consultor') && (
                     <>
                       <div className="my-1 border-t border-[#E5DFD2] dark:border-[#1C324B]" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickCreateOpen(false);
+                          handleNavigateLegacySection('assinaturas');
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F6] dark:hover:bg-[#142942] font-medium text-[#0B1F33] dark:text-slate-200"
+                      >
+                        Status de Assinaturas
+                      </button>
                       <button
                         type="button"
                         onClick={() => triggerQuickCreate('contratos')}
@@ -1334,11 +1362,11 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* Régua Horizontal Prática: Ordem de Etapas Operacionais (1 → 6) */}
+          {/* Régua Horizontal Prática (Mobile/Tablet): no desktop a sidebar já exibe as etapas 1 → 6 sem duplicação */}
           {activeHub !== 'config' && !selectedCaseId && (
             <section
               aria-label="Fluxo operacional por etapas"
-              className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-2 no-print"
+              className="lg:hidden bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-2 no-print"
             >
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
                 {visibleWorkflowStages.map((stage, idx) => {
@@ -1486,6 +1514,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
               {activeHub === 'hoje' && (
                 <PainelDashboard
                   role={userProfile.role}
+                  userName={userProfile.nome}
                   empresa={empresa}
                   isDark={isDark}
                   leads={effectiveWorkspace.leads}
@@ -1511,6 +1540,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                   onOpenFunnelStage={handleOpenFunnelStage}
                   onToggleTask={handleQuickToggleTask}
                   onNavigateSection={handleNavigateLegacySection}
+                  onQuickCreate={triggerQuickCreate}
                 />
               )}
 
@@ -1774,13 +1804,16 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
         </footer>
       </div>
 
-      {/* Modal de Busca Global */}
+      {/* Paleta de Comandos e Busca Global (Ctrl+K / /) */}
       {globalSearchOpen && (
         <div
           className="fixed inset-0 z-50 bg-[#071422]/70 dark:bg-slate-950/85 backdrop-blur-[2px] flex items-start justify-center p-3 sm:p-4 pt-12 sm:pt-16 overflow-y-auto"
           role="dialog"
           aria-modal="true"
-          aria-label="Busca rápida"
+          aria-label="Paleta de comandos e busca rápida"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setGlobalSearchOpen(false);
+          }}
         >
           <div className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             <BrandRibbon className="h-[3px] w-full shrink-0" />
@@ -1790,9 +1823,20 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 ref={searchInputRef}
                 value={globalQuery}
                 onChange={(e) => setGlobalQuery(e.target.value)}
-                placeholder="Buscar cliente, processo, lead, tarefa ou norma..."
+                onKeyDown={handleCommandPaletteKeyDown}
+                placeholder="Buscar cliente, processo, SERMIG, tarefa ou executar ação..."
                 className="flex-1 min-w-0 text-sm bg-transparent text-[#0B1F33] dark:text-slate-100 placeholder:text-[#4A5A6D] dark:placeholder:text-slate-400 focus:outline-none"
               />
+              {globalQuery && (
+                <button
+                  type="button"
+                  onClick={() => setGlobalQuery('')}
+                  aria-label="Limpar busca"
+                  className="p-1 rounded text-[#4A5A6D] dark:text-slate-400 hover:text-[#0B1F33] dark:hover:text-slate-100 shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setGlobalSearchOpen(false)}
@@ -1801,33 +1845,51 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 Esc
               </button>
             </div>
-            <div className="flex-1 max-h-80 overflow-y-auto divide-y divide-[#F1EDE4] dark:divide-[#1C324B]">
-              {!globalQuery.trim() ? (
+            <div className="flex-1 max-h-96 overflow-y-auto divide-y divide-[#F1EDE4] dark:divide-[#1C324B]">
+              {!globalQuery.trim() && commandItems.length > 0 && (
+                <div className="px-4 py-2 bg-[#FAF9F6] dark:bg-[#11263D]/70 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
+                  Ações Rápidas &amp; Navegação
+                </div>
+              )}
+              {commandItems.length === 0 ? (
                 <p className="p-6 text-center text-xs text-[#4A5A6D] dark:text-slate-400">
-                  Digite um nome, CPF, e-mail, nº SERMIG, tarefa ou norma legal...
-                </p>
-              ) : searchResults.length === 0 ? (
-                <p className="p-6 text-center text-xs text-[#4A5A6D] dark:text-slate-400">
-                  Nenhum resultado encontrado.
+                  Nenhum resultado encontrado para &ldquo;{globalQuery}&rdquo;.
                 </p>
               ) : (
-                searchResults.map((res) => (
-                  <button
-                    key={res.id}
-                    type="button"
-                    onClick={res.onSelect}
-                    className="w-full text-left px-4 py-3 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-[#0B1F33] dark:text-slate-100 truncate">{res.title}</p>
-                      <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 truncate">{res.subtitle}</p>
-                    </div>
-                    <span className="text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B] shrink-0">
-                      {res.category}
-                    </span>
-                  </button>
-                ))
+                commandItems.map((res, idx) => {
+                  const isHighlighted = idx === selectedCommandIndex;
+                  return (
+                    <button
+                      key={res.id}
+                      type="button"
+                      onMouseEnter={() => setSelectedCommandIndex(idx)}
+                      onClick={() => executeCommandItem(res)}
+                      className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
+                        isHighlighted
+                          ? 'bg-[#FAF9F6] dark:bg-[#142942]'
+                          : 'hover:bg-[#FAF9F6] dark:hover:bg-[#142942]'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#0B1F33] dark:text-slate-100 truncate">{res.title}</p>
+                        <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 truncate">{res.subtitle}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] font-semibold text-[#8C6D14] dark:text-[#E5C76B]">
+                          {res.category}
+                        </span>
+                        {isHighlighted && (
+                          <CornerDownLeft className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" aria-hidden="true" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
               )}
+            </div>
+            <div className="px-4 py-2 border-t border-[#E5DFD2] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#4A5A6D] dark:text-slate-400 shrink-0">
+              <span>Use ↑ ↓ para navegar · Enter para abrir</span>
+              <span className="font-mono tabular-nums">{commandItems.length} item(ns)</span>
             </div>
           </div>
         </div>
@@ -1835,7 +1897,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
 
       {profileIdModalOpen && userProfile && (
         <div
-          className="fixed inset-0 z-50 bg-[#0B1F33]/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-[#0B1F33]/65 dark:bg-slate-950/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-label="Documentos de Identificação no Perfil"
@@ -1843,13 +1905,13 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
             if (e.target === e.currentTarget) setProfileIdModalOpen(false);
           }}
         >
-          <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-[#FAF9F6] border border-[#E5DFD2] shadow-2xl p-4 sm:p-6">
-            <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-[#E5DFD2]">
+          <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-[#FAF9F6] dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] shadow-2xl p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-[#E5DFD2] dark:border-[#1C324B]">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8C6D14] dark:text-[#E5C76B]">
                   Perfil no Firestore · Câmera Integrada
                 </p>
-                <p className="text-sm font-bold text-[#0B1F33] truncate">
+                <p className="text-sm font-bold text-[#0B1F33] dark:text-slate-100 truncate">
                   {userProfile.nome} ({userProfile.email})
                 </p>
               </div>
@@ -1857,7 +1919,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 type="button"
                 onClick={() => setProfileIdModalOpen(false)}
                 aria-label="Fechar janela de documentos de identificação"
-                className="p-2 rounded-lg border border-[#DDD6C7] bg-white text-[#0B1F33] hover:bg-[#FAF9F6] shrink-0"
+                className="p-2 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#11263D] text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#16304C] shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>

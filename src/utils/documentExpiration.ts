@@ -445,7 +445,7 @@ export function collectExpirationReminders(params: {
         caseObj,
         nomeDocumento: 'Prazo Limite de Entrada no Chile (Estampado Electrónico 90d)',
         dataValidadeCalculada: caseObj.dataLimiteEntrada,
-        orgaoEmissor: 'SERMIG / PDI',
+        orgaoEmissor: 'SERMIG',
       });
       const evaluated = evaluateTargetDate({
         doc: syntheticEntryDoc,

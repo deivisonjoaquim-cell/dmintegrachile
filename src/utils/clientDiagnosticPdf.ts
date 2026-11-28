@@ -1280,9 +1280,9 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
           },
           {
             fase: 4,
-            titulo: 'Estampado, PDI & Cédula',
+            titulo: 'Estampado & Cédula (RUT)',
             foco: 'Instalação regular',
-            resumo: 'Aprovação, Estampado Eletrônico, registro PDI e emissão da Cédula chilena (RUN).',
+            resumo: 'Aprovação, Estampado Eletrônico e emissão da Cédula chilena (RUT).',
           },
         ];
 
@@ -1483,7 +1483,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
     { kpi: '60 dias', title: 'Antecedentes PF', sub: 'Emitir por último', color: CRIMSON },
     { kpi: 'Haia CNJ', title: 'Apostila Brasil', sub: 'Certidões oficiais', color: GOLD_DARK },
     { kpi: '90 dias', title: 'Pós-Estampado', sub: 'Ingresso no Chile', color: NAVY },
-    { kpi: '30 dias', title: 'PDI & Cédula', sub: 'Após entrada', color: EMERALD },
+    { kpi: '30 dias', title: 'Cédula (RUT)', sub: 'Após entrada', color: EMERALD },
   ];
   const sColW = sermigW / 4;
   sermigItems.forEach((item, idx) => {

@@ -99,7 +99,7 @@ export const OfficeOperationsCarousel: React.FC<OfficeOperationsCarouselProps> =
             Como conduzimos cada etapa da sua mudança no dia a dia
           </h2>
           <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
-            Do primeiro diagnóstico em vídeo à auditoria de certidões apostiladas, protocolos no SERMIG, registro na PDI, emissão do RUT e conexão com parceiros indicados.
+            Do primeiro diagnóstico em vídeo à auditoria de certidões apostiladas, protocolos no SERMIG, emissão do RUT e conexão com parceiros indicados.
           </p>
         </div>
 

@@ -217,7 +217,7 @@ export const ContractGeneratorModal: React.FC<ContractGeneratorModalProps> = ({
       extras.push(
         modality === 'orientativa'
           ? `CLÁUSULA DE MODALIDADE – CONSULTORIA ORIENTATIVA\nFica expressamente ajustado que o presente contrato refere-se à modalidade ${modalitySpec.nome}. Caberá à CONTRATADA fornecer diagnóstico técnico, checklist personalizado na ordem de validade, conferência prévia dos documentos enviados no Portal e orientação passo a passo por reunião/chat. O protocolo oficial no sistema do SERMIG (Servicio Nacional de Migraciones) e o acompanhamento direto das notificações oficiais serão realizados pelo próprio CONTRATANTE.`
-          : `CLÁUSULA DE MODALIDADE – CONSULTORIA COMPLETA (GESTÃO INTEGRAL)\nFica expressamente ajustado que o presente contrato refere-se à modalidade ${modalitySpec.nome}. Caberá à CONTRATADA conduzir integralmente a organização do dossiê, conferência documental, realização do protocolo oficial junto ao SERMIG, monitoramento de prazos e eventuais requerimentos oficiais, além das orientações pós-aprovação (Estampado Eletrônico, PDI e Cédula/RUN).`,
+          : `CLÁUSULA DE MODALIDADE – CONSULTORIA COMPLETA (GESTÃO INTEGRAL)\nFica expressamente ajustado que o presente contrato refere-se à modalidade ${modalitySpec.nome}. Caberá à CONTRATADA conduzir integralmente a organização do dossiê, conferência documental, realização do protocolo oficial junto ao SERMIG, monitoramento de prazos e eventuais requerimentos oficiais, além das orientações pós-aprovação (Estampado Eletrônico e Cédula (RUT)).`,
       );
       if (addDep && deps.length > 0) {
         extras.push(

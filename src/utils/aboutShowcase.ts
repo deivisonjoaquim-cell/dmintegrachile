@@ -45,8 +45,8 @@ export const OFFICE_OPERATIONS_SLIDES: OfficeOperationSlide[] = [
     alt: 'Acompanhamento digital de processos migratórios no portal do SERMIG no escritório',
     title: 'Gestão contínua de prazos e protocolos no SERMIG',
     description:
-      'Monitoramento ativo de cada movimentação do visto, registro na PDI e emissão da Cédula de Identidade (RUT), mantendo o cliente informado sem surpresas.',
-    routineTag: 'SERMIG · PDI & RUT',
+      'Monitoramento ativo de cada movimentação do visto, emissão da Cédula de Identidade (RUT), mantendo o cliente informado sem surpresas.',
+    routineTag: 'SERMIG · Visto & RUT',
     locationLabel: 'Operação Diária',
   },
   {
@@ -55,7 +55,7 @@ export const OFFICE_OPERATIONS_SLIDES: OfficeOperationSlide[] = [
     alt: 'Sala executiva utilizada para curadoria e conexão com profissionais parceiros no Brasil e no Chile',
     title: 'Curadoria e indicação de profissionais parceiros',
     description:
-      'Nossa atuação direta vai até Vistos, PDI e RUT. Para imóveis, traduções juramentadas, cartórios, contabilidade ou seguros, conectamos você a parceiros independentes avaliados.',
+      'Nossa atuação direta vai até Visto e RUT. Para imóveis, traduções juramentadas, cartórios, contabilidade ou seguros, conectamos você a parceiros independentes avaliados.',
     routineTag: 'Rede de Parceiros Indicados',
     locationLabel: 'Brasil & Chile',
   },
@@ -76,15 +76,15 @@ export const CURATED_ABOUT_TESTIMONIALS: AboutTestimonial[] = [
     id: 'curated-camila-rafael',
     nome: 'Camila & Rafael Nogueira',
     origemDestino: 'Curitiba → Providencia, Santiago',
-    rotaServico: 'Residência Mercosul · PDI & RUT',
+    rotaServico: 'Residência Mercosul · Visto & RUT',
     depoimento:
-      'Chegamos ao Chile com duas crianças e muito receio de errar na papelada do SERMIG. A D&M organizou cada apostila ainda no Brasil, conduziu nosso visto, PDI e RUT com precisão e ainda nos indicou parceiros sérios para as demais etapas.',
+      'Chegamos ao Chile com duas crianças e muito receio de errar na papelada do SERMIG. A D&M organizou cada apostila ainda no Brasil, conduziu nosso visto e RUT com precisão e ainda nos indicou parceiros sérios para as demais etapas.',
   },
   {
     id: 'curated-eduardo-vasconcelos',
     nome: 'Eduardo Vasconcelos',
     origemDestino: 'São Paulo → Las Condes, Santiago',
-    rotaServico: 'Residência Temporal · PDI & RUT',
+    rotaServico: 'Residência Temporal · Visto & RUT',
     depoimento:
       'O diferencial foi falar com quem realmente domina as regras chilenas e explica tudo sem juridiquês. Acompanhei cada etapa pelo portal com previsibilidade total e tirei meu visto e meu RUT dentro do prazo da minha empresa.',
   },

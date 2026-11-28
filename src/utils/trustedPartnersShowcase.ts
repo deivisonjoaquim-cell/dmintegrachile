@@ -129,9 +129,9 @@ export const CURATED_TRUSTED_PARTNER_PROFILES: CuratedTrustedPartnerProfile[] = 
     summaryEs:
       'Contadores independientes recomendados para constitución de empresa (SpA), inicio de actividades en el SII y planificación tributaria.',
     bridgeNotePt:
-      'Nossa assessoria encerra no Visto, PDI e RUT; para demandas contábeis e empresariais, fazemos a ponte com contadores selecionados.',
+      'Nossa assessoria encerra no Visto e RUT; para demandas contábeis e empresariais, fazemos a ponte com contadores selecionados.',
     bridgeNoteEs:
-      'Nuestra asesoría llega hasta Visa, PDI y RUT; para necesidades contables y societarias, hacemos el puente con contadores seleccionados.',
+      'Nuestra asesoría llega hasta Visa y RUT; para necesidades contables y societarias, hacemos el puente con contadores seleccionados.',
     validationChecksPt: [
       'Atuação regular junto ao SII chileno',
       'Clareza em honorários e obrigações mensais',
@@ -164,9 +164,9 @@ export const CURATED_TRUSTED_PARTNER_PROFILES: CuratedTrustedPartnerProfile[] = 
     summaryEs:
       'Estudios independientes recomendados para revisión de contratos de arriendo o compraventa, asuntos civiles, societarios o laborales.',
     bridgeNotePt:
-      'Atuamos como ponte transparente quando surgem demandas jurídicas fora da assessoria administrativa de imigração (SERMIG, PDI e RUT).',
+      'Atuamos como ponte transparente quando surgem demandas jurídicas fora da assessoria administrativa de imigração (SERMIG e RUT).',
     bridgeNoteEs:
-      'Actuamos como puente transparente cuando surgen asuntos legales fuera de la asesoría administrativa de inmigración (SERMIG, PDI y RUT).',
+      'Actuamos como puente transparente cuando surgen asuntos legales fuera de la asesoría administrativa de inmigración (SERMIG y RUT).',
     validationChecksPt: [
       'Profissionais devidamente habilitados no país de atuação',
       'Análise imparcial de contratos e riscos locais',
@@ -188,9 +188,9 @@ export const REFERRAL_BRIDGE_PILLARS: ReferralBridgePillar[] = [
     titlePt: 'Atuação Exclusiva em Imigração',
     titleEs: 'Enfoque Exclusivo en Inmigración',
     descPt:
-      'A D&M Integra Chile atua exclusivamente na assessoria migratória: escolha do visto, dossiê documental, protocolo no SERMIG, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT).',
+      'A D&M Integra Chile atua exclusivamente na assessoria migratória: escolha do visto, dossiê documental, protocolo no SERMIG, Estampado Electrónico e emissão da Cédula (RUT).',
     descEs:
-      'D&M Integra Chile actúa exclusivamente en asesoría migratoria: elección de visa, expediente documental, postulación SERMIG, Estampado Electrónico, registro PDI y emisión de la Cédula (RUT).',
+      'D&M Integra Chile actúa exclusivamente en asesoría migratoria: elección de visa, expediente documental, postulación SERMIG, Estampado Electrónico y emisión de la Cédula (RUT).',
   },
   {
     num: '02',

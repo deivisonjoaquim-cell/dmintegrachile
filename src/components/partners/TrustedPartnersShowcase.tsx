@@ -115,8 +115,8 @@ export const TrustedPartnersShowcase: React.FC<TrustedPartnersShowcaseProps> = (
   const resolvedSubtitle =
     subtitle ||
     (isEs
-      ? 'D&M Integra Chile se dedica exclusivamente a la asesoría de inmigración (Visas SERMIG, PDI y RUT). La vivienda no es un servicio garantizado: actuamos solo como puente transparente hacia aliados inmobiliarios y especialistas de confianza.'
-      : 'A D&M Integra Chile atua exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). A moradia não é um serviço garantido — atuamos apenas como ponte de indicação curada para parceiros imobiliários e especialistas de confiança.');
+      ? 'D&M Integra Chile se dedica exclusivamente a la asesoría de inmigración (Visa SERMIG y RUT). La vivienda no es un servicio garantizado: actuamos solo como puente transparente hacia aliados inmobiliarios y especialistas de confianza.'
+      : 'A D&M Integra Chile atua exclusivamente na assessoria de imigração (Visto SERMIG e RUT). A moradia não é um serviço garantido — atuamos apenas como ponte de indicação curada para parceiros imobiliários e especialistas de confiança.');
 
   const innerContent = (
     <div data-testid="trusted-partners-showcase" className="space-y-12">
@@ -179,13 +179,13 @@ export const TrustedPartnersShowcase: React.FC<TrustedPartnersShowcaseProps> = (
             </div>
             <h3 className="font-display text-xl sm:text-2xl font-bold text-white leading-snug text-balance">
               {isEs
-                ? 'Conducimos únicamente tus trámites migratorios: Visa, PDI y RUT.'
-                : 'Atuamos exclusivamente na assessoria de imigração: Vistos, PDI e RUT.'}
+                ? 'Conducimos únicamente tus trámites migratorios: Visa y RUT.'
+                : 'Atuamos exclusivamente na assessoria de imigração: Visto e RUT.'}
             </h3>
             <p className="text-sm text-slate-300 leading-relaxed">
               {isEs
-                ? 'Nuestro contrato de consultoría abarca diagnóstico migratorio, auditoría documental en Brasil, protocolo ante el SERMIG, Estampado Electrónico, registro en la PDI y emisión de la Cédula de Identidad (RUT).'
-                : 'Nosso serviço contratado abrange diagnóstico migratório, auditoria documental no Brasil, protocolo no SERMIG, Estampado Electrónico, registro obrigatório na PDI e emissão da Cédula de Identidade (RUT).'}
+                ? 'Nuestro contrato de consultoría abarca diagnóstico migratorio, auditoría documental en Brasil, protocolo ante el SERMIG, Estampado Electrónico y emisión de la Cédula de Identidad (RUT).'
+                : 'Nosso serviço contratado abrange diagnóstico migratório, auditoria documental no Brasil, protocolo no SERMIG, Estampado Electrónico e emissão da Cédula de Identidade (RUT).'}
             </p>
           </div>
 

@@ -2,13 +2,22 @@ import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  Briefcase,
   Calendar,
+  Check,
   CheckCircle2,
   CheckSquare,
+  ClipboardCheck,
+  Copy,
+  Download,
   FileSignature,
   FileWarning,
   MessageCircle,
   Scale,
+  Search,
+  ShieldCheck,
+  UserPlus,
+  X,
 } from 'lucide-react';
 import type {
   Appointment,
@@ -35,6 +44,16 @@ import { buildWhatsAppUrl, formatCurrency, formatDateBR, formatDateTimeBR, openE
 import { computeUnifiedFunnelMetrics, type MacroFunnelStageId } from '../../utils/funnelModel';
 import type { FunnelPerformancePeriod } from '../../utils/funnelPerformanceModel';
 import { countLegalReviewPending } from '../../utils/legalSync';
+import {
+  buildDailyExecutiveBriefingText,
+  buildDailyUrgenciesCsv,
+  computeOperationalHealth,
+  filterPendingDocsByQuery,
+  filterTasksByQuery,
+  filterUrgenciesByQuery,
+  formatExecutiveDateBR,
+  getExecutiveGreeting,
+} from '../../utils/panelInsights';
 import { computeDailyPrioritySummary, type LegacyPanelSection } from '../../utils/panelNavigation';
 import { PainelFunnelPerformanceSummary } from './PainelFunnelPerformanceSummary';
 import { PainelLembretesVencimento } from './PainelLembretesVencimento';
@@ -50,14 +69,15 @@ const PainelProgressoTarefasChart = lazy(() =>
 );
 
 const ChartSkeletonFallback: React.FC = () => (
-  <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#0F1629] p-6 space-y-3">
-    <div className="h-4 w-48 rounded bg-slate-200/70 dark:bg-slate-800" />
-    <div className="h-56 w-full rounded-lg bg-slate-100 dark:bg-slate-900" />
+  <div className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] p-6 space-y-3">
+    <div className="h-4 w-48 rounded bg-[#EFECE4] dark:bg-[#142942]" />
+    <div className="h-56 w-full rounded-lg bg-[#FAF9F6] dark:bg-[#11263D]" />
   </div>
 );
 
 interface PainelDashboardProps {
   role: UserRole;
+  userName?: string;
   empresa: EmpresaConfig;
   isDark?: boolean;
   leads: Lead[];
@@ -83,12 +103,14 @@ interface PainelDashboardProps {
   onOpenFunnelStage?: (stageId: MacroFunnelStageId) => void;
   onToggleTask?: (task: Task) => Promise<void>;
   onNavigateSection?: (section: LegacyPanelSection) => void;
+  onQuickCreate?: (action: 'new_case' | 'new_client' | 'agenda' | 'contratos' | 'financeiro') => void;
 }
 
 type DailyWorkTab = 'hoje' | 'documentos' | 'chat' | 'relatorio';
 
 export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   role,
+  userName,
   empresa,
   isDark = false,
   leads,
@@ -114,15 +136,22 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   onOpenFunnelStage,
   onToggleTask,
   onNavigateSection,
+  onQuickCreate,
 }) => {
   const [workTab, setWorkTab] = useState<DailyWorkTab>('hoje');
   const [filterOrigem, setFilterOrigem] = useState('Todas');
   const [perfPeriod, setPerfPeriod] = useState<FunnelPerformancePeriod>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<'todas' | 'Critica' | 'Alta' | 'Media'>('todas');
+  const [queueSearch, setQueueSearch] = useState('');
+  const [docSearch, setDocSearch] = useState('');
+  const [briefingCopied, setBriefingCopied] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const isAssistente = role === 'assistente';
 
-  const todayIso = useMemo(() => toIsoDate(new Date()), []);
+  const nowDate = useMemo(() => new Date(), []);
+  const todayIso = useMemo(() => toIsoDate(nowDate), [nowDate]);
+  const executiveGreeting = useMemo(() => getExecutiveGreeting(nowDate.getHours(), userName), [nowDate, userName]);
+  const executiveDateLabel = useMemo(() => formatExecutiveDateBR(nowDate), [nowDate]);
 
   const filteredLeads = useMemo(
     () => (filterOrigem === 'Todas' ? leads : leads.filter((l) => l.origem === filterOrigem)),
@@ -145,10 +174,11 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     [cases, clients, docs, deadlines, financialRecords, role, isAssistente],
   );
 
-  const filteredUrgencias = useMemo(
-    () => (urgencyFilter === 'todas' ? urgencias : urgencias.filter((u) => u.severidade === urgencyFilter)),
-    [urgencias, urgencyFilter],
-  );
+  const filteredUrgencias = useMemo(() => {
+    const bySeverity =
+      urgencyFilter === 'todas' ? urgencias : urgencias.filter((u) => u.severidade === urgencyFilter);
+    return filterUrgenciesByQuery(bySeverity, queueSearch);
+  }, [urgencias, urgencyFilter, queueSearch]);
 
   const dailySummary = useMemo(
     () =>
@@ -194,11 +224,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
 
   const pendingTasksToday = useMemo(
     () =>
-      tasks
-        .filter((t) => t.status !== 'Concluída')
-        .sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31'))
-        .slice(0, 8),
-    [tasks],
+      filterTasksByQuery(
+        tasks
+          .filter((t) => t.status !== 'Concluída')
+          .sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31')),
+        queueSearch,
+      ).slice(0, 8),
+    [tasks, queueSearch],
   );
 
   const appointmentsToday = useMemo(
@@ -212,6 +244,11 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
   const pendingDocsReview = useMemo(
     () => docs.filter((d) => d.status === 'Enviado' || d.status === 'Em análise'),
     [docs],
+  );
+
+  const filteredPendingDocsReview = useMemo(
+    () => filterPendingDocsByQuery(pendingDocsReview, docSearch),
+    [pendingDocsReview, docSearch],
   );
 
   const topReprovados = useMemo(() => {
@@ -243,6 +280,76 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
     const latestPending = rows.find((r) => r.isPending) || null;
     return { metrics, latestPending };
   }, [generatedDocuments, clients, cases]);
+
+  const operationalHealth = useMemo(
+    () =>
+      computeOperationalHealth({
+        deadlines,
+        avgDocsPct: avgThermometer,
+        criticalUrgenciesCount: dailySummary.criticalUrgenciesCount,
+        pendingSignaturesCount: isAssistente ? 0 : contractSignatureOverview.metrics.pendentes,
+        pendingDocsCount: pendingDocsReview.length,
+        referenceDate: nowDate,
+      }),
+    [
+      deadlines,
+      avgThermometer,
+      dailySummary.criticalUrgenciesCount,
+      isAssistente,
+      contractSignatureOverview.metrics.pendentes,
+      pendingDocsReview.length,
+      nowDate,
+    ],
+  );
+
+  const handleCopyDailyBriefing = async () => {
+    const text = buildDailyExecutiveBriefingText({
+      brandName: brandName || empresa.nome_empresa,
+      dateLabel: executiveDateLabel,
+      role,
+      activeCasesCount: activeCases.length,
+      activeClientsCount: activeClients.length,
+      avgDocsPct: avgThermometer,
+      urgencias,
+      openTasksCount: dailySummary.openTasksCount,
+      pendingDocsCount: pendingDocsReview.length,
+      unreadChatCount: unreadChatTotal,
+      pendingSignaturesCount: contractSignatureOverview.metrics.pendentes,
+      receitaBrl: isAssistente ? undefined : receitaTotalBrl,
+      inadimplenciaBrl: isAssistente ? undefined : inadimplenciaBrl,
+      health: operationalHealth,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setBriefingCopied(true);
+      setTimeout(() => setBriefingCopied(false), 2200);
+    } catch {
+      // Fallback para ambientes sem clipboard API
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setBriefingCopied(true);
+      setTimeout(() => setBriefingCopied(false), 2200);
+    }
+  };
+
+  const handleExportDailyCsv = () => {
+    const csv = buildDailyUrgenciesCsv(urgencias, tasks);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `prioridades-operacionais-${todayIso}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
 
   const handleNotifyUrgency = async (u: (typeof urgencias)[number]) => {
     const text = `Olá${u.clientNome ? `, ${u.clientNome}` : ''}! Alerta operacional D&M Integra Chile: ${u.titulo} — ${u.detalhe} (Data ref.: ${u.dataReferenciaBR}).`;
@@ -278,14 +385,35 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho direto com foco imediato do dia */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Central do Dia
+      {/* Cabeçalho executivo com saudação, pulso SLA e exportação rápida */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+            <span className="font-semibold text-[#8C6D14] dark:text-[#E5C76B]">{executiveDateLabel}</span>
+            <span aria-hidden="true" className="text-[#C5BCB0] dark:text-[#2A4666]">·</span>
+            <span
+              className={`inline-flex items-center gap-1.5 font-semibold tabular-nums ${
+                operationalHealth.status === 'critico'
+                  ? 'text-[#C82333] dark:text-red-400'
+                  : operationalHealth.status === 'atencao'
+                    ? 'text-amber-700 dark:text-amber-400'
+                    : 'text-[#1E7E34] dark:text-emerald-400'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              {operationalHealth.label}
+            </span>
+            <span aria-hidden="true" className="text-[#C5BCB0] dark:text-[#2A4666] hidden sm:inline">·</span>
+            <span className="text-[#4A5A6D] dark:text-slate-400 tabular-nums hidden sm:inline">
+              {operationalHealth.summaryLine}
+            </span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-[26px] font-bold tracking-tight text-[#0B1F33] dark:text-slate-100 leading-tight">
+            {executiveGreeting}
           </h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            {dailySummary.recommendedAction.label} — {dailySummary.recommendedAction.detail}
+          <p className="text-sm text-[#4A5A6D] dark:text-slate-400 leading-snug">
+            <strong className="font-semibold text-[#0B1F33] dark:text-slate-200">{dailySummary.recommendedAction.label}:</strong>{' '}
+            {dailySummary.recommendedAction.detail}
           </p>
         </div>
 
@@ -294,7 +422,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             value={filterOrigem}
             onChange={(e) => setFilterOrigem(e.target.value)}
             aria-label="Filtrar métricas por origem de leads"
-            className="min-w-0 max-w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200"
+            className="min-w-0 max-w-full px-3 py-2 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-medium text-[#0B1F33] dark:text-slate-200"
           >
             <option value="Todas">Origem: Todas</option>
             <option value="Site">Site</option>
@@ -306,8 +434,37 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
 
           <button
             type="button"
+            onClick={() => void handleCopyDailyBriefing()}
+            title="Copiar resumo operacional do dia para WhatsApp ou relatório"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] whitespace-nowrap shrink-0 transition-colors"
+          >
+            {briefingCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-[#1E7E34] dark:text-emerald-400" />
+                <span>Resumo copiado</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B]" />
+                <span>Copiar Resumo</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportDailyCsv}
+            title="Baixar lista de urgências e tarefas em aberto em CSV"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] whitespace-nowrap shrink-0 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-[#4A5A6D] dark:text-slate-400" />
+            <span className="hidden sm:inline">CSV</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleRecommendedClick}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-opacity hover:opacity-95"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-opacity hover:opacity-95 shadow-[0_2px_8px_rgba(11,31,51,0.16)]"
             style={{
               backgroundColor:
                 dailySummary.recommendedAction.tone === 'critical'
@@ -320,6 +477,81 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Faixa compacta de Ações Rápidas da Consultoria */}
+      <section aria-label="Atalhos operacionais rápidos" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 no-print">
+        <button
+          type="button"
+          onClick={() => (onQuickCreate ? onQuickCreate('new_case') : onNavigateSection?.('casos'))}
+          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] hover:border-[#C8A236]/80 text-left transition-colors"
+        >
+          <Briefcase className="w-4 h-4 text-[#0B1F33] dark:text-[#E5C76B] shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-100 truncate">Novo Processo</p>
+            <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 truncate">Visto e RUT</p>
+          </div>
+        </button>
+
+        {!isAssistente && (
+          <button
+            type="button"
+            onClick={() => (onQuickCreate ? onQuickCreate('new_client') : onNavigateSection?.('clientes'))}
+            className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] hover:border-[#C8A236]/80 text-left transition-colors"
+          >
+            <UserPlus className="w-4 h-4 text-[#0B1F33] dark:text-[#E5C76B] shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-100 truncate">Novo Cliente</p>
+              <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 truncate">CRM &amp; Portal</p>
+            </div>
+          </button>
+        )}
+
+        {!isAssistente && (
+          <button
+            type="button"
+            onClick={() => onNavigateSection?.('assinaturas')}
+            className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] hover:border-[#C8A236]/80 text-left transition-colors"
+          >
+            <FileSignature className="w-4 h-4 text-[#0F3D91] dark:text-sky-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-100 truncate">Assinaturas</p>
+              <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 tabular-nums truncate">
+                {contractSignatureOverview.metrics.pendentes > 0
+                  ? `${contractSignatureOverview.metrics.pendentes} pendente(s)`
+                  : `${contractSignatureOverview.metrics.assinados} assinado(s)`}
+              </p>
+            </div>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onNavigateSection?.('checklist')}
+          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] hover:border-[#C8A236]/80 text-left transition-colors"
+        >
+          <ClipboardCheck className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-100 truncate">Checklist Docs</p>
+            <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 tabular-nums truncate">
+              {pendingDocsReview.length} p/ conferir
+            </p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigateSection?.('agenda')}
+          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] hover:border-[#C8A236]/80 text-left transition-colors"
+        >
+          <Calendar className="w-4 h-4 text-[#1E7E34] dark:text-emerald-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-100 truncate">Agenda &amp; Prazos</p>
+            <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 tabular-nums truncate">
+              {appointmentsToday.length} hoje · {dailySummary.openTasksCount} tarefa(s)
+            </p>
+          </div>
+        </button>
+      </section>
 
       {/* Aviso normativo discreto apenas quando houver normas pendentes */}
       {!isAssistente && legalPending.totalAttention > 0 && onNavigateSection && (
@@ -342,22 +574,22 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
 
       {/* Acompanhamento rápido de contratos pendentes de assinatura */}
       {!isAssistente && contractSignatureOverview.metrics.pendentes > 0 && onNavigateSection && (
-        <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0F1629] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_1px_2px_rgba(11,31,51,0.03)]">
-          <div className="flex items-start sm:items-center gap-2.5 text-xs text-slate-700 dark:text-slate-200 min-w-0">
+        <div className="rounded-xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_1px_2px_rgba(11,31,51,0.03)]">
+          <div className="flex items-start sm:items-center gap-2.5 text-xs text-[#0B1F33] dark:text-slate-200 min-w-0">
             <FileSignature className="w-4 h-4 text-[#0F3D91] dark:text-sky-400 shrink-0 mt-0.5 sm:mt-0" />
             <div className="min-w-0">
               <p className="leading-snug">
-                <strong className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                <strong className="font-semibold text-[#0B1F33] dark:text-slate-100 tabular-nums">
                   {contractSignatureOverview.metrics.pendentes} contrato(s) pendente(s) de assinatura
                 </strong>
                 {contractSignatureOverview.metrics.assinados > 0 && (
-                  <span className="text-slate-500 dark:text-slate-400 tabular-nums">
+                  <span className="text-[#4A5A6D] dark:text-slate-400 tabular-nums">
                     {' '}· {contractSignatureOverview.metrics.assinados} assinado(s) ({contractSignatureOverview.metrics.taxaAssinaturaPct}%)
                   </span>
                 )}
               </p>
               {contractSignatureOverview.latestPending && (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums mt-0.5 truncate">
+                <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 tabular-nums mt-0.5 truncate">
                   Última interação: {contractSignatureOverview.latestPending.clientName} — {contractSignatureOverview.latestPending.lastInteractionLabel} ({formatDateTimeBR(contractSignatureOverview.latestPending.lastInteractionAt)})
                 </p>
               )}
@@ -378,14 +610,20 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         <button
           type="button"
           onClick={() => onNavigateSection?.('casos')}
-          className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+          className="min-w-0 text-left bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-4 hover:border-[#C8A236]/75 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Processos ativos</p>
-          <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
+          <p className="text-xs font-medium text-[#4A5A6D] dark:text-slate-400">Processos ativos</p>
+          <p className="text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-slate-100 mt-1.5 tabular-nums">
             {activeCases.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
-            {activeClients.length} clientes · Docs {avgThermometer}%
+          <div className="mt-2 h-1.5 rounded-full bg-[#EFECE4] dark:bg-[#142942] overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${Math.min(100, Math.max(4, avgThermometer))}%`, backgroundColor: 'var(--color-primary)' }}
+            />
+          </div>
+          <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-1.5 tabular-nums leading-snug">
+            {activeClients.length} clientes · Prontidão docs {avgThermometer}%
           </p>
         </button>
 
@@ -395,30 +633,30 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
             setWorkTab('hoje');
             setUrgencyFilter('todas');
           }}
-          className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+          className="min-w-0 text-left bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-4 hover:border-[#C8A236]/75 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Urgências</p>
+          <p className="text-xs font-medium text-[#4A5A6D] dark:text-slate-400">Urgências &amp; Prazos</p>
           <p
             className="text-2xl font-bold tracking-tight mt-1.5 tabular-nums"
             style={{ color: urgencias.length > 0 ? '#C82333' : '#1E7E34' }}
           >
             {urgencias.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
-            {dailySummary.criticalUrgenciesCount} crítica(s) · {dailySummary.openTasksCount} tarefa(s)
+          <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-2 tabular-nums leading-snug">
+            {dailySummary.criticalUrgenciesCount} crítica(s) · SLA {operationalHealth.slaCompliancePct}%
           </p>
         </button>
 
         <button
           type="button"
           onClick={() => setWorkTab('documentos')}
-          className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+          className="min-w-0 text-left bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-4 hover:border-[#C8A236]/75 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
         >
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Docs para conferir</p>
-          <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
+          <p className="text-xs font-medium text-[#4A5A6D] dark:text-slate-400">Docs para conferir</p>
+          <p className="text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-slate-100 mt-1.5 tabular-nums">
             {pendingDocsReview.length}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
+          <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-2 tabular-nums leading-snug">
             {dailySummary.newLeadsCount} lead(s) novo(s) · {unreadChatTotal} chat(s)
           </p>
         </button>
@@ -427,13 +665,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigateSection?.('financeiro')}
-            className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+            className="min-w-0 text-left bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-4 hover:border-[#C8A236]/75 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
           >
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Recebido (BRL)</p>
+            <p className="text-xs font-medium text-[#4A5A6D] dark:text-slate-400">Recebido (BRL)</p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E7E34] dark:text-emerald-400 mt-1.5 tabular-nums break-words">
               {formatCurrency(receitaTotalBrl, 'BRL')}
             </p>
-            <p className="text-xs text-[#C82333] dark:text-red-400 mt-1 tabular-nums leading-snug break-words">
+            <p className="text-xs text-[#C82333] dark:text-red-400 mt-2 tabular-nums leading-snug break-words">
               Em atraso: {formatCurrency(inadimplenciaBrl, 'BRL')}
             </p>
           </button>
@@ -441,13 +679,13 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigateSection?.('agenda')}
-            className="min-w-0 text-left bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
+            className="min-w-0 text-left bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-4 hover:border-[#C8A236]/75 hover:shadow-[0_4px_14px_rgba(11,31,51,0.06)] transition-all duration-150 shadow-[0_1px_2px_rgba(11,31,51,0.03)]"
           >
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Agenda de hoje</p>
-            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1.5 tabular-nums">
+            <p className="text-xs font-medium text-[#4A5A6D] dark:text-slate-400">Agenda de hoje</p>
+            <p className="text-2xl font-bold tracking-tight text-[#0B1F33] dark:text-slate-100 mt-1.5 tabular-nums">
               {appointmentsToday.length}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums leading-snug">
+            <p className="text-xs text-[#4A5A6D] dark:text-slate-400 mt-2 tabular-nums leading-snug">
               {dailySummary.openTasksCount} tarefa(s) em aberto
             </p>
           </button>
@@ -455,23 +693,23 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       </div>
 
       {/* Funil Interativo em 5 Marcos: clique em qualquer marco para ir direto aos registros */}
-      <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 space-y-4 shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
+      <section className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl p-5 space-y-4 shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-sm font-bold text-[#0B1F33] dark:text-slate-100">
               Fluxo Operacional em 5 Marcos
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[#4A5A6D] dark:text-slate-400">
               Clique em uma etapa para abrir diretamente os leads ou processos naquele momento
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums text-slate-600 dark:text-slate-300">
+          <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums text-[#4A5A6D] dark:text-slate-300">
             <span>
-              Conversão: <strong className="text-slate-900 dark:text-slate-100">{unifiedFunnel.commercialConversionPct}%</strong>
+              Conversão: <strong className="text-[#0B1F33] dark:text-slate-100">{unifiedFunnel.commercialConversionPct}%</strong>
             </span>
             <span aria-hidden="true">·</span>
             <span>
-              Conclusão: <strong className="text-[#1E7E34]">{unifiedFunnel.completionRatePct}%</strong>
+              Conclusão: <strong className="text-[#1E7E34] dark:text-emerald-400">{unifiedFunnel.completionRatePct}%</strong>
             </span>
             {onNavigateSection && (
               <>
@@ -479,7 +717,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateSection('funil')}
-                  className="font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
+                  className="font-semibold text-[var(--color-primary)] dark:text-[#E5C76B] hover:underline whitespace-nowrap"
                 >
                   Abrir Quadro Kanban →
                 </button>
@@ -557,11 +795,11 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
       </Suspense>
 
       {/* Fila de Trabalho Unificada em 4 Abas Práticas */}
-      <section className="bg-white dark:bg-[#0F1629] border border-slate-200/90 dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
+      <section className="bg-white dark:bg-[#0D1E31] border border-[#E5DFD2] dark:border-[#1C324B] rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(11,31,51,0.04)]">
         <div
           role="tablist"
           aria-label="Fila de trabalho diária"
-          className="flex items-center gap-1 overflow-x-auto px-4 pt-3 border-b border-slate-200 dark:border-slate-800"
+          className="flex items-center gap-1 overflow-x-auto px-4 pt-3 border-b border-[#E5DFD2] dark:border-[#1C324B]"
         >
           {(
             [
@@ -581,8 +819,8 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                 onClick={() => setWorkTab(tab.id)}
                 className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-colors tabular-nums ${
                   active
-                    ? 'border-[var(--color-primary)] text-[var(--color-primary)] dark:text-sky-400 dark:border-sky-400'
-                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'border-[var(--color-primary)] text-[var(--color-primary)] dark:text-[#E5C76B] dark:border-[#E5C76B]'
+                    : 'border-transparent text-[#4A5A6D] dark:text-slate-400 hover:text-[#0B1F33] dark:hover:text-slate-200'
                 }`}
               >
                 {tab.label}
@@ -595,43 +833,94 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
         <div className="p-5">
           {/* ABA 1: ATENÇÃO HOJE (Urgências + Tarefas & Agenda) */}
           {workTab === 'hoje' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-[#C82333]" />
-                    Urgências e Prazos Críticos ({filteredUrgencias.length})
-                  </h3>
-                  <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-[11px] font-semibold">
-                    {(
-                      [
-                        { id: 'todas', label: `Todas (${urgencias.length})` },
-                        { id: 'Critica', label: `Críticas (${urgencias.filter((u) => u.severidade === 'Critica').length})` },
-                        { id: 'Alta', label: `Altas (${urgencias.filter((u) => u.severidade === 'Alta').length})` },
-                      ] as const
-                    ).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setUrgencyFilter(opt.id)}
-                        className={`px-2.5 py-1 rounded-md whitespace-nowrap tabular-nums ${
-                          urgencyFilter === opt.id
-                            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+            <div className="space-y-4">
+              {/* Filtro rápido de busca na fila diária */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={queueSearch}
+                    onChange={(e) => setQueueSearch(e.target.value)}
+                    placeholder="Filtrar urgências e tarefas por cliente, visto ou prazo..."
+                    aria-label="Filtrar fila de atenção hoje"
+                    className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-xs text-[#0B1F33] dark:text-slate-100 placeholder:text-[#4A5A6D] dark:placeholder:text-slate-400 focus:outline-none focus:border-[#C8A236]"
+                  />
+                  {queueSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setQueueSearch('')}
+                      aria-label="Limpar busca da fila diária"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-[#4A5A6D] hover:text-[#0B1F33] dark:text-slate-400 dark:hover:text-slate-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
+                <div className="inline-flex items-center p-0.5 bg-[#EFECE4] dark:bg-[#11263D] rounded-lg text-[11px] font-semibold w-fit">
+                  {(
+                    [
+                      { id: 'todas', label: `Todas (${urgencias.length})` },
+                      { id: 'Critica', label: `Críticas (${urgencias.filter((u) => u.severidade === 'Critica').length})` },
+                      { id: 'Alta', label: `Altas (${urgencias.filter((u) => u.severidade === 'Alta').length})` },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setUrgencyFilter(opt.id)}
+                      className={`px-2.5 py-1 rounded-md whitespace-nowrap tabular-nums transition-colors ${
+                        urgencyFilter === opt.id
+                          ? 'bg-white dark:bg-[#0D1E31] text-[#0B1F33] dark:text-slate-100 shadow-xs'
+                          : 'text-[#4A5A6D] dark:text-slate-400'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-3">
+                <h3 className="text-sm font-bold text-[#0B1F33] dark:text-slate-100 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#C82333]" />
+                  Urgências e Prazos Críticos ({filteredUrgencias.length})
+                </h3>
+
                 {filteredUrgencias.length === 0 ? (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
-                    Nenhuma urgência pendente nesta severidade.
-                  </p>
+                  <div className="rounded-xl border border-dashed border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6]/70 dark:bg-[#11263D]/40 p-5 text-center space-y-2.5">
+                    <p className="text-xs font-medium text-[#4A5A6D] dark:text-slate-300">
+                      {queueSearch || urgencyFilter !== 'todas'
+                        ? 'Nenhuma urgência encontrada para os filtros aplicados.'
+                        : 'Nenhuma urgência pendente no momento. Prazos sob controle.'}
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {(queueSearch || urgencyFilter !== 'todas') ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQueueSearch('');
+                            setUrgencyFilter('todas');
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]"
+                        >
+                          Limpar filtros
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onNavigateSection?.('casos')}
+                          className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]"
+                        >
+                          Ver Processos Ativos →
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <div className="divide-y divide-[#F1EDE4] dark:divide-[#1C324B]">
                     {filteredUrgencias.map((u) => (
                       <div key={u.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="min-w-0">
@@ -688,7 +977,18 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                     </button>
                   </div>
                   {pendingTasksToday.length === 0 ? (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma tarefa em aberto.</p>
+                    <div className="rounded-lg border border-dashed border-[#DDD6C7] dark:border-[#1C324B] p-3.5 text-center space-y-2">
+                      <p className="text-xs text-[#4A5A6D] dark:text-slate-400">
+                        {queueSearch ? 'Nenhuma tarefa compatível com a busca.' : 'Nenhuma tarefa em aberto.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateSection?.('agenda')}
+                        className="text-xs font-semibold text-[var(--color-primary)] dark:text-[#E5C76B] hover:underline"
+                      >
+                        + Nova tarefa na Agenda
+                      </button>
+                    </div>
                   ) : (
                     <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                       {pendingTasksToday.map((t) => (
@@ -735,16 +1035,25 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                     Reuniões Hoje ({appointmentsToday.length})
                   </h3>
                   {appointmentsToday.length === 0 ? (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Sem reuniões agendadas para {formatDateBR(todayIso)}.
-                    </p>
+                    <div className="rounded-lg border border-dashed border-[#DDD6C7] dark:border-[#1C324B] p-3.5 text-center space-y-2">
+                      <p className="text-xs text-[#4A5A6D] dark:text-slate-400">
+                        Sem reuniões agendadas para {formatDateBR(todayIso)}.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateSection?.('agenda')}
+                        className="text-xs font-semibold text-[var(--color-primary)] dark:text-[#E5C76B] hover:underline"
+                      >
+                        Agendar reunião
+                      </button>
+                    </div>
                   ) : (
-                    <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    <ul className="divide-y divide-[#F1EDE4] dark:divide-[#1C324B] text-xs">
                       {appointmentsToday.map((a) => (
                         <li key={a.id} className="py-2 flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 leading-snug break-words" title={a.titulo}>{a.titulo}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums mt-0.5">
+                            <p className="font-semibold text-[#0B1F33] dark:text-slate-100 leading-snug break-words" title={a.titulo}>{a.titulo}</p>
+                            <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 tabular-nums mt-0.5">
                               {a.dataHoraInicio.slice(11, 16) || formatDateBR(a.dataHoraInicio)} · {a.tipo}
                             </p>
                           </div>
@@ -752,7 +1061,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                             <button
                               type="button"
                               onClick={() => onOpenCase(a.caseId!)}
-                              className="text-[11px] font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline shrink-0"
+                              className="text-[11px] font-semibold text-[var(--color-primary)] dark:text-[#E5C76B] hover:underline shrink-0"
                             >
                               Abrir
                             </button>
@@ -763,6 +1072,7 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
                   )}
                 </div>
               </div>
+              </div>
             </div>
           )}
 
@@ -772,36 +1082,72 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-3 min-w-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <FileWarning className="w-4 h-4 text-amber-700 shrink-0" />
-                      Documentos Enviados Aguardando Conferência ({pendingDocsReview.length})
+                    <h3 className="text-sm font-bold text-[#0B1F33] dark:text-slate-100 flex items-center gap-2">
+                      <FileWarning className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                      Documentos Enviados Aguardando Conferência ({filteredPendingDocsReview.length})
                     </h3>
                     <button
                       type="button"
                       onClick={() => onNavigateSection?.('checklist')}
-                      className="text-xs font-semibold text-[var(--color-primary)] dark:text-sky-400 hover:underline whitespace-nowrap"
+                      className="text-xs font-semibold text-[var(--color-primary)] dark:text-[#E5C76B] hover:underline whitespace-nowrap"
                     >
                       Ir para Checklist →
                     </button>
                   </div>
-                  {pendingDocsReview.length === 0 ? (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 py-3">
-                      Nenhum documento enviado aguardando triagem agora.
-                    </p>
+
+                  {pendingDocsReview.length > 0 && (
+                    <div className="relative max-w-md">
+                      <Search className="w-3.5 h-3.5 text-[#8C6D14] dark:text-[#E5C76B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={docSearch}
+                        onChange={(e) => setDocSearch(e.target.value)}
+                        placeholder="Filtrar por nome do documento ou pessoa..."
+                        aria-label="Filtrar documentos pendentes"
+                        className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6] dark:bg-[#11263D] text-xs text-[#0B1F33] dark:text-slate-100 placeholder:text-[#4A5A6D] dark:placeholder:text-slate-400 focus:outline-none focus:border-[#C8A236]"
+                      />
+                      {docSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setDocSearch('')}
+                          aria-label="Limpar busca de documentos"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-[#4A5A6D] hover:text-[#0B1F33] dark:text-slate-400 dark:hover:text-slate-100"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {filteredPendingDocsReview.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6]/70 dark:bg-[#11263D]/40 p-5 text-center space-y-2.5">
+                      <p className="text-xs text-[#4A5A6D] dark:text-slate-300">
+                        {docSearch
+                          ? 'Nenhum documento compatível com o filtro informado.'
+                          : 'Nenhum documento enviado aguardando triagem agora.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => (docSearch ? setDocSearch('') : onNavigateSection?.('checklist'))}
+                        className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]"
+                      >
+                        {docSearch ? 'Limpar filtro' : 'Abrir Checklist de Documentos'}
+                      </button>
+                    </div>
                   ) : (
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                      {pendingDocsReview.slice(0, 12).map((d) => (
+                    <div className="divide-y divide-[#F1EDE4] dark:divide-[#1C324B] text-xs">
+                      {filteredPendingDocsReview.slice(0, 12).map((d) => (
                         <div key={d.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 leading-snug break-words">{d.nomeDocumento}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            <p className="font-semibold text-[#0B1F33] dark:text-slate-100 leading-snug break-words">{d.nomeDocumento}</p>
+                            <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 mt-0.5">
                               {d.pessoa} · {d.status}
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => onOpenCase(d.caseId)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 self-start sm:self-center"
+                            className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942] shrink-0 self-start sm:self-center"
                           >
                             Conferir
                           </button>
@@ -870,9 +1216,18 @@ export const PainelDashboard: React.FC<PainelDashboardProps> = ({
               </div>
 
               {chatThreads.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
-                  Nenhuma dúvida de documento enviada no chat do portal até o momento.
-                </p>
+                <div className="rounded-xl border border-dashed border-[#DDD6C7] dark:border-[#1C324B] bg-[#FAF9F6]/70 dark:bg-[#11263D]/40 p-5 text-center space-y-2.5">
+                  <p className="text-xs text-[#4A5A6D] dark:text-slate-300">
+                    Nenhuma dúvida de documento enviada no chat do portal até o momento.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateSection?.('clientes')}
+                    className="px-3 py-1.5 rounded-lg border border-[#DDD6C7] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] text-xs font-semibold text-[#0B1F33] dark:text-slate-200 hover:bg-[#FAF9F6] dark:hover:bg-[#142942]"
+                  >
+                    Ver Clientes &amp; Acessos do Portal
+                  </button>
+                </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {chatThreads.map((thread) => (

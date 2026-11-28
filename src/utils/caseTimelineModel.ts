@@ -130,11 +130,11 @@ const COMPLETA_PHASE_BY_STAGE: Record<number, { key: string; label: string }> = 
   8: { key: 'analise', label: 'Fase 3 · Análise Oficial e Deferimento' },
   9: { key: 'analise', label: 'Fase 3 · Análise Oficial e Deferimento' },
   10: { key: 'analise', label: 'Fase 3 · Análise Oficial e Deferimento' },
-  11: { key: 'chegada', label: 'Fase 4 · Chegada, PDI e Cédula no Chile' },
-  12: { key: 'chegada', label: 'Fase 4 · Chegada, PDI e Cédula no Chile' },
-  13: { key: 'chegada', label: 'Fase 4 · Chegada, PDI e Cédula no Chile' },
-  14: { key: 'chegada', label: 'Fase 4 · Chegada, PDI e Cédula no Chile' },
-  15: { key: 'chegada', label: 'Fase 4 · Chegada, PDI e Cédula no Chile' },
+  11: { key: 'chegada', label: 'Fase 4 · Chegada e Cédula (RUT) no Chile' },
+  12: { key: 'chegada', label: 'Fase 4 · Chegada e Cédula (RUT) no Chile' },
+  13: { key: 'chegada', label: 'Fase 4 · Chegada e Cédula (RUT) no Chile' },
+  14: { key: 'chegada', label: 'Fase 4 · Chegada e Cédula (RUT) no Chile' },
+  15: { key: 'chegada', label: 'Fase 4 · Chegada e Cédula (RUT) no Chile' },
 };
 
 const COMPLETA_STAGE_DESCRIPTIONS: Record<number, string> = {
@@ -149,7 +149,7 @@ const COMPLETA_STAGE_DESCRIPTIONS: Record<number, string> = {
   9: 'Atendimento de eventuais requerimentos ou solicitações complementares.',
   10: 'Emissão da resolução de aprovação e pagamento de taxas oficiais.',
   11: 'Download do Estampado Electrónico e preparação da entrada no Chile.',
-  12: 'Registro presencial ou eletrônico de visto junto à PDI após chegada.',
+  12: 'Acompanhamento pós-chegada para solicitação da Cédula (RUT).',
   13: 'Agendamento e emissão da Cédula de Identidade para estrangeiros (Registro Civil).',
   14: 'Orientações de instalação inicial, RUT e integração no Chile.',
   15: 'Encerramento formal com entrega do dossiê completo e alertas de renovação.',

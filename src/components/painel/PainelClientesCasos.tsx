@@ -178,7 +178,7 @@ const SERMIG_STATUSES: Case['statusSermig'][] = [
 
 const RELOCATION_DEFAULT_ITEMS = [
   '[Relocation] Baixar Estampado Electrónico no portal SERMIG',
-  '[Relocation] Registrar entrada no Chile (PDI) dentro de 30/90 dias',
+  '[Pós-Aprovação] Conferir entrada no Chile e agendar Cédula (RUT)',
   '[Relocation] Agendar e emitir Cédula de Identidade no Registro Civil',
   '[Relocation] Ativar ClaveÚnica (Registro Civil / ChileAtiende)',
   '[Relocation] Obter RUT provisório / abrir conta bancária no Chile',
@@ -4400,7 +4400,7 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Trilha Pós-Chegada no Chile</h3>
-                  <p className="text-xs text-slate-500">Estampado Electrónico, PDI, Cédula de Identidade, ClaveÚnica, RUT e Rede Homologada</p>
+                  <p className="text-xs text-slate-500">Estampado Electrónico, Cédula de Identidade (RUT), ClaveÚnica e Rede de Parceiros</p>
                 </div>
                 <button
                   type="button"

@@ -82,7 +82,7 @@ export const CONSULTANCY_PLANS: Record<ConsultancyModality, ConsultancyPlanSpec>
       'Protocolo oficial no SERMIG conduzido pela nossa equipe',
       'Monitoramento ativo de prazos, requerimentos e notificações oficiais',
       'Termômetro documental, cofre de arquivos e acompanhamento em 15 etapas',
-      'Orientação pós-aprovação: Estampado Eletrônico, PDI, Cédula (RUN) e chegada',
+      'Orientação pós-aprovação: Estampado Eletrônico, Cédula (RUT) e chegada',
     ],
     naoInclui: [
       'Taxas governamentais oficiais (SERMIG, CNJ, tradutores juramentados), pagas diretamente aos órgãos emissores',
@@ -132,7 +132,7 @@ export const ORIENTATIVA_STAGES: OrientativaStage[] = [
   {
     numero: 6,
     nome: 'Orientações Pós-Protocolo',
-    descricao: 'Guia para acompanhar o trâmite, baixar Estampado e registrar PDI/Cédula.',
+    descricao: 'Guia para acompanhar o trâmite, baixar Estampado e emitir a Cédula (RUT).',
     responsavel: 'Consultoria',
   },
 ];
@@ -333,7 +333,7 @@ function buildMacroRoadmap(localizacao?: string): BasicDiagnosticPhase[] {
       {
         fase: 4,
         titulo: 'Resolução e Atualização da Cédula',
-        foco: 'Registro Civil & PDI',
+        foco: 'Registro Civil & RUT',
         resumo: 'Emissão do Estampado Eletrônico, atualização cadastral e renovação da Cédula de Identidade para Estrangeiros.',
       },
     ];
@@ -361,9 +361,9 @@ function buildMacroRoadmap(localizacao?: string): BasicDiagnosticPhase[] {
       },
       {
         fase: 4,
-        titulo: 'Estampado, PDI & Cédula Chilena',
+        titulo: 'Estampado & Cédula Chilena (RUT)',
         foco: 'Regularização completa',
-        resumo: 'Aprovação, emissão do Estampado Eletrônico, registro na PDI e emissão do RUN/Cédula de Identidade chilena.',
+        resumo: 'Aprovação, emissão do Estampado Eletrônico e emissão da Cédula de Identidade (RUT).',
       },
     ];
   }
@@ -389,9 +389,9 @@ function buildMacroRoadmap(localizacao?: string): BasicDiagnosticPhase[] {
     },
     {
       fase: 4,
-      titulo: 'Embarque, Registro PDI & Cédula',
+      titulo: 'Embarque & Cédula (RUT)',
       foco: 'Instalação regular no Chile',
-      resumo: 'Entrada regular com Estampado Eletrônico, registro obrigatório na PDI e emissão da Cédula de Identidade (RUN).',
+      resumo: 'Entrada regular com Estampado Eletrônico e emissão da Cédula de Identidade (RUT).',
     },
   ];
 }

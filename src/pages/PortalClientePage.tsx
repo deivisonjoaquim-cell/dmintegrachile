@@ -1644,7 +1644,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   {/* Aviso permanente de transparência de escopo */}
                   <div className="p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#111A2B] border border-[#E5E7EB] dark:border-[#1E293B] mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                      <strong className="text-[#0B1628] dark:text-white">Escopo exclusivo de imigração:</strong> a D&amp;M Integra Chile acompanha diretamente seus trâmites de Visto (SERMIG), registro na PDI e emissão do RUT. A moradia não é um serviço garantido; atuamos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.
+                      <strong className="text-[#0B1628] dark:text-white">Escopo exclusivo de imigração:</strong> a D&amp;M Integra Chile acompanha diretamente seus trâmites de Visto (SERMIG) e emissão do RUT. A moradia não é um serviço garantido; atuamos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.
                     </p>
                     <a
                       href="#/parceiros"
@@ -1662,7 +1662,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                           Modalidade contratada: Consultoria Orientativa
                         </p>
                         <p className="text-xs text-amber-900 leading-relaxed">
-                          Nossa equipe entrega seu checklist na ordem correta, realiza a conferência técnica de cada documento enviado aqui e orienta o passo a passo até Visto, PDI e RUT. O protocolo no sistema oficial do SERMIG é realizado diretamente por você.
+                          Nossa equipe entrega seu checklist na ordem correta, realiza a conferência técnica de cada documento enviado aqui e orienta o passo a passo até Visto e RUT. O protocolo no sistema oficial do SERMIG é realizado diretamente por você.
                         </p>
                       </div>
                       <a
