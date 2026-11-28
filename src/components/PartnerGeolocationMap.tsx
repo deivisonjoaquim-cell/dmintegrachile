@@ -1,20 +1,11 @@
-/// <reference types="google.maps" />
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
-  AdvancedMarker,
-  APILoadingStatus,
-  APIProvider,
-  InfoWindow,
-  Map as GoogleMap,
-  useAdvancedMarkerRef,
-  useApiLoadingStatus,
-  useMap,
-} from '@vis.gl/react-google-maps';
-import {
-  AlertTriangle,
   Building2,
   Compass,
   Crosshair,
+  ExternalLink,
   FileCheck2,
   Globe2,
   Handshake,
@@ -30,6 +21,7 @@ import {
 } from 'lucide-react';
 import { BrandRibbon } from './BrandLogo';
 import { OptimizedImage } from './OptimizedImage';
+import { useTheme } from '../contexts/ThemeContext';
 import type { PartnerPublic } from '../types/domain';
 import { buildWhatsAppUrl } from '../utils/formatters';
 import {
@@ -49,9 +41,6 @@ import {
   type PartnerMacroGroupId,
 } from '../utils/partnerHelpers';
 
-const MAPS_API_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
-const GMP_ATTRIBUTION_IDS = ['gmp_mcp_codeassist_v1_aistudio'];
-
 export interface PartnerGeolocationMapProps {
   partners: PartnerPublic[];
   locale: 'pt-BR' | 'es-CL';
@@ -60,7 +49,13 @@ export interface PartnerGeolocationMapProps {
   buildReferralMessage: (partner: PartnerPublic) => string;
 }
 
-type MapCategoryFilter = 'Todos' | 'Imobiliario' | 'Juridico' | 'Financeiro' | 'SaudeEducacao' | 'Documental';
+type MapCategoryFilter =
+  | 'Todos'
+  | 'Imobiliario'
+  | 'Juridico'
+  | 'Financeiro'
+  | 'SaudeEducacao'
+  | 'Documental';
 
 const MAP_CATEGORY_TABS: { id: MapCategoryFilter; labelPt: string; labelEs: string }[] = [
   { id: 'Todos', labelPt: 'Todos no Mapa', labelEs: 'Todos en el Mapa' },
@@ -70,6 +65,22 @@ const MAP_CATEGORY_TABS: { id: MapCategoryFilter; labelPt: string; labelEs: stri
   { id: 'SaudeEducacao', labelPt: 'Saúde & Família', labelEs: 'Salud y Familia' },
   { id: 'Documental', labelPt: 'Documental (BR)', labelEs: 'Documental (BR)' },
 ];
+
+const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ESRI_FALLBACK_TILE_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
+const ESRI_ATTRIBUTION =
+  'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, OpenStreetMap contributors';
+
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function getPinIcon(macroGroup: PartnerMacroGroupId) {
   switch (macroGroup) {
@@ -88,361 +99,43 @@ function getPinIcon(macroGroup: PartnerMacroGroupId) {
   }
 }
 
-interface PartnerMarkerPinProps {
-  item: GeoPartnerItem;
-  isSelected: boolean;
-  isHovered: boolean;
-  onSelect: (item: GeoPartnerItem, marker: google.maps.marker.AdvancedMarkerElement | null) => void;
-  onHover: (partnerId: string | null) => void;
-  onMarkerReady: (partnerId: string, marker: google.maps.marker.AdvancedMarkerElement | null) => void;
-}
+function createPartnerDivIcon(
+  item: GeoPartnerItem,
+  isSelected: boolean,
+  isHovered: boolean,
+): L.DivIcon {
+  const scale = isSelected ? 'scale(1.12)' : isHovered ? 'scale(1.06)' : 'scale(1)';
+  const borderColor = isSelected ? '#FFFFFF' : item.pinStyle.borderHex;
+  const safeLabel = escapeAttr(item.comunaLabel);
 
-const PartnerMarkerPin: React.FC<PartnerMarkerPinProps> = ({
-  item,
-  isSelected,
-  isHovered,
-  onSelect,
-  onHover,
-  onMarkerReady,
-}) => {
-  const [markerRef, marker] = useAdvancedMarkerRef();
-  const Icon = getPinIcon(item.macroGroup);
-
-  useEffect(() => {
-    onMarkerReady(item.partner.id, marker);
-    return () => onMarkerReady(item.partner.id, null);
-  }, [item.partner.id, marker, onMarkerReady]);
-
-  // South-to-north base z-index + priority boost on hover/select
-  const baseZ = Math.round((90 - item.position.lat) * 2);
-  const zIndex = isSelected ? 1000 : isHovered ? 900 : baseZ;
-
-  return (
-    <AdvancedMarker
-      ref={markerRef}
-      position={item.position}
-      zIndex={zIndex}
-      title={`${item.partner.nome} · ${item.comunaLabel}`}
-      onClick={() => onSelect(item, marker)}
-    >
-      <div
-        onMouseEnter={() => onHover(item.partner.id)}
-        onMouseLeave={() => onHover(null)}
-        className={`group relative flex flex-col items-center cursor-pointer transition-transform duration-150 ${
-          isSelected ? 'scale-115' : isHovered ? 'scale-110' : 'hover:scale-105'
-        }`}
-      >
-        <div
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border-2 shadow-[0_6px_18px_rgba(11,31,51,0.32)]"
-          style={{
-            backgroundColor: item.pinStyle.bgHex,
-            borderColor: isSelected ? '#FFFFFF' : item.pinStyle.borderHex,
-            color: item.pinStyle.textHex,
-          }}
-        >
-          <Icon className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-[11px] font-bold tracking-tight whitespace-nowrap max-w-[122px] truncate">
-            {item.comunaLabel}
-          </span>
+  return L.divIcon({
+    className: 'dm-leaflet-partner-pin',
+    iconSize: [140, 38],
+    iconAnchor: [70, 36],
+    html: `
+      <div style="display:flex;flex-direction:column;align-items:center;transform:${scale};transition:transform 140ms ease;cursor:pointer;">
+        <div style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:10px;border:2px solid ${borderColor};background:${item.pinStyle.bgHex};color:${item.pinStyle.textHex};box-shadow:0 6px 18px rgba(11,31,51,0.34);font-family:'DM Sans',system-ui,sans-serif;font-size:11px;font-weight:700;line-height:1;white-space:nowrap;max-width:138px;overflow:hidden;text-overflow:ellipsis;">
+          <span style="width:7px;height:7px;border-radius:9999px;background:#FFFFFF;opacity:0.92;flex-shrink:0;"></span>
+          <span style="overflow:hidden;text-overflow:ellipsis;">${safeLabel}</span>
         </div>
-        <div
-          className="w-2.5 h-2.5 -mt-1.5 rotate-45 border-r-2 border-b-2"
-          style={{
-            backgroundColor: item.pinStyle.bgHex,
-            borderColor: isSelected ? '#FFFFFF' : item.pinStyle.borderHex,
-          }}
-        />
+        <div style="width:9px;height:9px;margin-top:-5px;transform:rotate(45deg);background:${item.pinStyle.bgHex};border-right:2px solid ${borderColor};border-bottom:2px solid ${borderColor};"></div>
       </div>
-    </AdvancedMarker>
-  );
-};
-
-interface MapCameraControllerProps {
-  hubPreset: ChileHubId;
-  cameraRequest: { center: LatLngLiteral; zoom: number; nonce: number } | null;
-  visibleItems: GeoPartnerItem[];
-  fitNonce: number;
+    `,
+  });
 }
 
-const MapCameraController: React.FC<MapCameraControllerProps> = ({
-  hubPreset,
-  cameraRequest,
-  visibleItems,
-  fitNonce,
-}) => {
-  const map = useMap();
-
-  // Explicit camera focus (when clicking a partner or hub preset)
-  useEffect(() => {
-    if (!map || !cameraRequest) return;
-    map.panTo(cameraRequest.center);
-    map.setZoom(cameraRequest.zoom);
-  }, [map, cameraRequest]);
-
-  // Fit bounds smoothly when category filter changes (except Brasil-Chile wide mode handled by hub)
-  useEffect(() => {
-    if (!map || fitNonce === 0 || visibleItems.length === 0) return;
-    if (visibleItems.length === 1) {
-      map.panTo(visibleItems[0].position);
-      map.setZoom(14);
-      return;
-    }
-    if (typeof google === 'undefined' || !google.maps?.LatLngBounds) return;
-    const bounds = new google.maps.LatLngBounds();
-    visibleItems.forEach((item) => bounds.extend(item.position));
-    map.fitBounds(bounds, { top: 56, right: 48, bottom: 56, left: 48 });
-    const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
-      const currentZoom = map.getZoom();
-      if (typeof currentZoom === 'number' && currentZoom > 14) {
-        map.setZoom(14);
-      }
-    });
-    return () => {
-      google.maps.event.removeListener(listener);
-    };
-  }, [map, fitNonce, visibleItems, hubPreset]);
-
-  return null;
-};
-
-interface MapsCanvasInnerProps {
-  isEs: boolean;
-  locale: 'pt-BR' | 'es-CL';
-  visibleItems: GeoPartnerItem[];
-  selectedItem: GeoPartnerItem | null;
-  hoveredId: string | null;
-  userLocation: LatLngLiteral | null;
-  hubPreset: ChileHubId;
-  cameraRequest: { center: LatLngLiteral; zoom: number; nonce: number } | null;
-  fitNonce: number;
-  onSelectItem: (item: GeoPartnerItem | null) => void;
-  onHoverId: (id: string | null) => void;
-  onOpenPartnerModal: (partner: PartnerPublic) => void;
-  buildReferralMessage: (partner: PartnerPublic) => string;
-}
-
-const MapsCanvasInner: React.FC<MapsCanvasInnerProps> = ({
-  isEs,
-  locale,
-  visibleItems,
-  selectedItem,
-  hoveredId,
-  userLocation,
-  hubPreset,
-  cameraRequest,
-  fitNonce,
-  onSelectItem,
-  onHoverId,
-  onOpenPartnerModal,
-  buildReferralMessage,
-}) => {
-  const apiStatus = useApiLoadingStatus();
-  const markerInstancesRef = useRef<Record<string, google.maps.marker.AdvancedMarkerElement | null>>({});
-  const selectedPartnerIdRef = useRef<string | null>(selectedItem?.partner.id ?? null);
-  const [selectedAnchor, setSelectedAnchor] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [quotaExceeded, setQuotaExceeded] = useState(false);
-
-  useEffect(() => {
-    selectedPartnerIdRef.current = selectedItem?.partner.id ?? null;
-  }, [selectedItem]);
-
-  useEffect(() => {
-    const onQuota = () => setQuotaExceeded(true);
-    window.addEventListener('gmp-quota-exceeded', onQuota);
-    return () => window.removeEventListener('gmp-quota-exceeded', onQuota);
-  }, []);
-
-  const handleMarkerReady = useCallback(
-    (partnerId: string, marker: google.maps.marker.AdvancedMarkerElement | null) => {
-      markerInstancesRef.current[partnerId] = marker;
-      if (selectedPartnerIdRef.current === partnerId) {
-        setSelectedAnchor(marker);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!selectedItem) {
-      setSelectedAnchor(null);
-      return;
-    }
-    setSelectedAnchor(markerInstancesRef.current[selectedItem.partner.id] || null);
-  }, [selectedItem]);
-
-  if (quotaExceeded || apiStatus === APILoadingStatus.AUTH_FAILURE || apiStatus === APILoadingStatus.FAILED) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#F7F5F0] dark:bg-[#0A192A]">
-        <div className="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 flex items-center justify-center text-amber-800 dark:text-amber-300 mb-3">
-          <AlertTriangle className="w-5 h-5" />
-        </div>
-        <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
-          {quotaExceeded
-            ? isEs
-              ? 'Cuota temporal de Google Maps alcanzada'
-              : 'Cota temporária do Google Maps atingida'
-            : isEs
-              ? 'Mapa interactivo temporalmente indisponible'
-              : 'Mapa interativo temporariamente indisponível'}
-        </h4>
-        <p className="text-xs text-[#4A5A6D] dark:text-slate-300 max-w-sm mt-1.5 leading-relaxed">
-          {isEs
-            ? 'No fue posible cargar el mapa interactivo en este momento. Puedes seguir explorando todos los aliados por comuna en la lista lateral.'
-            : 'Não foi possível carregar o mapa interativo neste momento. Você pode continuar explorando todos os parceiros por comuna na lista ao lado.'}
-        </p>
+function createUserLocationDivIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'dm-leaflet-user-pin',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    html: `
+      <div style="width:24px;height:24px;border-radius:9999px;background:rgba(14,165,233,0.26);border:1px solid rgba(56,189,248,0.85);display:flex;align-items:center;justify-content:center;">
+        <div style="width:12px;height:12px;border-radius:9999px;background:#0284C7;border:2px solid #FFFFFF;box-shadow:0 2px 8px rgba(2,132,199,0.5);"></div>
       </div>
-    );
-  }
-
-  return (
-    <div className="relative w-full h-full">
-      {apiStatus === APILoadingStatus.LOADING && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#F7F5F0]/90 dark:bg-[#0A192A]/90 backdrop-blur-xs">
-          <Loader2 className="w-6 h-6 animate-spin text-[#8C6D14] dark:text-[#E5C76B] mb-2" />
-          <p className="text-xs font-semibold text-[#0B1F33] dark:text-slate-200">
-            {isEs ? 'Cargando mapa de cobertura en Chile...' : 'Carregando mapa de cobertura no Chile...'}
-          </p>
-        </div>
-      )}
-
-      <GoogleMap
-        mapId="DEMO_MAP_ID"
-        defaultCenter={{ lat: -33.421, lng: -70.618 }}
-        defaultZoom={11}
-        gestureHandling="cooperative"
-        mapTypeControl={false}
-        streetViewControl={false}
-        fullscreenControl
-        zoomControl
-        internalUsageAttributionIds={GMP_ATTRIBUTION_IDS}
-        onClick={() => onSelectItem(null)}
-        className="w-full h-full"
-      >
-        <MapCameraController
-          hubPreset={hubPreset}
-          cameraRequest={cameraRequest}
-          visibleItems={visibleItems}
-          fitNonce={fitNonce}
-        />
-
-        {visibleItems.map((item) => (
-          <PartnerMarkerPin
-            key={item.partner.id}
-            item={item}
-            isSelected={selectedItem?.partner.id === item.partner.id}
-            isHovered={hoveredId === item.partner.id}
-            onSelect={(clickedItem, marker) => {
-              onSelectItem(clickedItem);
-              setSelectedAnchor(marker);
-            }}
-            onHover={onHoverId}
-            onMarkerReady={handleMarkerReady}
-          />
-        ))}
-
-        {userLocation && (
-          <AdvancedMarker
-            position={userLocation}
-            zIndex={950}
-            title={isEs ? 'Tu ubicación actual' : 'Sua localização atual'}
-          >
-            <div className="relative flex items-center justify-center">
-              <span className="w-6 h-6 rounded-full bg-sky-500/25 border border-sky-400/70 flex items-center justify-center">
-                <span className="w-3 h-3 rounded-full bg-sky-600 border-2 border-white shadow-md" />
-              </span>
-            </div>
-          </AdvancedMarker>
-        )}
-
-        {selectedItem && selectedAnchor && (
-          <InfoWindow
-            anchor={selectedAnchor}
-            pixelOffset={[0, -6]}
-            onCloseClick={() => onSelectItem(null)}
-            maxWidth={310}
-          >
-            <div className="p-1 text-[#0B1F33] font-brand-sans space-y-2.5">
-              <div className="flex items-start gap-2.5">
-                {sanitizePartnerImageUrl(selectedItem.partner.logoUrl) ? (
-                  <div className="w-10 h-10 rounded-lg border border-[#E5DFD2] bg-white flex items-center justify-center overflow-hidden shrink-0">
-                    <OptimizedImage
-                      src={sanitizePartnerImageUrl(selectedItem.partner.logoUrl)!}
-                      alt={selectedItem.partner.nome}
-                      sizes="40px"
-                      containerClassName="relative w-full h-full flex items-center justify-center bg-white"
-                      className="max-w-full max-h-full object-contain p-1"
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                    style={{
-                      backgroundColor: selectedItem.pinStyle.bgHex,
-                      color: selectedItem.pinStyle.textHex,
-                    }}
-                  >
-                    {React.createElement(getPinIcon(selectedItem.macroGroup), { className: 'w-4 h-4' })}
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8C6D14] truncate">
-                    {translatePartnerCategory(selectedItem.partner.categoria, locale)}
-                  </p>
-                  <h4 className="text-sm font-bold text-[#0B1F33] leading-snug">
-                    {selectedItem.partner.nome}
-                  </h4>
-                  <p className="text-[11px] text-[#4A5A6D] flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3 h-3 shrink-0 text-[#8C6D14]" />
-                    <span className="truncate">
-                      {selectedItem.comunaLabel} · {selectedItem.regionLabel}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <p className="text-xs text-[#37475A] leading-relaxed line-clamp-3">
-                {selectedItem.partner.descricaoPublica}
-              </p>
-
-              <div className="flex items-center justify-between text-[11px] text-[#4A5A6D] pt-1 border-t border-[#EFECE3]">
-                <span className="inline-flex items-center gap-1 font-mono font-bold text-[#0B1F33] tabular-nums">
-                  <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
-                  {Number(selectedItem.partner.avaliacao || 5).toFixed(1)}/5
-                </span>
-                <span>{translatePartnerCountry(selectedItem.partner.pais, locale)}</span>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                {selectedItem.partner.whatsapp && (
-                  <a
-                    href={buildWhatsAppUrl(
-                      selectedItem.partner.whatsapp,
-                      buildReferralMessage(selectedItem.partner),
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#146B43] hover:bg-[#0F5434] text-white text-xs font-semibold transition-colors whitespace-nowrap"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    WhatsApp
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onOpenPartnerModal(selectedItem.partner)}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#0B1F33] hover:bg-[#153553] text-white text-xs font-semibold transition-colors whitespace-nowrap"
-                >
-                  {isEs ? 'Ver ficha' : 'Ver ficha'}
-                </button>
-              </div>
-            </div>
-          </InfoWindow>
-        )}
-      </GoogleMap>
-    </div>
-  );
-};
+    `,
+  });
+}
 
 export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
   partners,
@@ -451,9 +144,8 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
   onSelectPartner,
   buildReferralMessage,
 }) => {
+  const { isDark } = useTheme();
   const isEs = locale === 'es-CL';
-  // Freeze initial Maps JS loader language so switching PT/ES-CL never conflicts with an already-loaded Google Maps script
-  const initialMapLanguageRef = useRef<'es' | 'pt-BR'>(isEs ? 'es' : 'pt-BR');
   const [categoryFilter, setCategoryFilter] = useState<MapCategoryFilter>('Todos');
   const [onlyChile, setOnlyChile] = useState<boolean>(true);
   const [activeHub, setActiveHub] = useState<ChileHubId>('all_chile');
@@ -466,12 +158,18 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
   } | null>(null);
   const [fitNonce, setFitNonce] = useState(0);
 
-  // User-initiated consent-based geolocation (ToS revocable consent compliant)
+  // Geolocalização opcional sob consentimento explícito e revogável
   const [userLocation, setUserLocation] = useState<LatLngLiteral | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  // Sync when user selects a top macro category pill on ParceirosPage
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+
+  // Sincroniza quando o usuário escolhe um macrogrupo na página de Parceiros
   useEffect(() => {
     if (!externalMacroGroup) return;
     if (
@@ -492,7 +190,6 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
   }, [externalMacroGroup]);
 
   const allGeoItems = useMemo(() => resolvePartnersWithGeo(partners), [partners]);
-
   const summary = useMemo(() => computeChileGeoDistribution(allGeoItems), [allGeoItems]);
 
   const categoryCounts = useMemo(() => {
@@ -536,6 +233,168 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
     [visibleItems, selectedPartnerId],
   );
 
+  // Inicializa o mapa Leaflet gratuito (OpenStreetMap / CARTO) sem exigir nenhuma chave de API
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container || mapInstanceRef.current) return;
+
+    const map = L.map(container, {
+      center: [-33.421, -70.618],
+      zoom: 11,
+      zoomControl: true,
+      scrollWheelZoom: false,
+      attributionControl: true,
+    });
+
+    map.on('click', () => {
+      setSelectedPartnerId(null);
+    });
+
+    const markersGroup = L.layerGroup().addTo(map);
+    mapInstanceRef.current = map;
+    markersLayerRef.current = markersGroup;
+
+    // Garante cálculo correto do viewport após layout/animações e redimensionamentos
+    const resizeTimer = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      resizeObserver.observe(container);
+    }
+
+    return () => {
+      window.clearTimeout(resizeTimer);
+      resizeObserver?.disconnect();
+      map.remove();
+      mapInstanceRef.current = null;
+      tileLayerRef.current = null;
+      markersLayerRef.current = null;
+      userMarkerRef.current = null;
+    };
+  }, []);
+
+  // Carrega tiles 100% gratuitos do OpenStreetMap (sem chave API) com fallback automático para Esri Street Map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+
+    const applyThemeFilter = (layer: L.TileLayer) => {
+      const containerEl = layer.getContainer();
+      if (!containerEl) return;
+      containerEl.style.filter = isDark
+        ? 'invert(96%) hue-rotate(180deg) brightness(92%) contrast(92%)'
+        : 'none';
+    };
+
+    let fellBackToEsri = false;
+    const osmLayer = L.tileLayer(OSM_TILE_URL, {
+      attribution: OSM_ATTRIBUTION,
+      maxZoom: 19,
+      crossOrigin: true,
+    });
+
+    osmLayer.on('tileerror', () => {
+      if (fellBackToEsri || mapInstanceRef.current !== map) return;
+      fellBackToEsri = true;
+      map.removeLayer(osmLayer);
+      const esriLayer = L.tileLayer(ESRI_FALLBACK_TILE_URL, {
+        attribution: ESRI_ATTRIBUTION,
+        maxZoom: 19,
+      });
+      esriLayer.addTo(map);
+      applyThemeFilter(esriLayer);
+      tileLayerRef.current = esriLayer;
+    });
+
+    osmLayer.addTo(map);
+    applyThemeFilter(osmLayer);
+    tileLayerRef.current = osmLayer;
+  }, [isDark]);
+
+  // Atualiza marcadores de parceiros sempre que lista, seleção ou hover mudarem
+  useEffect(() => {
+    const group = markersLayerRef.current;
+    if (!group) return;
+    group.clearLayers();
+
+    visibleItems.forEach((item) => {
+      const isSelected = selectedPartnerId === item.partner.id;
+      const isHovered = hoveredId === item.partner.id;
+      const baseZ = Math.round((90 - item.position.lat) * 2);
+      const zIndexOffset = isSelected ? 1000 : isHovered ? 900 : baseZ;
+
+      const marker = L.marker([item.position.lat, item.position.lng], {
+        icon: createPartnerDivIcon(item, isSelected, isHovered),
+        zIndexOffset,
+        title: `${item.partner.nome} · ${item.comunaLabel}`,
+      });
+
+      marker.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        setSelectedPartnerId(item.partner.id);
+      });
+      marker.on('mouseover', () => setHoveredId(item.partner.id));
+      marker.on('mouseout', () => setHoveredId((prev) => (prev === item.partner.id ? null : prev)));
+
+      marker.addTo(group);
+    });
+  }, [visibleItems, selectedPartnerId, hoveredId]);
+
+  // Marcador da localização opcional do usuário
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (userMarkerRef.current) {
+      map.removeLayer(userMarkerRef.current);
+      userMarkerRef.current = null;
+    }
+
+    if (userLocation) {
+      const marker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: createUserLocationDivIcon(),
+        zIndexOffset: 950,
+        title: isEs ? 'Tu ubicación actual' : 'Sua localização atual',
+      }).addTo(map);
+      userMarkerRef.current = marker;
+    }
+  }, [userLocation, isEs]);
+
+  // Foco explícito de câmera (clique em polo regional ou parceiro)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !cameraRequest) return;
+    map.flyTo([cameraRequest.center.lat, cameraRequest.center.lng], cameraRequest.zoom, {
+      duration: 0.65,
+    });
+  }, [cameraRequest]);
+
+  // Ajuste de enquadramento (fitBounds) ao trocar filtros
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || fitNonce === 0 || visibleItems.length === 0) return;
+
+    if (visibleItems.length === 1) {
+      map.flyTo([visibleItems[0].position.lat, visibleItems[0].position.lng], 13, {
+        duration: 0.6,
+      });
+      return;
+    }
+
+    const bounds = L.latLngBounds(
+      visibleItems.map((item) => [item.position.lat, item.position.lng] as [number, number]),
+    );
+    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 13, animate: true });
+  }, [fitNonce, visibleItems]);
+
   const handleSelectCategory = (cat: MapCategoryFilter) => {
     setCategoryFilter(cat);
     setSelectedPartnerId(null);
@@ -575,7 +434,6 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
 
   const handleToggleUserLocation = () => {
     if (userLocation) {
-      // Revocable consent: clear immediately on user click
       setUserLocation(null);
       setLocationError(null);
       return;
@@ -624,19 +482,19 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
               <span className="h-[2px] w-6 bg-[#C8A236]" aria-hidden="true" />
               <p className="brand-kicker">
                 {isEs
-                  ? 'Mapa Georreferenciado · Fijación en Chile'
-                  : 'Mapa Georreferenciado · Fixação no Chile'}
+                  ? 'Mapa Georreferenciado · Red de Derivación en Chile'
+                  : 'Mapa Georreferenciado · Rede de Indicação no Chile'}
               </p>
             </div>
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F33] dark:text-white tracking-tight text-balance">
               {isEs
                 ? 'Distribución geográfica de servicios inmobiliarios y legales en Chile'
-                : 'Distribuição geográfica de serviços imobiliários e jurídicos no Chile'}
+                : 'Distribuição geográfica de parceiros imobiliários e jurídicos no Chile'}
             </h2>
             <p className="text-sm text-[#4A5A6D] dark:text-slate-300 leading-relaxed">
               {isEs
-                ? 'Explora dónde operan nuestros aliados homologados en Santiago y regiones para planificar tu vivienda, asesoría jurídica, apertura SpA y salud.'
-                : 'Explore onde atuam nossos parceiros homologados em Santiago e regiões para planejar moradia, respaldo jurídico, abertura de SpA e adaptação familiar.'}
+                ? 'Explora dónde operan nuestros aliados independientes en Santiago y regiones. D&M Integra Chile actúa únicamente en inmigración (Visa y RUT) y sirve como puente de indicación.'
+                : 'Explore onde atuam os profissionais independentes indicados em Santiago e regiões. A D&M Integra Chile atua exclusivamente em imigração (Visto e RUT) e serve apenas como ponte de indicação.'}
             </p>
           </div>
 
@@ -780,7 +638,7 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
         )}
       </div>
 
-      {/* Main Split View: Synchronized Partner List + Interactive Google Map */}
+      {/* Main Split View: Synchronized Partner List + Free Interactive OpenStreetMap / CARTO Map */}
       <div className="grid grid-cols-1 lg:grid-cols-12">
         {/* Left Side: Synchronized Georeferenced Partner List */}
         <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-[#EFECE3] dark:border-[#1C324B] flex flex-col max-h-[420px] lg:max-h-[560px]">
@@ -905,50 +763,120 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
           </div>
         </div>
 
-        {/* Right Side: Interactive Google Maps Canvas (explicit height prevents CF2 collapse) */}
+        {/* Right Side: 100% Free Interactive Leaflet + OpenStreetMap / CARTO Map Canvas */}
         <div className="lg:col-span-7 relative w-full h-[440px] sm:h-[520px] lg:h-[560px] bg-[#EEF2F6] dark:bg-[#0A192A]">
-          {MAPS_API_KEY ? (
-            <APIProvider
-              apiKey={MAPS_API_KEY}
-              libraries={['marker']}
-              language={initialMapLanguageRef.current}
-              region="CL"
-            >
-              <MapsCanvasInner
-                isEs={isEs}
-                locale={locale}
-                visibleItems={visibleItems}
-                selectedItem={selectedItem}
-                hoveredId={hoveredId}
-                userLocation={userLocation}
-                hubPreset={activeHub}
-                cameraRequest={cameraRequest}
-                fitNonce={fitNonce}
-                onSelectItem={(item) => setSelectedPartnerId(item ? item.partner.id : null)}
-                onHoverId={setHoveredId}
-                onOpenPartnerModal={onSelectPartner}
-                buildReferralMessage={buildReferralMessage}
-              />
-            </APIProvider>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#F7F5F0] dark:bg-[#0A192A]">
-              <div className="w-12 h-12 rounded-xl bg-[#0B1F33] text-[#E5C76B] flex items-center justify-center mb-3">
-                <MapPin className="w-5 h-5" />
+          <div
+            ref={mapContainerRef}
+            aria-label={isEs ? 'Mapa interactivo de aliados en Chile' : 'Mapa interativo de parceiros no Chile'}
+            className="w-full h-full z-0"
+          />
+
+          {/* Interactive Selected Partner Detail Card Overlay */}
+          {selectedItem && (
+            <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-[330px] z-[500] rounded-xl bg-white/98 dark:bg-[#0D1E31]/98 backdrop-blur-md border border-[#E5DFD2] dark:border-[#243E5C] shadow-[0_18px_42px_rgba(7,14,28,0.28)] p-4 space-y-2.5">
+              <div className="flex items-start justify-between gap-2.5">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  {sanitizePartnerImageUrl(selectedItem.partner.logoUrl) ? (
+                    <div className="w-10 h-10 rounded-lg border border-[#E5DFD2] bg-white flex items-center justify-center overflow-hidden shrink-0">
+                      <OptimizedImage
+                        src={sanitizePartnerImageUrl(selectedItem.partner.logoUrl)!}
+                        alt={selectedItem.partner.nome}
+                        sizes="40px"
+                        containerClassName="relative w-full h-full flex items-center justify-center bg-white"
+                        className="max-w-full max-h-full object-contain p-1"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                      style={{
+                        backgroundColor: selectedItem.pinStyle.bgHex,
+                        color: selectedItem.pinStyle.textHex,
+                      }}
+                    >
+                      {React.createElement(getPinIcon(selectedItem.macroGroup), {
+                        className: 'w-4 h-4',
+                      })}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#8C6D14] dark:text-[#E5C76B] truncate">
+                      {translatePartnerCategory(selectedItem.partner.categoria, locale)}
+                    </p>
+                    <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white leading-snug">
+                      {selectedItem.partner.nome}
+                    </h4>
+                    <p className="text-[11px] text-[#4A5A6D] dark:text-slate-300 flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3 shrink-0 text-[#8C6D14] dark:text-[#E5C76B]" />
+                      <span className="truncate">
+                        {selectedItem.comunaLabel} · {selectedItem.regionLabel}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPartnerId(null)}
+                  aria-label="Fechar detalhes do parceiro"
+                  className="p-1 rounded-md text-[#4A5A6D] dark:text-slate-400 hover:bg-[#F7F5F0] dark:hover:bg-[#173352]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <h4 className="text-sm font-bold text-[#0B1F33] dark:text-white">
-                {isEs ? 'Configurando clave de Google Maps' : 'Chave do Google Maps não configurada'}
-              </h4>
-              <p className="text-xs text-[#4A5A6D] dark:text-slate-300 max-w-md mt-1.5 leading-relaxed">
-                {isEs
-                  ? 'Define VITE_GOOGLE_MAPS_API_KEY en el entorno para activar el mapa interactivo de aliados en Chile.'
-                  : 'Defina VITE_GOOGLE_MAPS_API_KEY no ambiente para renderizar o mapa interativo de parceiros no Chile.'}
+
+              <p className="text-xs text-[#37475A] dark:text-slate-300 leading-relaxed line-clamp-3">
+                {selectedItem.partner.descricaoPublica}
               </p>
+
+              <div className="flex items-center justify-between text-[11px] text-[#4A5A6D] dark:text-slate-400 pt-1 border-t border-[#EFECE3] dark:border-[#1C324B]">
+                <span className="inline-flex items-center gap-1 font-mono font-bold text-[#0B1F33] dark:text-white tabular-nums">
+                  <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
+                  {Number(selectedItem.partner.avaliacao || 5).toFixed(1)}/5
+                </span>
+                <span>{translatePartnerCountry(selectedItem.partner.pais, locale)}</span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-0.5">
+                {selectedItem.partner.whatsapp && (
+                  <a
+                    href={buildWhatsAppUrl(
+                      selectedItem.partner.whatsapp,
+                      buildReferralMessage(selectedItem.partner),
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#146B43] hover:bg-[#0F5434] text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </a>
+                )}
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${selectedItem.position.lat}&mlon=${selectedItem.position.lng}#map=15/${selectedItem.position.lat}/${selectedItem.position.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={isEs ? 'Abrir ubicación en OpenStreetMap' : 'Abrir localização no mapa externo'}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-lg border border-[#DDD6C7] dark:border-[#243E5C] text-[#0B1F33] dark:text-slate-200 hover:bg-[#F7F5F0] dark:hover:bg-[#173352] text-xs font-semibold whitespace-nowrap"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  {isEs ? 'Mapa' : 'Mapa'}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => onSelectPartner(selectedItem.partner)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#0B1F33] dark:bg-[#C8A236] hover:opacity-95 text-white dark:text-[#0B1523] text-xs font-semibold transition-opacity whitespace-nowrap"
+                >
+                  {isEs ? 'Ver ficha' : 'Ver ficha'}
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Geographic Coverage Summary Strip + Google Maps ToS Attribution */}
+      {/* Bottom Geographic Coverage Summary Strip + Free OpenStreetMap Attribution */}
       <div className="px-5 sm:px-7 py-3.5 bg-[#FAF9F6] dark:bg-[#0A1828] border-t border-[#EFECE3] dark:border-[#1C324B] flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[#4A5A6D] dark:text-slate-300">
           <span className="font-bold text-[#0B1F33] dark:text-white">
@@ -966,26 +894,8 @@ export const PartnerGeolocationMap: React.FC<PartnerGeolocationMapProps> = ({
         </div>
         <p className="text-[11px] text-[#4A5A6D] dark:text-slate-400 leading-relaxed">
           {isEs
-            ? 'Mapa con Google Maps · Uso sujeto a los '
-            : 'Mapa via Google Maps · Uso sujeito aos '}
-          <a
-            href="https://maps.google.com/help/terms_maps/?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-[#0B1F33] dark:hover:text-white"
-          >
-            {isEs ? 'Términos de Google Maps' : 'Termos do Google Maps'}
-          </a>
-          {isEs ? ' y la ' : ' e à '}
-          <a
-            href="https://policies.google.com/privacy?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-[#0B1F33] dark:hover:text-white"
-          >
-            {isEs ? 'Política de Privacidad' : 'Política de Privacidade'}
-          </a>
-          {isEs ? ' (ubicación opcional y revocable).' : ' (geolocalização opcional e revogável).'}
+            ? 'Mapa interactivo gratuito vía OpenStreetMap (sin clave API ni costos · ubicación opcional y revocable).'
+            : 'Mapa interativo gratuito via OpenStreetMap (acesso aberto sem chave paga · geolocalização opcional e revogável).'}
         </p>
       </div>
     </section>

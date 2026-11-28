@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Briefcase,
   Calculator,
@@ -26,25 +26,55 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
-import { SermigSimulator } from '../components/SermigSimulator';
-import { PainelAdminConfig } from '../components/painel/PainelAdminConfig';
-import { PainelAgendaTarefas } from '../components/painel/PainelAgendaTarefas';
-import { PainelAssinaturasContratos } from '../components/painel/PainelAssinaturasContratos';
-import { PainelChecklistVisto } from '../components/painel/PainelChecklistVisto';
-import { PainelClientesCasos } from '../components/painel/PainelClientesCasos';
-import { PainelDashboard } from '../components/painel/PainelDashboard';
-import { PainelDocumentosExport } from '../components/painel/PainelDocumentosExport';
-import { PainelFerramentas } from '../components/painel/PainelFerramentas';
-import { PainelFinanceiro } from '../components/painel/PainelFinanceiro';
-import { PainelFunnelKanbanDashboard } from '../components/painel/PainelFunnelKanbanDashboard';
-import { PainelLeads } from '../components/painel/PainelLeads';
-import { PainelParceirosLegal } from '../components/painel/PainelParceirosLegal';
 import { SkeletonBlock } from '../components/ui/DesignSystem';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { BrandLogo, BrandRibbon, InstitutionalBrandMark, shouldUseInstitutionalMark } from '../components/BrandLogo';
 import { useFirestore } from '../hooks/useFirestore';
+import { lazyWithRetry } from '../utils/dynamicImportRecovery';
+
+const ProfileIdentityDocumentsCard = lazyWithRetry(() =>
+  import('../components/ProfileIdentityDocumentsCard').then((m) => ({ default: m.ProfileIdentityDocumentsCard })),
+);
+const SermigSimulator = lazyWithRetry(() =>
+  import('../components/SermigSimulator').then((m) => ({ default: m.SermigSimulator })),
+);
+const PainelAdminConfig = lazyWithRetry(() =>
+  import('../components/painel/PainelAdminConfig').then((m) => ({ default: m.PainelAdminConfig })),
+);
+const PainelAgendaTarefas = lazyWithRetry(() =>
+  import('../components/painel/PainelAgendaTarefas').then((m) => ({ default: m.PainelAgendaTarefas })),
+);
+const PainelAssinaturasContratos = lazyWithRetry(() =>
+  import('../components/painel/PainelAssinaturasContratos').then((m) => ({ default: m.PainelAssinaturasContratos })),
+);
+const PainelChecklistVisto = lazyWithRetry(() =>
+  import('../components/painel/PainelChecklistVisto').then((m) => ({ default: m.PainelChecklistVisto })),
+);
+const PainelClientesCasos = lazyWithRetry(() =>
+  import('../components/painel/PainelClientesCasos').then((m) => ({ default: m.PainelClientesCasos })),
+);
+const PainelDashboard = lazyWithRetry(() =>
+  import('../components/painel/PainelDashboard').then((m) => ({ default: m.PainelDashboard })),
+);
+const PainelDocumentosExport = lazyWithRetry(() =>
+  import('../components/painel/PainelDocumentosExport').then((m) => ({ default: m.PainelDocumentosExport })),
+);
+const PainelFerramentas = lazyWithRetry(() =>
+  import('../components/painel/PainelFerramentas').then((m) => ({ default: m.PainelFerramentas })),
+);
+const PainelFinanceiro = lazyWithRetry(() =>
+  import('../components/painel/PainelFinanceiro').then((m) => ({ default: m.PainelFinanceiro })),
+);
+const PainelFunnelKanbanDashboard = lazyWithRetry(() =>
+  import('../components/painel/PainelFunnelKanbanDashboard').then((m) => ({ default: m.PainelFunnelKanbanDashboard })),
+);
+const PainelLeads = lazyWithRetry(() =>
+  import('../components/painel/PainelLeads').then((m) => ({ default: m.PainelLeads })),
+);
+const PainelParceirosLegal = lazyWithRetry(() =>
+  import('../components/painel/PainelParceirosLegal').then((m) => ({ default: m.PainelParceirosLegal })),
+);
 import { subscribeStaffDocumentChat } from '../services/chatService';
 import { reportAppError } from '../services/errorService';
 import {
@@ -1509,7 +1539,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
           {loading || !effectiveWorkspace ? (
             <SkeletonBlock rows={5} />
           ) : (
-            <>
+            <Suspense fallback={<SkeletonBlock rows={5} />}>
               {/* HUB 1: HOJE */}
               {activeHub === 'hoje' && (
                 <PainelDashboard
@@ -1795,7 +1825,7 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                     onRefreshPublic={refreshPublicData}
                   />
                 )}
-            </>
+            </Suspense>
           )}
         </main>
 
@@ -1924,7 +1954,9 @@ export const PainelPage: React.FC<PainelPageProps> = ({ onNavigate }) => {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <ProfileIdentityDocumentsCard userProfile={userProfile} />
+            <Suspense fallback={<SkeletonBlock rows={3} />}>
+              <ProfileIdentityDocumentsCard userProfile={userProfile} />
+            </Suspense>
           </div>
         </div>
       )}

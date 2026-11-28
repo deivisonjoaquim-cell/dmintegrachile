@@ -211,3 +211,36 @@ test('getPendingClientChatThreads prioriza clientes com dúvidas não lidas', ()
   assert.equal(threads[1].unreadCount, 0);
   assert.equal(threads[1].awaitingReply, false);
 });
+
+test('buildPortalChatSubject e filterPortalChatMessages suportam tópicos de Visto/RUT e busca no histórico', async () => {
+  const { buildPortalChatSubject, filterPortalChatMessages, PORTAL_CHAT_TOPICS } = await import('./documentChat');
+  assert.equal(PORTAL_CHAT_TOPICS.some((t) => t.id === 'rut'), true);
+  assert.equal(buildPortalChatSubject('rut'), 'Emissão do RUT — Chat Rápido');
+  assert.equal(buildPortalChatSubject('documento', 'Passaporte'), 'Dúvida sobre documento: Passaporte');
+
+  const sample: CommunicationLog[] = [
+    {
+      id: 'm1',
+      canal: 'Chat Portal',
+      assunto: 'Emissão do RUT — Chat Rápido',
+      mensagem: 'Quando agendar o Registro Civil para o RUT?',
+      origem: 'cliente',
+      autorNome: 'Ana',
+      createdAt: '2026-11-20T10:00:00Z',
+    },
+    {
+      id: 'm2',
+      canal: 'Chat Portal',
+      assunto: 'Resposta — Emissão do RUT',
+      mensagem: 'Logo após o Estampado Eletrônico do visto.',
+      origem: 'equipe',
+      autorNome: 'Deivison',
+      createdAt: '2026-11-20T10:05:00Z',
+    },
+  ];
+
+  assert.equal(filterPortalChatMessages(sample, 'estampado').length, 1);
+  assert.equal(filterPortalChatMessages(sample, '', 'equipe').length, 1);
+  assert.equal(filterPortalChatMessages(sample, 'rut', 'all').length, 2);
+});
+

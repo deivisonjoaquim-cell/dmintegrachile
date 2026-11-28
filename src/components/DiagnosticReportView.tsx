@@ -54,6 +54,7 @@ import {
   buildBasicDiagnosticSummary,
   CONSULTANCY_PLANS,
 } from '../utils/portalAccess';
+import { importModuleWithRetry } from '../utils/dynamicImportRecovery';
 import { buildSmartDiagnosticBrief } from '../utils/smartDiagnosticInterpreter';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -232,7 +233,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
       setPdfBusy('download');
       setPdfFeedback(null);
       try {
-        const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+        const { exportClientDiagnosticPdf } = await importModuleWithRetry(
+          () => import('../utils/clientDiagnosticPdf'),
+        );
         const filename = await exportClientDiagnosticPdf({
           empresa,
           summary: basic,
@@ -267,7 +270,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
       setPdfBusy('preview');
       setPdfFeedback(null);
       try {
-        const { buildClientDiagnosticPdfBlob } = await import('../utils/clientDiagnosticPdf');
+        const { buildClientDiagnosticPdfBlob } = await importModuleWithRetry(
+          () => import('../utils/clientDiagnosticPdf'),
+        );
         const { blob, filename } = await buildClientDiagnosticPdfBlob({
           empresa,
           summary: basic,
@@ -1148,7 +1153,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     setPdfBusy('download-2p');
     setPdfFeedback(null);
     try {
-      const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+      const { exportClientDiagnosticPdf } = await importModuleWithRetry(
+        () => import('../utils/clientDiagnosticPdf'),
+      );
       const protocoloRef = savedLeadId ? savedLeadId.slice(-8).toUpperCase() : 'PRELIMINAR';
       const filename = await exportClientDiagnosticPdf({
         empresa,
@@ -1172,7 +1179,9 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
     setPdfBusy('preview-2p');
     setPdfFeedback(null);
     try {
-      const { buildClientDiagnosticPdfBlob } = await import('../utils/clientDiagnosticPdf');
+      const { buildClientDiagnosticPdfBlob } = await importModuleWithRetry(
+        () => import('../utils/clientDiagnosticPdf'),
+      );
       const protocoloRef = savedLeadId ? savedLeadId.slice(-8).toUpperCase() : 'PRELIMINAR';
       const { blob, filename } = await buildClientDiagnosticPdfBlob({
         empresa,

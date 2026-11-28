@@ -57,6 +57,7 @@ export interface EmailDispatchBatchInput {
   copyConsultantEmail?: string;
   forceSend?: boolean;
   previewOnly?: boolean;
+  alertDaysOverride?: number;
   staffUid?: string;
   staffName?: string;
   rawToken?: string;
@@ -592,6 +593,10 @@ export async function dispatchExpirationReminderEmails(
 ): Promise<EmailDispatchBatchResult> {
   const now = input.now ?? new Date();
   const smtp = input.smtpOverride ?? getSmtpConfigFromEnv();
+  const effectiveAlertDays =
+    typeof input.alertDaysOverride === 'number' && Number.isFinite(input.alertDaysOverride)
+      ? Math.min(180, Math.max(1, Math.round(input.alertDaysOverride)))
+      : smtp.alertDays;
   const brandName = (input.brandName || 'D&M Integra Chile – Relocation & Assessoria').trim();
   const communicationLogs = input.communicationLogs || [];
 
@@ -600,7 +605,7 @@ export async function dispatchExpirationReminderEmails(
       i.severity === 'vencido' ||
       i.severity === 'critico' ||
       i.severity === 'atencao' ||
-      (typeof i.daysRemaining === 'number' && i.daysRemaining <= smtp.alertDays),
+      (typeof i.daysRemaining === 'number' && i.daysRemaining <= effectiveAlertDays),
   );
 
   const outcomes: EmailDispatchItemOutcome[] = [];
@@ -753,7 +758,7 @@ export async function dispatchExpirationReminderEmails(
       items: groupItems,
       portalUrl: input.portalUrl,
       replyTo: smtp.replyTo,
-      alertDays: smtp.alertDays,
+      alertDays: effectiveAlertDays,
     });
 
     try {
@@ -789,7 +794,7 @@ export async function dispatchExpirationReminderEmails(
         const logId = `comm_email_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const kindTag =
           item.itemKind === 'visto'
-            ? 'Alerta de Visto (≤ 30d)'
+            ? `Alerta de Visto (≤ ${effectiveAlertDays}d)`
             : item.itemKind === 'prazo_visto'
               ? 'Alerta de Prazo Migratório'
               : 'Lembrete de Vencimento';
@@ -838,7 +843,7 @@ export async function dispatchExpirationReminderEmails(
   return {
     ok: failedCount === 0,
     smtpConfigured: true,
-    alertDays: smtp.alertDays,
+    alertDays: effectiveAlertDays,
     sentEmails,
     coveredDocs,
     skippedCooldown,
@@ -848,3 +853,161 @@ export async function dispatchExpirationReminderEmails(
     createdLogs,
   };
 }
+
+export interface ClientSelfExpirationAlertInput {
+  recipientEmail: string;
+  clientName: string;
+  caseTitle?: string;
+  brandName?: string;
+  portalUrl?: string;
+  alertDays: number;
+  mode: 'preview' | 'auto' | 'manual';
+  items: EmailReminderItemPayload[];
+  smtpOverride?: SmtpRuntimeConfig;
+  transporterOverride?: EmailTransportLike;
+}
+
+export interface ClientSelfExpirationAlertResult {
+  ok: boolean;
+  mode: 'preview' | 'auto' | 'manual';
+  smtpConfigured: boolean;
+  sent: boolean;
+  alertDays: number;
+  recipientEmail: string;
+  eligibleCount: number;
+  subject: string;
+  previewHtml: string;
+  messageId?: string;
+  message: string;
+}
+
+export async function dispatchClientSelfExpirationAlert(
+  input: ClientSelfExpirationAlertInput,
+): Promise<ClientSelfExpirationAlertResult> {
+  const smtp = input.smtpOverride ?? getSmtpConfigFromEnv();
+  const safeAlertDays = Math.min(180, Math.max(1, Math.round(Number(input.alertDays) || smtp.alertDays || 30)));
+  const recipientEmail = (input.recipientEmail || '').trim().toLowerCase();
+
+  if (!isValidEmailAddress(recipientEmail)) {
+    return {
+      ok: false,
+      mode: input.mode,
+      smtpConfigured: smtp.configured,
+      sent: false,
+      alertDays: safeAlertDays,
+      recipientEmail,
+      eligibleCount: 0,
+      subject: '',
+      previewHtml: '',
+      message: 'Sua conta não possui um e-mail válido verificado para receber alertas.',
+    };
+  }
+
+  const eligible = (input.items || [])
+    .slice(0, 30)
+    .filter((item) => typeof item.daysRemaining === 'number' && item.daysRemaining <= safeAlertDays)
+    .map((item) => ({
+      ...item,
+      clientEmail: recipientEmail,
+      clientName: (input.clientName || item.clientName || 'Cliente').slice(0, 140),
+    }));
+
+  if (eligible.length === 0) {
+    return {
+      ok: true,
+      mode: input.mode,
+      smtpConfigured: smtp.configured,
+      sent: false,
+      alertDays: safeAlertDays,
+      recipientEmail,
+      eligibleCount: 0,
+      subject: '',
+      previewHtml: '',
+      message: `Nenhum visto ou documento com vencimento dentro dos próximos ${safeAlertDays} dias.`,
+    };
+  }
+
+  const tpl = buildExpirationEmailTemplate({
+    brandName: (input.brandName || 'D&M Integra Chile – Assessoria de Imigração').trim(),
+    clientName: (input.clientName || 'Cliente').trim().slice(0, 140),
+    caseTitle: (input.caseTitle || 'Acompanhamento de Visto e RUT').trim().slice(0, 180),
+    items: eligible,
+    portalUrl: input.portalUrl,
+    replyTo: smtp.replyTo,
+    alertDays: safeAlertDays,
+  });
+
+  if (input.mode === 'preview') {
+    return {
+      ok: true,
+      mode: 'preview',
+      smtpConfigured: smtp.configured,
+      sent: false,
+      alertDays: safeAlertDays,
+      recipientEmail,
+      eligibleCount: eligible.length,
+      subject: tpl.subject,
+      previewHtml: tpl.html,
+      message: `Prévia pronta com ${eligible.length} item(ns) na janela de ${safeAlertDays} dias.`,
+    };
+  }
+
+  if (!smtp.configured && !input.transporterOverride) {
+    return {
+      ok: false,
+      mode: input.mode,
+      smtpConfigured: false,
+      sent: false,
+      alertDays: safeAlertDays,
+      recipientEmail,
+      eligibleCount: eligible.length,
+      subject: tpl.subject,
+      previewHtml: tpl.html,
+      message:
+        'O servidor de e-mail (SMTP) ainda não foi ativado pelo administrador. Você já pode visualizar a prévia do alerta aqui no painel.',
+    };
+  }
+
+  const transporter = input.transporterOverride ?? createNodemailerTransporter(smtp);
+  try {
+    const info = await transporter.sendMail({
+      from: smtp.from,
+      to: recipientEmail,
+      replyTo: smtp.replyTo,
+      subject: tpl.subject,
+      text: tpl.text,
+      html: tpl.html,
+    });
+
+    return {
+      ok: true,
+      mode: input.mode,
+      smtpConfigured: true,
+      sent: true,
+      alertDays: safeAlertDays,
+      recipientEmail,
+      eligibleCount: eligible.length,
+      subject: tpl.subject,
+      previewHtml: tpl.html,
+      messageId: info.messageId,
+      message: `Alerta enviado via SMTP para ${recipientEmail} (${eligible.length} item(ns) com vencimento em até ${safeAlertDays} dias).`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      mode: input.mode,
+      smtpConfigured: true,
+      sent: false,
+      alertDays: safeAlertDays,
+      recipientEmail,
+      eligibleCount: eligible.length,
+      subject: tpl.subject,
+      previewHtml: tpl.html,
+      message:
+        err instanceof Error
+          ? `Falha ao enviar alerta por e-mail: ${err.message}`
+          : 'Não foi possível concluir o envio SMTP no momento.',
+    };
+  }
+}
+

@@ -223,3 +223,86 @@ export async function sendExpirationReminderEmails(params: {
 
   return data as EmailDispatchResponse;
 }
+
+export interface PortalEmailAlertStatus {
+  ok: boolean;
+  smtpConfigured: boolean;
+  defaultAlertDays: number;
+  cooldownDays: number;
+  clientEmail: string;
+}
+
+export interface PortalExpirationAlertDispatchResponse {
+  ok: boolean;
+  mode: 'preview' | 'auto' | 'manual';
+  smtpConfigured: boolean;
+  sent: boolean;
+  skippedCooldown?: boolean;
+  alertDays: number;
+  recipientEmail: string;
+  eligibleCount: number;
+  subject: string;
+  previewHtml: string;
+  messageId?: string;
+  message: string;
+}
+
+export async function fetchPortalEmailAlertStatus(): Promise<PortalEmailAlertStatus> {
+  const token = await getFirebaseIdToken();
+  const resp = await fetch('/api/portal/expiration-alerts/status', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) {
+    return {
+      ok: false,
+      smtpConfigured: false,
+      defaultAlertDays: 30,
+      cooldownDays: 7,
+      clientEmail: auth.currentUser?.email || '',
+    };
+  }
+  return (await resp.json()) as PortalEmailAlertStatus;
+}
+
+export async function dispatchPortalExpirationEmailAlert(params: {
+  items: ExpirationReminderItem[];
+  alertDays: number;
+  mode: 'preview' | 'auto' | 'manual';
+  clientName: string;
+  caseTitle?: string;
+  brandName?: string;
+}): Promise<PortalExpirationAlertDispatchResponse> {
+  const token = await getFirebaseIdToken();
+  const payloadItems = mapReminderItemsToEmailPayload(params.items);
+  const portalUrl =
+    typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/portal`
+      : '';
+
+  const resp = await fetch('/api/portal/expiration-alerts/dispatch', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      items: payloadItems,
+      alertDays: params.alertDays,
+      mode: params.mode,
+      clientName: params.clientName,
+      caseTitle: params.caseTitle,
+      brandName: params.brandName,
+      portalUrl,
+    }),
+  });
+
+  const data = (await resp.json().catch(() => ({}))) as Partial<PortalExpirationAlertDispatchResponse> & {
+    error?: string;
+  };
+  if (!resp.ok) {
+    throw new Error(data.error || 'Não foi possível processar o alerta de vencimento por e-mail.');
+  }
+  return data as PortalExpirationAlertDispatchResponse;
+}
+

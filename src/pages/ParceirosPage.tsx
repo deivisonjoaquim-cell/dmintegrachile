@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { MotionConfig } from 'motion/react';
 import {
   ArrowRight,
@@ -29,13 +29,17 @@ import {
 } from 'lucide-react';
 import { ClientTestimonialsCarousel } from '../components/ClientTestimonialsCarousel';
 import { OptimizedImage } from '../components/OptimizedImage';
-import { PartnerGeolocationMap } from '../components/PartnerGeolocationMap';
 import { TrustedPartnersShowcase } from '../components/partners/TrustedPartnersShowcase';
-import {
-  PartnerSynergyAnalyzer,
-  type PartnerSynergyResult,
-} from '../components/PartnerSynergyAnalyzer';
+import type { PartnerSynergyResult } from '../components/PartnerSynergyAnalyzer';
+import { lazyWithRetry } from '../utils/dynamicImportRecovery';
 import { useApp } from '../contexts/AppContext';
+
+const PartnerGeolocationMap = lazyWithRetry(() =>
+  import('../components/PartnerGeolocationMap').then((m) => ({ default: m.PartnerGeolocationMap })),
+);
+const PartnerSynergyAnalyzer = lazyWithRetry(() =>
+  import('../components/PartnerSynergyAnalyzer').then((m) => ({ default: m.PartnerSynergyAnalyzer })),
+);
 import { useLanguage } from '../contexts/LanguageContext';
 import { useFavoritePartners } from '../hooks/useFavoritePartners';
 import { submitPartnerProposalPublic } from '../services/firestoreService';
@@ -925,26 +929,42 @@ export const ParceirosPage: React.FC = () => {
               </section>
               )}
 
-              {/* Interactive Chile Partner Map */}
-              <PartnerGeolocationMap
-                partners={partnersPublic}
-                locale={locale}
-                externalMacroGroup={filterMacroGroup}
-                onSelectPartner={(partner) => setSelectedPartner(partner)}
-                buildReferralMessage={buildReferralMessage}
-              />
+              {/* Interactive Chile Partner Map (100% Free OpenStreetMap / CARTO via Leaflet) */}
+              <Suspense
+                fallback={
+                  <div className="rounded-2xl border border-[#E5DFD2] dark:border-[#1C324B] bg-white dark:bg-[#0D1E31] p-12 text-center text-xs font-medium text-[#4A5A6D] dark:text-slate-300">
+                    {isEs ? 'Cargando mapa interactivo en Chile...' : 'Carregando mapa interativo no Chile...'}
+                  </div>
+                }
+              >
+                <PartnerGeolocationMap
+                  partners={partnersPublic}
+                  locale={locale}
+                  externalMacroGroup={filterMacroGroup}
+                  onSelectPartner={(partner) => setSelectedPartner(partner)}
+                  buildReferralMessage={buildReferralMessage}
+                />
+              </Suspense>
             </>
           )}
 
           {activeTab === 'sinergia' && (
             <div className="space-y-14">
               <section id="sinergia-ia">
-                <PartnerSynergyAnalyzer
-                  partnersPublic={partnersPublic}
-                  locale={locale}
-                  onSelectPartner={(partner) => setSelectedPartner(partner)}
-                  onResultChange={(res) => setSynergyResult(res)}
-                />
+                <Suspense
+                  fallback={
+                    <div className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#0D1422] p-10 text-center text-xs text-[#4B5563] dark:text-slate-400">
+                      {isEs ? 'Cargando analizador de sinergia...' : 'Carregando analisador de sinergia...'}
+                    </div>
+                  }
+                >
+                  <PartnerSynergyAnalyzer
+                    partnersPublic={partnersPublic}
+                    locale={locale}
+                    onSelectPartner={(partner) => setSelectedPartner(partner)}
+                    onResultChange={(res) => setSynergyResult(res)}
+                  />
+                </Suspense>
               </section>
               <section id="depoimentos-clientes">
                 <ClientTestimonialsCarousel locale={locale} />

@@ -248,4 +248,42 @@ describe('emailReminderService — Nodemailer 30-Day Visa & Document Expiration 
     assert.equal(verified.ok, true);
     assert.equal(verified.smtpConfigured, true);
   });
+
+  it('supports client self-dispatch with dynamic alertDays window and forces recipient email', async () => {
+    const { dispatchClientSelfExpirationAlert } = await import('./emailReminderService.ts');
+    const sent: Array<{ to: string; subject: string }> = [];
+    const transport: EmailTransportLike = {
+      async sendMail(opts) {
+        sent.push({ to: opts.to, subject: opts.subject });
+        return { messageId: 'client_msg_1' };
+      },
+    };
+
+    const res = await dispatchClientSelfExpirationAlert({
+      recipientEmail: 'cliente.verificado@example.com',
+      clientName: 'Ana Paula',
+      caseTitle: 'Residência Temporária Chile',
+      alertDays: 45,
+      mode: 'manual',
+      items: [
+        makeItem({ daysRemaining: 40, clientEmail: 'outro@evil.test', itemKind: 'visto' }),
+        makeItem({ docId: 'far_doc', daysRemaining: 90, clientEmail: 'outro@evil.test' }),
+      ],
+      smtpOverride: getSmtpConfigFromEnv({
+        SMTP_HOST: 'smtp.test.local',
+        SMTP_USER: 'bot@test.local',
+        SMTP_PASS: 'secret',
+      }),
+      transporterOverride: transport,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.sent, true);
+    assert.equal(res.alertDays, 45);
+    assert.equal(res.eligibleCount, 1);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, 'cliente.verificado@example.com');
+    assert.match(res.previewHtml, /45 Dias/i);
+  });
 });
+

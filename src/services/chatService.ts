@@ -126,6 +126,7 @@ export async function sendClientDocumentQuestion(params: {
   remetenteUid: string;
   autorNome: string;
   mensagem: string;
+  assunto?: string;
   documentId?: string;
   documentNome?: string;
 }): Promise<CommunicationLog> {
@@ -137,6 +138,7 @@ export async function sendClientDocumentQuestion(params: {
     remetenteUid: params.remetenteUid,
     autorNome: params.autorNome,
     mensagem: params.mensagem,
+    assunto: params.assunto,
     documentId: params.documentId,
     documentNome: params.documentNome,
   });

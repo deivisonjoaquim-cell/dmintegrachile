@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -39,26 +39,50 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { CalendlyModal } from '../components/CalendlyModal';
-import { DiagnosticRadarChart } from '../components/diagnostic/DiagnosticRadarChart';
-import { LegalBaseModal } from '../components/LegalBaseModal';
-import { PdfPreviewModal } from '../components/pdf/PdfPreviewModal';
 import { ClientActionCenterCard } from '../components/portal/ClientActionCenterCard';
+import { ClientDeadlineMonitor } from '../components/portal/ClientDeadlineMonitor';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
 import { ImmigrationJourneyStepper } from '../components/portal/ImmigrationJourneyStepper';
 import { ProcessTimeline } from '../components/portal/ProcessTimeline';
-import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLegal';
+import { QuickConsultantChat } from '../components/portal/QuickConsultantChat';
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
-import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
-import { SermigSimulator } from '../components/SermigSimulator';
-import { CuratedPartnerNetwork } from '../components/partners/CuratedPartnerNetwork';
 import { ContractDocumentSheet } from '../components/contracts/ContractDocumentSheet';
-import { ContractSignatureModal } from '../components/contracts/ContractSignatureModal';
 import { SignatureCertificateCard } from '../components/contracts/SignatureCertificateCard';
-import { UiButton } from '../components/ui/DesignSystem';
+import { SkeletonBlock, UiButton } from '../components/ui/DesignSystem';
 import { buildImmigrationDossierHighlights } from '../utils/immigrationDossierModel';
+import { importModuleWithRetry, lazyWithRetry } from '../utils/dynamicImportRecovery';
+import { subscribeClientDocumentChat } from '../services/chatService';
+import type { PortalChatTopicId } from '../utils/documentChat';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
+
+const CalendlyModal = lazyWithRetry(() =>
+  import('../components/CalendlyModal').then((m) => ({ default: m.CalendlyModal })),
+);
+const DiagnosticRadarChart = lazyWithRetry(() =>
+  import('../components/diagnostic/DiagnosticRadarChart').then((m) => ({ default: m.DiagnosticRadarChart })),
+);
+const LegalBaseModal = lazyWithRetry(() =>
+  import('../components/LegalBaseModal').then((m) => ({ default: m.LegalBaseModal })),
+);
+const PdfPreviewModal = lazyWithRetry(() =>
+  import('../components/pdf/PdfPreviewModal').then((m) => ({ default: m.PdfPreviewModal })),
+);
+const PortalBibliotecaLegal = lazyWithRetry(() =>
+  import('../components/portal/PortalBibliotecaLegal').then((m) => ({ default: m.PortalBibliotecaLegal })),
+);
+const ProfileIdentityDocumentsCard = lazyWithRetry(() =>
+  import('../components/ProfileIdentityDocumentsCard').then((m) => ({ default: m.ProfileIdentityDocumentsCard })),
+);
+const SermigSimulator = lazyWithRetry(() =>
+  import('../components/SermigSimulator').then((m) => ({ default: m.SermigSimulator })),
+);
+const CuratedPartnerNetwork = lazyWithRetry(() =>
+  import('../components/partners/CuratedPartnerNetwork').then((m) => ({ default: m.CuratedPartnerNetwork })),
+);
+const ContractSignatureModal = lazyWithRetry(() =>
+  import('../components/contracts/ContractSignatureModal').then((m) => ({ default: m.ContractSignatureModal })),
+);
 import { PIPELINE_STAGES } from '../data/seeds';
 import {
   fetchClientPortalData,
@@ -103,6 +127,7 @@ import type {
   CaseDocument,
   Client,
   ClientNotification,
+  CommunicationLog,
   Deadline,
   Dependent,
   FinancialRecord,
@@ -230,6 +255,12 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
   const [pushSettingsOpen, setPushSettingsOpen] = useState(false);
   const [officialDocSearch, setOfficialDocSearch] = useState('');
   const [officialDocStatusFilter, setOfficialDocStatusFilter] = useState<'todos' | 'pendentes' | 'assinados'>('todos');
+  const [portalChatMessages, setPortalChatMessages] = useState<CommunicationLog[]>([]);
+  const [quickChatIntent, setQuickChatIntent] = useState<{
+    nonce: number;
+    topic?: PortalChatTopicId;
+    prefillMessage?: string;
+  }>({ nonce: 0 });
 
   const portalRadarDimensions = useMemo(() => {
     const leadAnswers = clientLeads[0]?.respostasTriagem;
@@ -256,6 +287,20 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     portalStage === 'contratado'
       ? portalClient?.id || userProfile?.clientId || null
       : null;
+
+  // Assinatura única em tempo real para o Chat Rápido (compartilhada entre o card e o drawer flutuante)
+  useEffect(() => {
+    if (!effectiveClientId) {
+      setPortalChatMessages([]);
+      return;
+    }
+    const unsub = subscribeClientDocumentChat(
+      effectiveClientId,
+      (list) => setPortalChatMessages(list),
+      () => {},
+    );
+    return () => unsub();
+  }, [effectiveClientId]);
 
   // Mantém o registro local de cliente e leads sincronizado com as atualizações em tempo real do AppContext
   useEffect(() => {
@@ -561,7 +606,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setPdfBusy('diagnostico');
       setFeedbackMsg(null);
       try {
-        const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+        const { exportClientDiagnosticPdf } = await importModuleWithRetry(
+          () => import('../utils/clientDiagnosticPdf'),
+        );
         const filename = await exportClientDiagnosticPdf(buildFreeDossierInput());
         setFeedbackMsg(`Dossiê de Imigração exportado em PDF (${filename}).`);
       } catch (err) {
@@ -576,7 +623,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       setPdfBusy('preview');
       setFeedbackMsg(null);
       try {
-        const { buildClientDiagnosticPdfBlob } = await import('../utils/clientDiagnosticPdf');
+        const { buildClientDiagnosticPdfBlob } = await importModuleWithRetry(
+          () => import('../utils/clientDiagnosticPdf'),
+        );
         const { blob, filename } = await buildClientDiagnosticPdfBlob(buildFreeDossierInput());
         const blobUrl = URL.createObjectURL(blob);
         setPdfPreview((prev) => {
@@ -653,6 +702,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </header>
 
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+          <Suspense fallback={<SkeletonBlock rows={4} />}>
           <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 rounded-lg bg-[#070E1C] text-[#C9A86A] flex items-center justify-center shrink-0">
@@ -814,29 +864,34 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               onNavigate={onNavigate}
             />
           </div>
+          </Suspense>
         </main>
 
-        <PdfPreviewModal
-          open={Boolean(pdfPreview)}
-          title={pdfPreview?.title || 'Pré-visualização: Dossiê de Imigração (PDF)'}
-          filename={pdfPreview?.filename || 'Dossie-Imigracao-DM-Integra.pdf'}
-          blobUrl={pdfPreview?.blobUrl || null}
-          onClose={() => {
-            setPdfPreview((prev) => {
-              if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
-              return null;
-            });
-          }}
-          onDownload={() => {
-            if (!pdfPreview) return;
-            const a = document.createElement('a');
-            a.href = pdfPreview.blobUrl;
-            a.download = pdfPreview.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          }}
-        />
+        {pdfPreview && (
+          <Suspense fallback={null}>
+            <PdfPreviewModal
+              open={Boolean(pdfPreview)}
+              title={pdfPreview.title || 'Pré-visualização: Dossiê de Imigração (PDF)'}
+              filename={pdfPreview.filename || 'Dossie-Imigracao-DM-Integra.pdf'}
+              blobUrl={pdfPreview.blobUrl || null}
+              onClose={() => {
+                setPdfPreview((prev) => {
+                  if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+                  return null;
+                });
+              }}
+              onDownload={() => {
+                if (!pdfPreview) return;
+                const a = document.createElement('a');
+                a.href = pdfPreview.blobUrl;
+                a.download = pdfPreview.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }}
+            />
+          </Suspense>
+        )}
       </div>
     );
   }
@@ -1095,7 +1150,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     setPdfBusy('diagnostico');
     setFeedbackMsg(null);
     try {
-      const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+      const { exportClientDiagnosticPdf } = await importModuleWithRetry(
+        () => import('../utils/clientDiagnosticPdf'),
+      );
       const filename = await exportClientDiagnosticPdf(buildPortalClientDiagnosticPdfInput());
       setFeedbackMsg(`Dossiê de Imigração exportado em PDF (${filename}).`);
     } catch (err) {
@@ -1110,7 +1167,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     setPdfBusy('progresso');
     setFeedbackMsg(null);
     try {
-      const { exportProgressoPdf } = await import('../components/pdf/ClientPortalPdfDocuments');
+      const { exportProgressoPdf } = await importModuleWithRetry(
+        () => import('../components/pdf/ClientPortalPdfDocuments'),
+      );
       const filename = await exportProgressoPdf({
         empresa,
         client,
@@ -1144,10 +1203,14 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     try {
       const { blob, filename } =
         kind === 'diagnostico'
-          ? await (await import('../utils/clientDiagnosticPdf')).buildClientDiagnosticPdfBlob(
-              buildPortalClientDiagnosticPdfInput(),
-            )
-          : await (await import('../components/pdf/ClientPortalPdfDocuments')).buildProgressoPdfBlob({
+          ? await (
+              await importModuleWithRetry(() => import('../utils/clientDiagnosticPdf'))
+            ).buildClientDiagnosticPdfBlob(buildPortalClientDiagnosticPdfInput())
+          : await (
+              await importModuleWithRetry(
+                () => import('../components/pdf/ClientPortalPdfDocuments'),
+              )
+            ).buildProgressoPdfBlob({
               empresa,
               client,
               dependents,
@@ -1535,6 +1598,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
       </header>
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-8 space-y-6">
+        <Suspense fallback={<SkeletonBlock rows={5} />}>
         {pushToast && (
           <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-700 flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
@@ -1907,6 +1971,29 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   />
                   </div>
                 </div>
+
+                {/* Monitoramento Proativo de Prazos & Alertas Automáticos SMTP (X dias antes) */}
+                {client && (
+                  <ClientDeadlineMonitor
+                    uid={userProfile?.uid || client.id}
+                    client={client}
+                    dependents={dependents}
+                    cases={cases}
+                    docs={activeDocs}
+                    deadlines={deadlines}
+                    visaRequirements={visaRequirements}
+                    brandName={empresa.nome_empresa}
+                    onGoToDocuments={() => setTab('documentos')}
+                    onGoToProfileData={() => setTab('dados')}
+                    onAskConsultant={(ctx) =>
+                      setQuickChatIntent({
+                        nonce: Date.now(),
+                        topic: ctx.topic,
+                        prefillMessage: ctx.prefillMessage,
+                      })
+                    }
+                  />
+                )}
 
                 {/* Dossiê de Imigração (PDF) — Visto SERMIG & Processo de RUT */}
                 <div
@@ -2680,6 +2767,20 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </div>
                 </div>
 
+                {/* Chat Rápido Direto e Registrado com o Consultor */}
+                {client && userProfile && (
+                  <QuickConsultantChat
+                    mode="embedded"
+                    clientId={client.id}
+                    caseId={activeCase?.id}
+                    remetenteUid={userProfile.uid}
+                    autorNome={client.nomeCompleto || userProfile.nome || 'Cliente'}
+                    docs={activeDocs}
+                    caseTitle={activeCase?.titulo}
+                    sharedMessages={portalChatMessages}
+                  />
+                )}
+
                 {/* Reuniões e Prazos com Google Agenda e .ics */}
                 <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
                   <div>
@@ -2852,6 +2953,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             )}
           </>
         )}
+        </Suspense>
       </main>
 
       <footer className="bg-white dark:bg-[#0B1220] border-t border-[#E5E7EB] dark:border-[#1E293B] py-5 px-4 sm:px-6 text-xs text-[#475569] dark:text-slate-400 text-center mb-16 md:mb-0">
@@ -2980,20 +3082,22 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
 
       {/* Modal Assinatura Eletrônica de Contrato (Leitura + Assinatura + Certificado SHA-256) */}
       {signingGenDoc && (
-        <ContractSignatureModal
-          doc={signingGenDoc}
-          empresa={empresa}
-          defaultSignerName={client?.nomeCompleto || userProfile.nome || ''}
-          defaultSignerEmail={client?.email || userProfile.email || ''}
-          defaultSignerDocument={
-            client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : '')
-          }
-          busy={signBusy}
-          onClose={() => setSigningGenDoc(null)}
-          onSubmitDigitalSignature={handleSignGenDocCanvas}
-          onSubmitSignedFile={handleUploadSignedGenDocPdf}
-          onDownloadPdf={exportOfficialDocToPdf}
-        />
+        <Suspense fallback={null}>
+          <ContractSignatureModal
+            doc={signingGenDoc}
+            empresa={empresa}
+            defaultSignerName={client?.nomeCompleto || userProfile.nome || ''}
+            defaultSignerEmail={client?.email || userProfile.email || ''}
+            defaultSignerDocument={
+              client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : '')
+            }
+            busy={signBusy}
+            onClose={() => setSigningGenDoc(null)}
+            onSubmitDigitalSignature={handleSignGenDocCanvas}
+            onSubmitSignedFile={handleUploadSignedGenDocPdf}
+            onDownloadPdf={exportOfficialDocToPdf}
+          />
+        </Suspense>
       )}
 
       {/* Modal obrigatório LGPD no 1º acesso */}
@@ -3029,25 +3133,37 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
       )}
 
-      <PdfPreviewModal
-        open={Boolean(pdfPreview)}
-        title={pdfPreview?.title || 'Pré-visualização PDF'}
-        filename={pdfPreview?.filename || 'relatorio.pdf'}
-        blobUrl={pdfPreview?.blobUrl || null}
-        onClose={closePdfPreview}
-        onDownload={() => {
-          if (!pdfPreview) return;
-          const a = document.createElement('a');
-          a.href = pdfPreview.blobUrl;
-          a.download = pdfPreview.filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }}
-      />
+      {pdfPreview && (
+        <Suspense fallback={null}>
+          <PdfPreviewModal
+            open={Boolean(pdfPreview)}
+            title={pdfPreview.title || 'Pré-visualização PDF'}
+            filename={pdfPreview.filename || 'relatorio.pdf'}
+            blobUrl={pdfPreview.blobUrl || null}
+            onClose={closePdfPreview}
+            onDownload={() => {
+              if (!pdfPreview) return;
+              const a = document.createElement('a');
+              a.href = pdfPreview.blobUrl;
+              a.download = pdfPreview.filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }}
+          />
+        </Suspense>
+      )}
 
-      <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} clientId={client?.id} caseId={activeCase?.id} onConfirmed={loadPortal} />
-      <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a Lei" sources={legalSources} clientFriendlyOnly />
+      {calendlyOpen && (
+        <Suspense fallback={null}>
+          <CalendlyModal open={calendlyOpen} onClose={() => setCalendlyOpen(false)} clientId={client?.id} caseId={activeCase?.id} onConfirmed={loadPortal} />
+        </Suspense>
+      )}
+      {lawOpen && (
+        <Suspense fallback={null}>
+          <LegalBaseModal open={lawOpen} onClose={() => setLawOpen(false)} title="Entenda a Lei" sources={legalSources} clientFriendlyOnly />
+        </Suspense>
+      )}
 
       {/* Central de Notificações do Processo */}
       {notifDrawerOpen && (
@@ -3144,13 +3260,20 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
       )}
 
-      <DocumentChatWidget
-        client={client}
-        activeCase={activeCase}
-        docs={activeDocs}
-        userProfile={userProfile}
-        onPortalToast={(msg) => setFeedbackMsg(msg)}
-      />
+      {client && userProfile && (
+        <DocumentChatWidget
+          clientId={client.id}
+          caseId={activeCase?.id}
+          remetenteUid={userProfile.uid}
+          autorNome={client.nomeCompleto || userProfile.nome || 'Cliente'}
+          docs={activeDocs}
+          caseTitle={activeCase?.titulo}
+          sharedMessages={portalChatMessages}
+          externalOpenNonce={quickChatIntent.nonce}
+          externalTopic={quickChatIntent.topic}
+          externalPrefillMessage={quickChatIntent.prefillMessage}
+        />
+      )}
     </div>
   );
 };

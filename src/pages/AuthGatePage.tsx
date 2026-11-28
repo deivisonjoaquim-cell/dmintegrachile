@@ -15,6 +15,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { runDiagnosticEngine } from '../utils/diagnosticEngine';
+import { importModuleWithRetry } from '../utils/dynamicImportRecovery';
 import { buildWhatsAppUrl, formatDateBR } from '../utils/formatters';
 import {
   buildBasicDiagnosticSummary,
@@ -122,7 +123,9 @@ export const AuthGatePage: React.FC<AuthGatePageProps> = ({ mode, onNavigate }) 
       const latestLead = [...userLeads].sort((a, b) =>
         (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''),
       )[0];
-      const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+      const { exportClientDiagnosticPdf } = await importModuleWithRetry(
+        () => import('../utils/clientDiagnosticPdf'),
+      );
       if (latestLead?.respostasTriagem) {
         const result = runDiagnosticEngine(
           latestLead.respostasTriagem,

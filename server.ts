@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import multer from 'multer';
 
 import {
@@ -24,6 +25,7 @@ import {
   type ProcessNotificationType,
 } from './server/fcmService.ts';
 import {
+  dispatchClientSelfExpirationAlert,
   dispatchExpirationReminderEmails,
   getSmtpConfigFromEnv,
   sendTestExpirationEmail,
@@ -429,6 +431,35 @@ function sanitizeSvgContent(raw: string): string {
 // Express App
 // =============================================================================
 const app = express();
+app.disable('x-powered-by');
+
+// Compressão HTTP leve (gzip via node:zlib) para respostas JSON/HTML/JS/CSS/SVG > 1 KB
+app.use((req, res, next) => {
+  const acceptEncoding = String(req.headers['accept-encoding'] || '');
+  if (IS_VERCEL || !acceptEncoding.includes('gzip') || req.headers['x-ai-progress'] === '1') {
+    next();
+    return;
+  }
+  const origJson = res.json.bind(res);
+  res.json = ((body: unknown) => {
+    try {
+      const payload = Buffer.from(JSON.stringify(body), 'utf8');
+      if (payload.length >= 1024 && !res.headersSent) {
+        const compressed = zlib.gzipSync(payload, { level: 6 });
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Vary', 'Accept-Encoding');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Content-Length', String(compressed.length));
+        return res.send(compressed);
+      }
+    } catch {
+      // Fallback to uncompressed JSON
+    }
+    return origJson(body);
+  }) as Response['json'];
+  next();
+});
+
 app.use(express.json({ limit: '12mb' }));
 app.use(
   '/uploads',
@@ -597,6 +628,128 @@ app.post(
     });
 
     res.json(result);
+  },
+);
+
+// -----------------------------------------------------------------------------
+// Portal do Cliente — Monitoramento de Prazos com Alertas Automáticos via SMTP
+// Segurança: o destinatário é SEMPRE fixado no e-mail verificado do token Firebase (req.authUser.email)
+// -----------------------------------------------------------------------------
+const clientEmailAlertRateWindows = new Map<string, number[]>();
+const clientEmailAutoCooldowns = new Map<string, number>();
+
+function clientEmailAlertRateLimit(req: AuthedRequest, res: Response, next: NextFunction): void {
+  const key = req.authUser?.uid || req.ip || 'anon';
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const maxReqs = 15;
+  const prev = (clientEmailAlertRateWindows.get(key) || []).filter((t) => now - t < windowMs);
+  if (prev.length >= maxReqs) {
+    res.status(429).json({
+      error: 'Limite temporário de solicitações de alerta por e-mail atingido. Tente novamente em breve.',
+    });
+    return;
+  }
+  prev.push(now);
+  clientEmailAlertRateWindows.set(key, prev);
+  next();
+}
+
+app.get(
+  '/api/portal/expiration-alerts/status',
+  requireAuth,
+  (req: AuthedRequest, res: Response) => {
+    const smtp = getSmtpConfigFromEnv();
+    res.json({
+      ok: true,
+      smtpConfigured: smtp.configured,
+      defaultAlertDays: smtp.alertDays,
+      cooldownDays: smtp.cooldownDays,
+      clientEmail: req.authUser?.email || '',
+    });
+  },
+);
+
+app.post(
+  '/api/portal/expiration-alerts/dispatch',
+  requireAuth,
+  clientEmailAlertRateLimit,
+  async (req: AuthedRequest, res: Response) => {
+    const body = (req.body || {}) as {
+      items?: EmailReminderItemPayload[];
+      alertDays?: number;
+      mode?: 'preview' | 'auto' | 'manual';
+      clientName?: string;
+      caseTitle?: string;
+      brandName?: string;
+      portalUrl?: string;
+    };
+
+    if (!Array.isArray(body.items)) {
+      res.status(400).json({ error: 'Informe a lista de prazos/documentos para gerar o alerta.' });
+      return;
+    }
+
+    const mode: 'preview' | 'auto' | 'manual' =
+      body.mode === 'preview' || body.mode === 'auto' || body.mode === 'manual'
+        ? body.mode
+        : 'preview';
+    const verifiedEmail = (req.authUser?.email || '').trim().toLowerCase();
+    const safeAlertDays = Math.min(180, Math.max(1, Math.round(Number(body.alertDays) || 30)));
+    const safeItems = body.items.slice(0, 30);
+
+    // Cooldown server-side de 12h para disparos automáticos idênticos por usuário
+    if (mode === 'auto') {
+      const fp = `${req.authUser?.uid || verifiedEmail}::${safeAlertDays}::${safeItems
+        .map((i) => `${i.docId}:${i.dataValidadeEfetiva}`)
+        .sort()
+        .join('|')}`;
+      const lastSent = clientEmailAutoCooldowns.get(fp) || 0;
+      if (Date.now() - lastSent < 12 * 60 * 60 * 1000) {
+        res.json({
+          ok: true,
+          mode: 'auto',
+          smtpConfigured: getSmtpConfigFromEnv().configured,
+          sent: false,
+          skippedCooldown: true,
+          alertDays: safeAlertDays,
+          recipientEmail: verifiedEmail,
+          eligibleCount: safeItems.filter((i) => typeof i.daysRemaining === 'number' && i.daysRemaining <= safeAlertDays).length,
+          subject: '',
+          previewHtml: '',
+          message: 'Alerta automático já enviado recentemente para estes prazos.',
+        });
+        return;
+      }
+    }
+
+    const appUrl = (process.env.APP_URL || '').trim().replace(/\/$/, '');
+    const portalUrl = body.portalUrl || (appUrl ? `${appUrl}/portal` : '');
+
+    const result = await dispatchClientSelfExpirationAlert({
+      recipientEmail: verifiedEmail,
+      clientName: String(body.clientName || req.authUser?.name || 'Cliente').slice(0, 140),
+      caseTitle: typeof body.caseTitle === 'string' ? body.caseTitle.slice(0, 180) : undefined,
+      brandName: typeof body.brandName === 'string' ? body.brandName.slice(0, 140) : undefined,
+      portalUrl,
+      alertDays: safeAlertDays,
+      mode,
+      items: safeItems,
+    });
+
+    if (mode === 'auto' && result.sent) {
+      const fp = `${req.authUser?.uid || verifiedEmail}::${safeAlertDays}::${safeItems
+        .map((i) => `${i.docId}:${i.dataValidadeEfetiva}`)
+        .sort()
+        .join('|')}`;
+      clientEmailAutoCooldowns.set(fp, Date.now());
+      if (clientEmailAutoCooldowns.size > 1000) {
+        const oldestKey = clientEmailAutoCooldowns.keys().next().value;
+        if (oldestKey) clientEmailAutoCooldowns.delete(oldestKey);
+      }
+    }
+
+    res.json({ ...result, skippedCooldown: false });
   },
 );
 
@@ -1018,7 +1171,7 @@ async function startServer() {
         immutable: true,
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.html')) {
-            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           } else if (/\.(webp|svg|png|jpe?g|woff2|js|css)$/i.test(filePath)) {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           }
@@ -1026,7 +1179,7 @@ async function startServer() {
       }),
     );
     app.get('*', (_req, res) => {
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(distDir, 'index.html'));
     });
   }

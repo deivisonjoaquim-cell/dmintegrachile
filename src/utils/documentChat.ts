@@ -12,6 +12,7 @@ export interface BuildClientChatPayloadInput {
   remetenteUid: string;
   autorNome: string;
   mensagem: string;
+  assunto?: string;
   documentId?: string;
   documentNome?: string;
   createdAt?: string;
@@ -74,8 +75,10 @@ export function buildClientDocumentChatPayload(input: BuildClientChatPayloadInpu
   const cleanAutor = (input.autorNome.trim() || 'Cliente').slice(0, CHAT_AUTOR_MAX_LEN);
   const createdAt = input.createdAt || new Date().toISOString();
 
+  const customAssunto = normalizeOptionalString(input.assunto, CHAT_ASSUNTO_MAX_LEN);
   const assunto = (
-    cleanDocName ? `Dúvida sobre documento: ${cleanDocName}` : 'Dúvida sobre documentos do processo'
+    customAssunto ||
+    (cleanDocName ? `Dúvida sobre documento: ${cleanDocName}` : 'Dúvida sobre documentos do processo')
   ).slice(0, CHAT_ASSUNTO_MAX_LEN);
 
   return {
@@ -206,3 +209,73 @@ export function getPendingClientChatThreads(
     return (b.lastMessage.createdAt || '').localeCompare(a.lastMessage.createdAt || '');
   });
 }
+
+export type PortalChatTopicId =
+  | 'processo_visto'
+  | 'rut'
+  | 'documento'
+  | 'prazos'
+  | 'financeiro'
+  | 'geral';
+
+export interface PortalChatTopicConfig {
+  id: PortalChatTopicId;
+  label: string;
+  subjectPrefix: string;
+}
+
+export const PORTAL_CHAT_TOPICS: PortalChatTopicConfig[] = [
+  { id: 'processo_visto', label: 'Visto & SERMIG', subjectPrefix: 'Visto / SERMIG' },
+  { id: 'rut', label: 'Emissão do RUT', subjectPrefix: 'Emissão do RUT' },
+  { id: 'documento', label: 'Documentos & Apostila', subjectPrefix: 'Dúvida sobre documento' },
+  { id: 'prazos', label: 'Prazos & Validades', subjectPrefix: 'Prazos e Validades' },
+  { id: 'financeiro', label: 'Contrato & Financeiro', subjectPrefix: 'Contrato e Financeiro' },
+  { id: 'geral', label: 'Dúvida Geral', subjectPrefix: 'Atendimento do Portal' },
+];
+
+export const QUICK_CHAT_SUGGESTIONS: { topic: PortalChatTopicId; label: string; text: string }[] = [
+  {
+    topic: 'processo_visto',
+    label: 'Status no SERMIG',
+    text: 'Olá! Gostaria de confirmar em qual etapa está a análise do meu pedido de visto no SERMIG e qual será o próximo passo.',
+  },
+  {
+    topic: 'rut',
+    label: 'Etapa do RUT',
+    text: 'Olá! Como devo me preparar para o agendamento e emissão da minha cédula / RUT assim que o visto for liberado?',
+  },
+  {
+    topic: 'prazos',
+    label: 'Conferir vencimento',
+    text: 'Olá! Notei um prazo ou validade próximo no meu painel e gostaria de confirmar o que preciso providenciar antes do vencimento.',
+  },
+  {
+    topic: 'documento',
+    label: 'Apostila / Tradução',
+    text: 'Olá! Preciso confirmar se este documento exige Apostila de Haia ou tradução juramentada antes de anexar no portal.',
+  },
+];
+
+export function buildPortalChatSubject(topic: PortalChatTopicId, documentNome?: string): string {
+  const cleanDoc = (documentNome || '').trim();
+  const cfg = PORTAL_CHAT_TOPICS.find((t) => t.id === topic) || PORTAL_CHAT_TOPICS[0];
+  if (cleanDoc) {
+    return `${cfg.subjectPrefix}: ${cleanDoc}`.slice(0, CHAT_ASSUNTO_MAX_LEN);
+  }
+  return `${cfg.subjectPrefix} — Chat Rápido`.slice(0, CHAT_ASSUNTO_MAX_LEN);
+}
+
+export function filterPortalChatMessages(
+  messages: CommunicationLog[],
+  searchQuery: string,
+  originFilter: 'all' | 'cliente' | 'equipe' = 'all',
+): CommunicationLog[] {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  return messages.filter((msg) => {
+    if (originFilter !== 'all' && msg.origem !== originFilter) return false;
+    if (!normalizedQuery) return true;
+    const haystack = `${msg.assunto || ''} ${msg.mensagem || ''} ${msg.documentNome || ''} ${msg.autorNome || ''}`.toLowerCase();
+    return haystack.includes(normalizedQuery);
+  });
+}
+
