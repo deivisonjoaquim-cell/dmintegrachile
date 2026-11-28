@@ -115,9 +115,10 @@ service cloud.firestore {
     }
 
     function isUnlockedClientDoc(c) {
-      return 'portalLiberado' in c
-        && c.portalLiberado == true
-        && (!('arquivado' in c) || c.arquivado != true);
+      return (
+        ('portalLiberado' in c && c.portalLiberado == true) ||
+        ('statusAcessoPortal' in c && c.statusAcessoPortal == 'Liberado')
+      ) && (!('arquivado' in c) || c.arquivado != true);
     }
 
     function isOwnedUnlockedClientDoc(c) {
@@ -1262,8 +1263,14 @@ service cloud.firestore {
     }
 
     match /communicationLogs/{logId} {
-      allow get: if isValidId(logId) && (isStaff() || ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'canal' in existing() && existing().canal == 'Chat Portal'));
-      allow list: if isStaff() || (isCliente() && existing().clientId == userClientId() && existing().canal == 'Chat Portal');
+      allow get: if isValidId(logId) && (
+        isStaff() ||
+        ('clientId' in existing() && isAuthorizedClientFor(existing().clientId) && 'canal' in existing() && existing().canal == 'Chat Portal') ||
+        (isSignedIn() && 'canal' in existing() && existing().canal == 'Chat Portal' && 'remetenteUid' in existing() && existing().remetenteUid == request.auth.uid)
+      );
+      allow list: if isStaff()
+        || (isCliente() && existing().clientId == userClientId() && existing().canal == 'Chat Portal')
+        || (isSignedIn() && existing().canal == 'Chat Portal' && existing().remetenteUid == request.auth.uid);
       allow create: if isValidId(logId) && (
         isBootstrappedAdmin() ||
         (isValidCommunicationLog(incoming()) && (

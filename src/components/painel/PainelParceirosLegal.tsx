@@ -1,22 +1,32 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowUpDown,
   Bookmark,
   BookOpen,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
+  Copy,
+  CopyPlus,
+  Download,
   ExternalLink,
   Eye,
+  EyeOff,
   FileText,
   Globe,
   History,
+  LayoutGrid,
   Link2,
+  List,
   MessageCircle,
   Plus,
   RefreshCw,
   RotateCcw,
   Search,
+  Send,
   ShieldCheck,
   Sparkles,
   Star,
@@ -68,10 +78,22 @@ import {
   computePartnerNetworkMetrics,
   extractPartnerWebsiteFromMessage,
   isPartnerPublishedPublicly,
+  matchesPartnerMacroGroup,
   normalizePartnerExternalUrl,
   PARTNER_CATEGORIES,
   sanitizePartnerImageUrl,
+  type PartnerMacroGroupId,
 } from '../../utils/partnerHelpers';
+import {
+  buildClientPartnerReferralMessage,
+  buildPartnersCsv,
+  computePartnerEcosystemCoverage,
+  evaluatePartnerCompleteness,
+  PARTNER_QUICK_TEMPLATES,
+  sortAdminPartners,
+  type PartnerAdminSortBy,
+  type PartnerQuickTemplate,
+} from '../../utils/partnerAdminMetrics';
 import {
   clearAiDraftCache,
   compactLegalSourcesForAi,
@@ -186,7 +208,15 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
   const [partnerSearch, setPartnerSearch] = useState('');
   const [partnerPaisFilter, setPartnerPaisFilter] = useState<'Todos' | 'Brasil' | 'Chile' | 'Ambos'>('Todos');
   const [partnerCatFilter, setPartnerCatFilter] = useState<string>('Todas');
+  const [partnerMacroFilter, setPartnerMacroFilter] = useState<'Todos' | PartnerMacroGroupId>('Todos');
   const [partnerVisibilityFilter, setPartnerVisibilityFilter] = useState<'Todos' | 'publicados' | 'ocultos'>('Todos');
+  const [partnerSortBy, setPartnerSortBy] = useState<PartnerAdminSortBy>('avaliacao');
+  const [partnerViewMode, setPartnerViewMode] = useState<'cards' | 'tabela'>('cards');
+  const [hideCommissions, setHideCommissions] = useState(false);
+  const [quickTemplateOpen, setQuickTemplateOpen] = useState(false);
+  const [copiedReferralId, setCopiedReferralId] = useState<string | null>(null);
+  const [statusChangingPartnerId, setStatusChangingPartnerId] = useState<string | null>(null);
+  const [updatingProposalId, setUpdatingProposalId] = useState<string | null>(null);
   const [togglingPartnerId, setTogglingPartnerId] = useState<string | null>(null);
 
   // Novo / Edição Parceiro
@@ -424,20 +454,41 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     });
   }, [partnerProposals, proposalSearch, proposalStatusFilter]);
 
+  const ecosystemCoverage = useMemo(
+    () => computePartnerEcosystemCoverage(partners),
+    [partners],
+  );
+
+  const avgPartnerCompleteness = useMemo(() => {
+    if (partners.length === 0) return 0;
+    const sum = partners.reduce((acc, p) => acc + evaluatePartnerCompleteness(p).scorePct, 0);
+    return Math.round(sum / partners.length);
+  }, [partners]);
+
   const filteredPanelPartners = useMemo(() => {
     const q = partnerSearch.trim().toLowerCase();
-    return partners.filter((p) => {
+    const filtered = partners.filter((p) => {
       if (partnerPaisFilter !== 'Todos' && p.pais !== partnerPaisFilter) return false;
       if (partnerCatFilter !== 'Todas' && p.categoria !== partnerCatFilter) return false;
+      if (partnerMacroFilter !== 'Todos' && !matchesPartnerMacroGroup(p.categoria, partnerMacroFilter)) return false;
       const published = isPartnerPublishedPublicly(p);
       if (partnerVisibilityFilter === 'publicados' && !published) return false;
       if (partnerVisibilityFilter === 'ocultos' && published) return false;
       if (!q) return true;
-      return `${p.nome} ${p.categoria} ${p.pais} ${p.cidadeRegiao} ${p.contato} ${p.email} ${p.tabelaValoresComissao}`
+      return `${p.nome} ${p.categoria} ${p.pais} ${p.cidadeRegiao} ${p.contato} ${p.email} ${p.tabelaValoresComissao} ${p.descricaoPublica}`
         .toLowerCase()
         .includes(q);
     });
-  }, [partners, partnerSearch, partnerPaisFilter, partnerCatFilter, partnerVisibilityFilter]);
+    return sortAdminPartners(filtered, partnerSortBy);
+  }, [
+    partners,
+    partnerSearch,
+    partnerPaisFilter,
+    partnerCatFilter,
+    partnerMacroFilter,
+    partnerVisibilityFilter,
+    partnerSortBy,
+  ]);
 
   const handleTogglePartnerPublic = async (partner: Partner) => {
     if (togglingPartnerId) return;
@@ -461,6 +512,133 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     } finally {
       setTogglingPartnerId(null);
     }
+  };
+
+  const handleQuickStatusChange = async (
+    partner: Partner,
+    nextStatus: Partner['statusHomologacao'],
+  ) => {
+    if (statusChangingPartnerId || partner.statusHomologacao === nextStatus) return;
+    setStatusChangingPartnerId(partner.id);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      const updated: Partner = {
+        ...partner,
+        statusHomologacao: nextStatus,
+        recomendadoAosClientes:
+          nextStatus === 'Ativo/Indicado' ? partner.recomendadoAosClientes : false,
+      };
+      await syncPartnerAndPublic(updated, false, role);
+      setFeedback(
+        nextStatus === 'Ativo/Indicado'
+          ? `Status de "${partner.nome}" atualizado para Ativo/Indicado.`
+          : `Status de "${partner.nome}" alterado para ${nextStatus} (oculto da vitrine pública).`,
+      );
+      await Promise.all([onRefresh(), onRefreshPublic()]);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível atualizar o status do parceiro.');
+    } finally {
+      setStatusChangingPartnerId(null);
+    }
+  };
+
+  const handleDuplicatePartner = (partner: Partner) => {
+    setPartnerModal({
+      ...partner,
+      id: makeId('part'),
+      nome: `${partner.nome} (Cópia)`,
+      recomendadoAosClientes: false,
+      statusHomologacao: 'Em Análise',
+    });
+    setTab('parceiros');
+  };
+
+  const handleCopyReferralMessage = async (partner: Partner) => {
+    const text = buildClientPartnerReferralMessage(partner, empresa.nome_empresa);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      setCopiedReferralId(partner.id);
+      setFeedback(
+        `Texto de indicação de "${partner.nome}" copiado (com aviso de escopo exclusivo de Visto e RUT).`,
+      );
+      window.setTimeout(() => {
+        setCopiedReferralId((prev) => (prev === partner.id ? null : prev));
+      }, 2600);
+    } catch {
+      setErrorMsg('Não foi possível copiar o texto automaticamente.');
+    }
+  };
+
+  const handleExportPartnersCsv = () => {
+    if (filteredPanelPartners.length === 0) {
+      setErrorMsg('Nenhum parceiro na lista atual para exportar.');
+      return;
+    }
+    const csv = `\uFEFF${buildPartnersCsv(filteredPanelPartners)}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `parceiros-dm-integra-${toIsoDate(new Date())}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setFeedback(`Planilha CSV exportada com ${filteredPanelPartners.length} parceiro(s).`);
+  };
+
+  const handleCreateFromQuickTemplate = (tpl: PartnerQuickTemplate) => {
+    setQuickTemplateOpen(false);
+    setTab('parceiros');
+    setPartnerModal({
+      id: makeId('part'),
+      nome: '',
+      tipoPessoa: 'Pessoa Jurídica',
+      categoria: tpl.categoria,
+      pais: tpl.pais,
+      cidadeRegiao: tpl.cidadeRegiao,
+      moedaNegociacao: tpl.moedaNegociacao,
+      descricaoPublica: tpl.descricaoPublica,
+      condicoesParceria: tpl.condicoesParceria,
+      recomendadoAosClientes: true,
+      avaliacao: 5,
+      statusHomologacao: 'Ativo/Indicado',
+    });
+  };
+
+  const handleMarkProposalInReview = async (prop: PartnerProposal) => {
+    if (updatingProposalId) return;
+    setUpdatingProposalId(prop.id);
+    setErrorMsg(null);
+    try {
+      await saveDocumentAudited(
+        'partnerProposals',
+        prop.id,
+        { ...prop, status: 'Em Análise' },
+        false,
+        role,
+        'iniciar_triagem_proposta',
+      );
+      setFeedback(`Proposta de "${prop.nome_empresa}" movida para Em Análise.`);
+      await onRefresh();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Não foi possível atualizar o status da proposta.');
+    } finally {
+      setUpdatingProposalId(null);
+    }
+  };
+
+  const formatProposalAge = (createdAt?: string): string => {
+    if (!createdAt) return '';
+    const ts = Date.parse(createdAt);
+    if (Number.isNaN(ts)) return '';
+    const days = Math.max(0, Math.floor((Date.now() - ts) / 86_400_000));
+    if (days === 0) return 'Recebida hoje';
+    if (days === 1) return 'Recebida há 1 dia';
+    return `Recebida há ${days} dias`;
   };
 
   // ===========================================================================
@@ -1105,21 +1283,97 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             {sectionGroup === 'parceiros'
-              ? 'Parceiros Comerciais & Propostas'
+              ? 'Rede de Parceiros & Propostas'
               : sectionGroup === 'legal'
                 ? 'Base Legal & Catálogo SERMIG'
                 : 'Parceiros, Base Legal & Catálogo SERMIG'}
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {sectionGroup === 'parceiros'
-              ? 'Triagem de propostas recebidas, rede de parceiros ativos e regras de comissão isoladas da vitrine pública'
+              ? 'Curadoria de parceiros independentes, cobertura por ecossistema, triagem de propostas e comissões isoladas da vitrine pública'
               : sectionGroup === 'legal'
                 ? 'Leis, decretos, portais oficiais, subcategorias de vistos e requisitos migratórios'
                 : 'Gestão comercial de parceiros (comissões isoladas da vitrine pública) e governança normativa'}
           </p>
         </div>
+
+        {(tab === 'parceiros' || tab === 'propostas') && (
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="#/parceiros"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0D1422] text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#16233B] whitespace-nowrap"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
+              Ver Vitrine Pública
+            </a>
+            {tab === 'parceiros' && (
+              <button
+                type="button"
+                onClick={handleExportPartnersCsv}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0D1422] text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#16233B] whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar CSV
+              </button>
+            )}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQuickTemplateOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0D1422] text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#16233B] whitespace-nowrap"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#C9A86A]" />
+                Modelos Rápidos
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {quickTemplateOpen && (
+                <div className="absolute right-0 mt-1.5 w-72 rounded-xl border border-slate-200 dark:border-[#1E293B] bg-white dark:bg-[#0D1422] shadow-xl z-30 p-1.5 space-y-1">
+                  <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Pré-preencher ficha por perfil
+                  </p>
+                  {PARTNER_QUICK_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => handleCreateFromQuickTemplate(tpl)}
+                      className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-[#16233B] transition-colors"
+                    >
+                      <p className="text-xs font-semibold text-slate-900 dark:text-white">{tpl.label}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {tpl.categoria} · {tpl.pais} · {tpl.moedaNegociacao}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTab('parceiros');
+                setPartnerModal({
+                  id: makeId('part'),
+                  nome: '',
+                  tipoPessoa: 'Pessoa Jurídica',
+                  categoria: 'Escritório de Advocacia',
+                  pais: 'Chile',
+                  moedaNegociacao: 'BRL',
+                  recomendadoAosClientes: true,
+                  avaliacao: 5,
+                  statusHomologacao: 'Ativo/Indicado',
+                });
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Parceiro
+            </button>
+          </div>
+        )}
+
         {(tab === 'legal' || tab === 'vistos') && (
           <div className="flex flex-wrap items-center gap-2">
             {tab === 'legal' && (
@@ -1202,12 +1456,12 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-[#1E293B] overflow-x-auto">
         {[
           ...(sectionGroup !== 'legal'
             ? [
+                { id: 'parceiros', label: `Rede de Parceiros (${partners.length})` },
                 { id: 'propostas', label: `Propostas Recebidas (${partnerProposals.length})` },
-                { id: 'parceiros', label: `Parceiros (${partners.length})` },
               ]
             : []),
           ...(sectionGroup !== 'parceiros'
@@ -1221,8 +1475,10 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
             key={t.id}
             type="button"
             onClick={() => setTab(t.id as TabKey)}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap ${
-              tab === t.id ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500'
+            className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
+              tab === t.id
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)] dark:text-[#60A5FA] dark:border-[#60A5FA]'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             {t.label}
@@ -1231,13 +1487,29 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       </div>
 
       {feedback && (
-        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium">
-          {feedback}
+        <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 font-medium flex items-center justify-between gap-2">
+          <span>{feedback}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            aria-label="Fechar aviso"
+            className="text-emerald-700 dark:text-emerald-300 hover:opacity-75"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C82333] font-medium">
-          {errorMsg}
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/70 text-xs text-[#C82333] dark:text-red-300 font-medium flex items-center justify-between gap-2">
+          <span>{errorMsg}</span>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            aria-label="Fechar erro"
+            className="text-red-700 dark:text-red-300 hover:opacity-75"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -1247,54 +1519,57 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
           <button
             type="button"
             onClick={() => {
-              setTab('propostas');
-              setProposalStatusFilter('Nova');
+              setTab('parceiros');
+              setPartnerVisibilityFilter('publicados');
             }}
-            className="text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 transition-colors"
+            className="text-left bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] hover:border-[#0F3D91] dark:hover:border-[#60A5FA] rounded-xl p-4 transition-colors"
           >
-            <p className="text-xs text-slate-500">Propostas pendentes</p>
-            <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums mt-1">
-              {partnerMetrics.pendingProposals}
+            <p className="text-xs text-slate-500 dark:text-slate-400">Publicados na Vitrine</p>
+            <p className="text-2xl font-bold text-[#146B43] dark:text-emerald-400 font-mono tabular-nums mt-1">
+              {partnerMetrics.publishedCount}
             </p>
-            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
-              {partnerMetrics.approvedProposals} aprovada(s) · {partnerMetrics.rejectedProposals} recusada(s)
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+              {partnerMetrics.hiddenCount} oculto(s) · {partnerMetrics.totalPartners} no total
             </p>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              setTab('parceiros');
-              setPartnerVisibilityFilter('publicados');
+              setTab('propostas');
+              setProposalStatusFilter('Nova');
             }}
-            className="text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 transition-colors"
+            className="text-left bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] hover:border-[#0F3D91] dark:hover:border-[#60A5FA] rounded-xl p-4 transition-colors"
           >
-            <p className="text-xs text-slate-500">Publicados em /parceiros</p>
-            <p className="text-2xl font-bold text-[#146B43] font-mono tabular-nums mt-1">
-              {partnerMetrics.publishedCount}
+            <p className="text-xs text-slate-500 dark:text-slate-400">Propostas pendentes</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white font-mono tabular-nums mt-1">
+              {partnerMetrics.pendingProposals}
             </p>
-            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
-              {partnerMetrics.hiddenCount} oculto(s) ou em análise
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+              {partnerMetrics.approvedProposals} aprovada(s) · {partnerMetrics.rejectedProposals} recusada(s)
             </p>
           </button>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <p className="text-xs text-slate-500">Cobertura binacional</p>
-            <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums mt-1">
+          <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Cobertura binacional</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white font-mono tabular-nums mt-1">
               {partnerMetrics.brazilCount} BR · {partnerMetrics.chileCount} CL
             </p>
-            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
               {partnerMetrics.binationalCount} binacional(is) · {partnerMetrics.uniqueCategories} especialidade(s)
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <p className="text-xs text-slate-500">Avaliação média da rede</p>
-            <p className="text-2xl font-bold text-[#8C6D14] font-mono tabular-nums mt-1">
+          <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Qualidade &amp; Completude</p>
+            <p className="text-2xl font-bold text-[#8C6D14] dark:text-[#C9A86A] font-mono tabular-nums mt-1">
               {partnerMetrics.averageRating > 0 ? `${partnerMetrics.averageRating.toFixed(1)}/5` : '—'}
+              <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 ml-2">
+                · {avgPartnerCompleteness}%
+              </span>
             </p>
-            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
-              Base de {partnerMetrics.totalPartners} parceiro(s) cadastrado(s)
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
+              Média de preenchimento das fichas
             </p>
           </div>
         </div>
@@ -1303,7 +1578,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       {/* PROPOSTAS */}
       {tab === 'propostas' && (
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1311,10 +1586,10 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                 value={proposalSearch}
                 onChange={(e) => setProposalSearch(e.target.value)}
                 placeholder="Buscar proposta por empresa, responsável, cidade ou categoria..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-900 dark:text-white text-xs placeholder:text-slate-400"
               />
             </div>
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto">
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-[#0B1220] rounded-lg overflow-x-auto border border-slate-200/70 dark:border-[#1E293B]">
               {(['Todas', 'Nova', 'Em Análise', 'Aprovada', 'Recusada'] as const).map((st) => {
                 const count =
                   st === 'Todas'
@@ -1328,8 +1603,8 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     onClick={() => setProposalStatusFilter(st)}
                     className={`px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 tabular-nums transition-colors ${
                       active
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     {st} ({count})
@@ -1340,8 +1615,8 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
           </div>
 
           {filteredProposals.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-2">
-              <p className="text-sm font-semibold text-slate-800">
+            <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-10 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 {partnerProposals.length === 0
                   ? 'Nenhuma proposta de parceria recebida ainda.'
                   : 'Nenhuma proposta corresponde aos filtros selecionados.'}
@@ -1353,7 +1628,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     setProposalStatusFilter('Todas');
                     setProposalSearch('');
                   }}
-                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline"
+                  className="text-xs font-semibold text-[var(--color-primary)] dark:text-[#60A5FA] hover:underline"
                 >
                   Limpar filtros
                 </button>
@@ -1363,21 +1638,25 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
             filteredProposals.map((p) => {
               const statusTone =
                 p.status === 'Aprovada'
-                  ? 'text-[#146B43]'
+                  ? 'text-[#146B43] dark:text-emerald-400'
                   : p.status === 'Recusada'
-                    ? 'text-[#C82333]'
+                    ? 'text-[#C82333] dark:text-red-400'
                     : p.status === 'Em Análise'
-                      ? 'text-amber-700'
-                      : 'text-[var(--color-primary)]';
+                      ? 'text-amber-700 dark:text-amber-400'
+                      : 'text-[var(--color-primary)] dark:text-[#60A5FA]';
 
               const safeProposalLogo = sanitizePartnerImageUrl(p.logoUrl);
+              const ageText = formatProposalAge(p.createdAt);
 
               return (
-                <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3.5">
+                <div
+                  key={p.id}
+                  className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-5 space-y-3.5"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
                       {safeProposalLogo && (
-                        <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                        <div className="w-12 h-12 rounded-lg border border-slate-200 dark:border-[#24324A] bg-white flex items-center justify-center overflow-hidden shrink-0">
                           <OptimizedImage
                             src={safeProposalLogo}
                             alt={p.nome_empresa}
@@ -1388,7 +1667,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                         </div>
                       )}
                       <div className="space-y-1 min-w-0">
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           <span>{p.categoria}</span>
                           <span aria-hidden="true"> · </span>
                           <span>{p.pais}{p.cidade ? ` (${p.cidade})` : ''}</span>
@@ -1397,19 +1676,31 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                           <span aria-hidden="true"> · </span>
                           <strong className={statusTone}>{p.status}</strong>
                           {p.createdAt ? ` · ${formatDateBR(p.createdAt)}` : ''}
+                          {ageText ? ` (${ageText})` : ''}
                         </p>
-                        <h3 className="text-base font-bold text-slate-900">{p.nome_empresa}</h3>
-                        <p className="text-xs text-slate-600">
-                          Responsável: <strong className="font-semibold text-slate-800">{p.responsavel}</strong> · {p.whatsapp} · {p.email}
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">{p.nome_empresa}</h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          Responsável: <strong className="font-semibold text-slate-800 dark:text-white">{p.responsavel}</strong> · {p.whatsapp} · {p.email}
                         </p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {p.status === 'Nova' && (
+                        <button
+                          type="button"
+                          disabled={updatingProposalId === p.id}
+                          onClick={() => void handleMarkProposalInReview(p)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700/80 bg-amber-50 dark:bg-amber-950/30 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/50 disabled:opacity-50 whitespace-nowrap shrink-0"
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                          {updatingProposalId === p.id ? 'Atualizando...' : 'Iniciar Análise'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={aiPropLoadingId !== null}
                         onClick={() => void handleAnalyzeProposalIa(p)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap shrink-0"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-[#192842] disabled:opacity-50 whitespace-nowrap shrink-0"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" />
                         {aiPropLoadingId === p.id ? aiPropProgress || 'Analisando...' : 'Avaliar com IA'}
@@ -1428,7 +1719,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                         <button
                           type="button"
                           onClick={() => requestRejectProposal(p)}
-                          className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
+                          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700/70 bg-amber-50 dark:bg-amber-950/30 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/50 whitespace-nowrap shrink-0"
                         >
                           Recusar
                         </button>
@@ -1437,7 +1728,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                         href={buildWhatsAppUrl(p.whatsapp, `Olá, ${p.responsavel}! Recebemos sua proposta de parceria da ${p.nome_empresa} na D&M Integra Chile.`)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#192842] whitespace-nowrap shrink-0"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         Responder
@@ -1446,7 +1737,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                         <button
                           type="button"
                           onClick={() => requestDeleteProposal(p)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap shrink-0"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/70 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 whitespace-nowrap shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           Excluir
@@ -1456,21 +1747,21 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
-                    <div className="text-xs text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
-                      <p className="font-semibold text-slate-900 mb-1">Proposta comercial</p>
+                    <div className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-[#0B1220] p-3.5 rounded-lg border border-slate-200 dark:border-[#1E293B]">
+                      <p className="font-semibold text-slate-900 dark:text-white mb-1">Proposta comercial</p>
                       <p className="leading-relaxed whitespace-pre-wrap">{p.proposta || 'Não informada.'}</p>
                     </div>
                     {p.mensagem && (
-                      <div className="text-xs text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
-                        <p className="font-semibold text-slate-900 mb-1">Apresentação institucional</p>
+                      <div className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-[#0B1220] p-3.5 rounded-lg border border-slate-200 dark:border-[#1E293B]">
+                        <p className="font-semibold text-slate-900 dark:text-white mb-1">Apresentação institucional</p>
                         <p className="leading-relaxed whitespace-pre-wrap">{p.mensagem}</p>
                       </div>
                     )}
                   </div>
 
                   {p.parecerIa && (
-                    <div className="text-xs text-slate-800 bg-amber-50/70 p-3.5 rounded-lg border border-amber-200 space-y-1">
-                      <p className="font-semibold text-amber-950">Parecer técnico automatizado</p>
+                    <div className="text-xs text-slate-800 dark:text-amber-100 bg-amber-50/70 dark:bg-amber-950/30 p-3.5 rounded-lg border border-amber-200 dark:border-amber-800/60 space-y-1">
+                      <p className="font-semibold text-amber-950 dark:text-amber-200">Parecer técnico automatizado</p>
                       <p className="whitespace-pre-wrap leading-relaxed">{p.parecerIa}</p>
                     </div>
                   )}
@@ -1484,74 +1775,176 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
       {/* PARCEIROS */}
       {tab === 'parceiros' && (
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={partnerSearch}
-                onChange={(e) => setPartnerSearch(e.target.value)}
-                placeholder="Buscar parceiro por nome, cidade, contato ou condição comercial..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
-              />
+          {/* Cobertura por Ecossistema — Interativa com detecção de lacunas */}
+          <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-4 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-900 dark:text-white">
+                Cobertura por Ecossistema de Indicação
+              </p>
+              {partnerMacroFilter !== 'Todos' && (
+                <button
+                  type="button"
+                  onClick={() => setPartnerMacroFilter('Todos')}
+                  className="text-[11px] font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline"
+                >
+                  Mostrar todos os pilares
+                </button>
+              )}
             </div>
-            <select
-              value={partnerPaisFilter}
-              onChange={(e) => setPartnerPaisFilter(e.target.value as typeof partnerPaisFilter)}
-              className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
-            >
-              <option value="Todos">País: Todos</option>
-              <option value="Brasil">Brasil</option>
-              <option value="Chile">Chile</option>
-              <option value="Ambos">Brasil &amp; Chile</option>
-            </select>
-            <select
-              value={partnerCatFilter}
-              onChange={(e) => setPartnerCatFilter(e.target.value)}
-              className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
-            >
-              <option value="Todas">Categoria: Todas</option>
-              {PARTNER_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-            <select
-              value={partnerVisibilityFilter}
-              onChange={(e) => setPartnerVisibilityFilter(e.target.value as typeof partnerVisibilityFilter)}
-              className="px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs"
-            >
-              <option value="Todos">Vitrine: Todos</option>
-              <option value="publicados">Publicados em /parceiros</option>
-              <option value="ocultos">Ocultos / Em análise</option>
-            </select>
-            <button
-              type="button"
-              onClick={() =>
-                setPartnerModal({
-                  id: makeId('part'),
-                  nome: '',
-                  tipoPessoa: 'Pessoa Jurídica',
-                  categoria: 'Escritório de Advocacia',
-                  pais: 'Chile',
-                  moedaNegociacao: 'BRL',
-                  recomendadoAosClientes: true,
-                  avaliacao: 5,
-                  statusHomologacao: 'Ativo/Indicado',
-                })
-              }
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Novo Parceiro
-            </button>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {ecosystemCoverage.map((pillar) => {
+                const isSelected = partnerMacroFilter === pillar.groupId;
+                return (
+                  <button
+                    key={pillar.groupId}
+                    type="button"
+                    onClick={() =>
+                      setPartnerMacroFilter((prev) =>
+                        prev === pillar.groupId ? 'Todos' : pillar.groupId,
+                      )
+                    }
+                    className={`text-left p-3 rounded-lg border transition-colors ${
+                      isSelected
+                        ? 'border-[#0F3D91] dark:border-[#60A5FA] bg-[#0F3D91]/5 dark:bg-[#0F3D91]/20'
+                        : pillar.hasGap
+                          ? 'border-amber-300/90 dark:border-amber-800/70 bg-amber-50/40 dark:bg-amber-950/20 hover:border-amber-400'
+                          : 'border-slate-200 dark:border-[#1E293B] bg-slate-50/60 dark:bg-[#0B1220] hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                      {pillar.label}
+                    </p>
+                    <p className="text-[11px] font-mono tabular-nums mt-1 text-slate-600 dark:text-slate-300">
+                      <strong className={pillar.hasGap ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}>
+                        {pillar.publishedCount}
+                      </strong>{' '}
+                      pub. · {pillar.totalCount} total
+                    </p>
+                    <p className={`text-[10px] mt-0.5 font-medium ${pillar.hasGap ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                      {pillar.hasGap ? 'Lacuna — cadastrar' : 'Pilar coberto'}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Barra de Filtros, Ordenação, Privacidade de Comissão e Modo de Visualização */}
+          <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-3.5 space-y-2.5">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={partnerSearch}
+                  onChange={(e) => setPartnerSearch(e.target.value)}
+                  placeholder="Buscar parceiro por nome, cidade, contato, descrição ou comissão..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-900 dark:text-white text-xs placeholder:text-slate-400"
+                />
+              </div>
+              <select
+                value={partnerPaisFilter}
+                onChange={(e) => setPartnerPaisFilter(e.target.value as typeof partnerPaisFilter)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-800 dark:text-slate-100 text-xs"
+              >
+                <option value="Todos">País: Todos</option>
+                <option value="Brasil">Brasil</option>
+                <option value="Chile">Chile</option>
+                <option value="Ambos">Brasil &amp; Chile</option>
+              </select>
+              <select
+                value={partnerCatFilter}
+                onChange={(e) => setPartnerCatFilter(e.target.value)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-800 dark:text-slate-100 text-xs"
+              >
+                <option value="Todas">Categoria: Todas</option>
+                {PARTNER_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={partnerVisibilityFilter}
+                onChange={(e) => setPartnerVisibilityFilter(e.target.value as typeof partnerVisibilityFilter)}
+                className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-800 dark:text-slate-100 text-xs"
+              >
+                <option value="Todos">Vitrine: Todos</option>
+                <option value="publicados">Publicados em /parceiros</option>
+                <option value="ocultos">Ocultos / Em análise</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-[#1E293B]">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="sr-only">Ordenar parceiros por</span>
+                  <select
+                    value={partnerSortBy}
+                    onChange={(e) => setPartnerSortBy(e.target.value as PartnerAdminSortBy)}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-800 dark:text-slate-100 text-xs"
+                  >
+                    <option value="avaliacao">Ordenar: Melhor avaliação</option>
+                    <option value="publicados">Ordenar: Publicados primeiro</option>
+                    <option value="completude">Ordenar: Maior completude</option>
+                    <option value="recentes">Ordenar: Atualizados recentemente</option>
+                    <option value="nome">Ordenar: Nome (A–Z)</option>
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setHideCommissions((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap ${
+                    hideCommissions
+                      ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200'
+                      : 'border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#16233B]'
+                  }`}
+                  title="Oculta valores de comissão ao compartilhar a tela com clientes"
+                >
+                  {hideCommissions ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {hideCommissions ? 'Comissões ocultas' : 'Ocultar comissões'}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                  {filteredPanelPartners.length} de {partners.length} parceiro(s)
+                </span>
+                <div className="inline-flex rounded-lg border border-slate-200 dark:border-[#1E293B] bg-slate-100 dark:bg-[#0B1220] p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPartnerViewMode('cards')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                      partnerViewMode === 'cards'
+                        ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPartnerViewMode('tabela')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                      partnerViewMode === 'tabela'
+                        ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    Tabela
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {filteredPanelPartners.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-2">
-              <p className="text-sm font-semibold text-slate-800">
+            <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-10 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 {partners.length === 0
                   ? 'Nenhum parceiro cadastrado ainda.'
                   : 'Nenhum parceiro corresponde aos filtros aplicados.'}
@@ -1563,31 +1956,181 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                     setPartnerSearch('');
                     setPartnerPaisFilter('Todos');
                     setPartnerCatFilter('Todas');
+                    setPartnerMacroFilter('Todos');
                     setPartnerVisibilityFilter('Todos');
                   }}
-                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline"
+                  className="text-xs font-semibold text-[var(--color-primary)] dark:text-[#60A5FA] hover:underline"
                 >
                   Limpar filtros
                 </button>
               )}
             </div>
+          ) : partnerViewMode === 'tabela' ? (
+            /* MODO TABELA EXECUTIVA */
+            <div className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-[#1E293B] bg-slate-50 dark:bg-[#0B1220] text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <th className="py-3 px-4 font-semibold">Parceiro &amp; Categoria</th>
+                      <th className="py-3 px-3 font-semibold">Localização</th>
+                      <th className="py-3 px-3 font-semibold">Status</th>
+                      <th className="py-3 px-3 font-semibold">Vitrine</th>
+                      <th className="py-3 px-3 font-semibold">Perfil</th>
+                      <th className="py-3 px-3 font-semibold">Nota</th>
+                      <th className="py-3 px-4 font-semibold text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#1E293B]">
+                    {filteredPanelPartners.map((p) => {
+                      const published = isPartnerPublishedPublicly(p);
+                      const comp = evaluatePartnerCompleteness(p);
+                      return (
+                        <tr
+                          key={p.id}
+                          className="hover:bg-slate-50/70 dark:hover:bg-[#111C30]/60 transition-colors"
+                        >
+                          <td className="py-3 px-4">
+                            <p className="font-bold text-slate-900 dark:text-white">{p.nome}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {p.categoria}
+                              {p.contato ? ` · ${p.contato}` : ''}
+                            </p>
+                          </td>
+                          <td className="py-3 px-3 text-slate-700 dark:text-slate-300">
+                            {p.pais}
+                            {p.cidadeRegiao ? (
+                              <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                                {p.cidadeRegiao}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="py-3 px-3">
+                            <select
+                              aria-label={`Status de ${p.nome}`}
+                              disabled={statusChangingPartnerId === p.id}
+                              value={p.statusHomologacao}
+                              onChange={(e) =>
+                                void handleQuickStatusChange(
+                                  p,
+                                  e.target.value as Partner['statusHomologacao'],
+                                )
+                              }
+                              className="px-2 py-1 rounded-md border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#0B1220] text-[11px] font-semibold text-slate-800 dark:text-slate-100"
+                            >
+                              <option value="Ativo/Indicado">Ativo/Indicado</option>
+                              <option value="Em Análise">Em Análise</option>
+                              <option value="Não Indicado/Suspenso">Não Indicado/Suspenso</option>
+                            </select>
+                          </td>
+                          <td className="py-3 px-3">
+                            <button
+                              type="button"
+                              disabled={togglingPartnerId === p.id}
+                              onClick={() => void handleTogglePartnerPublic(p)}
+                              className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                                published
+                                  ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
+                                  : 'border-slate-300 dark:border-[#24324A] bg-slate-50 dark:bg-[#0B1220] text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {togglingPartnerId === p.id
+                                ? '...'
+                                : published
+                                  ? 'Publicado'
+                                  : 'Oculto'}
+                            </button>
+                          </td>
+                          <td className="py-3 px-3 font-mono tabular-nums">
+                            <div className="flex items-center gap-2">
+                              <div className="w-14 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    comp.scorePct >= 80
+                                      ? 'bg-emerald-600'
+                                      : comp.scorePct >= 50
+                                        ? 'bg-amber-500'
+                                        : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${comp.scorePct}%` }}
+                                />
+                              </div>
+                              <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                                {comp.scorePct}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-mono tabular-nums text-slate-800 dark:text-slate-200">
+                            ★ {Number(p.avaliacao || 5).toFixed(1)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => void handleCopyReferralMessage(p)}
+                                title="Copiar texto de indicação transparente para cliente"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-300 dark:border-[#24324A] text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#192842]"
+                              >
+                                {copiedReferralId === p.id ? (
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                ) : (
+                                  <Send className="w-3 h-3 text-[#0F3D91] dark:text-[#60A5FA]" />
+                                )}
+                                Indicar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPartnerModal(p)}
+                                className="px-2 py-1 rounded-md border border-slate-300 dark:border-[#24324A] text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#192842]"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDuplicatePartner(p)}
+                                title="Duplicar cadastro"
+                                className="p-1.5 rounded-md border border-slate-300 dark:border-[#24324A] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#192842]"
+                              >
+                                <CopyPlus className="w-3.5 h-3.5" />
+                              </button>
+                              {role === 'admin' && (
+                                <button
+                                  type="button"
+                                  onClick={() => requestDeletePartner(p)}
+                                  aria-label={`Excluir parceiro ${p.nome}`}
+                                  className="p-1.5 rounded-md border border-red-200 dark:border-red-900/70 text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
+            /* MODO CARDS EXECUTIVOS */
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {filteredPanelPartners.map((p) => {
                 const published = isPartnerPublishedPublicly(p);
                 const safeExternal = normalizePartnerExternalUrl(p.siteInstagram);
                 const safeLogo = sanitizePartnerImageUrl(p.logoUrl);
+                const comp = evaluatePartnerCompleteness(p);
 
                 return (
                   <div
                     key={p.id}
-                    className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between gap-4"
+                    className="bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-[#1E293B] rounded-xl p-5 flex flex-col justify-between gap-4"
                   >
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       <div className="flex justify-between items-start gap-3">
                         <div className="flex items-start gap-3 min-w-0">
                           {safeLogo && (
-                            <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                            <div className="w-12 h-12 rounded-lg border border-slate-200 dark:border-[#24324A] bg-white flex items-center justify-center overflow-hidden shrink-0">
                               <OptimizedImage
                                 src={safeLogo}
                                 alt={p.nome}
@@ -1598,48 +2141,96 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="text-xs text-slate-500">
-                              <span className="font-semibold text-[#8C6D14]">{p.categoria}</span>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              <span className="font-semibold text-[#8C6D14] dark:text-[#C9A86A]">{p.categoria}</span>
                               <span aria-hidden="true"> · </span>
                               <span>{p.pais}{p.cidadeRegiao ? ` (${p.cidadeRegiao})` : ''}</span>
-                              <span aria-hidden="true"> · </span>
-                              <strong className={published ? 'text-[#146B43]' : 'text-amber-700'}>
-                                {p.statusHomologacao}
-                              </strong>
                             </p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <h3 className="text-base font-bold text-slate-900 truncate">{p.nome}</h3>
-                              <span className="inline-flex items-center gap-0.5 text-xs font-mono font-semibold text-slate-700 tabular-nums shrink-0">
+                              <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{p.nome}</h3>
+                              <span className="inline-flex items-center gap-0.5 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 tabular-nums shrink-0">
                                 <Star className="w-3.5 h-3.5 fill-[#C8A236] text-[#C8A236]" />
                                 {Number(p.avaliacao || 5).toFixed(1)}
                               </span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
+
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                          <select
+                            aria-label={`Status de homologação de ${p.nome}`}
+                            disabled={statusChangingPartnerId === p.id}
+                            value={p.statusHomologacao}
+                            onChange={(e) =>
+                              void handleQuickStatusChange(
+                                p,
+                                e.target.value as Partner['statusHomologacao'],
+                              )
+                            }
+                            className="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] bg-slate-50 dark:bg-[#0B1220] text-[11px] font-semibold text-slate-800 dark:text-slate-100"
+                          >
+                            <option value="Ativo/Indicado">Ativo/Indicado</option>
+                            <option value="Em Análise">Em Análise</option>
+                            <option value="Não Indicado/Suspenso">Não Indicado/Suspenso</option>
+                          </select>
                           <button
                             type="button"
                             onClick={() => setPartnerModal(p)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#192842] whitespace-nowrap"
                           >
                             Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicatePartner(p)}
+                            title="Duplicar parceiro"
+                            aria-label={`Duplicar parceiro ${p.nome}`}
+                            className="p-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#192842]"
+                          >
+                            <CopyPlus className="w-3.5 h-3.5" />
                           </button>
                           {role === 'admin' && (
                             <button
                               type="button"
                               onClick={() => requestDeletePartner(p)}
                               aria-label={`Excluir parceiro ${p.nome}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-[#C82333] hover:bg-red-50 whitespace-nowrap"
+                              className="inline-flex items-center gap-1 p-1.5 rounded-lg border border-red-200 dark:border-red-900/70 text-xs font-semibold text-[#C82333] dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 whitespace-nowrap"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              Excluir
                             </button>
                           )}
                         </div>
                       </div>
 
+                      {/* Indicador de completude da ficha */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 dark:text-slate-400">
+                            Completude da ficha
+                            {comp.missingLabels.length > 0
+                              ? ` · Faltam: ${comp.missingLabels.slice(0, 2).join(', ')}`
+                              : ' · Pronta para vitrine'}
+                          </span>
+                          <span className="font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-300">
+                            {comp.scorePct}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-[#1E293B] overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              comp.scorePct >= 80
+                                ? 'bg-emerald-600 dark:bg-emerald-500'
+                                : comp.scorePct >= 50
+                                  ? 'bg-amber-500'
+                                  : 'bg-red-500'
+                            }`}
+                            style={{ width: `${comp.scorePct}%` }}
+                          />
+                        </div>
+                      </div>
+
                       {(p.contato || p.whatsapp || p.email) && (
-                        <p className="text-xs text-slate-600">
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
                           {p.contato ? `Contato: ${p.contato}` : ''}
                           {p.whatsapp ? `${p.contato ? ' · ' : ''}${p.whatsapp}` : ''}
                           {p.email ? ` · ${p.email}` : ''}
@@ -1647,35 +2238,44 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                       )}
 
                       {p.descricaoPublica && (
-                        <p className="text-xs text-slate-600 leading-relaxed">{p.descricaoPublica}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{p.descricaoPublica}</p>
                       )}
 
-                      <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-1 text-xs">
-                        <p className="font-semibold text-slate-800">
-                          Comissão interna ({p.moedaNegociacao}) — Confidencial
-                        </p>
-                        <p className="text-slate-700 leading-relaxed">
-                          {p.tabelaValoresComissao || 'Sem regra de comissão cadastrada.'}
+                      <div className="rounded-lg bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-[#1E293B] p-3 space-y-1 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">
+                            Comissão interna ({p.moedaNegociacao}) — Confidencial
+                          </p>
+                          {hideCommissions && (
+                            <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                              Modo apresentação
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                          {hideCommissions
+                            ? '•••••••••• (oculto para compartilhamento de tela)'
+                            : p.tabelaValoresComissao || 'Sem regra de comissão cadastrada.'}
                         </p>
                         {p.condicoesParceria && (
-                          <p className="text-slate-500 pt-1 border-t border-slate-200/80">
+                          <p className="text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/80 dark:border-[#1E293B]">
                             Condições: {p.condicoesParceria}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="pt-3 border-t border-slate-100 dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className={published ? 'font-semibold text-[#146B43]' : 'text-slate-500'}>
-                          Vitrine /parceiros: {published ? 'Publicado' : 'Oculto'}
+                        <span className={published ? 'font-semibold text-[#146B43] dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}>
+                          Vitrine: {published ? 'Publicado' : 'Oculto'}
                         </span>
                         {p.whatsapp && (
                           <a
                             href={buildWhatsAppUrl(p.whatsapp, `Olá ${p.contato || p.nome}, contato da equipe D&M Integra Chile.`)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[#146B43] font-semibold hover:underline"
+                            className="inline-flex items-center gap-1 text-[#146B43] dark:text-emerald-400 font-semibold hover:underline"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                             WhatsApp
@@ -1686,7 +2286,7 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                             href={safeExternal}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-slate-600 font-semibold hover:underline"
+                            className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-semibold hover:underline"
                           >
                             Site/IG
                             <ExternalLink className="w-3 h-3" />
@@ -1694,22 +2294,43 @@ export const PainelParceirosLegal: React.FC<PainelParceirosLegalProps> = ({
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={togglingPartnerId === p.id}
-                        onClick={() => void handleTogglePartnerPublic(p)}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 ${
-                          published
-                            ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                            : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
-                        }`}
-                      >
-                        {togglingPartnerId === p.id
-                          ? 'Atualizando...'
-                          : published
-                            ? 'Ocultar da vitrine'
-                            : 'Publicar em /parceiros'}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyReferralMessage(p)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-[#192842] whitespace-nowrap"
+                          title="Copia mensagem pronta com transparência de escopo (Visto & RUT)"
+                        >
+                          {copiedReferralId === p.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              Copiado!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                              Indicar a Cliente
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={togglingPartnerId === p.id}
+                          onClick={() => void handleTogglePartnerPublic(p)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 ${
+                            published
+                              ? 'border-slate-300 dark:border-[#24324A] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#192842]'
+                              : 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-950/60'
+                          }`}
+                        >
+                          {togglingPartnerId === p.id
+                            ? 'Atualizando...'
+                            : published
+                              ? 'Ocultar da vitrine'
+                              : 'Publicar em /parceiros'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

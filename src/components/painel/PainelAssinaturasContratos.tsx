@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Eye,
   FileSignature,
+  Layers,
   Lock,
   MessageCircle,
   Plus,
@@ -44,8 +45,14 @@ import {
   saveDocumentAudited,
   setClientPortalAccessAudited,
 } from '../../services/firestoreService';
+import {
+  getSignatureDocTypeMeta,
+  matchesDocumentTypeGroup,
+  type DocumentTypeFilterGroup,
+} from '../../utils/multiDocumentPackage';
 import { translateAppError } from '../../services/errorService';
 import { ContractGeneratorModal } from './ContractGeneratorModal';
+import { MultiDocumentPackageModal } from './MultiDocumentPackageModal';
 
 export interface PainelAssinaturasContratosProps {
   role: UserRole;
@@ -78,12 +85,15 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
   onLogWhatsApp,
 }) => {
   const [statusFilter, setStatusFilter] = useState<ContractSignatureFilter>('pendentes');
+  const [typeFilter, setTypeFilter] = useState<DocumentTypeFilterGroup>('todos');
   const [search, setSearch] = useState('');
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [packageModalOpen, setPackageModalOpen] = useState(false);
+  const [packageClientId, setPackageClientId] = useState<string | undefined>(undefined);
   const [editingDoc, setEditingDoc] = useState<GeneratedDocument | null>(null);
 
   const allRows = useMemo(
@@ -93,9 +103,24 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
 
   const metrics = useMemo(() => computeContractSignatureMetrics(allRows), [allRows]);
 
+  const clientMultiDocProgress = useMemo(() => {
+    const map = new Map<string, { total: number; signed: number }>();
+    for (const row of allRows) {
+      if (row.isCanceled) continue;
+      const cur = map.get(row.doc.clientId) || { total: 0, signed: 0 };
+      cur.total += 1;
+      if (row.isSigned) cur.signed += 1;
+      map.set(row.doc.clientId, cur);
+    }
+    return map;
+  }, [allRows]);
+
   const filteredRows = useMemo(
-    () => filterContractSignatureRows(allRows, { statusFilter, search }),
-    [allRows, statusFilter, search],
+    () =>
+      filterContractSignatureRows(allRows, { statusFilter, search }).filter((row) =>
+        matchesDocumentTypeGroup(row.doc.tipo, typeFilter),
+      ),
+    [allRows, statusFilter, search, typeFilter],
   );
 
   const handleOpenDocModal = (doc?: GeneratedDocument) => {
@@ -286,21 +311,34 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[#070E1C] dark:text-white tracking-tight">
-            Status de Assinatura de Contratos
+            Documentos para Assinatura &amp; Aprovação
           </h1>
           <p className="text-xs text-[#475569] dark:text-slate-400 mt-0.5">
-            Acompanhe contratos pendentes, clientes que já formalizaram e a data exata da última interação de assinatura.
+            Envie contratos, recibos, procurações, orçamentos e termos (individuais ou em pacote) e acompanhe cada assinatura em tempo real.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => handleOpenDocModal()}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 hover:opacity-95"
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Gerar Novo Contrato
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleOpenDocModal()}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C30] text-xs font-semibold text-[#070E1C] dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-[#17253B] whitespace-nowrap shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Gerar Individual
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPackageClientId(undefined);
+              setPackageModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white whitespace-nowrap shrink-0 hover:opacity-95"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Enviar Pacote (Vários Docs)
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -399,15 +437,30 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
             })}
           </div>
 
-          <div className="relative w-full md:w-80">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar cliente, contrato ou código..."
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1220] text-xs text-[#070E1C] dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/30"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+            <select
+              aria-label="Filtrar por tipo de documento"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as DocumentTypeFilterGroup)}
+              className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1220] text-xs font-medium text-[#070E1C] dark:text-white"
+            >
+              <option value="todos">Tipo: Todos</option>
+              <option value="contrato">Contratos</option>
+              <option value="recibo">Recibos</option>
+              <option value="termos_procuracao">Termos &amp; Procurações</option>
+              <option value="orcamento_aditivo">Orçamentos &amp; Aditivos</option>
+              <option value="outros">Outros Documentos</option>
+            </select>
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar cliente, título ou código..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1220] text-xs text-[#070E1C] dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/30"
+              />
+            </div>
           </div>
         </div>
 
@@ -447,7 +500,15 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
                       className="hover:bg-[#F7F8FA]/80 dark:hover:bg-[#111C30]/60 transition-colors"
                     >
                       <td className="py-3.5 px-4 align-top">
-                        <p className="font-semibold text-[#070E1C] dark:text-white">{row.clientName}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-[#070E1C] dark:text-white">{row.clientName}</p>
+                          {(clientMultiDocProgress.get(row.doc.clientId)?.total || 0) > 1 && (
+                            <span className="text-[11px] font-mono tabular-nums text-[#0F3D91] dark:text-[#60A5FA] font-semibold">
+                              · {clientMultiDocProgress.get(row.doc.clientId)?.signed}/
+                              {clientMultiDocProgress.get(row.doc.clientId)?.total} assinados
+                            </span>
+                          )}
+                        </div>
                         {row.clientEmail && (
                           <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
                             {row.clientEmail}
@@ -474,7 +535,10 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
                       </td>
 
                       <td className="py-3.5 px-4 align-top">
-                        <p className="font-semibold text-[#070E1C] dark:text-white">
+                        <p className="text-[11px] font-semibold text-[#8C6D14] dark:text-[#C9A86A]">
+                          {getSignatureDocTypeMeta(row.doc.tipo).shortLabel}
+                        </p>
+                        <p className="font-semibold text-[#070E1C] dark:text-white mt-0.5">
                           {row.doc.titulo}{' '}
                           <span className="font-mono text-[11px] text-slate-500">v{row.doc.versao}</span>
                         </p>
@@ -653,7 +717,7 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
         )}
       </div>
 
-      {/* Modal unificado de edição / prévia / certificado de contrato */}
+      {/* Modal unificado de edição / prévia / certificado de documento */}
       <ContractGeneratorModal
         open={modalOpen}
         onClose={() => {
@@ -669,6 +733,26 @@ export const PainelAssinaturasContratos: React.FC<PainelAssinaturasContratosProp
         documentTemplates={documentTemplates}
         generatedDocuments={generatedDocuments}
         initialEditingDoc={editingDoc}
+        onRefresh={onRefresh}
+        onLogWhatsApp={onLogWhatsApp}
+      />
+
+      {/* Modal de envio em pacote (múltiplos documentos para o cliente assinar e aprovar) */}
+      <MultiDocumentPackageModal
+        open={packageModalOpen}
+        onClose={() => {
+          setPackageModalOpen(false);
+          setPackageClientId(undefined);
+        }}
+        role={role}
+        userProfile={userProfile}
+        empresa={empresa}
+        clients={clients}
+        cases={cases}
+        dependents={dependents}
+        documentTemplates={documentTemplates}
+        generatedDocuments={generatedDocuments}
+        initialClientId={packageClientId}
         onRefresh={onRefresh}
         onLogWhatsApp={onLogWhatsApp}
       />

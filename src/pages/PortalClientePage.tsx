@@ -39,6 +39,7 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { CentralAlertasDocumentos } from '../components/portal/CentralAlertasDocumentos';
 import { ClientActionCenterCard } from '../components/portal/ClientActionCenterCard';
 import { ClientDeadlineMonitor } from '../components/portal/ClientDeadlineMonitor';
 import { DocumentChatWidget } from '../components/portal/DocumentChatWidget';
@@ -50,6 +51,7 @@ import { ContractDocumentSheet } from '../components/contracts/ContractDocumentS
 import { SignatureCertificateCard } from '../components/contracts/SignatureCertificateCard';
 import { SkeletonBlock, UiButton } from '../components/ui/DesignSystem';
 import { buildImmigrationDossierHighlights } from '../utils/immigrationDossierModel';
+import { getSignatureDocTypeMeta, summarizeClientSignatureQueue } from '../utils/multiDocumentPackage';
 import { importModuleWithRetry, lazyWithRetry } from '../utils/dynamicImportRecovery';
 import { subscribeClientDocumentChat } from '../services/chatService';
 import type { PortalChatTopicId } from '../utils/documentChat';
@@ -936,13 +938,17 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     canAccessSimulator,
   });
 
+  const signatureQueue = summarizeClientSignatureQueue(genDocs);
+
   const filteredGenDocs = genDocs.filter((gd) => {
     if (officialDocStatusFilter === 'pendentes' && (gd.canceladoEm || gd.status === 'Assinado')) return false;
     if (officialDocStatusFilter === 'assinados' && gd.status !== 'Assinado') return false;
     const q = officialDocSearch.trim().toLowerCase();
     if (!q) return true;
+    const meta = getSignatureDocTypeMeta(gd.tipo);
     return (
       gd.titulo.toLowerCase().includes(q) ||
+      meta.shortLabel.toLowerCase().includes(q) ||
       (gd.codigoVerificacao || '').toLowerCase().includes(q) ||
       (gd.status || '').toLowerCase().includes(q)
     );
@@ -1972,10 +1978,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </div>
                 </div>
 
-                {/* Monitoramento Proativo de Prazos & Alertas Automáticos SMTP (X dias antes) */}
+                {/* Central de Alertas — Consolidação Visual de Prazos (Verde / Amarelo / Vermelho) */}
                 {client && (
-                  <ClientDeadlineMonitor
-                    uid={userProfile?.uid || client.id}
+                  <CentralAlertasDocumentos
                     client={client}
                     dependents={dependents}
                     cases={cases}
@@ -1985,6 +1990,11 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     brandName={empresa.nome_empresa}
                     onGoToDocuments={() => setTab('documentos')}
                     onGoToProfileData={() => setTab('dados')}
+                    onOpenSmtpConfig={() => {
+                      document
+                        .getElementById('portal-smtp-monitor')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
                     onAskConsultant={(ctx) =>
                       setQuickChatIntent({
                         nonce: Date.now(),
@@ -1993,6 +2003,31 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                       })
                     }
                   />
+                )}
+
+                {/* Monitoramento Proativo de Prazos & Alertas Automáticos SMTP (X dias antes) */}
+                {client && (
+                  <div id="portal-smtp-monitor">
+                    <ClientDeadlineMonitor
+                      uid={userProfile?.uid || client.id}
+                      client={client}
+                      dependents={dependents}
+                      cases={cases}
+                      docs={activeDocs}
+                      deadlines={deadlines}
+                      visaRequirements={visaRequirements}
+                      brandName={empresa.nome_empresa}
+                      onGoToDocuments={() => setTab('documentos')}
+                      onGoToProfileData={() => setTab('dados')}
+                      onAskConsultant={(ctx) =>
+                        setQuickChatIntent({
+                          nonce: Date.now(),
+                          topic: ctx.topic,
+                          prefillMessage: ctx.prefillMessage,
+                        })
+                      }
+                    />
+                  </div>
                 )}
 
                 {/* Dossiê de Imigração (PDF) — Visto SERMIG & Processo de RUT */}
@@ -2164,60 +2199,116 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                     )}
                 </div>
 
-                {/* Documentos emitidos liberados */}
+                {/* Documentos emitidos liberados para assinatura e aprovação */}
                 {genDocs.length > 0 && (
-                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
-                    <div>
-                      <p className="brand-kicker">Acervo Contratual · Assinatura &amp; A4</p>
-                      <h2 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">Documentos Oficiais Disponíveis</h2>
+                  <div
+                    data-testid="portal-multi-doc-signature-queue"
+                    className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <p className="brand-kicker">Acervo Oficial · Aprovação &amp; Assinatura Eletrônica</p>
+                        <h2 className="text-base font-bold text-[#070E1C] dark:text-white mt-0.5">
+                          Documentos para Assinar &amp; Aprovar ({signatureQueue.totalActive})
+                        </h2>
+                        <p className="text-xs text-[#475569] dark:text-slate-400 mt-0.5 font-mono tabular-nums">
+                          {signatureQueue.signedCount} de {signatureQueue.totalActive} assinados ({signatureQueue.progressPct}%)
+                          {signatureQueue.pendingCount > 0
+                            ? ` · ${signatureQueue.pendingCount} pendente(s) de aprovação`
+                            : ' · Todos os documentos aprovados'}
+                          {signatureQueue.typeBreakdown.length > 0 && (
+                            <>
+                              {' · '}
+                              <span className="font-sans">
+                                {signatureQueue.typeBreakdown
+                                  .map((t) => `${t.total} ${t.label}`)
+                                  .join(' · ')}
+                              </span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      {signatureQueue.nextPendingDoc && (
+                        <button
+                          type="button"
+                          onClick={() => setSigningGenDoc(signatureQueue.nextPendingDoc)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap shrink-0"
+                        >
+                          <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
+                          {signatureQueue.pendingCount > 1
+                            ? `Assinar fila pendente (${signatureQueue.pendingCount})`
+                            : getSignatureDocTypeMeta(signatureQueue.nextPendingDoc.tipo).actionLabel}
+                        </button>
+                      )}
                     </div>
-                    {genDocs.map((gd) => {
-                      const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
-                      const hashShort = formatSignatureHashShort(gd.assinaturaHashSha256);
-                      return (
-                        <div key={gd.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="space-y-0.5 min-w-0">
-                            <p className="text-sm font-bold text-[#070E1C] dark:text-white break-words">{gd.titulo}</p>
-                            <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
-                              Status: <strong className="font-sans text-[#070E1C] dark:text-white">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
-                              {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
-                            </p>
-                            {gd.confirmadoLeituraEm && (
-                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
-                                Leitura confirmada em {formatDateTimeBR(gd.confirmadoLeituraEm)}
+
+                    {signatureQueue.totalActive > 0 && (
+                      <div className="h-1.5 w-full rounded-full bg-[#E5E7EB] dark:bg-[#1E293B] overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-300"
+                          style={{ width: `${Math.max(signatureQueue.signedCount > 0 ? 6 : 0, signatureQueue.progressPct)}%` }}
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-2.5">
+                      {genDocs.map((gd) => {
+                        const docMeta = getSignatureDocTypeMeta(gd.tipo);
+                        const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
+                        const isSigned = gd.status === 'Assinado' || Boolean(gd.assinadoEm);
+                        const hashShort = formatSignatureHashShort(gd.assinaturaHashSha256);
+                        return (
+                          <div key={gd.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5 min-w-0">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0F3D91] dark:text-[#60A5FA]">
+                                {docMeta.shortLabel}
+                                {' · '}
+                                <span className={isSigned ? 'text-emerald-700 dark:text-emerald-400' : gd.canceladoEm ? 'text-slate-500' : 'text-amber-700 dark:text-amber-400'}>
+                                  {statusLabel}
+                                </span>
                               </p>
-                            )}
-                            {gd.assinadoEm && (
-                              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium tabular-nums">
-                                Assinado em {formatDateTimeBR(gd.assinadoEm)}
-                                {gd.assinaturaMetodo ? ` · ${getSignatureMethodLabel(gd.assinaturaMetodo)}` : ''}
-                                {hashShort ? ` · SHA-256 ${hashShort}` : ''}
+                              <p className="text-sm font-bold text-[#070E1C] dark:text-white break-words">{gd.titulo}</p>
+                              <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
+                                v{gd.versao} · {formatDateBR(gd.createdAt)}
+                                {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
                               </p>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setViewingGenDoc(gd)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B] whitespace-nowrap"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              {gd.status === 'Assinado' ? 'Ver Contrato & Certificado' : 'Visualizar A4'}
-                            </button>
-                            {!gd.canceladoEm && gd.status !== 'Assinado' && (
+                              {gd.confirmadoLeituraEm && (
+                                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                                  Leitura confirmada em {formatDateTimeBR(gd.confirmadoLeituraEm)}
+                                </p>
+                              )}
+                              {gd.assinadoEm && (
+                                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium tabular-nums">
+                                  Assinado em {formatDateTimeBR(gd.assinadoEm)}
+                                  {gd.assinaturaMetodo ? ` · ${getSignatureMethodLabel(gd.assinaturaMetodo)}` : ''}
+                                  {hashShort ? ` · SHA-256 ${hashShort}` : ''}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
                               <button
                                 type="button"
-                                onClick={() => setSigningGenDoc(gd)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap"
+                                onClick={() => setViewingGenDoc(gd)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B] whitespace-nowrap"
                               >
-                                <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
-                                Ler e Assinar Contrato
+                                <Eye className="w-3.5 h-3.5" />
+                                {isSigned ? docMeta.viewSignedLabel : 'Visualizar A4'}
                               </button>
-                            )}
+                              {!gd.canceladoEm && !isSigned && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSigningGenDoc(gd)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap"
+                                >
+                                  <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
+                                  {docMeta.actionLabel}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -2305,18 +2396,38 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-5 sm:p-6 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="brand-kicker">Acervo Liberado pela Consultoria</p>
+                        <p className="brand-kicker">Acervo Liberado pela Consultoria · Aprovação &amp; Assinatura</p>
                         <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1628] dark:text-white mt-0.5">
                           Documentos Oficiais &amp; Pareceres Disponíveis ({genDocs.length + releasedAssessments.length})
                         </h2>
+                        {signatureQueue.totalActive > 0 && (
+                          <p className="text-xs text-[#475569] dark:text-slate-400 mt-0.5 font-mono tabular-nums">
+                            Fila de assinatura: {signatureQueue.signedCount}/{signatureQueue.totalActive} assinados ({signatureQueue.progressPct}%)
+                            {signatureQueue.pendingCount > 0 ? ` · ${signatureQueue.pendingCount} pendente(s)` : ' · Tudo concluído'}
+                          </p>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void loadPortal()}
-                        className="px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-white dark:hover:bg-[#192842]"
-                      >
-                        Atualizar lista
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {signatureQueue.nextPendingDoc && (
+                          <button
+                            type="button"
+                            onClick={() => setSigningGenDoc(signatureQueue.nextPendingDoc)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B1628] dark:bg-[#3B82F6] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap"
+                          >
+                            <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
+                            {signatureQueue.pendingCount > 1
+                              ? `Assinar fila (${signatureQueue.pendingCount})`
+                              : getSignatureDocTypeMeta(signatureQueue.nextPendingDoc.tipo).actionLabel}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void loadPortal()}
+                          className="px-3 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-white dark:hover:bg-[#192842]"
+                        >
+                          Atualizar lista
+                        </button>
+                      </div>
                     </div>
 
                     {genDocs.length > 0 && (
@@ -2327,22 +2438,22 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             type="search"
                             value={officialDocSearch}
                             onChange={(e) => setOfficialDocSearch(e.target.value)}
-                            placeholder="Buscar documento oficial por título ou código..."
+                            placeholder="Buscar documento por título, tipo (Recibo, Contrato, Procuração) ou código..."
                             className="flex-1 px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#0B1220] text-xs sm:text-sm text-[#0B1628] dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F3D91]/30"
                           />
                           <div className="inline-flex rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220] p-0.5 shrink-0">
                             {(
                               [
                                 { id: 'todos', label: 'Todos' },
-                                { id: 'pendentes', label: 'Pendentes' },
-                                { id: 'assinados', label: 'Assinados' },
+                                { id: 'pendentes', label: `Pendentes (${signatureQueue.pendingCount})` },
+                                { id: 'assinados', label: `Assinados (${signatureQueue.signedCount})` },
                               ] as const
                             ).map((f) => (
                               <button
                                 key={f.id}
                                 type="button"
                                 onClick={() => setOfficialDocStatusFilter(f.id)}
-                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
                                   officialDocStatusFilter === f.id
                                     ? 'bg-[#0B1628] dark:bg-[#3B82F6] text-white'
                                     : 'text-[#475569] dark:text-slate-300 hover:text-[#0B1628] dark:hover:text-white'
@@ -2361,7 +2472,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         ) : (
                         <div className="space-y-2.5">
                         {filteredGenDocs.map((gd) => {
+                          const docMeta = getSignatureDocTypeMeta(gd.tipo);
                           const statusLabel = gd.canceladoEm ? 'Cancelado' : gd.status || 'Disponível';
+                          const isSigned = gd.status === 'Assinado' || Boolean(gd.assinadoEm);
                           const hashShort = formatSignatureHashShort(gd.assinaturaHashSha256);
                           return (
                             <div
@@ -2369,9 +2482,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                               className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA]/70 dark:bg-[#0B1220] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                             >
                               <div className="space-y-0.5 min-w-0">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0F3D91] dark:text-[#60A5FA]">
+                                  {docMeta.shortLabel}
+                                  {' · '}
+                                  <span className={isSigned ? 'text-emerald-700 dark:text-emerald-400' : gd.canceladoEm ? 'text-slate-500' : 'text-amber-700 dark:text-amber-400'}>
+                                    {statusLabel}
+                                  </span>
+                                </p>
                                 <p className="text-sm font-bold text-[#0B1628] dark:text-white break-words">{gd.titulo}</p>
                                 <p className="text-xs text-[#475569] dark:text-slate-400 font-mono tabular-nums">
-                                  Status: <strong className="font-sans text-[#0B1628] dark:text-slate-100">{statusLabel}</strong> · v{gd.versao} · {formatDateBR(gd.createdAt)}
+                                  v{gd.versao} · {formatDateBR(gd.createdAt)}
                                   {gd.codigoVerificacao ? ` · Cód. ${gd.codigoVerificacao}` : ''}
                                 </p>
                                 {gd.confirmadoLeituraEm && (
@@ -2394,16 +2514,16 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] whitespace-nowrap"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
-                                  {gd.status === 'Assinado' ? 'Ver Contrato & Certificado' : 'Visualizar A4'}
+                                  {isSigned ? docMeta.viewSignedLabel : 'Visualizar A4'}
                                 </button>
-                                {!gd.canceladoEm && gd.status !== 'Assinado' && (
+                                {!gd.canceladoEm && !isSigned && (
                                   <button
                                     type="button"
                                     onClick={() => setSigningGenDoc(gd)}
                                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white bg-[#0B1628] hover:bg-[#152847] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] whitespace-nowrap"
                                   >
                                     <FileSignature className="w-3.5 h-3.5 text-[#C9A86A] dark:text-white" />
-                                    Ler e Assinar Contrato
+                                    {docMeta.actionLabel}
                                   </button>
                                 )}
                               </div>
@@ -3080,7 +3200,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         </div>
       )}
 
-      {/* Modal Assinatura Eletrônica de Contrato (Leitura + Assinatura + Certificado SHA-256) */}
+      {/* Modal Assinatura Eletrônica de Documentos (Leitura + Assinatura + Certificado SHA-256 + Fila Sequencial) */}
       {signingGenDoc && (
         <Suspense fallback={null}>
           <ContractSignatureModal
@@ -3092,6 +3212,8 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               client?.cpf || (typeof client?.passaporte?.numero === 'string' ? client.passaporte.numero : '')
             }
             busy={signBusy}
+            remainingPendingDocs={signatureQueue.pendingDocs}
+            onOpenNextPendingDoc={(nextDoc) => setSigningGenDoc(nextDoc)}
             onClose={() => setSigningGenDoc(null)}
             onSubmitDigitalSignature={handleSignGenDocCanvas}
             onSubmitSignedFile={handleUploadSignedGenDocPdf}

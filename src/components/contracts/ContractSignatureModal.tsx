@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   Download,
   ExternalLink,
@@ -30,6 +31,7 @@ import {
   type TypedSignatureStyleId,
 } from '../../utils/contractSignature';
 import type { ClientSignaturePatchMeta } from '../../utils/clientPortalPatches';
+import { getSignatureDocTypeMeta } from '../../utils/multiDocumentPackage';
 
 export interface ContractSignatureSubmitResult {
   assinaturaDataUrl?: string;
@@ -59,6 +61,8 @@ interface ContractSignatureModalProps {
     nowIso: string,
   ) => Promise<string | void>;
   onDownloadPdf?: (docWithSignature: GeneratedDocument) => Promise<void>;
+  remainingPendingDocs?: GeneratedDocument[];
+  onOpenNextPendingDoc?: (nextDoc: GeneratedDocument) => void;
 }
 
 type SignMode = 'desenhar' | 'digitar' | 'pdf';
@@ -84,7 +88,19 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
   onSubmitDigitalSignature,
   onSubmitSignedFile,
   onDownloadPdf,
+  remainingPendingDocs = [],
+  onOpenNextPendingDoc,
 }) => {
+  const docTypeMeta = useMemo(() => getSignatureDocTypeMeta(doc.tipo), [doc.tipo]);
+  const nextPendingDoc = useMemo(
+    () => remainingPendingDocs.find((d) => d.id !== doc.id && !d.canceladoEm && d.status !== 'Assinado') || null,
+    [remainingPendingDocs, doc.id],
+  );
+  const remainingAfterCurrentCount = useMemo(
+    () => remainingPendingDocs.filter((d) => d.id !== doc.id && !d.canceladoEm && d.status !== 'Assinado').length,
+    [remainingPendingDocs, doc.id],
+  );
+
   const [signMode, setSignMode] = useState<SignMode>('desenhar');
   const [mobilePane, setMobilePane] = useState<MobilePane>('contrato');
   const [signerName, setSignerName] = useState(defaultSignerName);
@@ -107,6 +123,23 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const contractScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Ao avançar para o próximo documento pendente da fila, reseta o estado de leitura/assinatura
+  useEffect(() => {
+    setCompletedDoc(null);
+    setPendingConfirm(null);
+    setConfirmError(null);
+    setValidationError(null);
+    setAceiteTermo(false);
+    setDrawnDataUrl(null);
+    setSelectedFile(null);
+    setReadProgress(0);
+    setReachedBottom(false);
+    setMobilePane('contrato');
+    if (contractScrollRef.current) {
+      contractScrollRef.current.scrollTop = 0;
+    }
+  }, [doc.id]);
 
   useEffect(() => {
     let active = true;
@@ -331,7 +364,10 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
         <div className="px-4 sm:px-6 py-3.5 bg-[#0B1F33] text-white flex items-center justify-between gap-3 shrink-0">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold tracking-wide text-[#E5C76B]">
-              Formalização Eletrônica de Contrato
+              Aprovação &amp; Assinatura Eletrônica · {docTypeMeta.shortLabel}
+              {remainingAfterCurrentCount > 0
+                ? ` · +${remainingAfterCurrentCount} pendente(s) na fila`
+                : ''}
             </p>
             <h3
               id="contract-signature-modal-title"
@@ -378,10 +414,10 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                 </div>
                 <div className="space-y-1">
                   <h4 className="text-lg font-bold text-[#070E1C] dark:text-white">
-                    Contrato assinado e formalizado com sucesso
+                    {docTypeMeta.shortLabel} aprovado e assinado com sucesso
                   </h4>
                   <p className="text-sm text-[#475569] dark:text-slate-300 leading-relaxed">
-                    Sua assinatura eletrônica foi registrada com selo criptográfico SHA-256 em{' '}
+                    Sua aprovação e assinatura eletrônica foram registradas com selo criptográfico SHA-256 em{' '}
                     <strong className="font-mono tabular-nums text-[#070E1C] dark:text-white">
                       {formatDateTimeBR(completedDoc.assinadoEm)}
                     </strong>
@@ -399,17 +435,42 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                 }}
               />
 
+              {nextPendingDoc && onOpenNextPendingDoc && (
+                <div className="p-4 rounded-xl bg-[#0F3D91]/8 dark:bg-[#0F3D91]/20 border border-[#0F3D91]/30 dark:border-[#60A5FA]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F3D91] dark:text-[#60A5FA]">
+                      Próximo na sua fila ({remainingAfterCurrentCount} restante{remainingAfterCurrentCount > 1 ? 's' : ''})
+                    </p>
+                    <p className="text-sm font-bold text-[#070E1C] dark:text-white truncate mt-0.5">
+                      {nextPendingDoc.titulo}
+                    </p>
+                    <p className="text-xs text-[#475569] dark:text-slate-300">
+                      {getSignatureDocTypeMeta(nextPendingDoc.tipo).shortLabel} aguardando sua revisão e assinatura.
+                    </p>
+                  </div>
+                  <UiButton
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => onOpenNextPendingDoc(nextPendingDoc)}
+                  >
+                    Assinar Próximo
+                    <ArrowRight className="w-4 h-4" />
+                  </UiButton>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-[#E5E7EB] dark:border-[#1E293B]">
                 {onDownloadPdf && (
                   <UiButton
                     type="button"
-                    variant="primary"
+                    variant={nextPendingDoc && onOpenNextPendingDoc ? 'outline' : 'primary'}
                     size="md"
                     disabled={downloadingPdf}
                     onClick={() => void handleDownloadSignedPdf(completedDoc)}
                   >
                     <Download className="w-4 h-4" />
-                    {downloadingPdf ? 'Gerando PDF A4...' : 'Baixar Contrato Assinado (PDF A4)'}
+                    {downloadingPdf ? 'Gerando PDF A4...' : `Baixar ${docTypeMeta.shortLabel} Assinado (PDF A4)`}
                   </UiButton>
                 )}
                 <UiButton type="button" variant="outline" size="md" onClick={onClose}>
@@ -433,7 +494,7 @@ export const ContractSignatureModal: React.FC<ContractSignatureModalProps> = ({
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  1. Ler Contrato ({readProgress}%)
+                  1. Ler {docTypeMeta.shortLabel} ({readProgress}%)
                 </button>
                 <button
                   type="button"

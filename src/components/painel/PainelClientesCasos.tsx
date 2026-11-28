@@ -4169,7 +4169,16 @@ export const PainelClientesCasos: React.FC<PainelClientesCasosProps> = ({
                       );
                       await onRefresh();
                     } catch (err) {
-                      setErrorMsg(err instanceof Error ? err.message : 'Falha ao responder no Chat do Portal.');
+                      const translated = translateAppError(err, {
+                        source: 'painel-chat',
+                        path: 'communicationLogs',
+                        operation: 'create',
+                      });
+                      setErrorMsg(
+                        translated.actionHint
+                          ? `${translated.message} ${translated.actionHint}`
+                          : translated.message,
+                      );
                     } finally {
                       setChatReplySending(false);
                     }

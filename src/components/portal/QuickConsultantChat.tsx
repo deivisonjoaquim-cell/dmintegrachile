@@ -4,6 +4,7 @@ import {
   Clock,
   FileText,
   MessageCircle,
+  RefreshCw,
   Search,
   Send,
   ShieldCheck,
@@ -12,9 +13,11 @@ import {
 import type { CaseDocument, CommunicationLog } from '../../types/domain';
 import {
   markClientChatRepliesRead,
+  resyncPortalChatSession,
   sendClientDocumentQuestion,
   subscribeClientDocumentChat,
 } from '../../services/chatService';
+import { translateAppError } from '../../services/errorService';
 import {
   buildPortalChatSubject,
   countUnreadChatForClient,
@@ -72,7 +75,9 @@ export const QuickConsultantChat: React.FC<QuickConsultantChatProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [originFilter, setOriginFilter] = useState<'all' | 'cliente' | 'equipe'>('all');
   const [sending, setSending] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
   const [justSentMsg, setJustSentMsg] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -141,6 +146,7 @@ export const QuickConsultantChat: React.FC<QuickConsultantChatProps> = ({
 
     setSending(true);
     setErrorMsg(null);
+    setErrorHint(null);
     try {
       const assunto = buildPortalChatSubject(topic, selectedDoc?.nomeDocumento);
       await sendClientDocumentQuestion({
@@ -157,11 +163,30 @@ export const QuickConsultantChat: React.FC<QuickConsultantChatProps> = ({
       setJustSentMsg(true);
       window.setTimeout(() => setJustSentMsg(false), 2400);
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : 'Não foi possível enviar sua mensagem agora.',
-      );
+      const translated = translateAppError(err, {
+        source: 'portal-chat',
+        path: 'communicationLogs',
+        operation: 'create',
+      });
+      setErrorMsg(translated.message);
+      setErrorHint(translated.actionHint || null);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleResyncAndRetry = async () => {
+    if (resyncing || sending) return;
+    setResyncing(true);
+    setErrorMsg(null);
+    setErrorHint(null);
+    try {
+      await resyncPortalChatSession();
+      if (draft.trim()) {
+        await handleSend();
+      }
+    } finally {
+      setResyncing(false);
     }
   };
 
@@ -368,8 +393,20 @@ export const QuickConsultantChat: React.FC<QuickConsultantChatProps> = ({
       </div>
 
       {errorMsg && (
-        <div className="px-4 py-2 bg-red-50 dark:bg-red-950/50 border-t border-red-200 dark:border-red-800 text-[11px] text-red-700 dark:text-red-300">
-          {errorMsg}
+        <div className="px-4 py-2.5 bg-red-50 dark:bg-red-950/50 border-t border-red-200 dark:border-red-800 text-[11px] text-red-800 dark:text-red-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <p className="font-semibold">{errorMsg}</p>
+            {errorHint && <p className="text-red-700/90 dark:text-red-300/90">{errorHint}</p>}
+          </div>
+          <button
+            type="button"
+            disabled={resyncing || sending}
+            onClick={() => void handleResyncAndRetry()}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-red-950/60 text-[11px] font-semibold text-red-800 dark:text-red-200 hover:bg-red-100/60 disabled:opacity-50 shrink-0"
+          >
+            <RefreshCw className={`w-3 h-3 ${resyncing ? 'animate-spin' : ''}`} />
+            {resyncing ? 'Sincronizando...' : 'Tentar novamente'}
+          </button>
         </div>
       )}
 
