@@ -74,7 +74,7 @@ export const SermigSimulatorShowcase: React.FC<SermigSimulatorShowcaseProps> = (
             <h2 className="font-display text-3xl sm:text-4xl lg:text-[42px] font-bold tracking-tight text-white leading-[1.1] text-balance">
               {isEsCL
                 ? 'Simula todo tu trámite en el Portal SERMIG antes de presentar el envío oficial.'
-                : 'Treine todo o seu pedido no Portal SERMIG antes de dar entrada oficial.'}
+                : 'Treine todo o seu pedido no Simulador de Portal SERMIG antes de dar entrada oficial.'}
             </h2>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-xl">
               {isEsCL

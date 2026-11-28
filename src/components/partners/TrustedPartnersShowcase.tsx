@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import {
   ArrowRight,
-  Award,
   BadgeCheck,
   Building2,
-  Check,
   FileCheck2,
   GraduationCap,
   Handshake,
@@ -14,7 +12,6 @@ import {
   MapPin,
   MessageCircle,
   Scale,
-  ShieldCheck,
   Star,
 } from 'lucide-react';
 import type { PartnerPublic } from '../../types/domain';
@@ -30,11 +27,10 @@ import {
 import { prefetchRouteChunk } from '../../utils/routePrefetch';
 import {
   buildPartnerValidationSeals,
-  CURATED_TRUSTED_PARTNER_PROFILES,
-  REFERRAL_BRIDGE_PILLARS,
   resolvePartnerPortrait,
 } from '../../utils/trustedPartnersShowcase';
 import { OptimizedImage } from '../OptimizedImage';
+import { CuratedPartnerNetwork } from './CuratedPartnerNetwork';
 
 interface TrustedPartnersShowcaseProps {
   variant: 'home' | 'directory';
@@ -161,210 +157,21 @@ export const TrustedPartnersShowcase: React.FC<TrustedPartnersShowcaseProps> = (
         )}
       </div>
 
-      {/* 2. Transparent Bridge of Referral Architecture (Detailed Explanation) */}
-      <div
-        data-testid="referral-bridge-statement"
-        className="grid grid-cols-1 lg:grid-cols-12 rounded-2xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B]"
-      >
-        {/* Left Executive Column: Exclusive Immigration Scope + Non-Guaranteed Housing Clarification */}
-        <div className="lg:col-span-5 bg-[#070E1C] text-white p-7 sm:p-9 flex flex-col justify-between gap-7">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-mono font-semibold text-[#E5C77B]">
-              <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>
-                {isEs
-                  ? 'ALCANCE EXCLUSIVO DE INMIGRACIÓN · D&M'
-                  : 'ESCOPO EXCLUSIVO DE IMIGRAÇÃO · D&M'}
-              </span>
-            </div>
-            <h3 className="font-display text-xl sm:text-2xl font-bold text-white leading-snug text-balance">
-              {isEs
-                ? 'Conducimos únicamente tus trámites migratorios: Visa y RUT.'
-                : 'Atuamos exclusivamente na assessoria de imigração: Visto e RUT.'}
-            </h3>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              {isEs
-                ? 'Nuestro contrato de consultoría abarca diagnóstico migratorio, auditoría documental en Brasil, protocolo ante el SERMIG, Estampado Electrónico y emisión de la Cédula de Identidad (RUT).'
-                : 'Nosso serviço contratado abrange diagnóstico migratório, auditoria documental no Brasil, protocolo no SERMIG, Estampado Electrónico e emissão da Cédula de Identidade (RUT).'}
-            </p>
-          </div>
-
-          <div className="pt-5 border-t border-white/15 space-y-2.5">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#E5C77B]">
-              <Award className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>
-                {isEs
-                  ? 'Transparencia sobre vivienda y arriendo'
-                  : 'Transparência total sobre moradia'}
-              </span>
-            </div>
-            <p className="text-xs sm:text-[13px] text-slate-200 leading-relaxed">
-              {isEs
-                ? 'La vivienda no es un servicio garantizado por D&M Integra Chile. Actuamos únicamente como puente de indicación curada hacia corredores inmobiliarios y profesionales independientes de confianza.'
-                : 'A moradia não é um serviço garantido pela D&M Integra Chile. Atuamos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes de confiança.'}
-            </p>
-          </div>
-        </div>
-
-        {/* Right Column: 4-Step Bridge of Indication Guarantee */}
-        <div className="lg:col-span-7 bg-white dark:bg-[#0D1422] p-7 sm:p-9 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#E5E7EB] dark:border-[#1E293B]">
-            <div>
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
-                {isEs ? 'Cómo Funciona Nuestro Puente de Indicación' : 'Como Atuamos Apenas Como Ponte de Indicação'}
-              </p>
-              <h3 className="font-display text-lg font-bold text-[#0B1628] dark:text-white mt-0.5">
-                {isEs
-                  ? 'Transparencia jurídica y seguridad en cada derivación'
-                  : 'Transparência jurídica e segurança em cada indicação'}
-              </h3>
-            </div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D14] dark:text-[#E5C77B]">
-              <BadgeCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>{isEs ? 'Curaduría Verificada' : 'Curadoria Validada'}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {REFERRAL_BRIDGE_PILLARS.map((pillar) => (
-              <div key={pillar.num} className="space-y-1.5">
-                <p className="font-mono text-xs font-semibold text-[#B08D57] dark:text-[#E5C77B]">
-                  {pillar.num}.
-                </p>
-                <p className="font-display text-sm font-bold text-[#0B1628] dark:text-white leading-snug">
-                  {isEs ? pillar.titleEs : pillar.titlePt}
-                </p>
-                <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                  {isEs ? pillar.descEs : pillar.descPt}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Editorial Portraits Showcase with Validation Seals (4 Curated Specialties) */}
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold tracking-[0.06em] uppercase text-[#0F3D91] dark:text-[#C9A86A]">
-              {isEs ? 'Especialistas Indicados · Sello de Validación D&M' : 'Profissionais Indicados · Selo de Validação D&M'}
-            </p>
-            <h3 className="font-display text-xl sm:text-2xl font-bold text-[#0B1628] dark:text-white">
-              {isEs
-                ? 'Frentes cubiertas por nuestra red curada de confianza'
-                : 'Frentes atendidas pela nossa rede de parceiros de confiança'}
-            </h3>
-          </div>
-          <p className="text-xs text-[#6B7280] dark:text-slate-400 max-w-md sm:text-right">
-            {isEs
-              ? 'Derivación gratuita para clientes y futuros residentes, con contacto y contratación directa.'
-              : 'Indicação transparente com selo de curadoria prévia e contratação direta com o profissional.'}
-          </p>
-        </div>
-
-        <div
-          data-testid="trusted-partners-portraits-grid"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-        >
-          {CURATED_TRUSTED_PARTNER_PROFILES.map((profile) => {
-            const waText = isEs
-              ? `¡Hola! Vi la sección de Aliados de Confianza en D&M Integra Chile y me gustaría solicitar ${profile.whatsappTopicEs}. Entiendo que la contratación es directa e independiente.`
-              : `Olá! Vi a seção Parceiros de Confiança na D&M Integra Chile e gostaria de solicitar ${profile.whatsappTopicPt}. Ciente de que a contratação é direta e independente.`;
-
-            return (
-              <article
-                key={profile.id}
-                className="group bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] hover:border-[#B08D57]/70 dark:hover:border-[#C9A86A]/65 rounded-2xl overflow-hidden flex flex-col justify-between transition-all hover:shadow-[0_16px_36px_rgba(7,14,28,0.08)] dark:hover:shadow-[0_16px_36px_rgba(0,0,0,0.45)]"
-              >
-                <div>
-                  {/* Editorial Portrait with Subtle Scrim & Crisp Validation Seal */}
-                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#070E1C]">
-                    <OptimizedImage
-                      src={profile.portraitUrl}
-                      alt={isEs ? profile.portraitAltEs : profile.portraitAltPt}
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      className="w-full h-full object-cover object-top transition-transform duration-500 ease-out group-hover:scale-[1.03]"
-                    />
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-0 bg-gradient-to-t from-[#070E1C]/95 via-[#070E1C]/30 to-transparent"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 p-4 space-y-1.5">
-                      <div className="inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold text-[#E5C77B] border-b border-[#E5C77B]/45 pb-1">
-                        <BadgeCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                        <span>{isEs ? profile.sealCodeEs : profile.sealCodePt}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-200 leading-snug">
-                        {isEs ? profile.regionEs : profile.regionPt}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="p-5 space-y-3.5">
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#0F3D91] dark:text-[#60A5FA]">
-                        {isEs ? profile.kickerEs : profile.kickerPt}
-                      </p>
-                      <h4 className="font-display text-base font-bold text-[#0B1628] dark:text-white leading-snug">
-                        {isEs ? profile.titleEs : profile.titlePt}
-                      </h4>
-                    </div>
-
-                    <p className="text-xs sm:text-[13px] text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                      {isEs ? profile.summaryEs : profile.summaryPt}
-                    </p>
-
-                    <ul className="space-y-1.5 pt-2 border-t border-[#E5E7EB] dark:border-[#1E293B]">
-                      {(isEs ? profile.validationChecksEs : profile.validationChecksPt).map((check) => (
-                        <li
-                          key={check}
-                          className="flex items-start gap-2 text-[11px] text-[#374151] dark:text-slate-300 leading-snug"
-                        >
-                          <Check className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#E5C77B] shrink-0 mt-0.5" aria-hidden="true" />
-                          <span>{check}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <p className="text-[11px] text-[#6B7280] dark:text-slate-400 leading-relaxed pt-1">
-                      {isEs ? profile.bridgeNoteEs : profile.bridgeNotePt}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Action Footer */}
-                <div className="px-5 py-4 border-t border-[#E5E7EB] dark:border-[#1E293B] bg-[#FAFBFD] dark:bg-[#0A111E] flex items-center justify-between gap-2 text-xs">
-                  <a
-                    href={buildWhatsAppUrl(whatsapp, waText)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 font-semibold text-[#047857] dark:text-emerald-400 hover:underline whitespace-nowrap"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                    {isEs ? 'Solicitar indicación' : 'Solicitar indicação'}
-                  </a>
-                  {variant === 'home' && onNavigate ? (
-                    <button
-                      type="button"
-                      onMouseEnter={() => prefetchRouteChunk('/parceiros')}
-                      onClick={() => onNavigate('/parceiros')}
-                      className="font-semibold text-[#0F3D91] dark:text-[#60A5FA] hover:underline whitespace-nowrap"
-                    >
-                      {isEs ? 'Ver red →' : 'Ver rede →'}
-                    </button>
-                  ) : (
-                    <span className="font-mono text-[11px] text-[#8C6D14] dark:text-[#E5C77B] whitespace-nowrap">
-                      {isEs ? 'Validado' : 'Validado'}
-                    </span>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </div>
+      {/* 2. Curated Partner Network: Clear Separation Between Direct Immigration Consultancy & Outsourced Services (Imobiliário, Jurídico, Câmbio) */}
+      <CuratedPartnerNetwork
+        locale={locale}
+        whatsapp={whatsapp}
+        onNavigate={onNavigate}
+        onExploreVertical={
+          variant === 'home' && partnersPublic.length > 0
+            ? (macro) => {
+                if (PARTNER_MACRO_GROUPS.some((g) => g.id === macro)) {
+                  setMacroGroup(macro as PartnerMacroGroupId);
+                }
+              }
+            : undefined
+        }
+      />
 
       {/* 4. Live Firestore Partners Grid (rendered automatically on Home whenever active partners exist) */}
       {variant === 'home' && partnersPublic.length > 0 && (

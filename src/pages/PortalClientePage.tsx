@@ -50,9 +50,11 @@ import { PortalBibliotecaLegal } from '../components/portal/PortalBibliotecaLega
 import { SecureDocumentUploadSection } from '../components/portal/SecureDocumentUploadSection';
 import { ProfileIdentityDocumentsCard } from '../components/ProfileIdentityDocumentsCard';
 import { SermigSimulator } from '../components/SermigSimulator';
+import { CuratedPartnerNetwork } from '../components/partners/CuratedPartnerNetwork';
 import { ContractSignatureModal } from '../components/contracts/ContractSignatureModal';
 import { SignatureCertificateCard } from '../components/contracts/SignatureCertificateCard';
 import { QrCodeSvg, UiButton } from '../components/ui/DesignSystem';
+import { buildImmigrationDossierHighlights } from '../utils/immigrationDossierModel';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PIPELINE_STAGES } from '../data/seeds';
@@ -506,6 +508,73 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
           ? portalAccess.basicDiagnostic
           : null;
     const isPending = portalStage === 'pendente';
+    const freePrimaryLead = clientLeads[0] || null;
+
+    const buildFreeDossierInput = () => {
+      if (freePrimaryLead?.respostasTriagem) {
+        const fullResult = runDiagnosticEngine(
+          freePrimaryLead.respostasTriagem,
+          visaCategories,
+          visaRequirements,
+          legalSources,
+          empresa,
+        );
+        return {
+          empresa,
+          result: fullResult,
+          answers: freePrimaryLead.respostasTriagem,
+          summary: buildBasicDiagnosticSummary(fullResult, freePrimaryLead.respostasTriagem),
+          protocolo: freePrimaryLead.id,
+        };
+      }
+      return {
+        empresa,
+        summary: basicSummary || undefined,
+        protocolo: freePrimaryLead?.id || portalClient?.id || 'DIAGNOSTICO',
+      };
+    };
+
+    const freeDossierHighlights = basicSummary
+      ? buildImmigrationDossierHighlights({ summary: basicSummary, locale: 'pt-BR' })
+      : null;
+
+    const handleExportFreeDossierPdf = async () => {
+      if (pdfBusy) return;
+      setPdfBusy('diagnostico');
+      setFeedbackMsg(null);
+      try {
+        const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
+        const filename = await exportClientDiagnosticPdf(buildFreeDossierInput());
+        setFeedbackMsg(`Dossiê de Imigração exportado em PDF (${filename}).`);
+      } catch (err) {
+        setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível gerar o Dossiê de Imigração em PDF.');
+      } finally {
+        setPdfBusy(null);
+      }
+    };
+
+    const handlePreviewFreeDossierPdf = async () => {
+      if (pdfBusy) return;
+      setPdfBusy('preview');
+      setFeedbackMsg(null);
+      try {
+        const { buildClientDiagnosticPdfBlob } = await import('../utils/clientDiagnosticPdf');
+        const { blob, filename } = await buildClientDiagnosticPdfBlob(buildFreeDossierInput());
+        const blobUrl = URL.createObjectURL(blob);
+        setPdfPreview((prev) => {
+          if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+          return {
+            title: 'Pré-visualização: Dossiê de Imigração — Visto & RUT (PDF)',
+            filename,
+            blobUrl,
+          };
+        });
+      } catch (err) {
+        setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível abrir a pré-visualização do Dossiê em PDF.');
+      } finally {
+        setPdfBusy(null);
+      }
+    };
 
     return (
       <div className="min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-[#070B12]">
@@ -583,7 +652,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                 <p className="text-xs text-[#475569] dark:text-slate-300 leading-relaxed">
                   {isPending
                     ? `Identificamos seu cadastro (${portalClient?.nomeCompleto || userProfile.nome}). Assim que o consultor ativar seu acesso no painel, esta tela muda automaticamente para o Portal Contratado.`
-                    : 'Você pode consultar seu diagnóstico básico e já adiantar a digitalização segura dos seus documentos de identidade abaixo.'}
+                    : 'Você pode gerar seu Dossiê de Imigração em PDF (Visto & RUT) com os dados do diagnóstico e adiantar a digitalização segura dos seus documentos de identidade abaixo.'}
                 </p>
               </div>
             </div>
@@ -603,6 +672,15 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             </div>
           </div>
 
+          {feedbackMsg && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-950 dark:text-emerald-200 flex items-center justify-between gap-2">
+              <span>{feedbackMsg}</span>
+              <button type="button" onClick={() => setFeedbackMsg(null)} className="font-semibold underline shrink-0">
+                Fechar
+              </button>
+            </div>
+          )}
+
           {syncCheckMsg && (
             <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-950 dark:text-amber-200">
               {syncCheckMsg}
@@ -614,7 +692,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
               <div className="bg-[#070E1C] text-white p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#C9A86A]">
-                    Resumo do Diagnóstico Preliminar
+                    Dossiê de Imigração · Visto (SERMIG) &amp; Processo de RUT
                   </p>
                   <h2 className="font-display text-xl font-bold text-white mt-1">{basicSummary.subcategoriaNome}</h2>
                 </div>
@@ -626,22 +704,55 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </p>
                 </div>
               </div>
-              <div className="p-5 sm:p-6 space-y-4">
+              <div className="p-5 sm:p-6 space-y-5">
                 <p className="text-sm text-[#0B1628] dark:text-slate-200 leading-relaxed">{basicSummary.resumoBasico}</p>
+
+                {freeDossierHighlights && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4 border-t border-[#E5E7EB] dark:border-[#1E293B]">
+                      {freeDossierHighlights.visaRutMilestones.map((m) => (
+                        <div key={m.step} className="space-y-1">
+                          <p className="font-mono text-[11px] font-semibold text-[#8C6D14] dark:text-[#C9A86A] tabular-nums">
+                            {m.step}. {m.windowLabel}
+                          </p>
+                          <p className="text-xs font-bold text-[#0B1628] dark:text-white">{m.title}</p>
+                          <p className="text-[11px] text-[#475569] dark:text-slate-400 leading-relaxed">{m.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800/60 text-[11px] text-amber-950 dark:text-amber-100 leading-relaxed">
+                      <strong className="font-semibold">Escopo exclusivo de imigração (Visto e RUT):</strong>{' '}
+                      {freeDossierHighlights.housingDisclaimer.body}
+                    </div>
+                  </>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
-                    onClick={() => onNavigate('/diagnostico')}
-                    className="px-4 py-2 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-white dark:hover:bg-[#192842]"
+                    disabled={pdfBusy !== null}
+                    onClick={() => void handleExportFreeDossierPdf()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#070E1C] dark:bg-[#C9A86A] text-white dark:text-[#070E1C] text-xs font-bold hover:opacity-95 whitespace-nowrap disabled:opacity-50"
                   >
-                    Atualizar / Refazer Diagnóstico
+                    <Download className="w-3.5 h-3.5" />
+                    {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Gerar Dossiê de Imigração (PDF)'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => onNavigate('/acompanhar')}
-                    className="px-4 py-2 rounded-lg bg-[#0B1628] dark:bg-[#3B82F6] text-xs font-semibold text-white hover:opacity-95"
+                    disabled={pdfBusy !== null}
+                    onClick={() => void handlePreviewFreeDossierPdf()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-white dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-[#F7F8FA] dark:hover:bg-[#192842] whitespace-nowrap disabled:opacity-50"
                   >
-                    Ver planos de consultoria
+                    <Eye className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                    {pdfBusy === 'preview' ? 'Preparando...' : 'Pré-visualizar PDF'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/diagnostico')}
+                    className="px-4 py-2.5 rounded-lg border border-[#D1D5DB] dark:border-[#24324A] bg-[#F7F8FA] dark:bg-[#111C30] text-xs font-semibold text-[#0B1628] dark:text-slate-100 hover:bg-white dark:hover:bg-[#192842] whitespace-nowrap"
+                  >
+                    Atualizar Diagnóstico
                   </button>
                 </div>
               </div>
@@ -667,7 +778,39 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
             title="Seus Documentos Escaneados via Câmera"
             subtitle="Os documentos salvos no seu perfil ficam imediatamente disponíveis no seu dossiê assim que o portal completo for liberado."
           />
+
+          {/* Rede de Parceiros Curada com Separação Clara de Escopo */}
+          <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-5 sm:p-6">
+            <CuratedPartnerNetwork
+              locale="pt-BR"
+              whatsapp={empresa.whatsapp}
+              compact
+              onNavigate={onNavigate}
+            />
+          </div>
         </main>
+
+        <PdfPreviewModal
+          open={Boolean(pdfPreview)}
+          title={pdfPreview?.title || 'Pré-visualização: Dossiê de Imigração (PDF)'}
+          filename={pdfPreview?.filename || 'Dossie-Imigracao-DM-Integra.pdf'}
+          blobUrl={pdfPreview?.blobUrl || null}
+          onClose={() => {
+            setPdfPreview((prev) => {
+              if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+              return null;
+            });
+          }}
+          onDownload={() => {
+            if (!pdfPreview) return;
+            const a = document.createElement('a');
+            a.href = pdfPreview.blobUrl;
+            a.download = pdfPreview.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }}
+        />
       </div>
     );
   }
@@ -901,9 +1044,9 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
     try {
       const { exportClientDiagnosticPdf } = await import('../utils/clientDiagnosticPdf');
       const filename = await exportClientDiagnosticPdf(buildPortalClientDiagnosticPdfInput());
-      setFeedbackMsg(`Dossiê do diagnóstico exportado em PDF (${filename}).`);
+      setFeedbackMsg(`Dossiê de Imigração exportado em PDF (${filename}).`);
     } catch (err) {
-      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do diagnóstico.');
+      setFeedbackMsg(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do Dossiê de Imigração.');
     } finally {
       setPdfBusy(null);
     }
@@ -968,7 +1111,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
         return {
           title:
             kind === 'diagnostico'
-              ? 'Pré-visualização: Dossiê de Diagnóstico (2 Páginas)'
+              ? 'Pré-visualização: Dossiê de Imigração — Visto & RUT (PDF)'
               : 'Pré-visualização: Relatório de Progresso',
           filename,
           blobUrl,
@@ -1427,7 +1570,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#C9A86A] hover:bg-[#d6b67a] text-xs font-bold text-[#070E1C] whitespace-nowrap shrink-0 transition-colors disabled:opacity-50"
                           >
                             <FileText className="w-3.5 h-3.5" />
-                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Dossiê Diagnóstico (PDF)'}
+                            {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Dossiê de Imigração (PDF)'}
                           </button>
                           <button
                             type="button"
@@ -1693,67 +1836,100 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   </div>
                 </div>
 
-                {/* Diagnóstico Inicial & Parecer Técnico Liberado */}
-                {(primaryLead || releasedAssessments.length > 0) && (
-                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Dossiê de Imigração (PDF) — Visto SERMIG & Processo de RUT */}
+                <div
+                  data-testid="portal-immigration-dossier-card"
+                  className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="brand-kicker">Dossiê de Imigração · Visto (SERMIG) &amp; Processo de RUT</p>
+                      <h2 className="text-lg font-bold text-[#070E1C] dark:text-white font-brand-sans mt-0.5">
+                        Dossiê de Imigração em PDF &amp; Parecer Técnico
+                      </h2>
+                      <p className="text-xs text-[#475569] dark:text-slate-400">
+                        Documento executivo gerado a partir do seu diagnóstico destacando vistos, prazos SERMIG, processo do RUT e escopo legal
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 no-print">
+                      <button
+                        type="button"
+                        disabled={pdfBusy !== null}
+                        onClick={() => void handlePreviewPdf('diagnostico')}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B] whitespace-nowrap shrink-0 disabled:opacity-50"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
+                        Pré-visualizar Dossiê
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pdfBusy !== null}
+                        onClick={() => void handleExportDiagnosticoPdf()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap shrink-0 disabled:opacity-50"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#C9A86A]" />
+                        {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Dossiê de Imigração (PDF)'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {primaryLead && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] text-xs">
                       <div>
-                        <p className="brand-kicker">Dossiê Técnico · Exportável em PDF</p>
-                        <h2 className="text-lg font-bold text-[#070E1C] dark:text-white font-brand-sans mt-0.5">
-                          Diagnóstico de Viabilidade &amp; Parecer Técnico
-                        </h2>
-                        <p className="text-xs text-[#475569] dark:text-slate-400">
-                          Histórico do seu diagnóstico completo e orientações técnicas liberadas pela consultoria
+                        <p className="text-[#475569] dark:text-slate-400">Visto / Subcategoria sugerida</p>
+                        <p className="font-bold text-[#070E1C] dark:text-white mt-0.5">
+                          {primaryLead.subcategoriaSugerida || primaryLead.interesse || activeCase?.titulo || 'Em análise'}
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 no-print">
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handlePreviewPdf('diagnostico')}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#070E1C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#16233B] whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-[#0F3D91] dark:text-[#60A5FA]" />
-                          Pré-visualizar Dossiê
-                        </button>
-                        <button
-                          type="button"
-                          disabled={pdfBusy !== null}
-                          onClick={() => void handleExportDiagnosticoPdf()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#070E1C] dark:bg-[#0F3D91] text-xs font-semibold text-white hover:opacity-95 whitespace-nowrap shrink-0 disabled:opacity-50"
-                        >
-                          <Download className="w-3.5 h-3.5 text-[#C9A86A]" />
-                          {pdfBusy === 'diagnostico' ? 'Gerando PDF...' : 'Baixar Dossiê (PDF 2 Págs)'}
-                        </button>
+                      <div>
+                        <p className="text-[#475569] dark:text-slate-400">Índice de viabilidade</p>
+                        <p className="font-bold font-mono text-[#070E1C] dark:text-white mt-0.5 tabular-nums">
+                          {typeof primaryLead.notaViabilidade === 'number'
+                            ? `${primaryLead.notaViabilidade}/100`
+                            : 'Em avaliação'}
+                          {primaryLead.confianca ? ` · Confiança ${primaryLead.confianca}` : ''}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[#475569] dark:text-slate-400">Realizado em</p>
+                        <p className="font-bold font-mono text-[#070E1C] dark:text-white mt-0.5 tabular-nums">
+                          {formatDateBR(primaryLead.createdAt)}
+                          {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
+                        </p>
                       </div>
                     </div>
+                  )}
 
-                    {primaryLead && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] text-xs">
-                        <div>
-                          <p className="text-[#475569] dark:text-slate-400">Subcategoria sugerida</p>
-                          <p className="font-bold text-[#070E1C] dark:text-white mt-0.5">
-                            {primaryLead.subcategoriaSugerida || primaryLead.interesse || 'Em análise'}
-                          </p>
+                  {/* Trilha resumida Visto & RUT incluída no PDF + Disclaimer de Moradia */}
+                  {(() => {
+                    const previewSummary = buildPortalClientDiagnosticPdfInput().summary;
+                    const highlights = previewSummary
+                      ? buildImmigrationDossierHighlights({ summary: previewSummary, locale: 'pt-BR' })
+                      : null;
+                    if (!highlights) return null;
+                    return (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                          {highlights.visaRutMilestones.map((m) => (
+                            <div
+                              key={m.step}
+                              className="p-3.5 rounded-xl bg-[#F7F8FA] dark:bg-[#0B1220] border border-[#E5E7EB] dark:border-[#1E293B] space-y-1"
+                            >
+                              <p className="font-mono text-[11px] font-semibold text-[#8C6D14] dark:text-[#C9A86A] tabular-nums">
+                                {m.step}. {m.windowLabel}
+                              </p>
+                              <p className="text-xs font-bold text-[#070E1C] dark:text-white">{m.title}</p>
+                              <p className="text-[11px] text-[#475569] dark:text-slate-400 leading-relaxed">{m.detail}</p>
+                            </div>
+                          ))}
                         </div>
-                        <div>
-                          <p className="text-[#475569] dark:text-slate-400">Índice de viabilidade</p>
-                          <p className="font-bold font-mono text-[#070E1C] dark:text-white mt-0.5 tabular-nums">
-                            {typeof primaryLead.notaViabilidade === 'number'
-                              ? `${primaryLead.notaViabilidade}/100`
-                              : 'Em avaliação'}
-                            {primaryLead.confianca ? ` · Confiança ${primaryLead.confianca}` : ''}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[#475569] dark:text-slate-400">Realizado em</p>
-                          <p className="font-bold font-mono text-[#070E1C] dark:text-white mt-0.5 tabular-nums">
-                            {formatDateBR(primaryLead.createdAt)}
-                            {primaryLead.versaoRegras ? ` · Regras ${primaryLead.versaoRegras}` : ''}
-                          </p>
+                        <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800/60 text-[11px] text-amber-950 dark:text-amber-100 leading-relaxed">
+                          <strong className="font-semibold">Escopo exclusivo de imigração (incluído no PDF):</strong>{' '}
+                          {highlights.housingDisclaimer.body}
                         </div>
                       </div>
-                    )}
+                    );
+                  })()}
 
                     {portalRadarDimensions && (
                       <div className="pt-1 space-y-4">
@@ -1827,8 +2003,7 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                         </p>
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
 
                 {/* Documentos emitidos liberados */}
                 {genDocs.length > 0 && (
@@ -2491,21 +2666,34 @@ export const PortalClientePage: React.FC<PortalClientePageProps> = ({ onNavigate
                   )}
                 </div>
 
-                {/* Parceiros recomendados */}
-                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-3.5">
-                  <div className="flex items-center gap-2">
-                    <Handshake className="w-5 h-5 text-[#9A7B3E] dark:text-[#C9A86A]" />
-                    <h3 className="text-base font-bold text-[#070E1C] dark:text-white">Parceiros Recomendados</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {partnersPublic.map((p) => (
-                      <div key={p.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220]">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9A7B3E] dark:text-[#C9A86A]">{p.categoria} · {p.pais}</p>
-                        <p className="text-sm font-bold text-[#070E1C] dark:text-white mt-1">{p.nome}</p>
-                        <p className="text-xs text-[#475569] dark:text-slate-400 mt-1 leading-relaxed">{p.descricaoPublica}</p>
+                {/* Rede de Parceiros Curada — Separação Clara entre Assessoria de Imigração e Serviços Terceirizados */}
+                <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-6 space-y-6">
+                  <CuratedPartnerNetwork
+                    locale="pt-BR"
+                    whatsapp={empresa.whatsapp}
+                    compact
+                    onNavigate={onNavigate}
+                  />
+
+                  {partnersPublic.length > 0 && (
+                    <div className="pt-5 border-t border-[#E5E7EB] dark:border-[#1E293B] space-y-3.5">
+                      <div className="flex items-center gap-2">
+                        <Handshake className="w-4 h-4 text-[#9A7B3E] dark:text-[#C9A86A]" />
+                        <h3 className="text-sm font-bold text-[#070E1C] dark:text-white">
+                          Diretório Ativo de Parceiros Independentes ({partnersPublic.length})
+                        </h3>
                       </div>
-                    ))}
-                  </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {partnersPublic.map((p) => (
+                          <div key={p.id} className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#0B1220]">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9A7B3E] dark:text-[#C9A86A]">{p.categoria} · {p.pais}</p>
+                            <p className="text-sm font-bold text-[#070E1C] dark:text-white mt-1">{p.nome}</p>
+                            <p className="text-xs text-[#475569] dark:text-slate-400 mt-1 leading-relaxed">{p.descricaoPublica}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

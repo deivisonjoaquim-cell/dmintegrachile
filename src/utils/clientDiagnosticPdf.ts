@@ -9,6 +9,7 @@ import {
   type BasicDiagnosticDimension,
   type BasicDiagnosticSummary,
 } from './portalAccess';
+import { buildImmigrationDossierHighlights } from './immigrationDossierModel';
 
 export type DiagnosticPdfLocale = 'pt-BR' | 'es-CL';
 
@@ -172,9 +173,9 @@ async function resolveBrandLogoAsset(empresa: EmpresaConfig): Promise<ResolvedPd
 function getPdfCopy(locale: DiagnosticPdfLocale) {
   if (locale === 'es-CL') {
     return {
-      filenamePrefix: 'Dossier-Diagnostico-DM-Integra',
-      brandSubtitle: 'RELOCATION Y ASESORÍA MIGRATORIA',
-      headerEyebrow: 'DIAGNÓSTICO MIGRATORIO COMPLETO · BRASIL -> CHILE',
+      filenamePrefix: 'Dossier-Inmigracion-DM-Integra',
+      brandSubtitle: 'CONSULTORÍA DE INMIGRACIÓN · VISA Y RUT',
+      headerEyebrow: 'DOSSIER DE INMIGRACIÓN · VISA (SERMIG) & PROCESO DE RUT',
       protocolPrefix: 'Protocolo #',
       issuedPrefix: 'Emitido el',
       rulesPrefix: 'Reglas',
@@ -246,9 +247,9 @@ function getPdfCopy(locale: DiagnosticPdfLocale) {
   }
 
   return {
-    filenamePrefix: 'Dossie-Diagnostico-DM-Integra',
-    brandSubtitle: 'RELOCATION & ASSESSORIA MIGRATÓRIA',
-    headerEyebrow: 'DIAGNÓSTICO MIGRATÓRIO COMPLETO · BRASIL -> CHILE',
+    filenamePrefix: 'Dossie-Imigracao-DM-Integra',
+    brandSubtitle: 'CONSULTORIA DE IMIGRAÇÃO · VISTO E RUT',
+    headerEyebrow: 'DOSSIÊ DE IMIGRAÇÃO · VISTO (SERMIG) & PROCESSO DE RUT',
     protocolPrefix: 'Protocolo #',
     issuedPrefix: 'Emitido em',
     rulesPrefix: 'Regras',
@@ -709,7 +710,12 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   ]
     .filter(Boolean)
     .join(' · ');
-  const filename = `${copy.filenamePrefix}-${slugifyToken(titularNome)}-${slugifyToken(protocoloRef)}.pdf`;
+  const dossierHighlights = buildImmigrationDossierHighlights({
+    summary,
+    result,
+    locale,
+  });
+  const filename = `${dossierHighlights.filenamePrefix}-${slugifyToken(titularNome)}-${slugifyToken(protocoloRef)}.pdf`;
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -1019,7 +1025,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
       result?.alertaRiscoAlto,
   );
   const dualTop = y + 0.8;
-  const dualH = hasRiskOrAlert ? 102 : 108;
+  const dualH = hasRiskOrAlert ? 82 : 86;
   const radarW = 84;
   const pillarsX = margin + radarW + 4;
   const pillarsW = contentW - radarW - 4;
@@ -1074,9 +1080,63 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
     }
   });
 
+  // Faixa de Destaque da Página 1: Trilha Oficial de Visto (SERMIG) & Emissão do RUT
+  const rutStripY = dualTop + dualH + 3.4;
+  const rutStripH = 26.5;
+  doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
+  doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(margin, rutStripY, contentW, rutStripH, 2, 2, 'FD');
+
+  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.roundedRect(margin, rutStripY, contentW, 5.6, 2, 2, 'F');
+  doc.rect(margin, rutStripY + 3.4, contentW, 2.2, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.text(
+    safeText(
+      locale === 'es-CL'
+        ? 'TRILHA OFICIAL DE INMIGRACIÓN · VISAS (SERMIG) & PROCESO DE EMISIÓN DEL RUT'
+        : 'TRILHA OFICIAL DE IMIGRAÇÃO · VISTO (SERMIG) & PROCESSO DE EMISSÃO DO RUT',
+    ),
+    margin + 3.6,
+    rutStripY + 3.8,
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.9);
+  doc.setTextColor(215, 224, 236);
+  doc.text(safeText(dossierHighlights.rutHeadline), pageW - margin - 3.6, rutStripY + 3.8, { align: 'right' });
+
+  const rutColW = contentW / 4;
+  dossierHighlights.visaRutMilestones.forEach((m, idx) => {
+    const mx = margin + idx * rutColW + 3.0;
+    if (idx > 0) {
+      doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+      doc.line(margin + idx * rutColW, rutStripY + 7.0, margin + idx * rutColW, rutStripY + rutStripH - 2.0);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.1);
+    doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+    doc.text(`${m.step}. ${safeText(m.windowLabel)}`, mx, rutStripY + 10.6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.7);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    const mTitle = doc.splitTextToSize(safeText(m.title), rutColW - 5.2)[0];
+    doc.text(mTitle, mx, rutStripY + 14.6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.9);
+    doc.setTextColor(INK[0], INK[1], INK[2]);
+    const mDetail = doc.splitTextToSize(safeText(m.detail), rutColW - 5.2).slice(0, 2);
+    doc.text(mDetail, mx, rutStripY + 18.4);
+  });
+
   // Faixa de Fechamento da Página 1 (Alerta Prioritário OU Composição Familiar / Síntese Operacional)
-  const bottomBoxY = dualTop + dualH + 4.2;
-  const bottomAvailH = Math.max(18, 276 - bottomBoxY);
+  const bottomBoxY = rutStripY + rutStripH + 3.2;
+  const bottomAvailH = Math.max(15, 278 - bottomBoxY);
 
   if (hasRiskOrAlert) {
     const alertText =
@@ -1089,69 +1149,69 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
       .slice(0, 2)
       .map((f) => `[${f.severidade}] ${safeText(f.orientacao)}`)
       .join(' | ');
-    const boxH = Math.min(bottomAvailH, 24);
+    const boxH = Math.min(bottomAvailH, 21);
 
     doc.setFillColor(255, 250, 235);
     doc.setDrawColor(232, 195, 108);
     doc.roundedRect(margin, bottomBoxY, contentW, boxH, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.6);
     doc.setTextColor(146, 64, 14);
-    doc.text(copy.alertTitle, margin + 4, bottomBoxY + 5);
+    doc.text(copy.alertTitle, margin + 4, bottomBoxY + 4.8);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.9);
     doc.setTextColor(120, 53, 15);
     const alertLines = doc.splitTextToSize(safeText(alertText || extraFlags), contentW - 8).slice(0, 2);
-    doc.text(alertLines, margin + 4, bottomBoxY + 9.8);
+    doc.text(alertLines, margin + 4, bottomBoxY + 9.2);
 
-    if (extraFlags && alertText && boxH >= 22) {
+    if (extraFlags && alertText && boxH >= 19) {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.4);
+      doc.setFontSize(6.1);
       doc.setTextColor(CRIMSON[0], CRIMSON[1], CRIMSON[2]);
       const flagLine = doc.splitTextToSize(extraFlags, contentW - 8)[0];
-      doc.text(flagLine, margin + 4, bottomBoxY + 19.2);
+      doc.text(flagLine, margin + 4, bottomBoxY + 17.4);
     }
   } else if (result?.diagnosticoPorPessoa && result.diagnosticoPorPessoa.length > 1) {
-    const boxH = Math.min(bottomAvailH, 21);
+    const boxH = Math.min(bottomAvailH, 18);
     doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
     doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
     doc.roundedRect(margin, bottomBoxY, contentW, boxH, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.6);
+    doc.setFontSize(6.4);
     doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
-    doc.text(copy.familySynthesisTitle, margin + 4, bottomBoxY + 5);
+    doc.text(copy.familySynthesisTitle, margin + 4, bottomBoxY + 4.8);
 
     const familyLine = result.diagnosticoPorPessoa
       .slice(0, 3)
       .map((p) => `${safeText(p.papel)} (${safeText(p.parentesco)}): ${safeText(p.subcategoriaIndicada)}`)
       .join('  ·  ');
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.1);
+    doc.setFontSize(6.9);
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
     const famLines = doc.splitTextToSize(familyLine, contentW - 8).slice(0, 2);
-    doc.text(famLines, margin + 4, bottomBoxY + 10);
+    doc.text(famLines, margin + 4, bottomBoxY + 9.5);
   } else {
-    const boxH = Math.min(bottomAvailH, 19);
+    const boxH = Math.min(bottomAvailH, 17);
     doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
     doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
     doc.roundedRect(margin, bottomBoxY, contentW, boxH, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.6);
+    doc.setFontSize(6.4);
     doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
-    doc.text(copy.synthesisTitle, margin + 4, bottomBoxY + 5);
+    doc.text(copy.synthesisTitle, margin + 4, bottomBoxY + 4.8);
 
     const synthText = result?.caminho
       ? `${safeText(result.caminho)} · ${safeText(result.cronogramaFaixas?.preparacaoDocumental, '')}`
       : safeText(summary.resumoBasico);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.1);
+    doc.setFontSize(6.9);
     doc.setTextColor(INK[0], INK[1], INK[2]);
     const synthLines = doc.splitTextToSize(synthText, contentW - 8).slice(0, 2);
-    doc.text(synthLines, margin + 4, bottomBoxY + 10);
+    doc.text(synthLines, margin + 4, bottomBoxY + 9.4);
   }
 
   drawFooter(doc, empresa, 1, 2, copy);
@@ -1184,7 +1244,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
 
   const halfW = (contentW - 4.5) / 2;
   const rightX = margin + halfW + 4.5;
-  const qualBoxH = 38;
+  const qualBoxH = 33;
 
   // Esquerda: Pontos Fortes
   doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
@@ -1288,7 +1348,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
 
   const phaseGap = 3.2;
   const phaseW = (contentW - phaseGap * 3) / 4;
-  const phaseH = 35.5;
+  const phaseH = 31;
   const phaseTop = y2 + 0.8;
 
   doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
@@ -1327,7 +1387,7 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   y2 = drawSectionEyebrow(doc, margin, y2, copy.actionEyebrow, copy.actionTitle);
 
   const actionBoxTop = y2 + 0.6;
-  const actionBoxH = 44.5;
+  const actionBoxH = 38.5;
   const topActions = collectTopActionItems(result);
   const topChecklist = collectTopChecklistItems(result);
 
@@ -1460,8 +1520,8 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   }
 
   // 4. Faixa Integrada: Radar de Validades SERMIG (Esquerda) + Custos & Prazos (Direita)
-  y2 = actionBoxTop + actionBoxH + 4.2;
-  const stripH = 26.5;
+  y2 = actionBoxTop + actionBoxH + 3.4;
+  const stripH = 24.5;
   const sermigW = 108;
   const costX = margin + sermigW + 4;
   const costW = contentW - sermigW - 4;
@@ -1576,8 +1636,8 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   }
 
   // 5. Rotas Alternativas Avaliadas (Esquerda) + Base Legal Citada (Direita)
-  y2 += stripH + 4.2;
-  const matrixH = 24;
+  y2 += stripH + 3.4;
+  const matrixH = 21.5;
 
   // Esquerda: Rotas Secundárias
   doc.setFillColor(WHITE[0], WHITE[1], WHITE[2]);
@@ -1660,88 +1720,100 @@ export function buildClientDiagnosticDossierDoc(input: ClientDiagnosticPdfInput)
   });
 
   // 6. Próximos Passos: Modalidades de Assessoria D&M Integra
-  y2 += matrixH + 4.4;
-  const ctaH = 38.5;
+  y2 += matrixH + 3.6;
+  const ctaH = 31.5;
   const planOri = CONSULTANCY_PLANS.orientativa;
   const planComp = CONSULTANCY_PLANS.completa;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
+  doc.setFontSize(6.2);
   doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
   doc.text(copy.nextStepsEyebrow, margin, y2);
 
   // Cartão 1: Consultoria Orientativa
   doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
   doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
-  doc.roundedRect(margin, y2 + 2.2, halfW, ctaH - 2.2, 2, 2, 'FD');
+  doc.roundedRect(margin, y2 + 2.0, halfW, ctaH - 2.0, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(6.0);
   doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text(copy.orientativaBadge, margin + 3.6, y2 + 7.2);
+  doc.text(copy.orientativaBadge, margin + 3.6, y2 + 6.4);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.2);
+  doc.setFontSize(8.8);
   doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text(safeText(planOri.nome), margin + 3.6, y2 + 12.0);
+  doc.text(safeText(planOri.nome), margin + 3.6, y2 + 10.8);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.6);
+  doc.setFontSize(6.3);
   doc.setTextColor(INK[0], INK[1], INK[2]);
   const oriSub = doc.splitTextToSize(safeText(planOri.subtitulo), halfW - 7.2).slice(0, 2);
-  doc.text(oriSub, margin + 3.6, y2 + 16.2);
+  doc.text(oriSub, margin + 3.6, y2 + 14.6);
 
-  let py1 = y2 + 23.6;
+  let py1 = y2 + 21.4;
   planOri.inclui.slice(0, 2).forEach((item) => {
-    const l = doc.splitTextToSize(`* ${safeText(item)}`, halfW - 7.2).slice(0, 2);
+    const l = doc.splitTextToSize(`* ${safeText(item)}`, halfW - 7.2).slice(0, 1);
     doc.text(l, margin + 3.6, py1);
-    py1 += l.length * 3.2 + 1.2;
+    py1 += 4.2;
   });
 
   // Cartão 2: Consultoria Completa (Azul Marinho + Ouro)
   doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.roundedRect(rightX, y2 + 2.2, halfW, ctaH - 2.2, 2, 2, 'F');
+  doc.roundedRect(rightX, y2 + 2.0, halfW, ctaH - 2.0, 2, 2, 'F');
   doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.rect(rightX, y2 + 2.2, halfW, 1.2, 'F');
+  doc.rect(rightX, y2 + 2.0, halfW, 1.1, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(6.0);
   doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text(copy.completaBadge, rightX + 3.6, y2 + 7.6);
+  doc.text(copy.completaBadge, rightX + 3.6, y2 + 6.6);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.2);
+  doc.setFontSize(8.8);
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text(safeText(planComp.nome), rightX + 3.6, y2 + 12.4);
+  doc.text(safeText(planComp.nome), rightX + 3.6, y2 + 11.0);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.6);
+  doc.setFontSize(6.3);
   doc.setTextColor(215, 224, 236);
   const compSub = doc.splitTextToSize(safeText(planComp.subtitulo), halfW - 7.2).slice(0, 2);
-  doc.text(compSub, rightX + 3.6, y2 + 16.6);
+  doc.text(compSub, rightX + 3.6, y2 + 14.8);
 
-  let py2 = y2 + 24.0;
+  let py2 = y2 + 21.6;
   planComp.inclui.slice(0, 2).forEach((item) => {
-    const l = doc.splitTextToSize(`* ${safeText(item)}`, halfW - 7.2).slice(0, 2);
+    const l = doc.splitTextToSize(`* ${safeText(item)}`, halfW - 7.2).slice(0, 1);
     doc.text(l, rightX + 3.6, py2);
-    py2 += l.length * 3.2 + 1.2;
+    py2 += 4.2;
   });
 
-  // Nota Legal acima do rodapé (sempre dentro da margem segura <= 278mm)
-  const legalY = Math.min(y2 + ctaH + 3.6, 273.5);
-  doc.setFont('helvetica', 'normal');
+  // 7. Disclaimer Claro e Obrigatório: Escopo de Imigração (Visto e RUT) & Natureza dos Serviços de Moradia
+  const disclaimerY = Math.min(y2 + ctaH + 3.2, 250.0);
+  const disclaimerH = Math.min(26.5, 279.0 - disclaimerY);
+
+  doc.setFillColor(255, 250, 238);
+  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(margin, disclaimerY, contentW, disclaimerH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.3);
+  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(safeText(dossierHighlights.housingDisclaimer.title), margin + 3.6, disclaimerY + 4.8);
+
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.2);
-  doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  const legalNotice = doc
-    .splitTextToSize(
-      safeText(
-        empresa.avisoLegal,
-        'Este diagnóstico possui caráter orientativo inicial, não substitui consulta jurídica individualizada nem garante concessão de visto pelo SERMIG.',
-      ),
-      contentW,
-    )
-    .slice(0, 2);
-  doc.text(legalNotice, margin, legalY);
+  doc.setTextColor(GOLD_DARK[0], GOLD_DARK[1], GOLD_DARK[2]);
+  const scopeSumLine = doc.splitTextToSize(safeText(dossierHighlights.housingDisclaimer.scopeSummary), contentW - 7.2)[0];
+  doc.text(scopeSumLine, margin + 3.6, disclaimerY + 8.8);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.3);
+  doc.setTextColor(INK[0], INK[1], INK[2]);
+  const disclaimerBodyLines = doc
+    .splitTextToSize(safeText(dossierHighlights.housingDisclaimer.body), contentW - 7.2)
+    .slice(0, 4);
+  doc.text(disclaimerBodyLines, margin + 3.6, disclaimerY + 12.8);
 
   drawFooter(doc, empresa, 2, 2, copy);
 
