@@ -1316,7 +1316,7 @@ export const DiagnosticoPage: React.FC<DiagnosticoPageProps> = ({ onNavigate }) 
                   Descubra em 2 minutos qual o caminho mais seguro e econômico para a sua mudança ao Chile.
                 </h1>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Pense nesta avaliação como uma primeira conversa com seu consultor particular: analisamos seu momento de vida, evitamos erros caros no SERMIG e entregamos seu Plano de Mudança em PDF.
+                  Atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT): analisamos seu perfil, evitamos erros caros no protocolo e entregamos seu Plano Migratório em PDF. Moradia não é um serviço garantido — quando precisar, conectamos você a parceiros imobiliários de confiança.
                 </p>
               </div>
 

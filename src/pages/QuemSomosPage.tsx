@@ -37,7 +37,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
     description:
       quemSomos?.seoDescricao ||
       quemSomos?.subtitulo ||
-      'Conheça nossa equipe, nossa rotina no escritório e como conduzimos cada mudança do Brasil para o Chile com rigor jurídico e acolhimento.',
+      'Conheça nossa equipe e como atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT), com indicação curada de parceiros imobiliários e especialistas de confiança no Chile.',
     orgName: empresa.nome_empresa,
     email: empresa.email,
     whatsapp: empresa.whatsapp,
@@ -51,9 +51,9 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const experienciaLines = (
+  const experienciaLines = translateText(
     meta.experiencia ||
-    'Com base e atendimento próximo no Brasil e rede operacional homologada no Chile, conduzimos trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em todo o território chileno.\nCada projeto nasce de uma análise criteriosa de requisitos, preparação documental prévia ao embarque e proteção contra riscos burocráticos ou contratuais.'
+      'Atuamos exclusivamente na assessoria de imigração do Brasil para o Chile — conduzindo trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT).\nA moradia não é um serviço garantido pela D&M Integra Chile: para imóveis, traduções juramentadas, contabilidade ou advocacia complementar, atuamos apenas como ponte de indicação curada para parceiros independentes de confiança.',
   )
     .split('\n')
     .map((line) => line.trim())
@@ -62,19 +62,19 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
   const expertiseItems = [
     {
       number: '01.',
-      title: meta.formacaoTitulo || 'Formação Acadêmica e Base Jurídica',
+      title: translateText(meta.formacaoTitulo) || 'Formação Acadêmica e Base Jurídica',
       lines: formacaoLines,
     },
     {
       number: '02.',
-      title: meta.experienciaTitulo || 'Especialização em Imigração e Relocation',
+      title: translateText(meta.experienciaTitulo) || 'Atuação Exclusiva em Assessoria de Imigração',
       lines: experienciaLines,
     },
     {
       number: '03.',
       title: 'Ética, Previsibilidade e Sigilo (LGPD)',
       lines: [
-        meta.missao ||
+        translateText(meta.missao) ||
           'Conduzir cada processo com transparência documental, cumprimento rigoroso de prazos e respeito integral à LGPD (Lei brasileira nº 13.709/2018).',
       ],
     },
@@ -225,25 +225,33 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
                   Precisão jurídica para proteger seu projeto. Escuta humana para acolher sua história.
                 </h2>
                 <p className="text-sm sm:text-base text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                  Mudar de país envolve carreira, patrimônio e a tranquilidade de quem você ama. Unimos método documental de escritório corporativo com acompanhamento próximo do Brasil até a aprovação do seu visto, registro na PDI e emissão do RUT no Chile.
+                  Mudar de país envolve carreira, patrimônio e a tranquilidade de quem você ama. Atuamos exclusivamente na assessoria de imigração — do Brasil até a aprovação do seu visto no SERMIG, registro na PDI e emissão do RUT no Chile — com transparência total sobre nosso escopo.
                 </p>
               </div>
 
               <div className="rounded-2xl bg-[#070E1C] text-white p-7 sm:p-8 space-y-6 border border-white/10">
                 <div className="space-y-1.5">
-                  <p className="font-mono text-[11px] text-[#C9A86A]">01. Segurança Jurídica</p>
-                  <p className="text-sm font-semibold text-white">Domínio Real das Regras do Chile</p>
+                  <p className="font-mono text-[11px] text-[#C9A86A]">01. Escopo Exclusivo · Imigração</p>
+                  <p className="text-sm font-semibold text-white">Vistos SERMIG, Registro na PDI e RUT</p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Pedidos estruturados segundo a Ley Nº 21.325 e o Acordo Mercosul para blindar você contra rejeições e atrasos no SERMIG.
+                    Pedidos estruturados segundo a Ley Nº 21.325 e o Acordo Mercosul para blindar você contra rejeições, certidões vencidas e atrasos no SERMIG.
                   </p>
                 </div>
 
                 <div className="pt-5 border-t border-white/10 space-y-1.5">
-                  <p className="font-mono text-[11px] text-[#C9A86A]">02. Do Brasil ao Visto, PDI e RUT</p>
-                  <p className="text-sm font-semibold text-white">Escopo Claro + Rede de Parceiros</p>
+                  <p className="font-mono text-[11px] text-[#C9A86A]">02. Ponte de Indicação Transparente</p>
+                  <p className="text-sm font-semibold text-white">Moradia Não é Garantida — Indicamos Parceiros de Confiança</p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Sincronizamos certidões, Apostila de Haia, protocolo SERMIG, PDI e RUT — e indicamos parceiros independentes para imóveis, traduções, contabilidade e outras demandas.
+                    Não garantimos moradia nem intermediamos contratos de aluguel. Oferecemos indicação curada de parceiros imobiliários, tradutores, contadores e advogados independentes de confiança.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/parceiros')}
+                    className="inline-flex items-center gap-1.5 pt-1 text-xs font-semibold text-[#E5C77B] hover:text-white transition-colors"
+                  >
+                    Conhecer Parceiros de Confiança
+                    <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
                 </div>
 
                 <div className="pt-5 border-t border-white/10 space-y-1.5">
@@ -329,7 +337,7 @@ export const QuemSomosPage: React.FC<QuemSomosPageProps> = ({ onNavigate }) => {
               </h2>
             </div>
             <p className="text-sm text-[#4B5563] dark:text-slate-400 max-w-sm">
-              Relatos objetivos de brasileiros que superaram a burocracia migratória (Vistos, PDI e RUT) e contaram com nossas indicações de parceiros no Chile.
+              Relatos objetivos de brasileiros que regularizaram seus Vistos, PDI e RUT com nossa assessoria exclusiva de imigração e contaram com nossas indicações curadas de parceiros no Chile.
             </p>
           </div>
 

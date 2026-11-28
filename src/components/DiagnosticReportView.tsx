@@ -1698,7 +1698,7 @@ export const DiagnosticReportView: React.FC<DiagnosticReportViewProps> = ({
                 <span className="text-[11px] font-semibold text-amber-800">Proposta sob medida</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Cada processo tem um escopo diferente. Envie seu resultado para receber uma proposta fechada (em BRL ou CLP) considerando:
+                A D&amp;M Integra Chile atua exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é um serviço garantido — atuamos apenas como ponte de indicação curada para parceiros imobiliários de confiança. Envie seu resultado para receber proposta fechada considerando:
               </p>
               <ul className="text-[11px] text-slate-600 space-y-0.5">
                 {result.custosEstimados.honorariosMotivosVariacao.map((m, i) => (

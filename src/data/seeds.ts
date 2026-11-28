@@ -84,7 +84,7 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
     mostrarBotaoWhatsappFlutuante: true,
     mostrarBarraCtaMobile: true,
     rodapeSubtitulo:
-      'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
+      'Atuação exclusiva em assessoria de imigração Brasil–Chile (Vistos SERMIG, registro na PDI e emissão do RUT). Moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários e especialistas de confiança.',
     rodapeCopyright: 'Todos os direitos reservados.',
     linksNavegacao: [
       { path: '/', label: 'Início', visivel: true },
@@ -134,9 +134,9 @@ export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
   textoReciboVigencia: '2026-11-17',
   termoLgpdVigencia: '2026-11-17',
   retencaoDadosDias: 1825,
-  seoTituloPadrao: 'D&M Integra Chile – Assessoria Migratória Brasil–Chile (Vistos, PDI & RUT)',
+  seoTituloPadrao: 'D&M Integra Chile – Assessoria Exclusiva de Imigração Brasil–Chile (Vistos, PDI & RUT)',
   seoDescricaoPadrao:
-    'Assessoria especializada em vistos (SERMIG), Acordo Mercosul, Residência Temporal, Definitiva, registro na PDI e emissão do RUT, além de rede de parceiros indicados no Brasil e no Chile.',
+    'Atuamos exclusivamente na assessoria de imigração para o Chile (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
   depoimentosAutorizados: [],
   quemSomosMarcoHistorico: [
     {
@@ -161,11 +161,11 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
   {
     id: 'hero',
     secao: 'hero',
-    titulo: 'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.',
+    titulo: 'Assessoria exclusiva de imigração para o Chile: seu visto, PDI e RUT com segurança jurídica.',
     subtitulo:
-      'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT): conduzimos sua regularização migratória com rigor técnico e indicamos parceiros selecionados para outras demandas.',
+      'Atuamos exclusivamente na regularização migratória — do protocolo no SERMIG ao registro na PDI e emissão do RUT. A moradia não é um serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
     conteudoHtml:
-      'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — acompanhando cada etapa do Brasil até seu visto aprovado, PDI e RUT, com indicação de profissionais parceiros para moradia e outras etapas.',
+      'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — conduzindo exclusivamente sua assessoria de imigração (Vistos, PDI e RUT) e servindo como ponte transparente para parceiros de confiança.',
     imagemUrl: '/src/assets/images/hero_santiago_twilight_1795635432589.jpg',
     ordem: 1,
     ativo: true,
@@ -173,18 +173,18 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       ctaPrimario: 'Iniciar Diagnóstico Gratuito',
       ctaSecundario: 'Falar com um Especialista',
       destaques: [
+        'Atuação exclusiva em imigração: Vistos, PDI e RUT',
         'Atendimento humano e direto em português',
-        'Rigor técnico no SERMIG, PDI e Cédula (RUT)',
-        'Rede de parceiros indicados para demandas complementares',
+        'Indicação curada de parceiros imobiliários de confiança',
       ],
     },
   },
   {
     id: 'servicos',
     secao: 'servicos',
-    titulo: 'Escopo claro: do visto no Brasil ao registro na PDI e emissão do RUT',
+    titulo: 'Atuação exclusiva em imigração: do visto no Brasil ao registro na PDI e emissão do RUT',
     subtitulo:
-      'Cuidamos de toda a sua jornada migratória — do visto no Brasil ao registro na PDI e emissão do RUT — e conectamos você a parceiros indicados para as demais necessidades no Chile.',
+      'Nosso serviço contratado é 100% dedicado à assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido — conectamos você a parceiros imobiliários e especialistas de confiança.',
     conteudoHtml: '',
     imagemUrl: '/src/assets/images/consultancy_atelier_desk_1795635434902.jpg',
     ordem: 2,
@@ -211,9 +211,9 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
         },
         {
           numero: '04',
-          titulo: 'Estampado Electrónico, Registro PDI, RUT e Indicação de Parceiros',
+          titulo: 'Estampado Electrónico, Registro PDI, RUT e Ponte de Indicação',
           descricao:
-            'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Para moradia, contabilidade, traduções ou saúde, indicamos profissionais parceiros independentes.',
+            'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Moradia não é serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas independentes.',
         },
       ],
     },
@@ -294,7 +294,7 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
     subtitulo:
       'Sabemos que mudar de país envolve sonhos, filhos, carreira e patrimônio. Por isso, conduzimos cada etapa migratória com transparência e proximidade.',
     conteudoHtml:
-      'A D&M Integra Chile nasceu para dar segurança a brasileiros em toda a regularização migratória — do enquadramento legal no Brasil ao visto no SERMIG, registro na PDI e emissão do RUT — além de conectar você a profissionais parceiros confiáveis para outras etapas da vida no Chile.',
+      'A D&M Integra Chile atua exclusivamente na assessoria de imigração do Brasil ao Chile — conduzindo Vistos (SERMIG), registro na PDI e emissão do RUT com rigor jurídico. Moradia não é um serviço garantido: para imóveis e demandas complementares, oferecemos indicação curada de parceiros de confiança.',
     imagemUrl: '/src/assets/images/founder_executive_portrait_1795718964136.jpg',
     ordem: 5,
     ativo: true,
@@ -303,28 +303,28 @@ export const SEED_SITE_CONTENT: SiteContent[] = [
       formacaoTitulo: 'Formação Acadêmica e Qualificação Jurídica',
       formacao:
         'Bacharel em Direito (Graduação de Nível Superior)\nEspecialista (Pós-graduação Lato Sensu) em Direito Penal e Processo Penal\nSólida base jurídica com foco em legislação penal, conformidade normativa e análise processual.',
-      experienciaTitulo: 'Especialização e Escopo de Atuação',
+      experienciaTitulo: 'Atuação Exclusiva em Assessoria de Imigração',
       experiencia:
-        'Com base e atendimento no Brasil, prestamos assessoria especializada e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT) em qualquer região do Chile.\nPara necessidades complementares (imóveis, traduções, cartórios, contabilidade, advocacia ou saúde), indicamos profissionais parceiros independentes com contratação direta.',
-      missao: 'Transformar a regularização migratória em uma travessia segura, ética e transparente — do Brasil ao visto, PDI e RUT no Chile.',
+        'Atuamos exclusivamente na assessoria de imigração fundamentada na legislação chilena vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT) em qualquer região do Chile.\nA moradia não é um serviço garantido pela D&M Integra Chile: atuamos apenas como ponte de indicação curada para parceiros imobiliários, tradutores, cartórios, contadores e advogados independentes.',
+      missao: 'Transformar a regularização migratória em uma travessia segura, ética e transparente — exclusivamente dedicada ao seu visto, PDI e RUT no Chile.',
       credenciais: 'Atuação alinhada à legislação chilena (Ley Nº 21.325 e Decreto Nº 177/2022), ao Acordo de Residência Mercosul e à legislação brasileira (LGPD – Lei Nº 13.709/2018).',
     },
   },
   {
     id: 'parceiros',
     secao: 'parceiros',
-    titulo: 'Rede de Parceiros Indicados Brasil–Chile',
+    titulo: 'Parceiros de Confiança',
     subtitulo:
-      'Nossa assessoria acompanha até Vistos, PDI e RUT. Para outras necessidades no Brasil e no Chile, indicamos profissionais parceiros independentes em imobiliária, tradução, cartório, contabilidade, advocacia e saúde.',
+      'Atuamos exclusivamente na assessoria de imigração (Vistos, PDI e RUT). Moradia não é serviço garantido — servimos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.',
     conteudoHtml:
-      'Profissionais independentes indicados pela D&M para apoiar você em imóveis, traduções juramentadas, cartórios, abertura de empresa (SpA), seguros e educação — com contratação direta e transparente.',
+      'Profissionais validados pela nossa curadoria para apoiar você em imóveis, traduções juramentadas, contabilidade SpA e contratos — sempre com contratação direta, transparente e independente.',
     imagemUrl: '',
-    ctaTexto: 'Explorar rede de parceiros',
+    ctaTexto: 'Conhecer Parceiros de Confiança',
     ctaDestino: '/parceiros',
     ordem: 6,
     ativo: true,
     metadados: {
-      eyebrow: 'Indicação de Profissionais Parceiros',
+      eyebrow: 'Parceiros de Confiança · Ponte de Indicação Curada',
       temaSecao: 'claro',
       maxItens: 6,
     },

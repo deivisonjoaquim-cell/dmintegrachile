@@ -167,12 +167,12 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
               <div className="flex items-start justify-between gap-3 pb-4 border-b border-white/10">
                 <div className="space-y-1">
                   <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.08em] text-[#C9A86A]">
-                    {isEs ? 'Alcance Transparente D&M' : 'Escopo Transparente D&M'}
+                    {isEs ? 'Alcance Exclusivo · Inmigración' : 'Atuação Exclusiva · Imigração'}
                   </p>
                   <h2 className="font-display text-lg font-bold text-white leading-snug">
                     {isEs
-                      ? 'Conducción migratoria hasta tu RUT'
-                      : 'Atuação direta até Visto, PDI e RUT'}
+                      ? 'Asesoría exclusiva hasta Visa, PDI y RUT'
+                      : 'Assessoria exclusiva até Visto, PDI e RUT'}
                   </h2>
                 </div>
                 <ShieldCheck className="w-5 h-5 text-[#C9A86A] shrink-0 mt-0.5" aria-hidden="true" />
@@ -197,11 +197,11 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
                   <Handshake className="w-4 h-4 text-[#60A5FA] shrink-0 mt-0.5" aria-hidden="true" />
                   <p className="text-xs text-slate-300 leading-relaxed">
                     <strong className="text-white">
-                      {isEs ? '¿Necesitas vivienda, traducciones o contabilidad?' : 'Precisa de imóvel, tradução ou contabilidade?'}
+                      {isEs ? 'La vivienda no es un servicio garantizado:' : 'Moradia não é um serviço garantido:'}
                     </strong>{' '}
                     {isEs
-                      ? 'Nuestro alcance directo llega hasta Visa, PDI y RUT; para vivienda y otras necesidades, recomendamos profesionales aliados independientes.'
-                      : 'Nossa atuação direta vai até Visto, PDI e RUT; para imóveis e outras demandas, indicamos profissionais parceiros independentes.'}
+                      ? 'actuamos exclusivamente en inmigración (Visas, PDI y RUT) y ofrecemos derivación curada a aliados inmobiliarios de confianza.'
+                      : 'atuamos exclusivamente na assessoria de imigração (Vistos, PDI e RUT) e oferecemos indicação curada de parceiros imobiliários de confiança.'}
                   </p>
                 </div>
                 <button
@@ -210,7 +210,7 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
                   onClick={() => onNavigateAction('/parceiros')}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E5C77B] hover:text-white transition-colors"
                 >
-                  {isEs ? 'Conocer la Red de Aliados Indicados' : 'Conhecer a Rede de Parceiros Indicados'}
+                  {isEs ? 'Conocer Parceiros de Confiança' : 'Conhecer Parceiros de Confiança'}
                   <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               </div>

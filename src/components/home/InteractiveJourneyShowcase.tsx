@@ -209,12 +209,12 @@ export const InteractiveJourneyShowcase: React.FC<InteractiveJourneyShowcaseProp
             </div>
             <div className="rounded-xl border border-[#E5E7EB] dark:border-[#1E293B] bg-[#F7F8FA] dark:bg-[#111A2B] p-4 space-y-1">
               <p className="text-[11px] font-mono font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
-                {isEs ? 'TRANSPARENCIA EN CADA ETAPA' : 'TRANSPARÊNCIA DE ESCOPO'}
+                {isEs ? 'ALCANCE EXCLUSIVO DE INMIGRACIÓN' : 'ATUAÇÃO EXCLUSIVA EM IMIGRAÇÃO'}
               </p>
               <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
                 {isEs
-                  ? 'Nuestro servicio directo llega hasta Visa (SERMIG), registro PDI y Cédula (RUT). Para vivienda, contabilidad o traducciones, conectamos con aliados independientes.'
-                  : 'Nossa condução direta vai até Visto (SERMIG), registro na PDI e emissão do RUT. Para imóveis, contabilidade, traduções ou saúde, indicamos parceiros independentes.'}
+                  ? 'Actuamos exclusivamente en asesoría migratoria (Visas SERMIG, PDI y RUT). La vivienda no es un servicio garantizado: ofrecemos indicación curada a aliados inmobiliarios de confianza.'
+                  : 'Atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). A moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança.'}
               </p>
             </div>
           </div>

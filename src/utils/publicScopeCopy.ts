@@ -12,39 +12,47 @@
 const EXACT_LEGACY_SCOPE_MAP: Record<string, string> = {
   // Hero
   'Mude-se para o Chile com segurança jurídica, moradia garantida e zero dor de cabeça burocrática.':
-    'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.',
+    'Assessoria exclusiva de imigração para o Chile: seu visto, PDI e RUT com segurança jurídica.',
   'Imigração e relocation para o Chile com segurança jurídica e previsibilidade':
-    'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.',
+    'Assessoria exclusiva de imigração para o Chile: seu visto, PDI e RUT com segurança jurídica.',
   'Conquiste sua residência no Chile com segurança, estratégia e tranquilidade.':
-    'Conquiste seu visto, PDI e RUT no Chile com segurança jurídica e zero dor de cabeça burocrática.',
+    'Assessoria exclusiva de imigração para o Chile: seu visto, PDI e RUT com segurança jurídica.',
   'Do planejamento documental no Brasil (Vistos, PDI e RUT) à assinatura do seu contrato de arriendo sem fiador local: conduzimos cada etapa da sua mudança com rigor técnico e acolhimento.':
-    'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT): conduzimos sua regularização migratória com rigor técnico e indicamos parceiros selecionados para outras demandas.',
+    'Atuamos exclusivamente na regularização migratória — do protocolo no SERMIG ao registro na PDI e emissão do RUT. A moradia não é um serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
   'Da análise de elegibilidade pelo Acordo Mercosul e pela legislação chilena (Ley Nº 21.325) até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.':
-    'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT): conduzimos sua regularização migratória com rigor técnico e indicamos parceiros selecionados para outras demandas.',
+    'Atuamos exclusivamente na regularização migratória — do protocolo no SERMIG ao registro na PDI e emissão do RUT. A moradia não é um serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
   'Da análise de elegibilidade pelo Acordo Mercosul e pela Lei 21.325 até a emissão da sua Cédula de Identidade chilena e adaptação completa no país.':
-    'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT): conduzimos sua regularização migratória com rigor técnico e indicamos parceiros selecionados para outras demandas.',
+    'Atuamos exclusivamente na regularização migratória — do protocolo no SERMIG ao registro na PDI e emissão do RUT. A moradia não é um serviço garantido; oferecemos indicação curada de parceiros imobiliários de confiança.',
   'Protegemos sua família contra golpes, exigências inesperadas no SERMIG e contratos abusivos — com acompanhamento transparente do Brasil até você receber as chaves no Chile.':
-    'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — acompanhando cada etapa do Brasil até seu visto aprovado, PDI e RUT, com indicação de profissionais parceiros para moradia e outras etapas.',
+    'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — conduzindo exclusivamente sua assessoria de imigração (Vistos, PDI e RUT) e servindo como ponte transparente para parceiros de confiança.',
   'Conduzimos cada fase com conferência documental criteriosa, controle rigoroso de prazos e acompanhamento transparente pelo Portal do Cliente.':
-    'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — acompanhando cada etapa do Brasil até seu visto aprovado, PDI e RUT, com indicação de profissionais parceiros para moradia e outras etapas.',
+    'Evitamos erros no SERMIG, documentos vencidos e exigências inesperadas — conduzindo exclusivamente sua assessoria de imigração (Vistos, PDI e RUT) e servindo como ponte transparente para parceiros de confiança.',
   'Apoio do visto ao arriendo sem fiador local':
-    'Condução até Visto, PDI e RUT + indicação de parceiros',
+    'Atuação exclusiva em Visto, PDI e RUT · Ponte curada de parceiros',
   'Acompanhamento transparente em 15 etapas':
-    'Condução até Visto, PDI e RUT + indicação de parceiros',
+    'Atuação exclusiva em Visto, PDI e RUT · Ponte curada de parceiros',
 
   // Serviços
+  'Escopo claro: do visto no Brasil ao registro na PDI e emissão do RUT':
+    'Atuação exclusiva em imigração: do visto no Brasil ao registro na PDI e emissão do RUT',
+  'Cuidamos de toda a sua jornada migratória — do visto no Brasil ao registro na PDI e emissão do RUT — e conectamos você a parceiros indicados para as demais necessidades no Chile.':
+    'Nosso serviço contratado é 100% dedicado à assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido — conectamos você a parceiros imobiliários e especialistas de confiança.',
   'Cuidamos da burocracia migratória e da sua instalação no Chile para você chegar com tudo legalizado, moradia segura e zero sustos.':
-    'Cuidamos de toda a sua jornada migratória — do visto no Brasil ao registro na PDI e emissão do RUT — e conectamos você a parceiros indicados para as demais necessidades no Chile.',
+    'Nosso serviço contratado é 100% dedicado à assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido — conectamos você a parceiros imobiliários e especialistas de confiança.',
   'Assessoria estruturada para profissionais, empreendedores, aposentados, estudantes e famílias brasileiras.':
-    'Cuidamos de toda a sua jornada migratória — do visto no Brasil ao registro na PDI e emissão do RUT — e conectamos você a parceiros indicados para as demais necessidades no Chile.',
+    'Nosso serviço contratado é 100% dedicado à assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido — conectamos você a parceiros imobiliários e especialistas de confiança.',
   'Chegada Segura, RUT e Moradia Sem Fiador Local':
-    'Estampado Electrónico, Registro PDI, RUT e Indicação de Parceiros',
+    'Estampado Electrónico, Registro PDI, RUT e Ponte de Indicação',
   'Relocation e Integração Pós-Chegada':
-    'Estampado Electrónico, Registro PDI, RUT e Indicação de Parceiros',
+    'Estampado Electrónico, Registro PDI, RUT e Ponte de Indicação',
+  'Estampado Electrónico, Registro PDI, RUT e Indicação de Parceiros':
+    'Estampado Electrónico, Registro PDI, RUT e Ponte de Indicação',
   'Acompanhamos sua chegada na PDI, emissão da Cédula (RUT), ClaveÚnica, conta bancária e a negociação segura do seu contrato de arriendo em UF sem avalista chileno.':
-    'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Para moradia, contabilidade, traduções ou saúde, indicamos profissionais parceiros independentes.',
+    'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Moradia não é serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas independentes.',
   'Suporte completo no Estampado Electrónico, registro na PDI, Cédula de Identidade no Registro Civil, ClaveÚnica, RUT, abertura de conta bancária e busca de moradia.':
-    'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Para moradia, contabilidade, traduções ou saúde, indicamos profissionais parceiros independentes.',
+    'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Moradia não é serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas independentes.',
+  'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Para moradia, contabilidade, traduções ou saúde, indicamos profissionais parceiros independentes.':
+    'Orientamos o Estampado Electrónico, o registro obrigatório na PDI e a emissão da Cédula (RUT). Moradia não é serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas independentes.',
 
   // Diferenciais
   'Acompanhe cada etapa pelo Portal do Cliente e conte com corretores, cartórios e tradutores validados pela D&M para fugir de golpes e contratos abusivos.':
@@ -64,17 +72,23 @@ const EXACT_LEGACY_SCOPE_MAP: Record<string, string> = {
 
   // Quem somos
   'A D&M Integra Chile nasceu para proteger brasileiros do medo de cair em golpes, travar na burocracia do SERMIG ou não conseguir alugar um imóvel no Chile. Unimos precisão jurídica na legislação chilena a um atendimento próximo, transparente e 100% em português.':
-    'A D&M Integra Chile nasceu para dar segurança a brasileiros em toda a regularização migratória — do enquadramento legal no Brasil ao visto no SERMIG, registro na PDI e emissão do RUT — além de conectar você a profissionais parceiros confiáveis para outras etapas da vida no Chile.',
+    'A D&M Integra Chile atua exclusivamente na assessoria de imigração do Brasil ao Chile — conduzindo Vistos (SERMIG), registro na PDI e emissão do RUT com rigor jurídico. Moradia não é um serviço garantido: oferecemos indicação curada de parceiros imobiliários e especialistas de confiança.',
+  'Especialização e Escopo de Atuação':
+    'Atuação Exclusiva em Assessoria de Imigração',
+  'Com base e atendimento no Brasil, prestamos assessoria completa e fundamentada na legislação migratória vigente para trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar e Relocation em qualquer região do Chile.\nAtuação pautada pela análise criteriosa de requisitos, preparação documental prévia à mudança e mitigação de riscos administrativos.':
+    'Atuamos exclusivamente na assessoria de imigração do Brasil para o Chile — conduzindo trâmites de Residência Temporal, Acordo Mercosul, Reunificação Familiar, Estampado Electrónico, registro na PDI e emissão da Cédula (RUT).\nA moradia não é um serviço garantido pela D&M Integra Chile: atuamos apenas como ponte de indicação curada para parceiros imobiliários, tradutores, contadores e advogados independentes de confiança.',
 
   // Parceiros
   'Rede de Parceiros Homologados: profissionais testados e validados pela D&M para você não correr riscos com contratos, traduções ou imóveis no Chile.':
-    'Nossa assessoria acompanha até Vistos, PDI e RUT. Para outras necessidades no Brasil e no Chile, indicamos profissionais parceiros independentes em imobiliária, tradução, cartório, contabilidade, advocacia e saúde.',
+    'Atuamos exclusivamente na assessoria de imigração (Vistos, PDI e RUT). Moradia não é serviço garantido — servimos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.',
   'Corretores preparados para arriendo em UF sem avalista local, tradutores juramentados, cartórios e contadores selecionados a dedo para proteger seu patrimônio.':
-    'Profissionais independentes indicados pela D&M para apoiar você em imóveis, traduções juramentadas, cartórios, abertura de empresa (SpA), seguros e educação — com contratação direta e transparente.',
+    'Profissionais independentes validados pela curadoria D&M para apoiar você em imóveis, traduções juramentadas, contabilidade SpA e contratos — sempre com contratação direta e transparente.',
 
   // Rodapé
   'Acompanhamento jurídico e humano para brasileiros que querem viver no Chile com segurança, moradia certa e zero dor de cabeça burocrática.':
-    'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
+    'Atuação exclusiva em assessoria de imigração Brasil–Chile (Vistos SERMIG, registro na PDI e emissão do RUT). Moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança.',
+  'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.':
+    'Atuação exclusiva em assessoria de imigração Brasil–Chile (Vistos SERMIG, registro na PDI e emissão do RUT). Moradia não é um serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança.',
 };
 
 /**

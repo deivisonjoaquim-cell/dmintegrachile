@@ -246,10 +246,10 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       linkedinLabel: 'Conectar no LinkedIn',
       lastLegalReview: 'Base normativa revisada em:',
       defaultSubtitle:
-        'Assessoria migratória especializada do Brasil ao Chile — conduzindo seu Visto (SERMIG), registro na PDI e emissão do RUT, com indicação de parceiros qualificados para outras situações.',
+        'Atuação exclusiva em assessoria de imigração Brasil–Chile (Vistos SERMIG, registro na PDI e emissão do RUT). Moradia não é serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança.',
       defaultCopyright: 'Todos os direitos reservados.',
       defaultLegalNotice:
-        'As informações e ferramentas desta plataforma auxiliam no planejamento da sua regularização migratória (Vistos, PDI e RUT) e não substituem a avaliação individualizada do seu caso. Normas e prazos são definidos pelo SERMIG; serviços complementares são prestados por profissionais parceiros independentes indicados.',
+        'A D&M Integra Chile atua exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é um serviço garantido: para imóveis e demandas complementares, atuamos apenas como ponte de indicação curada para profissionais parceiros independentes.',
     },
     mobileBar: {
       diagnosticCta: 'Iniciar Diagnóstico Gratuito',
@@ -258,17 +258,17 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
         `Olá! Estava no site da ${brand} e gostaria de tirar uma dúvida sem compromisso sobre visto, PDI e RUT no Chile.`,
     },
     seo: {
-      homeTitle: (brand) => `${brand} — Vistos, PDI e RUT no Chile com Segurança Jurídica`,
+      homeTitle: (brand) => `${brand} — Assessoria Exclusiva de Imigração (Vistos, PDI e RUT)`,
       homeDescription:
-        'Do planejamento documental no Brasil ao protocolo no SERMIG, registro na PDI e emissão da Cédula (RUT), além de indicação de profissionais parceiros para outras demandas no Chile.',
+        'Atuamos exclusivamente na assessoria de imigração (Vistos SERMIG, PDI e RUT). Moradia não é serviço garantido — oferecemos indicação curada de parceiros imobiliários de confiança no Chile.',
       legalModalTitle: 'Leis do Chile e Acordo Mercosul — explicados sem juridiquês',
     },
     hero: {
-      defaultEyebrow: 'Assessoria Migratória Brasil–Chile · Vistos (SERMIG), PDI & RUT',
+      defaultEyebrow: 'Atuação Exclusiva em Imigração Brasil–Chile · Vistos (SERMIG), PDI & RUT',
       defaultPrimaryCta: 'Iniciar Diagnóstico Gratuito',
       defaultSecondaryCta: 'Falar com um Especialista',
-      defaultBadgeTitle: 'Condução Especializada Brasil–Chile',
-      defaultBadgeSubtitle: 'Do planejamento no Brasil até Visto, PDI e RUT + Rede de Parceiros',
+      defaultBadgeTitle: 'Assessoria Exclusiva de Imigração',
+      defaultBadgeSubtitle: 'Vistos SERMIG, PDI e RUT · Ponte curada para parceiros de confiança',
       waGreeting:
         'Olá! Quero conversar sem compromisso com um especialista da D&M sobre visto, PDI e RUT no Chile.',
       metric1Value: '2 Min',
@@ -278,7 +278,7 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       metric3Value: 'PDF 2 Págs',
       metric3Label: 'Plano migratório pronto',
       crestLabel: 'Plataforma D&M Integra Chile',
-      crestTagline: 'Segurança jurídica em Vistos, PDI e RUT + parceiros indicados',
+      crestTagline: 'Atuação exclusiva em Vistos, PDI e RUT · Parceiros de confiança indicados',
       intelModules: [
         { code: '01', label: 'Visto Certo', value: 'Mercosul · Ley 21.325' },
         { code: '02', label: 'Zero Prazos Perdidos', value: 'Alertas 30, 60 e 90 dias' },
@@ -537,10 +537,10 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       understandLawCta: 'Entender as regras do Chile em linguagem simples',
       quemSomosEyebrow: 'Quem Cuida da Sua Mudança',
       quemSomosCta: 'Conhecer nossa história e como trabalhamos',
-      partnersFallbackTitle: 'Rede de Parceiros Indicados Brasil–Chile',
+      partnersFallbackTitle: 'Parceiros de Confiança',
       partnersFallbackSubtitle:
-        'Nossa consultoria atua até Vistos, PDI e RUT. Para outras situações — imóveis, traduções, cartórios, contabilidade, advocacia e saúde — indicamos profissionais parceiros independentes.',
-      partnersDefaultCta: 'Explorar rede de parceiros',
+        'Atuamos exclusivamente na assessoria de imigração (Vistos, PDI e RUT). Moradia não é um serviço garantido — servimos apenas como ponte de indicação curada para parceiros imobiliários e especialistas independentes.',
+      partnersDefaultCta: 'Conhecer Parceiros de Confiança',
       contatoKicker: 'Converse Sem Compromisso',
       contatoDefaultCta: 'Iniciar Diagnóstico Gratuito',
       contatoWhatsappCta: 'Falar com um Especialista',
@@ -569,10 +569,11 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       instagramLabel: 'Instagram oficial',
       linkedinLabel: 'LinkedIn',
       lastLegalReview: 'Última revisión normativa registrada:',
-      defaultSubtitle: 'Asesoría especializada en migración y relocation Brasil–Chile.',
+      defaultSubtitle:
+        'Actuación exclusiva en asesoría de inmigración Brasil–Chile (Visas SERMIG, registro PDI y emisión de RUT). La vivienda no es un servicio garantizado: ofrecemos indicación curada a aliados inmobiliarios de confianza.',
       defaultCopyright: 'Todos los derechos reservados.',
       defaultLegalNotice:
-        'La información y herramientas de esta plataforma apoyan el seguimiento del trámite migratorio y no reemplazan la evaluación individual de cada caso. Normas y plazos están sujetos a actualización por el SERMIG.',
+        'D&M Integra Chile actúa exclusivamente en asesoría de inmigración (Visas SERMIG, PDI y RUT). La vivienda no es un servicio garantizado: actuamos únicamente como puente transparente de indicación hacia aliados inmobiliarios y especialistas independientes.',
     },
     mobileBar: {
       diagnosticCta: 'Diagnóstico Inteligente',
@@ -580,18 +581,18 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       waGreeting: (brand) => `¡Hola! Escribo desde el sitio web de ${brand} y quisiera hacer una consulta sobre residencia en Chile.`,
     },
     seo: {
-      homeTitle: (brand) => `${brand} — Migración, Visas y Relocation en Chile`,
+      homeTitle: (brand) => `${brand} — Asesoría Exclusiva de Inmigración (Visas, PDI y RUT)`,
       homeDescription:
-        'Asesoría especializada en Ley Nº 21.325, Acuerdo Mercosur, Residencia Temporal, Residencia Definitiva y Cédula de Identidad en Chile.',
+        'Actuamos exclusivamente en asesoría migratoria (Visas SERMIG, PDI y RUT). La vivienda no es un servicio garantizado; ofrecemos indicación curada de aliados inmobiliarios de confianza.',
       legalModalTitle: 'Legislación Chilena, Brasileña y Acuerdo Mercosur — en lenguaje claro',
     },
     hero: {
-      defaultEyebrow: 'Asesoría Migratoria Brasil – Chile · Ley Nº 21.325 y Acuerdo Mercosur',
+      defaultEyebrow: 'Actuación Exclusiva en Inmigración Brasil – Chile · Visas (SERMIG), PDI y RUT',
       defaultPrimaryCta: 'Hacer Diagnóstico Inteligente',
       defaultSecondaryCta: 'Hablar por WhatsApp',
-      defaultBadgeTitle: 'Operación Brasil y Santiago de Chile',
-      defaultBadgeSubtitle: 'Seguridad documental desde la postulación SERMIG hasta el Estampado Electrónico',
-      waGreeting: '¡Hola! Quisiera recibir orientación sobre asesoría migratoria y residencia en Chile.',
+      defaultBadgeTitle: 'Asesoría Exclusiva de Inmigración',
+      defaultBadgeSubtitle: 'Visas SERMIG, PDI y RUT · Puente transparente hacia aliados de confianza',
+      waGreeting: '¡Hola! Quisiera recibir orientación sobre asesoría migratoria (Visas, PDI y RUT) en Chile.',
       metric1Value: '6 Etapas',
       metric1Label: 'Diagnóstico inteligente en vivo',
       metric2Value: '7 Pilares',
@@ -599,7 +600,7 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       metric3Value: 'PDF 2 Págs',
       metric3Label: 'Informe ejecutivo descargable',
       crestLabel: 'Plataforma D&M Integra Chile',
-      crestTagline: 'Arquitectura normativa y tecnológica para tu residencia',
+      crestTagline: 'Actuación exclusiva en Visas, PDI y RUT · Aliados de confianza',
       intelModules: [
         { code: '01', label: 'Motor Normativo', value: 'Ley 21.325 · D.S. 177' },
         { code: '02', label: 'Alertas de Visas', value: 'Aviso automático 30 días' },
@@ -705,9 +706,9 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
             '¡Hola! Me interesa la Asesoría Orientativa (yo presento la solicitud con la orientación y revisión técnica de ustedes). ¿Me pueden enviar los detalles?',
         },
         completa: {
-          kicker: 'Modalidad 02 · Gestión integral',
+          kicker: 'Modalidad 02 · Gestión exclusiva de inmigración',
           nome: 'Asesoría Completa',
-          subtitulo: 'Gestión de extremo a extremo de tu residencia y relocation en Chile.',
+          subtitulo: 'Gestión de extremo a extremo exclusivamente de tu proceso migratorio (Visas SERMIG, PDI y RUT).',
           escopoPrefix: 'Ejecución:',
           responsavelProtocolo: 'El equipo de D&M Integra Chile conduce todo el trámite',
           inclui: [
@@ -858,10 +859,10 @@ export const SITE_TRANSLATIONS: Record<SiteLocale, SiteTranslations> = {
       understandLawCta: 'Entiende la Ley (Resumen claro para clientes)',
       quemSomosEyebrow: 'Quiénes Somos',
       quemSomosCta: 'Conocer trayectoria y credenciales',
-      partnersFallbackTitle: 'Aliados recomendados',
+      partnersFallbackTitle: 'Aliados de Confianza',
       partnersFallbackSubtitle:
-        'Red validada en Brasil y Chile para apostillas, traducciones certificadas y relocation.',
-      partnersDefaultCta: 'Ver toda la red y Postular como Aliado',
+        'Actuamos exclusivamente en inmigración (Visas, PDI y RUT). La vivienda no es un servicio garantizado: actuamos solo como puente de indicación curada hacia aliados inmobiliarios y especialistas independientes.',
+      partnersDefaultCta: 'Conocer Aliados de Confianza',
       contatoKicker: 'Siguiente Paso',
       contatoDefaultCta: 'Iniciar Diagnóstico Ahora',
       contatoWhatsappCta: 'Atención por WhatsApp',

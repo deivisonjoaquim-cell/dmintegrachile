@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MotionConfig } from 'motion/react';
 import {
   ArrowRight,
+  BadgeCheck,
   Building2,
   Check,
   CheckCircle2,
@@ -29,6 +30,7 @@ import {
 import { ClientTestimonialsCarousel } from '../components/ClientTestimonialsCarousel';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { PartnerGeolocationMap } from '../components/PartnerGeolocationMap';
+import { TrustedPartnersShowcase } from '../components/partners/TrustedPartnersShowcase';
 import {
   PartnerSynergyAnalyzer,
   type PartnerSynergyResult,
@@ -490,18 +492,18 @@ export const ParceirosPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className="h-px w-8 bg-[#C9A86A]" />
                 <p className="text-xs font-semibold tracking-[0.08em] uppercase text-[#C9A86A]">
-                  {isEs ? 'Red de Aliados Indicados · Brasil y Chile' : 'Rede de Profissionais Indicados · Brasil & Chile'}
+                  {isEs ? 'Aliados de Confianza · Puente Transparente' : 'Parceiros de Confiança · Ponte de Indicação Curada'}
                 </p>
               </div>
               <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight leading-[1.08] text-white text-balance">
                 {isEs
-                  ? 'Especialistas independientes recomendados para complementar tu proceso en Chile'
-                  : 'Profissionais parceiros indicados para o que vai além do seu visto, PDI e RUT'}
+                  ? 'Actuamos exclusivamente en inmigración; conectamos con aliados inmobiliarios y especialistas de confianza'
+                  : 'Assessoria exclusiva em imigração (Vistos, PDI e RUT) e ponte curada para parceiros de confiança'}
               </h1>
               <p className="text-base sm:text-lg text-slate-200 leading-relaxed max-w-2xl">
                 {isEs
-                  ? 'Nuestra consultoría conduce tu regularización migratoria hasta Visa, PDI y RUT. Para vivienda, traducciones juradas, notarías, contabilidad, asesoría legal y salud, recomendamos aliados independientes verificados.'
-                  : 'A D&M conduz diretamente sua regularização migratória até Vistos (SERMIG), PDI e RUT. Para imóveis, traduções juramentadas, cartórios, contabilidade, advocacia e saúde, indicamos profissionais independentes avaliados.'}
+                  ? 'La vivienda no es un servicio garantizado por D&M Integra Chile. Actuamos únicamente como puente transparente de indicación hacia corredores inmobiliarios, traductores jurados, contadores y abogados independientes validados.'
+                  : 'A moradia não é um serviço garantido pela D&M Integra Chile. Atuamos exclusivamente na regularização migratória e servimos apenas como ponte de indicação curada para corretores imobiliários, tradutores, contadores e advogados de confiança.'}
               </p>
               <div className="flex flex-wrap items-center gap-3.5 pt-2">
                 <button
@@ -697,55 +699,24 @@ export const ParceirosPage: React.FC = () => {
                 </section>
               )}
 
-              {/* Transparent Referral Model Bar */}
-              <section
-                aria-label={isEs ? 'Cómo funciona nuestra red de derivaciones' : 'Como funciona nossa rede de indicações'}
-                className="grid grid-cols-1 md:grid-cols-3 rounded-2xl overflow-hidden border border-[#E5E7EB] dark:border-[#1E293B] bg-white dark:bg-[#0D1422] divide-y md:divide-y-0 md:divide-x divide-[#E5E7EB] dark:divide-[#1E293B]"
-              >
-                <div className="p-6 space-y-2">
-                  <p className="font-mono text-[11px] font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
-                    01 · {isEs ? 'ALCANCE TRANSPARENTE' : 'ESCOPO TRANSPARENTE'}
-                  </p>
-                  <h2 className="font-display text-base font-bold text-[#0B1628] dark:text-white">
-                    {isEs ? 'D&M llega hasta Visa, PDI y RUT' : 'D&M conduz até Visto, PDI e RUT'}
-                  </h2>
-                  <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                    {isEs
-                      ? 'Nuestra consultoría abarca hasta Visa, PDI y RUT; para vivienda y demás etapas en Chile, derivamos con transparencia a especialistas aliados.'
-                      : 'Nossa consultoria atua até Visto, PDI e RUT; para imóveis e demais demandas fora do processo migratório, fazemos indicação transparente de profissionais parceiros.'}
-                  </p>
-                </div>
-                <div className="p-6 space-y-2">
-                  <p className="font-mono text-[11px] font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
-                    02 · {isEs ? 'CURADURÍA PREVIA' : 'CURADORIA PRÉVIA'}
-                  </p>
-                  <h2 className="font-display text-base font-bold text-[#0B1628] dark:text-white">
-                    {isEs ? 'Especialistas evaluados' : 'Profissionais selecionados'}
-                  </h2>
-                  <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                    {isEs
-                      ? 'Cada aliado es revisado por historial técnico, claridad comercial y experiencia atendiendo brasileños en Chile.'
-                      : 'Cada parceiro listado passa por triagem de histórico, postura ética e experiência no atendimento a brasileiros.'}
-                  </p>
-                </div>
-                <div className="p-6 space-y-2">
-                  <p className="font-mono text-[11px] font-semibold text-[#0F3D91] dark:text-[#60A5FA]">
-                    03 · {isEs ? 'CONTRATACIÓN DIRECTA' : 'CONTRATAÇÃO DIRETA'}
-                  </p>
-                  <h2 className="font-display text-base font-bold text-[#0B1628] dark:text-white">
-                    {isEs ? 'Libertad total de elección' : 'Autonomia e contato direto'}
-                  </h2>
-                  <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                    {isEs
-                      ? 'Conversas directamente con el especialista indicado, comparas presupuestos y contratas libremente según tus necesidades.'
-                      : 'Você conversa diretamente com o profissional indicado pelo WhatsApp, analisa propostas e decide com total autonomia.'}
-                  </p>
-                </div>
-              </section>
+              {/* Parceiros de Confiança: Selos de Validação, Fotos dos Profissionais & Ponte de Indicação */}
+              <div id="diretorio-parceiros" className="scroll-mt-32">
+                <TrustedPartnersShowcase
+                  variant="directory"
+                  locale={locale}
+                  whatsapp={empresa.whatsapp}
+                  partnersPublic={partnersPublic}
+                  onSelectPartner={(partner) => setSelectedPartner(partner)}
+                  onOpenProposalTab={() => {
+                    setActiveTab('seja_parceiro');
+                    scrollToSection('seja-parceiro-form');
+                  }}
+                />
+              </div>
 
-              {/* Clean Filter & Directory Section */}
-              <section id="diretorio-parceiros" className="scroll-mt-32 space-y-8">
-                {partnersPublic.length > 0 && (
+              {/* Clean Filter & Directory Section (shown when active catalog partners exist) */}
+              {partnersPublic.length > 0 && (
+              <section className="scroll-mt-32 space-y-8">
                 <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-5 sm:p-6 space-y-5">
                   <div className="flex flex-wrap items-center gap-2">
                     {PARTNER_MACRO_GROUPS.map((group) => {
@@ -833,87 +804,20 @@ export const ParceirosPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-                )}
 
                 {filteredPartners.length === 0 ? (
-                  partnersPublic.length === 0 ? (
-                    <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-2xl p-8 sm:p-10 space-y-6">
-                      <div className="max-w-2xl space-y-2">
-                        <p className="text-xs font-mono font-semibold uppercase tracking-[0.06em] text-[#0F3D91] dark:text-[#C9A86A]">
-                          {isEs ? 'Curaduría Activa · Indicaciones Personalizadas' : 'Curadoria Ativa · Indicações Personalizadas'}
-                        </p>
-                        <h3 className="font-display text-xl sm:text-2xl font-bold text-[#0B1628] dark:text-white">
-                          {isEs
-                            ? '¿Necesitas un profesional indicado en Brasil o Chile?'
-                            : 'Precisa de indicação de profissional no Brasil ou no Chile?'}
-                        </h3>
-                        <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                          {isEs
-                            ? 'Nuestro catálogo público está en actualización con nuevos aliados homologados. Mientras tanto, nuestro equipo realiza derivaciones personalizadas para vivienda/arriendo, traducciones juradas, notarías, contabilidad SpA, abogacía y seguros.'
-                            : 'Nosso catálogo público está recebendo novos parceiros homologados. Enquanto isso, nossa equipe faz indicações diretas e personalizadas para imóveis/moradia, traduções juramentadas, cartórios, contabilidade SpA, advocacia complementar e seguros.'}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {HIGH_DEMAND_AREAS.map((area) => {
-                          const Icon = getCategoryIcon(area.category);
-                          return (
-                            <div
-                              key={area.category}
-                              className="p-4 rounded-xl bg-[#F7F8FA] dark:bg-[#151F32] border border-[#E5E7EB] dark:border-[#1E293B] space-y-2"
-                            >
-                              <div className="flex items-center gap-2 text-[11px] font-semibold text-[#0F3D91] dark:text-[#C9A86A]">
-                                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                <span>{isEs ? area.stageEs : area.stagePt}</span>
-                              </div>
-                              <p className="font-display text-sm font-bold text-[#0B1628] dark:text-white">
-                                {translatePartnerCategory(area.category, locale)}
-                              </p>
-                              <p className="text-xs text-[#4B5563] dark:text-slate-300 leading-relaxed">
-                                {isEs ? area.demandEs : area.demandPt}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 pt-2">
-                        <a
-                          href={buildWhatsAppUrl(
-                            empresa.whatsapp,
-                            isEs
-                              ? '¡Hola! Me gustaría solicitar una indicación de profesional aliado (vivienda, traducción, contabilidad u otra área) a través de D&M Integra Chile.'
-                              : 'Olá! Gostaria de solicitar a indicação de um profissional parceiro (imóveis, tradução, contabilidade ou outra área) pela D&M Integra Chile.',
-                          )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#0B1628] dark:bg-[#E5C77B] text-white dark:text-[#070E1C] text-xs font-semibold hover:opacity-90 transition-opacity"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          {isEs ? 'Solicitar indicación por WhatsApp' : 'Solicitar indicação pelo WhatsApp'}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('seja_parceiro')}
-                          className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-[#D1D5DB] dark:border-[#334155] text-xs font-semibold text-[#0B1628] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#151F32] transition-colors"
-                        >
-                          {isEs ? 'Quiero postular como aliado B2B' : 'Quero me cadastrar como parceiro'}
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-12 text-center space-y-3">
-                      <p className="text-base font-semibold text-[#0B1628] dark:text-white">
-                        {isEs ? 'Ningún aliado coincide con los filtros.' : 'Nenhum parceiro encontrado para esses filtros.'}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={resetFilters}
-                        className="px-4 py-2 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white"
-                      >
-                        {isEs ? 'Mostrar todos' : 'Ver todos os parceiros'}
-                      </button>
-                    </div>
-                  )
+                  <div className="bg-white dark:bg-[#0D1422] border border-[#E5E7EB] dark:border-[#1E293B] rounded-xl p-12 text-center space-y-3">
+                    <p className="text-base font-semibold text-[#0B1628] dark:text-white">
+                      {isEs ? 'Ningún aliado coincide con los filtros.' : 'Nenhum parceiro encontrado para esses filtros.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold text-white dark:text-[#0B1628] bg-[#0B1628] dark:bg-white"
+                    >
+                      {isEs ? 'Mostrar todos' : 'Ver todos os parceiros'}
+                    </button>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredPartners.map((partner) => {
@@ -963,6 +867,15 @@ export const ParceirosPage: React.FC = () => {
                               </button>
                             </div>
 
+                            <div className="flex items-center gap-2 text-[11px] font-mono font-semibold text-[#0F3D91] dark:text-[#C9A86A]">
+                              <BadgeCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                              <span>
+                                {isEs
+                                  ? 'Sello Curaduría D&M · Indicación Independiente'
+                                  : 'Selo Curadoria D&M · Indicação Independente'}
+                              </span>
+                            </div>
+
                             <p className="text-sm text-[#4B5563] dark:text-slate-300 leading-relaxed line-clamp-3">
                               {partner.descricaoPublica}
                             </p>
@@ -1010,6 +923,7 @@ export const ParceirosPage: React.FC = () => {
                   </div>
                 )}
               </section>
+              )}
 
               {/* Interactive Chile Partner Map */}
               <PartnerGeolocationMap
